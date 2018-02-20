@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package envoy.api.v2;
-option go_package = "api";
+package cilium;
+option go_package = "cilium";
 
-import "api/discovery.proto";
+import "envoy/api/v2/discovery.proto";
 
 import "google/api/annotations.proto";
 
@@ -13,11 +13,11 @@ import "validate/validate.proto";
 
 // Each resource name is a network policy identifier in decimal, e.g. `123`.
 service NetworkPolicyHostsDiscoveryService {
-  rpc StreamNetworkPolicyHosts(stream DiscoveryRequest)
-      returns (stream DiscoveryResponse) {
+  rpc StreamNetworkPolicyHosts(stream envoy.api.v2.DiscoveryRequest)
+      returns (stream envoy.api.v2.DiscoveryResponse) {
   }
 
-  rpc FetchNetworkPolicyHosts(DiscoveryRequest) returns (DiscoveryResponse) {
+  rpc FetchNetworkPolicyHosts(envoy.api.v2.DiscoveryRequest) returns (envoy.api.v2.DiscoveryResponse) {
     option (google.api.http) = {
       post: "/v2/discovery:network_policy_hosts"
       body: "*"

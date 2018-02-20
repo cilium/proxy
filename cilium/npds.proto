@@ -1,11 +1,11 @@
 syntax = "proto3";
 
-package envoy.api.v2;
-option go_package = "api";
+package cilium;
+option go_package = "cilium";
 
-import "api/address.proto";
-import "api/discovery.proto";
-import "api/rds.proto";
+import "envoy/api/v2/core/address.proto";
+import "envoy/api/v2/discovery.proto";
+import "envoy/api/v2/route/route.proto";
 
 import "google/api/annotations.proto";
 
@@ -15,11 +15,11 @@ import "validate/validate.proto";
 
 // Each resource name is a network policy filter identifier.
 service NetworkPolicyDiscoveryService {
-  rpc StreamNetworkPolicies(stream DiscoveryRequest)
-      returns (stream DiscoveryResponse) {
+  rpc StreamNetworkPolicies(stream envoy.api.v2.DiscoveryRequest)
+      returns (stream envoy.api.v2.DiscoveryResponse) {
   }
 
-  rpc FetchNetworkPolicies(DiscoveryRequest) returns (DiscoveryResponse) {
+  rpc FetchNetworkPolicies(envoy.api.v2.DiscoveryRequest) returns (envoy.api.v2.DiscoveryResponse) {
     option (google.api.http) = {
       post: "/v2/discovery:network_policies"
       body: "*"
@@ -65,7 +65,7 @@ message PortNetworkPolicy {
 
   // The flows' L4 transport protocol.
   // Required.
-  SocketAddress.Protocol protocol = 2;
+  envoy.api.v2.core.SocketAddress.Protocol protocol = 2;
   // TODO: Fix protoc-gen-validate. Adding any validate.rules to protocol above results in generating broken C++ code.
 
   // The network policy rules to be enforced on the flows to the port.
@@ -113,5 +113,5 @@ message HttpNetworkPolicyRule {
   // * *:authority*: Also maps to the HTTP 1.1 *Host* header.
   //
   // Optional. If empty, matches any HTTP request.
-  repeated HeaderMatcher headers = 1;
+  repeated envoy.api.v2.route.HeaderMatcher headers = 1;
 }
