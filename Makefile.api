@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include ../Makefile.quiet
+include Makefile.quiet
 
 # Depends on Envoy dependencies, Envoy must be built first
 
 PROTOC ?= bazel-out/host/bin/external/com_google_protobuf/protoc
-ENVOY_API_PROTO_PATH = bazel-envoy/external/envoy/api
+ENVOY_API_PROTO_PATH = bazel-proxy/external/envoy/api
 CILIUM_PROTO_PATH = .
 PROTO_DEPS = \
-	-I bazel-envoy/external/com_google_protobuf/src \
-	-I bazel-envoy/external/googleapis \
-	-I bazel-envoy/external/com_lyft_protoc_gen_validate \
-	-I bazel-envoy/external/com_github_gogo_protobuf
+	-I bazel-proxy/external/com_google_protobuf/src \
+	-I bazel-proxy/external/googleapis \
+	-I bazel-proxy/external/com_lyft_protoc_gen_validate \
+	-I bazel-proxy/external/com_github_gogo_protobuf
 
-GO_OUT = ../pkg/envoy
+GO_OUT = go
 
 # Skip draft Envoy APIs that do not compile.
 ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy \( -name *.proto -and -not -path *service/trace/v2* -and -not -path *service/metrics/v2* \) -print))

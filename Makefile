@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-include ../Makefile.defs
+include Makefile.defs
 
 CILIUM_ENVOY_BIN = ./bazel-bin/envoy
 ISTIO_ENVOY_BIN = ./bazel-bin/istio-envoy
@@ -66,7 +66,8 @@ release: envoy-release api
 api: force-non-root Makefile.api
 	$(MAKE) -f Makefile.api all
 
-proxylib-hdrs: ../proxylib/libcilium.h ../proxylib/proxylib/types.h
+# This rule depends on cilium repo being placed in the same directory as this one.
+proxylib-hdrs: ../cilium/proxylib/libcilium.h ../cilium/proxylib/proxylib/types.h
 	-mkdir proxylib
 	cp $^ proxylib/.
 
