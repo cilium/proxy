@@ -5,7 +5,7 @@ package v2
 
 import (
 	fmt "fmt"
-	v2 "github.com/cilium/cilium/pkg/envoy/envoy/api/v2"
+	v2 "github.com/cilium/proxy/go/envoy/api/v2"
 	proto "github.com/golang/protobuf/proto"
 	context "golang.org/x/net/context"
 	_ "google.golang.org/genproto/googleapis/api/annotations"

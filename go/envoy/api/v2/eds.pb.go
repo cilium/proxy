@@ -5,8 +5,8 @@ package v2
 
 import (
 	fmt "fmt"
-	endpoint "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/endpoint"
-	_type "github.com/cilium/cilium/pkg/envoy/envoy/type"
+	endpoint "github.com/cilium/proxy/go/envoy/api/v2/endpoint"
+	_type "github.com/cilium/proxy/go/envoy/type"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"

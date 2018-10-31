@@ -5,7 +5,7 @@ package v2
 
 import (
 	fmt "fmt"
-	v2 "github.com/cilium/cilium/pkg/envoy/envoy/config/filter/accesslog/v2"
+	v2 "github.com/cilium/proxy/go/envoy/config/filter/accesslog/v2"
 	proto "github.com/golang/protobuf/proto"
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"
 	math "math"

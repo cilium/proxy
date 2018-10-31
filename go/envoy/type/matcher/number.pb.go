@@ -5,7 +5,7 @@ package matcher
 
 import (
 	fmt "fmt"
-	_type "github.com/cilium/cilium/pkg/envoy/envoy/type"
+	_type "github.com/cilium/proxy/go/envoy/type"
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/lyft/protoc-gen-validate/validate"
 	math "math"

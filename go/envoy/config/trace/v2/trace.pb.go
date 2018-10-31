@@ -5,7 +5,7 @@ package v2
 
 import (
 	fmt "fmt"
-	core "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/core"
+	core "github.com/cilium/proxy/go/envoy/api/v2/core"
 	proto "github.com/golang/protobuf/proto"
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	_ "github.com/lyft/protoc-gen-validate/validate"

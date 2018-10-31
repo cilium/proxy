@@ -5,8 +5,8 @@ package v2
 
 import (
 	fmt "fmt"
-	core "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/core"
-	v2 "github.com/cilium/cilium/pkg/envoy/envoy/config/filter/accesslog/v2"
+	core "github.com/cilium/proxy/go/envoy/api/v2/core"
+	v2 "github.com/cilium/proxy/go/envoy/config/filter/accesslog/v2"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"

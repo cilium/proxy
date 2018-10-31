@@ -5,8 +5,8 @@ package listener
 
 import (
 	fmt "fmt"
-	auth "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/auth"
-	core "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/core"
+	auth "github.com/cilium/proxy/go/envoy/api/v2/auth"
+	core "github.com/cilium/proxy/go/envoy/api/v2/core"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	_struct "github.com/golang/protobuf/ptypes/struct"

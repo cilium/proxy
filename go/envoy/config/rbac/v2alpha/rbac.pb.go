@@ -5,9 +5,9 @@ package v2alpha
 
 import (
 	fmt "fmt"
-	core "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/core"
-	route "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/route"
-	matcher "github.com/cilium/cilium/pkg/envoy/envoy/type/matcher"
+	core "github.com/cilium/proxy/go/envoy/api/v2/core"
+	route "github.com/cilium/proxy/go/envoy/api/v2/route"
+	matcher "github.com/cilium/proxy/go/envoy/type/matcher"
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/lyft/protoc-gen-validate/validate"
 	math "math"

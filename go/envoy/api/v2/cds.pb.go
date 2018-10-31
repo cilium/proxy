@@ -5,10 +5,10 @@ package v2
 
 import (
 	fmt "fmt"
-	auth "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/auth"
-	cluster "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/cluster"
-	core "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/core"
-	_type "github.com/cilium/cilium/pkg/envoy/envoy/type"
+	auth "github.com/cilium/proxy/go/envoy/api/v2/auth"
+	cluster "github.com/cilium/proxy/go/envoy/api/v2/cluster"
+	core "github.com/cilium/proxy/go/envoy/api/v2/core"
+	_type "github.com/cilium/proxy/go/envoy/type"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"

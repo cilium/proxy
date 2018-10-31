@@ -5,7 +5,7 @@ package v2
 
 import (
 	fmt "fmt"
-	v2alpha "github.com/cilium/cilium/pkg/envoy/envoy/config/rbac/v2alpha"
+	v2alpha "github.com/cilium/proxy/go/envoy/config/rbac/v2alpha"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/lyft/protoc-gen-validate/validate"

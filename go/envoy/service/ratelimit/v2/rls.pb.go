@@ -5,8 +5,8 @@ package v2
 
 import (
 	fmt "fmt"
-	core "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/core"
-	ratelimit "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/ratelimit"
+	core "github.com/cilium/proxy/go/envoy/api/v2/core"
+	ratelimit "github.com/cilium/proxy/go/envoy/api/v2/ratelimit"
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/lyft/protoc-gen-validate/validate"
 	context "golang.org/x/net/context"

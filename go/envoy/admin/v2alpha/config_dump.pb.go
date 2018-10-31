@@ -5,8 +5,8 @@ package envoy_admin_v2alpha
 
 import (
 	fmt "fmt"
-	v21 "github.com/cilium/cilium/pkg/envoy/envoy/api/v2"
-	v2 "github.com/cilium/cilium/pkg/envoy/envoy/config/bootstrap/v2"
+	v21 "github.com/cilium/proxy/go/envoy/api/v2"
+	v2 "github.com/cilium/proxy/go/envoy/config/bootstrap/v2"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	any "github.com/golang/protobuf/ptypes/any"

@@ -5,7 +5,7 @@ package v2
 
 import (
 	fmt "fmt"
-	v2 "github.com/cilium/cilium/pkg/envoy/envoy/config/filter/fault/v2"
+	v2 "github.com/cilium/proxy/go/envoy/config/filter/fault/v2"
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/lyft/protoc-gen-validate/validate"
 	math "math"

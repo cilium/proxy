@@ -5,7 +5,7 @@ package v2
 
 import (
 	fmt "fmt"
-	ratelimit "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/ratelimit"
+	ratelimit "github.com/cilium/proxy/go/envoy/api/v2/ratelimit"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"

@@ -5,9 +5,9 @@ package cilium
 
 import (
 	fmt "fmt"
-	v2 "github.com/cilium/cilium/pkg/envoy/envoy/api/v2"
-	core "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/core"
-	route "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/route"
+	v2 "github.com/cilium/proxy/go/envoy/api/v2"
+	core "github.com/cilium/proxy/go/envoy/api/v2/core"
+	route "github.com/cilium/proxy/go/envoy/api/v2/route"
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/lyft/protoc-gen-validate/validate"
 	context "golang.org/x/net/context"

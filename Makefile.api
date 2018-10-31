@@ -35,7 +35,7 @@ ENVOY_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(ENVOY_API_PROTOS))
 ENVOY_PROTO_DIRS := $(sort $(dir $(ENVOY_PROTO_SOURCES)))
 ENVOY_GO_TARGETS := $(addprefix $(GO_OUT)/,$(ENVOY_API_PROTOS:.proto=.pb.go))
 # Produce a raw list of package mappings
-RAW_GO_MAPPINGS := $(foreach proto,$(ENVOY_API_PROTOS),$(proto)=github.com/cilium/cilium/pkg/envoy/$(dir $(proto)))
+RAW_GO_MAPPINGS := $(foreach proto,$(ENVOY_API_PROTOS),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
 
 CILIUM_PROTO_SOURCES := \
 	cilium/accesslog.proto \
@@ -47,7 +47,7 @@ CILIUM_PROTO_SOURCES := \
 CILIUM_PROTO_DIRS := $(sort $(dir $(CILIUM_PROTO_SOURCES)))
 CILIUM_GO_TARGETS := $(addprefix $(GO_OUT)/,$(CILIUM_PROTO_SOURCES:.proto=.pb.go)) \
 	$(addprefix $(GO_OUT)/,$(CILIUM_PROTO_SOURCES:.proto=.pb.validate.go))
-RAW_GO_MAPPINGS += $(foreach proto,$(CILIUM_PROTO_SOURCES),$(proto)=github.com/cilium/cilium/pkg/envoy/$(dir $(proto)))
+RAW_GO_MAPPINGS += $(foreach proto,$(CILIUM_PROTO_SOURCES),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
 
 # Add mappings to vendored dependencies
 RAW_GO_MAPPINGS += gogoproto/gogo.proto=github.com/gogo/protobuf/gogoproto/

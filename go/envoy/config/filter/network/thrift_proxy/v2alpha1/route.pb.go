@@ -5,7 +5,7 @@ package v2
 
 import (
 	fmt "fmt"
-	route "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/route"
+	route "github.com/cilium/proxy/go/envoy/api/v2/route"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/lyft/protoc-gen-validate/validate"

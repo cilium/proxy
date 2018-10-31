@@ -5,8 +5,8 @@ package v2
 
 import (
 	fmt "fmt"
-	core "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/core"
-	route "github.com/cilium/cilium/pkg/envoy/envoy/api/v2/route"
+	core "github.com/cilium/proxy/go/envoy/api/v2/core"
+	route "github.com/cilium/proxy/go/envoy/api/v2/route"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"
