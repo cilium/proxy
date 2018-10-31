@@ -38,10 +38,7 @@ STRIP ?= $(QUIET) strip
 
 ISTIO_VERSION = 1.0.2
 
-ifdef CILIUM_DISABLE_ENVOY_BUILD
-all install clean:
-	echo "Envoy build is disabled by environment variable CILIUM_DISABLE_ENVOY_BUILD"
-else
+DOCKER=$(QUIET)docker
 
 # Dockerfile builds require special options
 ifdef PKG_BUILD
@@ -59,6 +56,31 @@ shutdown-bazel:
 	$(BAZEL) shutdown
 endif
 
+SOURCE_VERSION =
+
+# Use git only if in a Git repo
+ifneq ($(wildcard $(dir $(lastword $(MAKEFILE_LIST)))/.git),)
+	SOURCE_VERSION = $(shell git rev-parse HEAD)
+else
+	SOURCE_VERSION = $(shell cat SOURCE_VERSION)
+endif
+
+SOURCE_VERSION: .git
+	echo $(SOURCE_VERSION) >SOURCE_VERSION
+
+docker-image-builder: Dockerfile.builder
+	docker build -f $< -t "quay.io/cilium/cilium-builder:$(SOURCE_VERSION)" .
+
+docker-image-envoy: Dockerfile clean SOURCE_VERSION
+	echo $(SOURCE_VERSION)
+	$(QUIET)grep -v -E "(SOURCE|GIT)_VERSION" .gitignore >.dockerignore
+	$(QUIET)echo ".*" >>.dockerignore # .git pruned out
+	$(QUIET)echo "Documentation" >>.dockerignore # Not needed
+	@$(ECHO_GEN) docker-image-envoy
+	$(DOCKER) build --build-arg LOCKDEBUG=${LOCKDEBUG} --build-arg V=${V} -t "cilium/cilium-envoy:$(SOURCE_VERSION)" .
+	$(QUIET)echo "Push like this when ready:"
+	$(QUIET)echo "docker push cilium/cilium-envoy:$(SOURCE_VERSION)"
+
 debug: envoy-debug api
 
 release: envoy-release api
@@ -66,28 +88,19 @@ release: envoy-release api
 api: force-non-root Makefile.api
 	$(MAKE) -f Makefile.api all
 
-# This rule depends on cilium repo being placed in the same directory as this one.
-proxylib-hdrs: ../cilium/proxylib/libcilium.h ../cilium/proxylib/proxylib/types.h
-	-mkdir proxylib
-	cp $^ proxylib/.
-
-proxylib-bin: ../proxylib/libcilium.so
-	-mkdir proxylib
-	cp $^ proxylib/.
-
-envoy-default: force-non-root proxylib-hdrs
+envoy-default: force-non-root
 	@$(ECHO_BAZEL)
 	-rm -f bazel-out/k8-fastbuild/bin/_objs/envoy/external/envoy/source/common/common/version_linkstamp.o
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:envoy $(BAZEL_FILTER)
 
 # Allow root build for release
-$(CILIUM_ENVOY_BIN) envoy-release: force proxylib-hdrs
+$(CILIUM_ENVOY_BIN) envoy-release: force
 	@$(ECHO_BAZEL)
 	-rm -f bazel-out/k8-opt/bin/_objs/envoy/external/envoy/source/common/common/version_linkstamp.o
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:envoy $(BAZEL_FILTER)
 
 # Allow root build for release
-$(ISTIO_ENVOY_BIN) $(ISTIO_ENVOY_RELEASE_BIN): force proxylib-hdrs
+$(ISTIO_ENVOY_BIN) $(ISTIO_ENVOY_RELEASE_BIN): force
 	@$(ECHO_BAZEL)
 	-rm -f bazel-out/k8-opt/bin/_objs/istio-envoy/external/envoy/source/common/common/version_linkstamp.o
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:istio-envoy $(BAZEL_FILTER)
@@ -102,7 +115,7 @@ docker-istio-proxy: Dockerfile.istio_proxy $(ISTIO_ENVOY_RELEASE_BIN) envoy_boot
 docker-istio-proxy-debug: Dockerfile.istio_proxy_debug $(ISTIO_ENVOY_RELEASE_BIN) envoy_bootstrap_tmpl.json
 	-docker build -f $< -t cilium/istio_proxy_debug:$(ISTIO_VERSION) .
 
-envoy-debug: force-non-root proxylib-hdrs
+envoy-debug: force-non-root
 	@$(ECHO_BAZEL)
 	-rm -f bazel-out/k8-dbg/bin/_objs/envoy/external/envoy/source/common/common/version_linkstamp.o
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c dbg //:envoy $(BAZEL_FILTER)
@@ -153,11 +166,11 @@ fix: $(CHECK_FORMAT) force-non-root
 	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) $(CHECK_FORMAT) --add-excluded-prefixes="./linux/" fix
 
 # Run tests using the fastbuild by default.
-tests: force-non-root proxylib-hdrs proxylib-bin
+tests: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c fastbuild $(BAZEL_TEST_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c fastbuild $(BAZEL_TEST_OPTS) //:cilium_integration_test $(BAZEL_FILTER)
 
-debug-tests: force-non-root proxylib-hdrs proxylib-bin
+debug-tests: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c debug $(BAZEL_TEST_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c debug $(BAZEL_TEST_OPTS) //:cilium_integration_test $(BAZEL_FILTER)
 
@@ -182,6 +195,4 @@ endif
 force-non-root:
 ifeq ($(USER),root)
 	$(error This target cannot be run as root!)
-endif
-
 endif

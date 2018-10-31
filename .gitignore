@@ -1,0 +1,35 @@
+.DS_Store
+.idea/
+*.plist
+
+outgoing
+
+*cscope.files
+*cscope.out
+*cscope.in.out
+*cscope.po.out
+*tags
+
+man/
+
+# Bazel symlinks
+bazel-*
+istio-envoy
+Dockerfile.istio_proxy
+Dockerfile.istio_proxy_debug
+
+# Emacs backup files
+*~
+
+# Automatically generated when needed
+.dockerignore
+
+# Temporary files that allow build containers/VMs work without git
+GIT_VERSION
+SOURCE_VERSION
+
+# To run Envoy tests under gdb do "cd envoy && make debug && ln -s bazel-envoy/external external"
+external
+
+# generated from make targets
+*.ok

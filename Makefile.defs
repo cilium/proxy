@@ -11,28 +11,3 @@ CONFDIR?=/etc
 GO_NOQUIET = go
 GO = $(QUIET)$(GO_NOQUIET)
 INSTALL = $(QUIET)install
-
-VERSION = $(shell cat $(dir $(lastword $(MAKEFILE_LIST)))/VERSION)
-# Use git only if in a Git repo
-ifneq ($(wildcard $(dir $(lastword $(MAKEFILE_LIST)))/.git),)
-	GIT_VERSION = $(shell git show -s --format='format:%h %aI')
-else
-	GIT_VERSION = $(shell cat $(ROOT_DIR)/GIT_VERSION)
-endif
-BUILD = $(VERSION) $(GIT_VERSION) $(shell go version)
-GOBUILD = -ldflags '-X "github.com/cilium/cilium/pkg/version.Version=$(BUILD)"'
-
-# Uncomment to enable race detection
-#GOBUILD += -race
-
-# Uncomment to enable deadlock detection
-#GOBUILD += -tags lockdebug
-
-ifneq ($(LOCKDEBUG),)
-    GOBUILD += -tags lockdebug
-endif
-
-# Set DOCKER_IMAGE_TAG with "latest" by default
-ifeq ($(DOCKER_IMAGE_TAG),)
-    DOCKER_IMAGE_TAG="latest"
-endif
