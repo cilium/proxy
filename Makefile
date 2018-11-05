@@ -43,11 +43,15 @@ DOCKER=$(QUIET)docker
 # Dockerfile builds require special options
 ifdef PKG_BUILD
 BAZEL_BUILD_OPTS = --spawn_strategy=standalone --genrule_strategy=standalone --local_resources 4096,2.0,1.0 --jobs=3
-all: clean-bins release shutdown-bazel
+all: install-bazel clean-bins release shutdown-bazel
 else
 BAZEL_BUILD_OPTS = --experimental_strict_action_env --local_resources 4096,2.0,1.0 --jobs=3
-all: clean-bins envoy-default api shutdown-bazel
+all: install-bazel clean-bins envoy-default api shutdown-bazel
 endif
+
+# Fetch and install Bazel if needed
+install-bazel:
+	tools/install_bazel.sh `cat BAZEL_VERSION`
 
 ifdef KEEP_BAZEL_RUNNING
 shutdown-bazel:
@@ -175,6 +179,8 @@ debug-tests: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c debug $(BAZEL_TEST_OPTS) //:cilium_integration_test $(BAZEL_FILTER)
 
 .PHONY: \
+	install-bazel \
+	shutdown-bazel \
 	bazel-restore \
 	docker-istio-proxy \
 	docker-istio-proxy-debug \
