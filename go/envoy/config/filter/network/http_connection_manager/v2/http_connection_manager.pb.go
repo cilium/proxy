@@ -248,7 +248,7 @@ type HttpConnectionManager struct {
 	// is not specified. See the documentation for
 	// :ref:`config_http_conn_man_headers_x-forwarded-for` for more information.
 	XffNumTrustedHops uint32 `protobuf:"varint,19,opt,name=xff_num_trusted_hops,json=xffNumTrustedHops,proto3" json:"xff_num_trusted_hops,omitempty"`
-	// Configures what network addresses are considered internal for stats and header sanitazion
+	// Configures what network addresses are considered internal for stats and header sanitation
 	// purposes. If unspecified, only RFC1918 IP addresses will be considered internal.
 	// See the documentation for :ref:`config_http_conn_man_headers_x-envoy-internal` for more
 	// information about internal/external addresses.
