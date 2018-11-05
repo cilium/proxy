@@ -140,7 +140,7 @@ type Locality struct {
 	Region string `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
 	// Defines the local service zone where Envoy is running. Though optional, it
 	// should be set if discovery service routing is used and the discovery
-	// service exposes :ref:`zone data <config_cluster_manager_sds_api_host_az>`,
+	// service exposes :ref:`zone data <envoy_api_field_endpoint.LocalityLbEndpoints.locality>`,
 	// either in this message or via :option:`--service-zone`. The meaning of zone
 	// is context dependent, e.g. `Availability Zone (AZ)
 	// <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html>`_
@@ -216,9 +216,10 @@ type Node struct {
 	// Defines the local service cluster name where Envoy is running. Though
 	// optional, it should be set if any of the following features are used:
 	// :ref:`statsd <arch_overview_statistics>`, :ref:`health check cluster
-	// verification <config_cluster_manager_cluster_hc_service_name>`,
-	// :ref:`runtime override directory <config_runtime_override_subdirectory>`,
-	// :ref:`user agent addition <config_http_conn_man_add_user_agent>`,
+	// verification <envoy_api_field_core.HealthCheck.HttpHealthCheck.service_name>`,
+	// :ref:`runtime override directory <envoy_api_msg_config.bootstrap.v2.Runtime>`,
+	// :ref:`user agent addition
+	// <envoy_api_field_config.filter.network.http_connection_manager.v2.HttpConnectionManager.add_user_agent>`,
 	// :ref:`HTTP global rate limiting <config_http_filters_rate_limit>`,
 	// :ref:`CDS <config_cluster_manager_cds>`, and :ref:`HTTP tracing
 	// <arch_overview_tracing>`, either in this message or via
@@ -681,7 +682,7 @@ func _DataSource_OneofSizer(msg proto.Message) (n int) {
 }
 
 // Configuration for transport socket in :ref:`listeners <config_listeners>` and
-// :ref:`clusters <config_cluster_manager_cluster>`. If the configuration is
+// :ref:`clusters <envoy_api_msg_Cluster>`. If the configuration is
 // empty, a default transport socket implementation and configuration will be
 // chosen based on the platform and existence of tls_context.
 type TransportSocket struct {

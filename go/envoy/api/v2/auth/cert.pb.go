@@ -483,7 +483,7 @@ type CommonTlsContext struct {
 	//   Although this is a list, currently only a single certificate is supported. This will be
 	//   relaxed in the future.
 	TlsCertificates []*TlsCertificate `protobuf:"bytes,2,rep,name=tls_certificates,json=tlsCertificates,proto3" json:"tls_certificates,omitempty"`
-	// [#not-implemented-hide:]
+	// Configs for fetching TLS certificates via SDS API.
 	TlsCertificateSdsSecretConfigs []*SdsSecretConfig `protobuf:"bytes,6,rep,name=tls_certificate_sds_secret_configs,json=tlsCertificateSdsSecretConfigs,proto3" json:"tls_certificate_sds_secret_configs,omitempty"`
 	// Types that are valid to be assigned to ValidationContextType:
 	//	*CommonTlsContext_ValidationContext
@@ -491,8 +491,9 @@ type CommonTlsContext struct {
 	ValidationContextType isCommonTlsContext_ValidationContextType `protobuf_oneof:"validation_context_type"`
 	// Supplies the list of ALPN protocols that the listener should expose. In
 	// practice this is likely to be set to one of two values (see the
-	// :ref:`codec_type <config_http_conn_man_codec_type>` parameter in the HTTP connection
-	// manager for more information):
+	// :ref:`codec_type
+	// <envoy_api_field_config.filter.network.http_connection_manager.v2.HttpConnectionManager.codec_type>`
+	// parameter in the HTTP connection manager for more information):
 	//
 	// * "h2,http/1.1" If the listener is going to support both HTTP/2 and HTTP/1.1.
 	// * "http/1.1" If the listener is only going to support HTTP/1.1.
@@ -959,7 +960,6 @@ func _DownstreamTlsContext_OneofSizer(msg proto.Message) (n int) {
 }
 
 // [#proto-status: experimental]
-// [#not-implemented-hide:]
 type SdsSecretConfig struct {
 	// Name (FQDN, UUID, SPKI, SHA256, etc.) by which the secret can be uniquely referred to.
 	// When both name and config are specified, then secret can be fetched and/or reloaded via SDS.
@@ -1011,7 +1011,6 @@ func (m *SdsSecretConfig) GetSdsConfig() *core.ConfigSource {
 }
 
 // [#proto-status: experimental]
-// [#not-implemented-hide:]
 type Secret struct {
 	// Name (FQDN, UUID, SPKI, SHA256, etc.) by which the secret can be uniquely referred to.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`

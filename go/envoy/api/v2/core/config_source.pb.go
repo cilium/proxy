@@ -177,8 +177,8 @@ func (m *AggregatedConfigSource) XXX_DiscardUnknown() {
 var xxx_messageInfo_AggregatedConfigSource proto.InternalMessageInfo
 
 // Configuration for :ref:`listeners <config_listeners>`, :ref:`clusters
-// <config_cluster_manager_cluster>`, :ref:`routes
-// <config_http_conn_man_route_table>`, :ref:`endpoints
+// <config_cluster_manager>`, :ref:`routes
+// <envoy_api_msg_RouteConfiguration>`, :ref:`endpoints
 // <arch_overview_service_discovery>` etc. may either be sourced from the
 // filesystem or from an xDS API source. Filesystem configs are watched with
 // inotify for updates.
