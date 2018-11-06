@@ -40,12 +40,13 @@ ISTIO_VERSION = 1.0.2
 
 DOCKER=$(QUIET)docker
 
+BAZEL_BUILD_OPTS ?= --jobs=3
+
 # Dockerfile builds require special options
 ifdef PKG_BUILD
-BAZEL_BUILD_OPTS = --spawn_strategy=standalone --genrule_strategy=standalone --local_resources 4096,2.0,1.0 --jobs=3
+BAZEL_BUILD_OPTS += --local_resources 4096,2.0,1.0
 all: install-bazel clean-bins release shutdown-bazel
 else
-BAZEL_BUILD_OPTS = --experimental_strict_action_env --local_resources 4096,2.0,1.0 --jobs=3
 all: install-bazel clean-bins envoy-default api shutdown-bazel
 endif
 
