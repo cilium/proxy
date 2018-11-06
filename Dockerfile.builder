@@ -4,60 +4,37 @@
 # it is possible that the image build needs more RAM than available by
 # default on non-Linux docker installs.
 #
-FROM ubuntu:18.04
-
+# Using cilium-builder as the base to ensure libc etc. are in sync.
+#
+FROM quay.io/cilium/cilium-builder:2018-11-01 as builder
 LABEL maintainer="maintainer@cilium.io"
-
 WORKDIR /go/src/github.com/cilium/cilium/envoy
 
 #
-# Env setup for Go (installed below)
-#
-ENV GOROOT /usr/local/go
-ENV GOPATH /go
-ENV PATH "$GOROOT/bin:$GOPATH/bin:$PATH"
-ENV GO_VERSION 1.11.1
-
-#
-# Build dependencies
+# Additional Envoy Build dependencies
 #
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
 	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-		apt-utils \
 		automake \
-		binutils \
-		ca-certificates \
 		cmake \
-		coreutils \
-		curl \
 		g++ \
-		gcc \
 		git \
-		libelf-dev \
 		libtool \
-		m4 \
 		make \
 		ninja-build \
-		pkg-config \
 		python \
-		rsync \
-		unzip \
 		wget \
 		zip \
-		zlib1g-dev \
 	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 #
-# Install Go
+# Install Additional Go deps
 #
-RUN curl -sfL https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz | tar -xzC /usr/local \
-	&& go get -u github.com/cilium/go-bindata/... \
-	&& go get -u github.com/golang/protobuf/protoc-gen-go \
+RUN go get -u github.com/golang/protobuf/protoc-gen-go \
 	&& go get -d github.com/lyft/protoc-gen-validate \
-	&& (cd /go/src/github.com/lyft/protoc-gen-validate ; git checkout 930a67cf7ba41b9d9436ad7a1be70a5d5ff6e1fc ; make build) \
-	&& go get -u github.com/gordonklaus/ineffassign
+	&& (cd /go/src/github.com/lyft/protoc-gen-validate ; git checkout 930a67cf7ba41b9d9436ad7a1be70a5d5ff6e1fc ; make build)
 
 #
 # Extract the needed Bazel version from the repo

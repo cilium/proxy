@@ -17,11 +17,12 @@ ifndef PKG_BUILD
 else
 ENVOY_DEPS_BIN = ./bazel-bin/envoy_deps
 BAZEL ?= bazel
+BAZEL_FILTER ?= 2>&1 | grep -v -e "bazel-out/.*/genfiles/external/.*: warning: directory does not exist."
 BAZEL_OPTS ?=
-BAZEL_BUILD_OPTS = --spawn_strategy=standalone --genrule_strategy=standalone
+BAZEL_BUILD_OPTS =
 
 envoy-release-deps: force
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:envoy_deps
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:envoy_deps $(BAZEL_FILTER)
 	rm $(ENVOY_DEPS_BIN)
 
 .PHONY: force

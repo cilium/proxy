@@ -69,7 +69,7 @@ SOURCE_VERSION: .git
 	echo $(SOURCE_VERSION) >SOURCE_VERSION
 
 docker-image-builder: Dockerfile.builder
-	docker build -f $< -t "quay.io/cilium/cilium-builder:$(SOURCE_VERSION)" .
+	docker build -f $< -t "quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)" .
 
 docker-image-envoy: Dockerfile clean SOURCE_VERSION
 	echo $(SOURCE_VERSION)
@@ -77,9 +77,9 @@ docker-image-envoy: Dockerfile clean SOURCE_VERSION
 	$(QUIET)echo ".*" >>.dockerignore # .git pruned out
 	$(QUIET)echo "Documentation" >>.dockerignore # Not needed
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build --build-arg LOCKDEBUG=${LOCKDEBUG} --build-arg V=${V} -t "cilium/cilium-envoy:$(SOURCE_VERSION)" .
+	$(DOCKER) build --build-arg LOCKDEBUG=${LOCKDEBUG} --build-arg V=${V} -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)" .
 	$(QUIET)echo "Push like this when ready:"
-	$(QUIET)echo "docker push cilium/cilium-envoy:$(SOURCE_VERSION)"
+	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)"
 
 debug: envoy-debug api
 
