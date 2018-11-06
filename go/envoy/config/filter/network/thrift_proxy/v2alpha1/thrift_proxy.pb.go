@@ -194,6 +194,7 @@ type ThriftFilter struct {
 	//
 	// [#comment:TODO(zuercher): Auto generate the following list]
 	// * :ref:`envoy.filters.thrift.router <config_thrift_filters_router>`
+	// * :ref:`envoy.filters.thrift.rate_limit <config_thrift_filters_rate_limit>`
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Filter specific configuration which depends on the filter being
 	// instantiated. See the supported filters for further documentation.

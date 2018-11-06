@@ -48,7 +48,7 @@ const (
 	// type<arch_overview_service_discovery_types_logical_dns>`
 	// for an explanation.
 	Cluster_LOGICAL_DNS Cluster_DiscoveryType = 2
-	// Refer to the :ref:`service discovery type<arch_overview_service_discovery_types_sds>`
+	// Refer to the :ref:`service discovery type<arch_overview_service_discovery_types_eds>`
 	// for an explanation.
 	Cluster_EDS Cluster_DiscoveryType = 3
 	// Refer to the :ref:`original destination discovery
@@ -1042,12 +1042,8 @@ func (m *Cluster_RingHashLbConfig) GetDeprecatedV1() *Cluster_RingHashLbConfig_D
 
 // [#not-implemented-hide:] Hide from docs.
 type Cluster_RingHashLbConfig_DeprecatedV1 struct {
-	// Defaults to true, meaning that std::hash is used to hash hosts onto
-	// the ketama ring. std::hash can vary by platform. For this reason,
-	// Envoy will eventually use `xxHash <https://github.com/Cyan4973/xxHash>`_
-	// by default. This field exists for
-	// migration purposes and will eventually be deprecated. Set it to false
-	// to use `xxHash <https://github.com/Cyan4973/xxHash>`_ now.
+	// Defaults to false, meaning that `xxHash <https://github.com/Cyan4973/xxHash>`_
+	// is to hash hosts onto the ketama ring.
 	UseStdHash           *wrappers.BoolValue `protobuf:"bytes,1,opt,name=use_std_hash,json=useStdHash,proto3" json:"use_std_hash,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
 	XXX_unrecognized     []byte              `json:"-"`

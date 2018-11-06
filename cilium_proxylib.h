@@ -71,7 +71,12 @@ struct ResetableSlice : GoSlice<T> {
   T* base_;
 };
 
-typedef GoSlice<GoString[2]> GoKeyValueSlice;
+struct GoStringPair {
+  GoString key;
+  GoString value;
+};
+ 
+typedef GoSlice<GoStringPair> GoKeyValueSlice;
 typedef uint64_t (*GoOpenModuleCB)(GoKeyValueSlice, bool);
 typedef void (*GoCloseModuleCB)(uint64_t);
  

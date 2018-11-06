@@ -35,7 +35,7 @@ type ExtAuthz struct {
 	//	*ExtAuthz_HttpService
 	Services isExtAuthz_Services `protobuf_oneof:"services"`
 	// The filter's behaviour in case the external authorization service does
-	// not respond back. When it is set to true, Envoy will also allow traffic in case of
+	// not respond back. When set to true, Envoy will also allow traffic in cases when
 	// an error occurs during the authorization process.
 	// Defaults to false.
 	FailureModeAllow     bool     `protobuf:"varint,2,opt,name=failure_mode_allow,json=failureModeAllow,proto3" json:"failure_mode_allow,omitempty"`
@@ -194,7 +194,7 @@ func _ExtAuthz_OneofSizer(msg proto.Message) (n int) {
 // A successful check allows the authorization service adding or overriding headers from the
 // original request before dispatching it to the upstream. This is done by configuring which headers
 // in the authorization response should be sent to the upstream. See *allowed_authorization_headers*
-// bellow.
+// below.
 //
 // A failed check will cause this filter to close the HTTP request with 403 (Forbidden),
 // unless a different status code has been indicated by the authorization server via response
