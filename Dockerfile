@@ -8,7 +8,7 @@
 # versions to be built while allowing the new versions to make changes
 # that are not backwards compatible.
 #
-FROM quay.io/cilium/cilium-builder:2018-10-29 as builder
+FROM quay.io/cilium/cilium-envoy-builder:9a1bae360e87c7db0f3cb2f3a726e73b5995e9a7 as builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /go/src/github.com/cilium/cilium/envoy
 COPY . ./
