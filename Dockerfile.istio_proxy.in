@@ -1,7 +1,12 @@
+#
+# Pre-built cilium-envoy image
+#
+FROM quay.io/cilium/cilium-envoy:84ee839e1d78ef858a39e390288ad417d35bb1d4 as cilium-envoy
+
 FROM istio/proxytproxy:@ISTIO_VERSION@
 
 # Replace Istio's Envoy binary with Cilium's.
-ADD cilium-envoy /usr/local/bin/envoy
+COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
 
 # pilot-agent and envoy may run with effective uid 0 in order to run envoy with
 # CAP_NET_ADMIN, so any iptables rule matching on "-m owner --uid-owner
