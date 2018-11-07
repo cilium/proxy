@@ -434,7 +434,7 @@ class CiliumHttpIntegrationTest
 
 public:
   CiliumHttpIntegrationTest(const std::string& config)
-    : HttpIntegrationTest(Http::CodecClient::Type::HTTP1, GetParam(), config),
+    : HttpIntegrationTest(Http::CodecClient::Type::HTTP1, GetParam(), realTime(), config),
       accessLogServer_(TestEnvironment::unixDomainSocketPath("access_log.sock")) {
     // Undo legacy compat rename done by HttpIntegrationTest constructor.
     // config_helper_.renameListener("cilium");
