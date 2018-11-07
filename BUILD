@@ -37,7 +37,7 @@ envoy_cc_binary(
         "@istio_proxy//src/envoy/http/jwt_auth:http_filter_factory",
         "@istio_proxy//src/envoy/http/mixer:filter_lib",
         "@istio_proxy//src/envoy/tcp/mixer:filter_lib",
-        # "@istio_proxy//src/envoy/alts:alts_socket_factory",
+        "@istio_proxy//src/envoy/tcp/tcp_cluster_rewrite:config_lib",
 
         "@envoy//source/exe:envoy_main_entry_lib",
     ],

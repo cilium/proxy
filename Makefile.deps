@@ -21,9 +21,9 @@ BAZEL_FILTER ?= 2>&1 | grep -v -e "bazel-out/.*/genfiles/external/.*: warning: d
 BAZEL_OPTS ?=
 BAZEL_BUILD_OPTS =
 
-envoy-release-deps: force
+envoy-deps: force
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:envoy_deps $(BAZEL_FILTER)
-	rm $(ENVOY_DEPS_BIN)
+	-rm $(ENVOY_DEPS_BIN)
 
 .PHONY: force
 force :;

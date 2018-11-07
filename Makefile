@@ -36,7 +36,7 @@ CLANG_FORMAT ?= clang-format
 BUILDIFIER ?= buildifier
 STRIP ?= $(QUIET) strip
 
-ISTIO_VERSION = 1.0.2
+ISTIO_VERSION = 1.1.0-snapshot.2
 
 DOCKER=$(QUIET)docker
 
@@ -76,11 +76,12 @@ SOURCE_VERSION: .git
 docker-image-builder: Dockerfile.builder
 	docker build -f $< -t "quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)" .
 
-docker-image-envoy: Dockerfile clean SOURCE_VERSION
+.dockerignore: .gitignore SOURCE_VERSION
 	echo $(SOURCE_VERSION)
-	$(QUIET)grep -v -E "(SOURCE|GIT)_VERSION" .gitignore >.dockerignore
+	$(QUIET)grep -v -e "(SOURCE|GIT)_VERSION" -e istio-envoy .gitignore >.dockerignore
 	$(QUIET)echo ".*" >>.dockerignore # .git pruned out
-	$(QUIET)echo "Documentation" >>.dockerignore # Not needed
+
+docker-image-envoy: Dockerfile clean .dockerignore 
 	@$(ECHO_GEN) docker-image-envoy
 	$(DOCKER) build --build-arg LOCKDEBUG=${LOCKDEBUG} --build-arg V=${V} -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)" .
 	$(QUIET)echo "Push like this when ready:"
@@ -114,10 +115,10 @@ $(ISTIO_ENVOY_BIN) $(ISTIO_ENVOY_RELEASE_BIN): force
 Dockerfile.%: Dockerfile.%.in
 	-sed "s/@ISTIO_VERSION@/$(ISTIO_VERSION)/" <$< >$@
 
-docker-istio-proxy: Dockerfile.istio_proxy $(ISTIO_ENVOY_RELEASE_BIN) envoy_bootstrap_tmpl.json
+docker-istio-proxy: Dockerfile.istio_proxy $(ISTIO_ENVOY_RELEASE_BIN) envoy_bootstrap_tmpl.json .dockerignore
 	-docker build -f $< -t cilium/istio_proxy:$(ISTIO_VERSION) .
 
-docker-istio-proxy-debug: Dockerfile.istio_proxy_debug $(ISTIO_ENVOY_RELEASE_BIN) envoy_bootstrap_tmpl.json
+docker-istio-proxy-debug: Dockerfile.istio_proxy_debug $(ISTIO_ENVOY_RELEASE_BIN) envoy_bootstrap_tmpl.json .dockerignore 
 	-docker build -f $< -t cilium/istio_proxy_debug:$(ISTIO_VERSION) .
 
 envoy-debug: force-non-root
