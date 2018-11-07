@@ -8,7 +8,7 @@
 
 #include "common/common/utility.h"
 
-#include "cilium_socket_option.h"
+#include "socket_option.h"
 
 namespace Envoy {
 namespace Cilium {

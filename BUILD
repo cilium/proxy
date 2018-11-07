@@ -3,18 +3,20 @@ licenses(["notice"])  # Apache 2
 load(
     "@envoy//bazel:envoy_build_system.bzl",
     "envoy_cc_binary",
-    "envoy_cc_library",
     "envoy_cc_test",
 )
+
+exports_files(["linux/bpf_common.h", "linux/bpf.h", "linux/type_mapper.h",
+               "proxylib/libcilium.h", "proxylib/types.h"])
 
 envoy_cc_binary(
     name = "envoy",
     repository = "@envoy",
     deps = [
         # Cilium filters.
-        ":cilium_bpf_metadata_lib",
-        ":cilium_network_filter_lib",
-        ":cilium_l7policy_lib",
+        "//cilium:bpf_metadata_lib",
+        "//cilium:network_filter_lib",
+        "//cilium:l7policy_lib",
 
         "@envoy//source/exe:envoy_main_entry_lib",
     ],
@@ -25,9 +27,9 @@ envoy_cc_binary(
     repository = "@envoy",
     deps = [
         # Cilium filters.
-        ":cilium_bpf_metadata_lib",
-        ":cilium_network_filter_lib",
-        ":cilium_l7policy_lib",
+        "//cilium:bpf_metadata_lib",
+        "//cilium:network_filter_lib",
+        "//cilium:l7policy_lib",
 
         # Istio filters.
         # Cf. https://github.com/istio/proxy/blob/master/src/envoy/BUILD#L23
@@ -41,160 +43,6 @@ envoy_cc_binary(
     ],
 )
 
-envoy_cc_library(
-    name = "cilium_socket_option_lib",
-    hdrs = [
-        "cilium_socket_option.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        "@envoy//include/envoy/network:listen_socket_interface",
-        "@envoy//source/common/common:logger_lib",
-	":proxymap_lib",
-    ],
-)
-
-envoy_cc_library(
-    name = "grpc_subscription_lib",
-    hdrs = [
-        "grpc_subscription.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        "@envoy//source/exe:envoy_common_lib",
-        "@envoy//source/common/config:subscription_factory_lib",
-        "@envoy_api//envoy/api/v2/core:config_source_cc",
-    ],
-)
-
-envoy_cc_library(
-    name = "cilium_l7policy_lib",
-    srcs = [
-        "accesslog.cc",
-        "cilium_l7policy.cc",
-        "cilium_network_policy.cc",
-    ],
-    hdrs = [
-        "accesslog.h",
-        "cilium_l7policy.h",
-        "cilium_network_policy.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        ":cilium_socket_option_lib",
-        "//cilium:accesslog_proto_cc",
-        "//cilium:cilium_l7policy_cc",
-        "@envoy//source/exe:envoy_common_lib",
-        "@envoy//source/common/network:address_lib",
-        "@envoy//include/envoy/config:subscription_interface",
-        "@envoy//include/envoy/singleton:manager_interface",
-        "@envoy//source/common/local_info:local_info_lib",
-        "//cilium:npds_cc",
-        ":grpc_subscription_lib",
-    ],
-)
-
-envoy_cc_library(
-    name = "proxymap_lib",
-    srcs = [
-        "bpf.cc",
-        "proxymap.cc",
-    ],
-    hdrs = [
-        "bpf.h",
-        "linux/bpf.h",
-        "linux/bpf_common.h",
-        "linux/type_mapper.h",
-        "proxymap.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        "@envoy//include/envoy/network:listen_socket_interface",
-        "@envoy//include/envoy/network:connection_interface",
-        "@envoy//include/envoy/singleton:manager_interface",
-        "@envoy//source/common/common:assert_lib",
-        "@envoy//source/common/common:logger_lib",
-        "@envoy//source/common/network:address_lib",
-    ],
-)
-
-envoy_cc_library(
-    name = "cilium_proxylib_lib",
-    srcs = [
-        "cilium_proxylib.cc",
-    ],
-    hdrs = [
-        "cilium_proxylib.h",
-	"proxylib/libcilium.h",
-	"proxylib/types.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        "@envoy//include/envoy/network:connection_interface",
-        "@envoy//include/envoy/singleton:manager_interface",
-        "@envoy//source/common/common:assert_lib",
-        "@envoy//source/common/buffer:buffer_lib",
-        "@envoy//source/common/common:logger_lib",
-    ],
-)
-
-envoy_cc_library(
-    name = "cilium_network_filter_lib",
-    srcs = [
-        "cilium_network_filter.cc",
-    ],
-    hdrs = [
-        "cilium_network_filter.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        "@envoy//include/envoy/buffer:buffer_interface",
-        "@envoy//include/envoy/network:connection_interface",
-        "@envoy//include/envoy/network:filter_interface",
-        "@envoy//include/envoy/registry:registry",
-        "@envoy//include/envoy/server:filter_config_interface",
-        "@envoy//source/common/common:assert_lib",
-        "@envoy//source/common/common:logger_lib",
-        "@envoy//source/common/network:address_lib",
-        ":proxymap_lib",
-        ":cilium_proxylib_lib",
-        "//cilium:cilium_network_filter_cc",
-        ":cilium_socket_option_lib",
-    ],
-)
-
-envoy_cc_library(
-    name = "cilium_bpf_metadata_lib",
-    srcs = [
-        "cilium_bpf_metadata.cc",
-        "cilium_host_map.cc",
-    ],
-    hdrs = [
-        "cilium_bpf_metadata.h",
-        "cilium_host_map.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        "@envoy//include/envoy/buffer:buffer_interface",
-        "@envoy//include/envoy/network:connection_interface",
-        "@envoy//include/envoy/network:filter_interface",
-        "@envoy//include/envoy/registry:registry",
-        "@envoy//include/envoy/server:filter_config_interface",
-        "@envoy//source/common/common:assert_lib",
-        "@envoy//source/common/common:logger_lib",
-        "@envoy//source/common/network:address_lib",
-        "@envoy//source/common/router:config_utility_lib",
-        "@envoy//include/envoy/config:subscription_interface",
-        "@envoy//include/envoy/singleton:manager_interface",
-        "@envoy//source/common/local_info:local_info_lib",
-        "//cilium:nphds_cc",
-        ":proxymap_lib",
-        "//cilium:cilium_bpf_metadata_cc",
-        ":cilium_socket_option_lib",
-        ":grpc_subscription_lib",
-    ],
-)
-
 envoy_cc_test(
     name = "cilium_integration_test",
     srcs = ["cilium_integration_test.cc"],
@@ -204,9 +52,9 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":cilium_bpf_metadata_lib",
-        ":cilium_network_filter_lib",
-        ":cilium_l7policy_lib",
+        "//cilium:bpf_metadata_lib",
+        "//cilium:network_filter_lib",
+        "//cilium:l7policy_lib",
         "@envoy//test/integration:http_integration_lib",
     ],
 )

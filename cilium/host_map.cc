@@ -1,6 +1,6 @@
-#include "cilium_host_map.h"
-#include "cilium/nphds.pb.validate.h"
-#include "grpc_subscription.h"
+#include "cilium/host_map.h"
+#include "cilium/api/nphds.pb.validate.h"
+#include "cilium/grpc_subscription.h"
 
 #include <string>
 #include <unordered_set>

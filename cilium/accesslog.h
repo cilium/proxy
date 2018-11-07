@@ -11,7 +11,7 @@
 
 #include "common/common/logger.h"
 
-#include "cilium/accesslog.pb.h"
+#include "cilium/api/accesslog.pb.h"
 
 namespace Envoy {
 namespace Cilium {

@@ -38,12 +38,12 @@ ENVOY_GO_TARGETS := $(addprefix $(GO_OUT)/,$(ENVOY_API_PROTOS:.proto=.pb.go))
 RAW_GO_MAPPINGS := $(foreach proto,$(ENVOY_API_PROTOS),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
 
 CILIUM_PROTO_SOURCES := \
-	cilium/accesslog.proto \
-	cilium/cilium_bpf_metadata.proto \
-	cilium/cilium_l7policy.proto \
-	cilium/cilium_network_filter.proto \
-	cilium/npds.proto \
-	cilium/nphds.proto
+	cilium/api/accesslog.proto \
+	cilium/api/bpf_metadata.proto \
+	cilium/api/l7policy.proto \
+	cilium/api/network_filter.proto \
+	cilium/api/npds.proto \
+	cilium/api/nphds.proto
 CILIUM_PROTO_DIRS := $(sort $(dir $(CILIUM_PROTO_SOURCES)))
 CILIUM_GO_TARGETS := $(addprefix $(GO_OUT)/,$(CILIUM_PROTO_SOURCES:.proto=.pb.go)) \
 	$(addprefix $(GO_OUT)/,$(CILIUM_PROTO_SOURCES:.proto=.pb.validate.go))

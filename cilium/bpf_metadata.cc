@@ -1,5 +1,5 @@
-#include "cilium_bpf_metadata.h"
-#include "cilium/cilium_bpf_metadata.pb.validate.h"
+#include "cilium/bpf_metadata.h"
+#include "cilium/api/bpf_metadata.pb.validate.h"
 
 #include <string>
 
@@ -9,7 +9,7 @@
 #include "envoy/registry/registry.h"
 #include "envoy/singleton/manager.h"
 
-#include "cilium_socket_option.h"
+#include "cilium/socket_option.h"
 
 #include <netinet/in.h>
 #include <netinet/tcp.h>

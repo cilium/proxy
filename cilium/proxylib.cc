@@ -7,7 +7,7 @@
 #include "common/common/fmt.h"
 #include "common/common/stack_array.h"
 
-#include "cilium_proxylib.h"
+#include "cilium/proxylib.h"
 
 namespace Envoy {
 namespace Cilium {

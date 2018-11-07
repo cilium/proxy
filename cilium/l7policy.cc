@@ -1,5 +1,5 @@
-#include "cilium_l7policy.h"
-#include "cilium/cilium_l7policy.pb.validate.h"
+#include "cilium/l7policy.h"
+#include "cilium/api/l7policy.pb.validate.h"
 
 #include <string>
 
@@ -11,8 +11,8 @@
 #include "common/config/utility.h"
 #include "common/http/header_map_impl.h"
 
-#include "cilium_network_policy.h"
-#include "cilium_socket_option.h"
+#include "cilium/network_policy.h"
+#include "cilium/socket_option.h"
 
 namespace Envoy {
 namespace Cilium {

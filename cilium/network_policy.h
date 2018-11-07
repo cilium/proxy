@@ -11,7 +11,7 @@
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/http/header_map.h"
 
-#include "cilium/npds.pb.h"
+#include "cilium/api/npds.pb.h"
 
 namespace Envoy {
 namespace Cilium {

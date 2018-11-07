@@ -9,10 +9,10 @@
 
 #include "common/common/logger.h"
 
-#include "accesslog.h"
-#include "cilium/cilium_l7policy.pb.h"
+#include "cilium/accesslog.h"
+#include "cilium/api/l7policy.pb.h"
 
-#include "cilium_network_policy.h"
+#include "cilium/network_policy.h"
 
 namespace Envoy {
 namespace Cilium {

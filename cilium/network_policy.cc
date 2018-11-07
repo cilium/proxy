@@ -1,6 +1,6 @@
-#include "cilium_network_policy.h"
-#include "cilium/npds.pb.validate.h"
-#include "grpc_subscription.h"
+#include "cilium/network_policy.h"
+#include "cilium/api/npds.pb.validate.h"
+#include "cilium/grpc_subscription.h"
 
 #include <string>
 #include <unordered_set>

@@ -1,4 +1,4 @@
-#include "bpf.h"
+#include "cilium/bpf.h"
 
 #include <string.h>
 #include <sys/resource.h>

@@ -8,10 +8,9 @@
 #include "common/buffer/buffer_impl.h"
 #include "common/common/logger.h"
 
-#include "cilium/cilium_network_filter.pb.h"
-#include "proxymap.h"
-
-#include "cilium_proxylib.h"
+#include "cilium/api/network_filter.pb.h"
+#include "cilium/proxymap.h"
+#include "cilium/proxylib.h"
 
 namespace Envoy {
 namespace Filter {

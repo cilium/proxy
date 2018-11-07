@@ -6,9 +6,9 @@
 
 #include "common/common/logger.h"
 
-#include "cilium/cilium_bpf_metadata.pb.h"
-#include "proxymap.h"
-#include "cilium_host_map.h"
+#include "cilium/api/bpf_metadata.pb.h"
+#include "cilium/proxymap.h"
+#include "cilium/host_map.h"
 
 namespace Envoy {
 namespace Filter {

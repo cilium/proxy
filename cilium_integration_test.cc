@@ -1,5 +1,3 @@
-#include "accesslog.h"
-
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -27,12 +25,13 @@
 #include "test/test_common/environment.h"
 #include "test/test_common/network_utility.h"
 
-#include "cilium_bpf_metadata.h"
-#include "cilium_l7policy.h"
-#include "cilium_network_policy.h"
-#include "cilium_socket_option.h"
-#include "cilium/cilium_bpf_metadata.pb.validate.h"
-#include "cilium/cilium_l7policy.pb.validate.h"
+#include "cilium/accesslog.h"
+#include "cilium/bpf_metadata.h"
+#include "cilium/l7policy.h"
+#include "cilium/network_policy.h"
+#include "cilium/socket_option.h"
+#include "cilium/api/bpf_metadata.pb.validate.h"
+#include "cilium/api/l7policy.pb.validate.h"
 
 namespace Envoy {
 
