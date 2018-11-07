@@ -1,0 +1,25 @@
+*** envoy_bootstrap_v2.json	2018-11-06 23:34:03.000000000 -0800
+--- envoy_bootstrap_tmpl.json	2018-11-06 23:39:25.000000000 -0800
+***************
+*** 87,92 ****
+--- 87,106 ----
+          ]
+        },
+        {
++         "name": "xds-grpc-cilium",
++         "type": "STATIC",
++         "connect_timeout": {{ .connect_timeout }},
++         "lb_policy": "ROUND_ROBIN",
++         "hosts": [
++           {
++             "pipe": {
++               "path": "/var/run/cilium/xds.sock"
++             }
++           }
++         ],
++         "http2_protocol_options": { }
++       },
++       {
+          "name": "xds-grpc",
+          "type": "STRICT_DNS",
+          "connect_timeout": "{{ .connect_timeout }}",
