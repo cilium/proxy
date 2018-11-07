@@ -89,7 +89,7 @@ docker-image-envoy: Dockerfile clean .dockerignore
 
 debug: envoy-debug api
 
-release: envoy-release api
+release: cilium-envoy api
 
 api: force-non-root Makefile.api
 	$(MAKE) -f Makefile.api all
@@ -100,7 +100,7 @@ envoy-default: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:envoy $(BAZEL_FILTER)
 
 # Allow root build for release
-$(CILIUM_ENVOY_BIN) envoy-release: force
+$(CILIUM_ENVOY_BIN) cilium-envoy: force
 	@$(ECHO_BAZEL)
 	-rm -f bazel-out/k8-opt/bin/_objs/envoy/external/envoy/source/common/common/version_linkstamp.o
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:envoy $(BAZEL_FILTER)
