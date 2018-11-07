@@ -14,7 +14,7 @@ man/
 
 # Bazel symlinks
 bazel-*
-istio-envoy
+cilium-envoy
 Dockerfile.istio_proxy
 Dockerfile.istio_proxy_debug
 

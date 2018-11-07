@@ -1,7 +1,7 @@
 FROM istio/proxytproxy:@ISTIO_VERSION@
 
 # Replace Istio's Envoy binary with Cilium's.
-ADD istio-envoy /usr/local/bin/envoy
+ADD cilium-envoy /usr/local/bin/envoy
 
 # pilot-agent and envoy may run with effective uid 0 in order to run envoy with
 # CAP_NET_ADMIN, so any iptables rule matching on "-m owner --uid-owner
@@ -16,7 +16,7 @@ chmod 2755 /usr/local/bin/envoy
 # the "xds-grpc-cilium" cluster used by the Cilium filters to connect to Cilium
 # agent via a Unix domain socket.
 # This file is adapted from Istio's API v2 bootstrap:
-# https://github.com/istio/istio/blob/release-0.8/tools/deb/envoy_bootstrap_v2.json
+# https://github.com/istio/istio/blob/1.1.0-snapshot.2/tools/deb/envoy_bootstrap_v2.json
 COPY envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
 
 ENTRYPOINT ["/usr/local/bin/pilot-agent"]

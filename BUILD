@@ -10,20 +10,7 @@ exports_files(["linux/bpf_common.h", "linux/bpf.h", "linux/type_mapper.h",
                "proxylib/libcilium.h", "proxylib/types.h"])
 
 envoy_cc_binary(
-    name = "envoy",
-    repository = "@envoy",
-    deps = [
-        # Cilium filters.
-        "//cilium:bpf_metadata_lib",
-        "//cilium:network_filter_lib",
-        "//cilium:l7policy_lib",
-
-        "@envoy//source/exe:envoy_main_entry_lib",
-    ],
-)
-
-envoy_cc_binary(
-    name = "istio-envoy",
+    name = "cilium-envoy",
     repository = "@envoy",
     deps = [
         # Cilium filters.
@@ -62,7 +49,7 @@ envoy_cc_test(
 sh_test(
     name = "envoy_binary_test",
     srcs = ["envoy_binary_test.sh"],
-    data = [":envoy"],
+    data = [":cilium-envoy"],
 )
 
 sh_binary(
