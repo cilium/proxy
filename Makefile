@@ -43,9 +43,9 @@ BAZEL_BUILD_OPTS ?= --jobs=3
 # Dockerfile builds require special options
 ifdef PKG_BUILD
 BAZEL_BUILD_OPTS += --local_resources 4096,2.0,1.0
-all: install-bazel clean-bins $(CILIUM_ENVOY_RELEASE_BIN) shutdown-bazel
+all: precheck install-bazel clean-bins $(CILIUM_ENVOY_RELEASE_BIN) shutdown-bazel
 else
-all: install-bazel clean-bins envoy-default api shutdown-bazel
+all: precheck install-bazel clean-bins envoy-default api shutdown-bazel
 endif
 
 # Fetch and install Bazel if needed
@@ -160,6 +160,9 @@ clean: force clean-bins
 veryclean: force clean-bins
 	-sudo $(BAZEL) $(BAZEL_OPTS) clean
 	-sudo rm -Rf $(BAZEL_CACHE)
+
+precheck:
+	tools/check_repositories.sh
 
 check: $(CHECK_FORMAT) force-non-root
 	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) $(CHECK_FORMAT) --add-excluded-prefixes="./linux/" check

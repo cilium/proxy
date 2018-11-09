@@ -8,12 +8,14 @@ workspace(name = "cilium")
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
 ENVOY_SHA = "4ef8562b2194f222ce8a3d733fb04c629eaf0667"
+ENVOY_SHA256 = "bbb09ff2048bb2b14d8fb9ec957c6ddc7bfee147cca8d51f3d42b4e8084860bf"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "envoy",
     url = "https://github.com/envoyproxy/envoy/archive/" + ENVOY_SHA + ".zip",
+    sha256 = ENVOY_SHA256,
     strip_prefix = "envoy-" + ENVOY_SHA,
 )
 
@@ -43,10 +45,12 @@ go_register_toolchains(go_version = GO_VERSION)
 # Cf. https://github.com/istio/proxy.
 
 ISTIO_PROXY_SHA = "67a0375be569f9158b361e8f5c2a76a0c1b0a02e"
+ISTIO_PROXY_SHA256 = "c625d3f9624aa5e3d794181733661da8bf6f4185d0f07dd032a3508b4782ca39"
 
 http_archive(
     name = "istio_proxy",
     url = "https://github.com/istio/proxy/archive/" + ISTIO_PROXY_SHA + ".zip",
+    sha256 = ISTIO_PROXY_SHA256,
     strip_prefix = "proxy-" + ISTIO_PROXY_SHA,
 )
 
