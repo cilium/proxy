@@ -1,0 +1,55 @@
+# Gopkg.toml example
+#
+# Refer to https://golang.github.io/dep/docs/Gopkg.toml.html
+# for detailed Gopkg.toml documentation.
+#
+# required = ["github.com/user/thing/cmd/thing"]
+# ignored = ["github.com/user/project/pkgX", "bitbucket.org/user/project/pkgA/pkgY"]
+#
+# [[constraint]]
+#   name = "github.com/user/project"
+#   version = "1.0.0"
+#
+# [[constraint]]
+#   name = "github.com/user/project2"
+#   branch = "dev"
+#   source = "github.com/myfork/project2"
+#
+# [[override]]
+#   name = "github.com/x/y"
+#   version = "2.4.0"
+#
+# [prune]
+#   non-go = false
+#   go-tests = true
+#   unused-packages = true
+
+
+[[constraint]]
+  name = "github.com/gogo/protobuf"
+  revision = "v1.1.1"
+
+[[constraint]]
+  name = "github.com/golang/protobuf"
+  revision = "v1.2.0"
+
+[[constraint]]
+  name = "github.com/lyft/protoc-gen-validate"
+  revision = "d75a15c1da0f853ca31399f30c49088ca5716b04"
+
+[[constraint]]
+  name = "golang.org/x/net"
+  revision = "0744d001aa8470aaa53df28d32e5ceeb8af9bd70"
+
+[[constraint]]
+  name = "google.golang.org/genproto"
+  revision = "595979c8a7bf586b2d293fb42246bf91a0b893d9"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  revision = "v1.16.0"
+
+[prune]
+  go-tests = true
+  unused-packages = true
+  non-go = true
