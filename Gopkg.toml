@@ -1,0 +1,12 @@
+[[constraint]]
+  name = "github.com/gogo/protobuf"
+  revision = "v1.2.1"
+
+[[constraint]]
+  name = "github.com/lyft/protoc-gen-validate"
+  revision = "v0.0.13"
+
+[prune]
+  go-tests = true
+  unused-packages = true
+  non-go = true
