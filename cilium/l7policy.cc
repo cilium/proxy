@@ -104,6 +104,8 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, 
   const auto& conn = callbacks_->connection();
   bool ingress = false;
   bool allowed = false;
+  std::string policy_name = config_->policy_name_;
+
   if (conn) {
     const auto option = Cilium::GetSocketOption(conn->socketOptions());
     if (option) {
@@ -112,7 +114,9 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, 
       } else {
 	ingress = option->ingress_;
       }
-      const std::string& policy_name = config_->policy_name_.length() ? config_->policy_name_ : option->pod_ip_;
+      if (policy_name.length() == 0) {
+	policy_name = option->pod_ip_;
+      }
 
       if (ingress) {
 	allowed = option->npmap_->Allowed(policy_name, ingress, option->port_,
@@ -133,7 +137,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, 
   }
 
   // Fill in the log entry
-  log_entry_.InitFromRequest(config_->policy_name_, ingress, callbacks_->connection(),
+  log_entry_.InitFromRequest(policy_name, ingress, callbacks_->connection(),
                              headers, callbacks_->streamInfo());
   if (!allowed) {
     denied_ = true;
