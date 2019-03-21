@@ -13,16 +13,21 @@ class SocketMarkOption : public Network::Socket::Option, public Logger::Loggable
 public:
   SocketMarkOption(uint32_t identity, bool ingress) : identity_(identity), ingress_(ingress) {}
 
+  absl::optional<Network::Socket::Option::Details>
+  getOptionDetails(const Network::Socket&, envoy::api::v2::core::SocketOption::SocketState) const override {
+  	return absl::nullopt;
+  }
+
   bool setOption(Network::Socket& socket, envoy::api::v2::core::SocketOption::SocketState state) const override {
     // Only set the option once per socket
     if (state != envoy::api::v2::core::SocketOption::STATE_PREBIND) {
-      ENVOY_LOG(trace, "Skipping setting socket ({}) option SO_MARK, state != STATE_PREBIND", socket.fd());
+      ENVOY_LOG(trace, "Skipping setting socket ({}) option SO_MARK, state != STATE_PREBIND", socket.ioHandle().fd());
       return true;
     }
     uint32_t cluster_id = (identity_ >> 16) & 0xFF;
     uint32_t identity_id = (identity_ & 0xFFFF) << 16;
     uint32_t mark = ((ingress_) ? 0xA00 : 0xB00) | cluster_id | identity_id;
-    int rc = setsockopt(socket.fd(), SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
+    int rc = setsockopt(socket.ioHandle().fd(), SOL_SOCKET, SO_MARK, &mark, sizeof(mark));
     if (rc < 0) {
       if (errno == EPERM) {
 	// Do not assert out in this case so that we can run tests without CAP_NET_ADMIN.
@@ -35,7 +40,7 @@ public:
 	return false;
       }
     }
-    ENVOY_LOG(trace, "Set socket ({}) option SO_MARK to {:x} (magic mark: {:x}, id: {}, cluster: {})", socket.fd(), mark, mark & 0xff00, mark >> 16, mark & 0xff);
+    ENVOY_LOG(trace, "Set socket ({}) option SO_MARK to {:x} (magic mark: {:x}, id: {}, cluster: {})", socket.ioHandle().fd(), mark, mark & 0xff00, mark >> 16, mark & 0xff);
     return true;
   }
   void hashKey(std::vector<uint8_t>& key) const override {

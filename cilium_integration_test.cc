@@ -14,6 +14,7 @@
 #include "common/network/address_impl.h"
 #include "common/network/utility.h"
 
+#include "common/common/thread.h"
 #include "common/config/filesystem_subscription_impl.h"
 #include "common/config/utility.h"
 #include "common/filesystem/filesystem_impl.h"
@@ -65,7 +66,7 @@ public:
 
     ENVOY_LOG(critical, "Starting access log server thread fd: {}", fd_);
 
-    thread_.reset(new Thread::Thread([this]() -> void { threadRoutine(); }));
+    thread_ = Thread::threadFactoryForTest().createThread([this]() { threadRoutine(); });
   }
 
   ~AccessLogServer() {
@@ -211,7 +212,7 @@ public:
   bool getMetadata(Network::ConnectionSocket &socket) override {
     // fake setting the local address. It remains the same as required by the test infra, but it will be marked as restored
     // as required by the original_dst cluster.
-    socket.setLocalAddress(original_dst_address, true);
+    socket.restoreLocalAddress(original_dst_address);
     if (is_ingress_) {
       socket.addOption(std::make_shared<Cilium::SocketOption>(maps_, 1, 173, true, 80, 10000));
     } else {
@@ -242,12 +243,12 @@ createHostMap(const std::string& config, Server::Configuration::ListenerFactoryC
 	ENVOY_LOG_MISC(debug, "Loading Cilium Host Map from file \'{}\' instead of using gRPC",
 		       path);
 
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path);
+        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path, context.api());
         Envoy::Config::SubscriptionStats stats =
 	  Envoy::Config::Utility::generateStats(context.scope());
         auto subscription =
 	  std::make_unique<Envoy::Config::FilesystemSubscriptionImpl<cilium::NetworkPolicyHosts>>(
-              context.dispatcher(), path, stats);
+	      context.dispatcher(), path, stats, context.api());
        
         auto map = std::make_shared<Cilium::PolicyHostMap>(std::move(subscription),
 							   context.threadLocal());
@@ -307,9 +308,10 @@ createPolicyMap(const std::string& config, Server::Configuration::FactoryContext
         // File subscription.
 	std::string path = TestEnvironment::writeStringToFileForTest("network_policy.yaml", config);
 	ENVOY_LOG_MISC(debug, "Loading Cilium Network Policy from file \'{}\' instead of using gRPC", path);
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path);
+        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path, context.api());
         Envoy::Config::SubscriptionStats stats = Envoy::Config::Utility::generateStats(context.scope());
-        auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl<cilium::NetworkPolicy>>(context.dispatcher(), path, stats);
+        auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl<cilium::NetworkPolicy>>(
+				context.dispatcher(), path, stats, context.api());
        
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(std::move(subscription), context.threadLocal());
 	map->startSubscription();
@@ -481,7 +483,7 @@ public:
     envoy::api::v2::DiscoveryResponse message;
     ThreadLocal::InstanceImpl tls;
 
-    MessageUtil::loadFromFile(path, message);
+    MessageUtil::loadFromFile(path, message, *api_.get());
     const auto typed_resources = Config::Utility::getTypedResources<cilium::NetworkPolicyHosts>(message);
     Envoy::Cilium::PolicyHostMap hmap(tls);
 
@@ -523,7 +525,7 @@ resources:
   envoy::api::v2::DiscoveryResponse message;
   ThreadLocal::InstanceImpl tls;
 
-  MessageUtil::loadFromFile(path, message);
+  MessageUtil::loadFromFile(path, message, *api_.get());
   const auto typed_resources = Config::Utility::getTypedResources<cilium::NetworkPolicyHosts>(message);
   auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(tls);
 

@@ -6,7 +6,7 @@
 #
 # Using cilium-builder as the base to ensure libc etc. are in sync.
 #
-FROM quay.io/cilium/cilium-builder:2018-11-01 as builder
+FROM quay.io/cilium/cilium-builder:2019-03-16 as builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /go/src/github.com/cilium/cilium/envoy
 

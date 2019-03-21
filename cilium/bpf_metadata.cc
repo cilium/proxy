@@ -138,20 +138,20 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks &cb) {
   int keepalive = true;
   int secs = 5*60; // Five minutes
 
-  rc = setsockopt(socket.fd(), SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
+  rc = setsockopt(socket.ioHandle().fd(), SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
   if (rc < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_LINGER: {}", strerror(errno));
   }
-  rc = setsockopt(socket.fd(), SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
+  rc = setsockopt(socket.ioHandle().fd(), SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
   if (rc < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}", strerror(errno));
   } else {
-    rc = setsockopt(socket.fd(), IPPROTO_TCP, TCP_KEEPINTVL, &secs, sizeof(secs));
+    rc = setsockopt(socket.ioHandle().fd(), IPPROTO_TCP, TCP_KEEPINTVL, &secs, sizeof(secs));
     if (rc < 0) {
       ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPINTVL: {}",
 		strerror(errno));
     } else {
-      rc = setsockopt(socket.fd(), IPPROTO_TCP, TCP_KEEPIDLE, &secs, sizeof(secs));
+      rc = setsockopt(socket.ioHandle().fd(), IPPROTO_TCP, TCP_KEEPIDLE, &secs, sizeof(secs));
       if (rc < 0) {
 	ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPIDLE: {}",
 		  strerror(errno));

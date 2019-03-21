@@ -94,6 +94,9 @@ public:
     return Http::FilterTrailersStatus::Continue;
   }
   void setEncoderFilterCallbacks(Http::StreamEncoderFilterCallbacks&) override {}
+  Http::FilterMetadataStatus encodeMetadata(Http::MetadataMap&) override {
+    return Http::FilterMetadataStatus::Continue;
+  }
 
 private:
   ConfigSharedPtr config_;

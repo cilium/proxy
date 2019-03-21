@@ -112,7 +112,7 @@ bool ProxyMap::getBpfMetadata(Network::ConnectionSocket &socket, uint32_t* ident
         Network::Address::InstanceConstSharedPtr orig_local_address =
             std::make_shared<Network::Address::Ipv4Instance>(&ip4);
 	if (*orig_local_address != *socket.localAddress()) {
-	  socket.setLocalAddress(orig_local_address, true);
+	  socket.restoreLocalAddress(orig_local_address);
 	}
         *identity = value.identity;
 	*proxy_port = ntohs(key.dport);
@@ -140,7 +140,7 @@ bool ProxyMap::getBpfMetadata(Network::ConnectionSocket &socket, uint32_t* ident
         Network::Address::InstanceConstSharedPtr orig_local_address =
             std::make_shared<Network::Address::Ipv6Instance>(ip6);
 	if (*orig_local_address != *socket.localAddress()) {
-	  socket.setLocalAddress(orig_local_address, true);
+	  socket.restoreLocalAddress(orig_local_address);
 	}
         *identity = value.identity;
 	*proxy_port = ntohs(key.dport);
