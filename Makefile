@@ -76,7 +76,7 @@ docker-image-builder: Dockerfile.builder
 
 .dockerignore: .gitignore SOURCE_VERSION
 	echo $(SOURCE_VERSION)
-	$(QUIET)grep -v -e "(SOURCE|GIT)_VERSION" .gitignore >.dockerignore
+	$(QUIET)grep -v -E "(SOURCE|GIT)_VERSION" .gitignore >.dockerignore
 	$(QUIET)echo ".*" >>.dockerignore # .git pruned out
 
 docker-image-envoy: Dockerfile clean .dockerignore 
