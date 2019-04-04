@@ -45,14 +45,14 @@ template <typename I> I masked(I addr, unsigned int plen) {
 enum ID : uint64_t { UNKNOWN = 0, WORLD = 2 };
 
 class PolicyHostMap : public Singleton::Instance,
-                      Config::SubscriptionCallbacks<cilium::NetworkPolicyHosts>,
+                      Config::SubscriptionCallbacks,
                       public std::enable_shared_from_this<PolicyHostMap>,
                       public Logger::Loggable<Logger::Id::config> {
 public:
   PolicyHostMap(const LocalInfo::LocalInfo& local_info,
 		Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
 		Runtime::RandomGenerator& random, Stats::Scope &scope, ThreadLocal::SlotAllocator& tls);
-  PolicyHostMap(std::unique_ptr<Envoy::Config::Subscription<cilium::NetworkPolicyHosts>>&& subscription,
+  PolicyHostMap(std::unique_ptr<Envoy::Config::Subscription>&& subscription,
 		ThreadLocal::SlotAllocator& tls);
   PolicyHostMap(ThreadLocal::SlotAllocator& tls);
   ~PolicyHostMap() {
@@ -161,7 +161,7 @@ public:
   }
 
   // Config::SubscriptionCallbacks
-  void onConfigUpdate(const ResourceVector& resources, const std::string& version_info) override;
+  void onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) override;
   void onConfigUpdate(const Protobuf::RepeatedPtrField<envoy::api::v2::Resource>& added_resources,
 		      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
 		      const std::string& system_version_info) override {
@@ -178,7 +178,7 @@ public:
 private:
   ThreadLocal::SlotPtr tls_;
   Stats::ScopePtr scope_;
-  std::unique_ptr<Envoy::Config::Subscription<cilium::NetworkPolicyHosts>> subscription_;
+  std::unique_ptr<Envoy::Config::Subscription> subscription_;
   static uint64_t instance_id_;
   std::string name_;
 };

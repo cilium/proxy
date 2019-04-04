@@ -24,7 +24,7 @@ NetworkPolicyMap::NetworkPolicyMap(ThreadLocal::SlotAllocator& tls) : tls_(tls.a
 }
 
 // This is used for testing with a file-based subscription
-NetworkPolicyMap::NetworkPolicyMap(std::unique_ptr<Envoy::Config::Subscription<cilium::NetworkPolicy>>&& subscription,
+NetworkPolicyMap::NetworkPolicyMap(std::unique_ptr<Envoy::Config::Subscription>&& subscription,
 				   ThreadLocal::SlotAllocator& tls)
   : NetworkPolicyMap(tls) {
   subscription_ = std::move(subscription);
@@ -37,17 +37,18 @@ NetworkPolicyMap::NetworkPolicyMap(const LocalInfo::LocalInfo& local_info,
 				   ThreadLocal::SlotAllocator& tls)
   : NetworkPolicyMap(tls) {
   scope_ = scope.createScope(name_);
-  subscription_ = subscribe<cilium::NetworkPolicy>("cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies", local_info, cm, dispatcher, random, *scope_);
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", "cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies", local_info, cm, dispatcher, random, *scope_);
 }
 
-void NetworkPolicyMap::onConfigUpdate(const ResourceVector& resources, const std::string& version_info) {
+void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) {
   ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", name_, resources.size(), version_info);
 
   std::unordered_set<std::string> keeps;
 
   // Collect a shared vector of policies to be added
   auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstance>>>();
-  for (const auto& config: resources) {
+  for (const auto& resource: resources) {
+    auto config = MessageUtil::anyConvert<cilium::NetworkPolicy>(resource);
     ENVOY_LOG(debug, "Received Network Policy for endpoint {} in onConfigUpdate() version {}", config.name(), version_info);
     keeps.insert(config.name());
 

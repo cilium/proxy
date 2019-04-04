@@ -20,6 +20,10 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "grpc_subscription_lib",
+    visibility = ["//visibility:public"],
+    srcs = [
+        "grpc_subscription.cc",
+    ],
     hdrs = [
         "grpc_subscription.h",
     ],

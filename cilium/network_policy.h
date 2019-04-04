@@ -17,7 +17,7 @@ namespace Envoy {
 namespace Cilium {
 
 class NetworkPolicyMap : public Singleton::Instance,
-                         Config::SubscriptionCallbacks<cilium::NetworkPolicy>,
+                         Config::SubscriptionCallbacks,
                          public std::enable_shared_from_this<NetworkPolicyMap>,
                          public Logger::Loggable<Logger::Id::config> {
 public:
@@ -25,7 +25,7 @@ public:
   NetworkPolicyMap(const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
 		   Event::Dispatcher& dispatcher, Runtime::RandomGenerator& random,
 		   Stats::Scope &scope, ThreadLocal::SlotAllocator& tls);
-  NetworkPolicyMap(std::unique_ptr<Envoy::Config::Subscription<cilium::NetworkPolicy>>&& subscription,
+  NetworkPolicyMap(std::unique_ptr<Envoy::Config::Subscription>&& subscription,
 		   ThreadLocal::SlotAllocator& tls);
   ~NetworkPolicyMap() {
     ENVOY_LOG(debug, "Cilium L7 NetworkPolicyMap({}): NetworkPolicyMap is deleted NOW!", name_);
@@ -237,7 +237,8 @@ public:
   }
 
   // Config::SubscriptionCallbacks
-  void onConfigUpdate(const ResourceVector& resources, const std::string& version_info) override;
+  void onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources,
+		      const std::string& version_info) override;
   void onConfigUpdate(const Protobuf::RepeatedPtrField<envoy::api::v2::Resource>& added_resources,
 		      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
 		      const std::string& system_version_info) override {
@@ -254,7 +255,7 @@ public:
 private:
   ThreadLocal::SlotPtr tls_;
   Stats::ScopePtr scope_;
-  std::unique_ptr<Envoy::Config::Subscription<cilium::NetworkPolicy>> subscription_;
+  std::unique_ptr<Envoy::Config::Subscription> subscription_;
   const std::shared_ptr<const PolicyInstance> null_instance_{nullptr};
   static uint64_t instance_id_;
   std::string name_;

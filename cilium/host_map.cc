@@ -136,7 +136,7 @@ PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls) : tls_(tls.allocat
 }
 
 // This is used for testing with a file-based subscription
-PolicyHostMap::PolicyHostMap(std::unique_ptr<Envoy::Config::Subscription<cilium::NetworkPolicyHosts>>&& subscription,
+PolicyHostMap::PolicyHostMap(std::unique_ptr<Envoy::Config::Subscription>&& subscription,
 			     ThreadLocal::SlotAllocator& tls)
   : PolicyHostMap(tls) {
   subscription_ = std::move(subscription);
@@ -148,15 +148,16 @@ PolicyHostMap::PolicyHostMap(const LocalInfo::LocalInfo& local_info, Upstream::C
 			     Stats::Scope &scope, ThreadLocal::SlotAllocator& tls)
   : PolicyHostMap(tls) {
   scope_ = scope.createScope(name_);
-  subscription_ = subscribe<cilium::NetworkPolicyHosts>("cilium.NetworkPolicyHostsDiscoveryService.StreamNetworkPolicyHosts", local_info, cm, dispatcher, random, *scope_);
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", "cilium.NetworkPolicyHostsDiscoveryService.StreamNetworkPolicyHosts", local_info, cm, dispatcher, random, *scope_);
 }
 
-void PolicyHostMap::onConfigUpdate(const ResourceVector& resources, const std::string& version_info) {
+void PolicyHostMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) {
   ENVOY_LOG(debug, "PolicyHostMap::onConfigUpdate({}), {} resources, version: {}", name_, resources.size(), version_info);
 
   auto newmap = std::make_shared<ThreadLocalHostMapInitializer>();
-  
-  for (const auto& config: resources) {
+
+  for (const auto& resource: resources) {
+    auto config = MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource);
     ENVOY_LOG(trace, "Received NetworkPolicyHosts for policy {} in onConfigUpdate() version {}", config.policy(), version_info);
 
     MessageUtil::validate(config);
