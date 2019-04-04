@@ -34,7 +34,8 @@ subscribe(const std::string& grpc_method, const LocalInfo::LocalInfo& local_info
 							       api_config_source,
 							       scope)->create(),
 		dispatcher, random, *method, Config::Utility::generateStats(scope), scope,
-		Config::Utility::parseRateLimitSettings(api_config_source));
+		Config::Utility::parseRateLimitSettings(api_config_source),
+		std::chrono::milliseconds(0) /* no initial fetch timeout */);
 }
 
 } // namespace Cilium

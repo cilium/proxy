@@ -1,0 +1,1640 @@
+From 20b94471d49a9348f20be9a3ba87724e65c2c095 Mon Sep 17 00:00:00 2001
+From: htuch <htuch@users.noreply.github.com>
+Date: Wed, 27 Mar 2019 12:51:45 -0400
+Subject: [PATCH 2/3] build: import manually minified Chrome URL lib. (#3)
+
+This is a manually minified variant of
+https://chromium.googlesource.com/chromium/src.git/+archive/74.0.3729.15/url.tar.gz,
+providing just the parts needed for url::CanonicalizePath(). This is intended
+to support a security release fix for CVE-2019-9901. Long term we need this to
+be moved to absl or QUICHE for upgrades and long-term support.
+
+Some specific transforms of interest:
+
+* url_parse.h is minified to just Component and flattened back into the URL directory. It does not contain any non-Chromium authored code any longer and so does not have a separate LICENSE.
+* envoy_shim.h adapts various macros to the Envoy context.
+8 Anything not reachable from url::CanonicalizePath() has been dropped.
+* Header include paths have changed as needed.
+* BUILD was manually written.
+* Various clang-tidy and format fixes.
+
+Risk level: Low
+Testing: Validated with WiP PR for CVE-2019-9901.
+
+Signed-off-by: Harvey Tuch <htuch@google.com>
+---
+ ci/run_clang_tidy.sh                          |  14 +-
+ source/common/chromium_url/BUILD              |  28 ++
+ source/common/chromium_url/LICENSE            |  27 ++
+ source/common/chromium_url/README.md          |  15 +
+ source/common/chromium_url/envoy_shim.h       |  17 +
+ source/common/chromium_url/url_canon.cc       |  16 +
+ source/common/chromium_url/url_canon.h        | 186 ++++++++
+ .../common/chromium_url/url_canon_internal.cc | 295 +++++++++++++
+ .../common/chromium_url/url_canon_internal.h  | 246 +++++++++++
+ source/common/chromium_url/url_canon_path.cc  | 417 ++++++++++++++++++
+ .../chromium_url/url_canon_stdstring.cc       |  33 ++
+ .../common/chromium_url/url_canon_stdstring.h |  58 +++
+ source/common/chromium_url/url_parse.h        |  49 ++
+ .../common/chromium_url/url_parse_internal.h  |  18 +
+ tools/spelling_dictionary.txt                 |  11 +
+ 15 files changed, 1428 insertions(+), 2 deletions(-)
+ create mode 100644 source/common/chromium_url/BUILD
+ create mode 100644 source/common/chromium_url/LICENSE
+ create mode 100644 source/common/chromium_url/README.md
+ create mode 100644 source/common/chromium_url/envoy_shim.h
+ create mode 100644 source/common/chromium_url/url_canon.cc
+ create mode 100644 source/common/chromium_url/url_canon.h
+ create mode 100644 source/common/chromium_url/url_canon_internal.cc
+ create mode 100644 source/common/chromium_url/url_canon_internal.h
+ create mode 100644 source/common/chromium_url/url_canon_path.cc
+ create mode 100644 source/common/chromium_url/url_canon_stdstring.cc
+ create mode 100644 source/common/chromium_url/url_canon_stdstring.h
+ create mode 100644 source/common/chromium_url/url_parse.h
+ create mode 100644 source/common/chromium_url/url_parse_internal.h
+
+diff --git a/ci/run_clang_tidy.sh b/ci/run_clang_tidy.sh
+index e9df93bfc..29d4381b5 100755
+--- a/ci/run_clang_tidy.sh
++++ b/ci/run_clang_tidy.sh
+@@ -21,15 +21,25 @@ function exclude_testdata() {
+   grep -v tools/testdata/check_format/
+ }
+ 
++# Do not run clang-tidy against Chromium URL import, this needs to largely
++# reflect the upstream structure.
++function exclude_chromium_url() {
++  grep -v source/common/chromium_url/
++}
++
++function filter_excludes() {
++  exclude_testdata | exclude_chromium_url
++}
++
+ if [[ "${RUN_FULL_CLANG_TIDY}" == 1 ]]; then
+   echo "Running full clang-tidy..."
+   run-clang-tidy-7
+ elif [[ -z "${CIRCLE_PR_NUMBER}" && "$CIRCLE_BRANCH" == "master" ]]; then
+   echo "On master branch, running clang-tidy-diff against previous commit..."
+-  git diff HEAD^ | exclude_testdata | clang-tidy-diff-7.py -p 1
++  git diff HEAD^ | filter_excludes | clang-tidy-diff-7.py -p 1
+ else
+   echo "Running clang-tidy-diff against master branch..."
+   git fetch https://github.com/envoyproxy/envoy.git master
+-  git diff $(git merge-base HEAD FETCH_HEAD)..HEAD | exclude_testdata | \
++  git diff $(git merge-base HEAD FETCH_HEAD)..HEAD | filter_excludes | \
+     clang-tidy-diff-7.py -p 1
+ fi
+diff --git a/source/common/chromium_url/BUILD b/source/common/chromium_url/BUILD
+new file mode 100644
+index 000000000..9b07e76b0
+--- /dev/null
++++ b/source/common/chromium_url/BUILD
+@@ -0,0 +1,28 @@
++licenses(["notice"])  # Apache 2
++
++load(
++    "//bazel:envoy_build_system.bzl",
++    "envoy_cc_library",
++    "envoy_package",
++)
++
++envoy_package()
++
++envoy_cc_library(
++    name = "chromium_url",
++    srcs = [
++        "url_canon.cc",
++        "url_canon_internal.cc",
++        "url_canon_path.cc",
++        "url_canon_stdstring.cc",
++    ],
++    hdrs = [
++        "envoy_shim.h",
++        "url_canon.h",
++        "url_canon_internal.h",
++        "url_canon_stdstring.h",
++        "url_parse.h",
++        "url_parse_internal.h",
++    ],
++    deps = ["//source/common/common:assert_lib"],
++)
+diff --git a/source/common/chromium_url/LICENSE b/source/common/chromium_url/LICENSE
+new file mode 100644
+index 000000000..a32e00ce6
+--- /dev/null
++++ b/source/common/chromium_url/LICENSE
+@@ -0,0 +1,27 @@
++// Copyright 2015 The Chromium Authors. All rights reserved.
++//
++// Redistribution and use in source and binary forms, with or without
++// modification, are permitted provided that the following conditions are
++// met:
++//
++//    * Redistributions of source code must retain the above copyright
++// notice, this list of conditions and the following disclaimer.
++//    * Redistributions in binary form must reproduce the above
++// copyright notice, this list of conditions and the following disclaimer
++// in the documentation and/or other materials provided with the
++// distribution.
++//    * Neither the name of Google Inc. nor the names of its
++// contributors may be used to endorse or promote products derived from
++// this software without specific prior written permission.
++//
++// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
++// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
++// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
++// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
++// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
++// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+diff --git a/source/common/chromium_url/README.md b/source/common/chromium_url/README.md
+new file mode 100644
+index 000000000..64d28b315
+--- /dev/null
++++ b/source/common/chromium_url/README.md
+@@ -0,0 +1,15 @@
++This is a manually minified variant of
++https://chromium.googlesource.com/chromium/src.git/+archive/74.0.3729.15/url.tar.gz,
++providing just the parts needed for `url::CanonicalizePath()`. This is intended
++to support a security release fix for CVE-2019-9901. Long term we need this to
++be moved to absl or QUICHE for upgrades and long-term support.
++
++Some specific transforms of interest:
++* `url_parse.h` is minified to just `Component` and flattened back into the URL
++  directory. It does not contain any non-Chromium authored code any longer and
++  so does not have a separate LICENSE.
++* `envoy_shim.h` adapts various macros to the Envoy context.
++* Anything not reachable from `url::CanonicalizePath()` has been dropped.
++* Header include paths have changed as needed.
++* BUILD was manually written.
++* Various clang-tidy and format fixes.
+diff --git a/source/common/chromium_url/envoy_shim.h b/source/common/chromium_url/envoy_shim.h
+new file mode 100644
+index 000000000..2b7443926
+--- /dev/null
++++ b/source/common/chromium_url/envoy_shim.h
+@@ -0,0 +1,17 @@
++#pragma once
++
++#include "common/common/assert.h"
++
++// This is a minimal Envoy adaptation layer for the Chromium URL library.
++// NOLINT(namespace-envoy)
++
++#define DISALLOW_COPY_AND_ASSIGN(TypeName)                                                         \
++  TypeName(const TypeName&) = delete;                                                              \
++  TypeName& operator=(const TypeName&) = delete
++
++#define EXPORT_TEMPLATE_DECLARE(x)
++#define EXPORT_TEMPLATE_DEFINE(x)
++#define COMPONENT_EXPORT(x)
++
++#define DCHECK(x) ASSERT(x)
++#define NOTREACHED() NOT_REACHED_GCOVR_EXCL_LINE
+diff --git a/source/common/chromium_url/url_canon.cc b/source/common/chromium_url/url_canon.cc
+new file mode 100644
+index 000000000..91926b6f2
+--- /dev/null
++++ b/source/common/chromium_url/url_canon.cc
+@@ -0,0 +1,16 @@
++// Envoy snapshot of Chromium URL path normalization, see README.md.
++// NOLINT(namespace-envoy)
++
++// Copyright 2017 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "common/chromium_url/url_canon.h"
++
++#include "common/chromium_url/envoy_shim.h"
++
++namespace url {
++
++template class EXPORT_TEMPLATE_DEFINE(COMPONENT_EXPORT(URL)) CanonOutputT<char>;
++
++} // namespace url
+diff --git a/source/common/chromium_url/url_canon.h b/source/common/chromium_url/url_canon.h
+new file mode 100644
+index 000000000..0f66374c6
+--- /dev/null
++++ b/source/common/chromium_url/url_canon.h
+@@ -0,0 +1,186 @@
++// Envoy snapshot of Chromium URL path normalization, see README.md.
++// NOLINT(namespace-envoy)
++
++// Copyright 2013 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef URL_URL_CANON_H_
++#define URL_URL_CANON_H_
++
++#include <stdlib.h>
++#include <string.h>
++
++#include "common/chromium_url/envoy_shim.h"
++#include "common/chromium_url/url_parse.h"
++
++namespace url {
++
++// Canonicalizer output -------------------------------------------------------
++
++// Base class for the canonicalizer output, this maintains a buffer and
++// supports simple resizing and append operations on it.
++//
++// It is VERY IMPORTANT that no virtual function calls be made on the common
++// code path. We only have two virtual function calls, the destructor and a
++// resize function that is called when the existing buffer is not big enough.
++// The derived class is then in charge of setting up our buffer which we will
++// manage.
++template <typename T> class CanonOutputT {
++public:
++  CanonOutputT() : buffer_(NULL), buffer_len_(0), cur_len_(0) {}
++  virtual ~CanonOutputT() {}
++
++  // Implemented to resize the buffer. This function should update the buffer
++  // pointer to point to the new buffer, and any old data up to |cur_len_| in
++  // the buffer must be copied over.
++  //
++  // The new size |sz| must be larger than buffer_len_.
++  virtual void Resize(int sz) = 0;
++
++  // Accessor for returning a character at a given position. The input offset
++  // must be in the valid range.
++  inline T at(int offset) const { return buffer_[offset]; }
++
++  // Sets the character at the given position. The given position MUST be less
++  // than the length().
++  inline void set(int offset, T ch) { buffer_[offset] = ch; }
++
++  // Returns the number of characters currently in the buffer.
++  inline int length() const { return cur_len_; }
++
++  // Returns the current capacity of the buffer. The length() is the number of
++  // characters that have been declared to be written, but the capacity() is
++  // the number that can be written without reallocation. If the caller must
++  // write many characters at once, it can make sure there is enough capacity,
++  // write the data, then use set_size() to declare the new length().
++  int capacity() const { return buffer_len_; }
++
++  // Called by the user of this class to get the output. The output will NOT
++  // be NULL-terminated. Call length() to get the
++  // length.
++  const T* data() const { return buffer_; }
++  T* data() { return buffer_; }
++
++  // Shortens the URL to the new length. Used for "backing up" when processing
++  // relative paths. This can also be used if an external function writes a lot
++  // of data to the buffer (when using the "Raw" version below) beyond the end,
++  // to declare the new length.
++  //
++  // This MUST NOT be used to expand the size of the buffer beyond capacity().
++  void set_length(int new_len) { cur_len_ = new_len; }
++
++  // This is the most performance critical function, since it is called for
++  // every character.
++  void push_back(T ch) {
++    // In VC2005, putting this common case first speeds up execution
++    // dramatically because this branch is predicted as taken.
++    if (cur_len_ < buffer_len_) {
++      buffer_[cur_len_] = ch;
++      cur_len_++;
++      return;
++    }
++
++    // Grow the buffer to hold at least one more item. Hopefully we won't have
++    // to do this very often.
++    if (!Grow(1))
++      return;
++
++    // Actually do the insertion.
++    buffer_[cur_len_] = ch;
++    cur_len_++;
++  }
++
++  // Appends the given string to the output.
++  void Append(const T* str, int str_len) {
++    if (cur_len_ + str_len > buffer_len_) {
++      if (!Grow(cur_len_ + str_len - buffer_len_))
++        return;
++    }
++    for (int i = 0; i < str_len; i++)
++      buffer_[cur_len_ + i] = str[i];
++    cur_len_ += str_len;
++  }
++
++  void ReserveSizeIfNeeded(int estimated_size) {
++    // Reserve a bit extra to account for escaped chars.
++    if (estimated_size > buffer_len_)
++      Resize(estimated_size + 8);
++  }
++
++protected:
++  // Grows the given buffer so that it can fit at least |min_additional|
++  // characters. Returns true if the buffer could be resized, false on OOM.
++  bool Grow(int min_additional) {
++    static const int kMinBufferLen = 16;
++    int new_len = (buffer_len_ == 0) ? kMinBufferLen : buffer_len_;
++    do {
++      if (new_len >= (1 << 30)) // Prevent overflow below.
++        return false;
++      new_len *= 2;
++    } while (new_len < buffer_len_ + min_additional);
++    Resize(new_len);
++    return true;
++  }
++
++  T* buffer_;
++  int buffer_len_;
++
++  // Used characters in the buffer.
++  int cur_len_;
++};
++
++// Simple implementation of the CanonOutput using new[]. This class
++// also supports a static buffer so if it is allocated on the stack, most
++// URLs can be canonicalized with no heap allocations.
++template <typename T, int fixed_capacity = 1024> class RawCanonOutputT : public CanonOutputT<T> {
++public:
++  RawCanonOutputT() : CanonOutputT<T>() {
++    this->buffer_ = fixed_buffer_;
++    this->buffer_len_ = fixed_capacity;
++  }
++  ~RawCanonOutputT() override {
++    if (this->buffer_ != fixed_buffer_)
++      delete[] this->buffer_;
++  }
++
++  void Resize(int sz) override {
++    T* new_buf = new T[sz];
++    memcpy(new_buf, this->buffer_, sizeof(T) * (this->cur_len_ < sz ? this->cur_len_ : sz));
++    if (this->buffer_ != fixed_buffer_)
++      delete[] this->buffer_;
++    this->buffer_ = new_buf;
++    this->buffer_len_ = sz;
++  }
++
++protected:
++  T fixed_buffer_[fixed_capacity];
++};
++
++// Explicitly instantiate commonly used instantiations.
++extern template class EXPORT_TEMPLATE_DECLARE(COMPONENT_EXPORT(URL)) CanonOutputT<char>;
++
++// Normally, all canonicalization output is in narrow characters. We support
++// the templates so it can also be used internally if a wide buffer is
++// required.
++typedef CanonOutputT<char> CanonOutput;
++
++template <int fixed_capacity>
++class RawCanonOutput : public RawCanonOutputT<char, fixed_capacity> {};
++
++// Path. If the input does not begin in a slash (including if the input is
++// empty), we'll prepend a slash to the path to make it canonical.
++//
++// The 8-bit version assumes UTF-8 encoding, but does not verify the validity
++// of the UTF-8 (i.e., you can have invalid UTF-8 sequences, invalid
++// characters, etc.). Normally, URLs will come in as UTF-16, so this isn't
++// an issue. Somebody giving us an 8-bit path is responsible for generating
++// the path that the server expects (we'll escape high-bit characters), so
++// if something is invalid, it's their problem.
++COMPONENT_EXPORT(URL)
++bool CanonicalizePath(const char* spec, const Component& path, CanonOutput* output,
++                      Component* out_path);
++
++} // namespace url
++
++#endif // URL_URL_CANON_H_
+diff --git a/source/common/chromium_url/url_canon_internal.cc b/source/common/chromium_url/url_canon_internal.cc
+new file mode 100644
+index 000000000..7aeb4f3de
+--- /dev/null
++++ b/source/common/chromium_url/url_canon_internal.cc
+@@ -0,0 +1,295 @@
++// Envoy snapshot of Chromium URL path normalization, see README.md.
++// NOLINT(namespace-envoy)
++
++// Copyright 2013 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "common/chromium_url/url_canon_internal.h"
++
++namespace url {
++
++// See the header file for this array's declaration.
++const unsigned char kSharedCharTypeTable[0x100] = {
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0, // 0x00 - 0x0f
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,                                           // 0x10 - 0x1f
++    0,                                           // 0x20  ' ' (escape spaces in queries)
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT, // 0x21  !
++    0,                                           // 0x22  "
++    0,                          // 0x23  #  (invalid in query since it marks the ref)
++    CHAR_QUERY | CHAR_USERINFO, // 0x24  $
++    CHAR_QUERY | CHAR_USERINFO, // 0x25  %
++    CHAR_QUERY | CHAR_USERINFO, // 0x26  &
++    0,                          // 0x27  '  (Try to prevent XSS.)
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,             // 0x28  (
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,             // 0x29  )
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,             // 0x2a  *
++    CHAR_QUERY | CHAR_USERINFO,                              // 0x2b  +
++    CHAR_QUERY | CHAR_USERINFO,                              // 0x2c  ,
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,             // 0x2d  -
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_COMPONENT, // 0x2e  .
++    CHAR_QUERY,                                              // 0x2f  /
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_OCT |
++        CHAR_COMPONENT, // 0x30  0
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_OCT |
++        CHAR_COMPONENT, // 0x31  1
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_OCT |
++        CHAR_COMPONENT, // 0x32  2
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_OCT |
++        CHAR_COMPONENT, // 0x33  3
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_OCT |
++        CHAR_COMPONENT, // 0x34  4
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_OCT |
++        CHAR_COMPONENT, // 0x35  5
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_OCT |
++        CHAR_COMPONENT, // 0x36  6
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_OCT |
++        CHAR_COMPONENT,                                                            // 0x37  7
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_COMPONENT, // 0x38  8
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_DEC | CHAR_COMPONENT, // 0x39  9
++    CHAR_QUERY,                                                                    // 0x3a  :
++    CHAR_QUERY,                                                                    // 0x3b  ;
++    0,          // 0x3c  <  (Try to prevent certain types of XSS.)
++    CHAR_QUERY, // 0x3d  =
++    0,          // 0x3e  >  (Try to prevent certain types of XSS.)
++    CHAR_QUERY, // 0x3f  ?
++    CHAR_QUERY, // 0x40  @
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x41  A
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x42  B
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x43  C
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x44  D
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x45  E
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x46  F
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x47  G
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x48  H
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x49  I
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x4a  J
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x4b  K
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x4c  L
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x4d  M
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x4e  N
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x4f  O
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x50  P
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x51  Q
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x52  R
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x53  S
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x54  T
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x55  U
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x56  V
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x57  W
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_COMPONENT,            // 0x58  X
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x59  Y
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x5a  Z
++    CHAR_QUERY,                                                         // 0x5b  [
++    CHAR_QUERY,                                                         // 0x5c  '\'
++    CHAR_QUERY,                                                         // 0x5d  ]
++    CHAR_QUERY,                                                         // 0x5e  ^
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x5f  _
++    CHAR_QUERY,                                                         // 0x60  `
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x61  a
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x62  b
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x63  c
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x64  d
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x65  e
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_HEX | CHAR_COMPONENT, // 0x66  f
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x67  g
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x68  h
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x69  i
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x6a  j
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x6b  k
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x6c  l
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x6d  m
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x6e  n
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x6f  o
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x70  p
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x71  q
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x72  r
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x73  s
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x74  t
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x75  u
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x76  v
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x77  w
++    CHAR_QUERY | CHAR_USERINFO | CHAR_IPV4 | CHAR_COMPONENT,            // 0x78  x
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x79  y
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x7a  z
++    CHAR_QUERY,                                                         // 0x7b  {
++    CHAR_QUERY,                                                         // 0x7c  |
++    CHAR_QUERY,                                                         // 0x7d  }
++    CHAR_QUERY | CHAR_USERINFO | CHAR_COMPONENT,                        // 0x7e  ~
++    0,                                                                  // 0x7f
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0, // 0x80 - 0x8f
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0, // 0x90 - 0x9f
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0, // 0xa0 - 0xaf
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0, // 0xb0 - 0xbf
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0, // 0xc0 - 0xcf
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0, // 0xd0 - 0xdf
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0, // 0xe0 - 0xef
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0,
++    0, // 0xf0 - 0xff
++};
++
++const char kHexCharLookup[0x10] = {
++    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
++};
++
++const char kCharToHexLookup[8] = {
++    0,        // 0x00 - 0x1f
++    '0',      // 0x20 - 0x3f: digits 0 - 9 are 0x30 - 0x39
++    'A' - 10, // 0x40 - 0x5f: letters A - F are 0x41 - 0x46
++    'a' - 10, // 0x60 - 0x7f: letters a - f are 0x61 - 0x66
++    0,        // 0x80 - 0x9F
++    0,        // 0xA0 - 0xBF
++    0,        // 0xC0 - 0xDF
++    0,        // 0xE0 - 0xFF
++};
++
++} // namespace url
+diff --git a/source/common/chromium_url/url_canon_internal.h b/source/common/chromium_url/url_canon_internal.h
+new file mode 100644
+index 000000000..63960665f
+--- /dev/null
++++ b/source/common/chromium_url/url_canon_internal.h
+@@ -0,0 +1,246 @@
++// Envoy snapshot of Chromium URL path normalization, see README.md.
++// NOLINT(namespace-envoy)
++
++// Copyright 2013 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef URL_URL_CANON_INTERNAL_H_
++#define URL_URL_CANON_INTERNAL_H_
++
++// This file is intended to be included in another C++ file where the character
++// types are defined. This allows us to write mostly generic code, but not have
++// template bloat because everything is inlined when anybody calls any of our
++// functions.
++
++#include <stddef.h>
++#include <stdlib.h>
++
++#include "common/chromium_url/envoy_shim.h"
++#include "common/chromium_url/url_canon.h"
++
++namespace url {
++
++// Character type handling -----------------------------------------------------
++
++// Bits that identify different character types. These types identify different
++// bits that are set for each 8-bit character in the kSharedCharTypeTable.
++enum SharedCharTypes {
++  // Characters that do not require escaping in queries. Characters that do
++  // not have this flag will be escaped; see url_canon_query.cc
++  CHAR_QUERY = 1,
++
++  // Valid in the username/password field.
++  CHAR_USERINFO = 2,
++
++  // Valid in a IPv4 address (digits plus dot and 'x' for hex).
++  CHAR_IPV4 = 4,
++
++  // Valid in an ASCII-representation of a hex digit (as in %-escaped).
++  CHAR_HEX = 8,
++
++  // Valid in an ASCII-representation of a decimal digit.
++  CHAR_DEC = 16,
++
++  // Valid in an ASCII-representation of an octal digit.
++  CHAR_OCT = 32,
++
++  // Characters that do not require escaping in encodeURIComponent. Characters
++  // that do not have this flag will be escaped; see url_util.cc.
++  CHAR_COMPONENT = 64,
++};
++
++// This table contains the flags in SharedCharTypes for each 8-bit character.
++// Some canonicalization functions have their own specialized lookup table.
++// For those with simple requirements, we have collected the flags in one
++// place so there are fewer lookup tables to load into the CPU cache.
++//
++// Using an unsigned char type has a small but measurable performance benefit
++// over using a 32-bit number.
++extern const unsigned char kSharedCharTypeTable[0x100];
++
++// More readable wrappers around the character type lookup table.
++inline bool IsCharOfType(unsigned char c, SharedCharTypes type) {
++  return !!(kSharedCharTypeTable[c] & type);
++}
++inline bool IsQueryChar(unsigned char c) { return IsCharOfType(c, CHAR_QUERY); }
++inline bool IsIPv4Char(unsigned char c) { return IsCharOfType(c, CHAR_IPV4); }
++inline bool IsHexChar(unsigned char c) { return IsCharOfType(c, CHAR_HEX); }
++inline bool IsComponentChar(unsigned char c) { return IsCharOfType(c, CHAR_COMPONENT); }
++
++// Maps the hex numerical values 0x0 to 0xf to the corresponding ASCII digit
++// that will be used to represent it.
++COMPONENT_EXPORT(URL) extern const char kHexCharLookup[0x10];
++
++// This lookup table allows fast conversion between ASCII hex letters and their
++// corresponding numerical value. The 8-bit range is divided up into 8
++// regions of 0x20 characters each. Each of the three character types (numbers,
++// uppercase, lowercase) falls into different regions of this range. The table
++// contains the amount to subtract from characters in that range to get at
++// the corresponding numerical value.
++//
++// See HexDigitToValue for the lookup.
++extern const char kCharToHexLookup[8];
++
++// Assumes the input is a valid hex digit! Call IsHexChar before using this.
++inline unsigned char HexCharToValue(unsigned char c) { return c - kCharToHexLookup[c / 0x20]; }
++
++// Indicates if the given character is a dot or dot equivalent, returning the
++// number of characters taken by it. This will be one for a literal dot, 3 for
++// an escaped dot. If the character is not a dot, this will return 0.
++template <typename CHAR> inline int IsDot(const CHAR* spec, int offset, int end) {
++  if (spec[offset] == '.') {
++    return 1;
++  } else if (spec[offset] == '%' && offset + 3 <= end && spec[offset + 1] == '2' &&
++             (spec[offset + 2] == 'e' || spec[offset + 2] == 'E')) {
++    // Found "%2e"
++    return 3;
++  }
++  return 0;
++}
++
++// Write a single character, escaped, to the output. This always escapes: it
++// does no checking that thee character requires escaping.
++// Escaping makes sense only 8 bit chars, so code works in all cases of
++// input parameters (8/16bit).
++template <typename UINCHAR, typename OUTCHAR>
++inline void AppendEscapedChar(UINCHAR ch, CanonOutputT<OUTCHAR>* output) {
++  output->push_back('%');
++  output->push_back(kHexCharLookup[(ch >> 4) & 0xf]);
++  output->push_back(kHexCharLookup[ch & 0xf]);
++}
++
++// UTF-8 functions ------------------------------------------------------------
++
++// Reads one character in UTF-8 starting at |*begin| in |str| and places
++// the decoded value into |*code_point|. If the character is valid, we will
++// return true. If invalid, we'll return false and put the
++// kUnicodeReplacementCharacter into |*code_point|.
++//
++// |*begin| will be updated to point to the last character consumed so it
++// can be incremented in a loop and will be ready for the next character.
++// (for a single-byte ASCII character, it will not be changed).
++COMPONENT_EXPORT(URL)
++bool ReadUTFChar(const char* str, int* begin, int length, unsigned* code_point_out);
++
++// Generic To-UTF-8 converter. This will call the given append method for each
++// character that should be appended, with the given output method. Wrappers
++// are provided below for escaped and non-escaped versions of this.
++//
++// The char_value must have already been checked that it's a valid Unicode
++// character.
++template <class Output, void Appender(unsigned char, Output*)>
++inline void DoAppendUTF8(unsigned char_value, Output* output) {
++  if (char_value <= 0x7f) {
++    Appender(static_cast<unsigned char>(char_value), output);
++  } else if (char_value <= 0x7ff) {
++    // 110xxxxx 10xxxxxx
++    Appender(static_cast<unsigned char>(0xC0 | (char_value >> 6)), output);
++    Appender(static_cast<unsigned char>(0x80 | (char_value & 0x3f)), output);
++  } else if (char_value <= 0xffff) {
++    // 1110xxxx 10xxxxxx 10xxxxxx
++    Appender(static_cast<unsigned char>(0xe0 | (char_value >> 12)), output);
++    Appender(static_cast<unsigned char>(0x80 | ((char_value >> 6) & 0x3f)), output);
++    Appender(static_cast<unsigned char>(0x80 | (char_value & 0x3f)), output);
++  } else if (char_value <= 0x10FFFF) { // Max Unicode code point.
++    // 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
++    Appender(static_cast<unsigned char>(0xf0 | (char_value >> 18)), output);
++    Appender(static_cast<unsigned char>(0x80 | ((char_value >> 12) & 0x3f)), output);
++    Appender(static_cast<unsigned char>(0x80 | ((char_value >> 6) & 0x3f)), output);
++    Appender(static_cast<unsigned char>(0x80 | (char_value & 0x3f)), output);
++  } else {
++    // Invalid UTF-8 character (>20 bits).
++    NOTREACHED();
++  }
++}
++
++// Helper used by AppendUTF8Value below. We use an unsigned parameter so there
++// are no funny sign problems with the input, but then have to convert it to
++// a regular char for appending.
++inline void AppendCharToOutput(unsigned char ch, CanonOutput* output) {
++  output->push_back(static_cast<char>(ch));
++}
++
++// Writes the given character to the output as UTF-8. This does NO checking
++// of the validity of the Unicode characters; the caller should ensure that
++// the value it is appending is valid to append.
++inline void AppendUTF8Value(unsigned char_value, CanonOutput* output) {
++  DoAppendUTF8<CanonOutput, AppendCharToOutput>(char_value, output);
++}
++
++// Writes the given character to the output as UTF-8, escaping ALL
++// characters (even when they are ASCII). This does NO checking of the
++// validity of the Unicode characters; the caller should ensure that the value
++// it is appending is valid to append.
++inline void AppendUTF8EscapedValue(unsigned char_value, CanonOutput* output) {
++  DoAppendUTF8<CanonOutput, AppendEscapedChar>(char_value, output);
++}
++
++// Escaping functions ---------------------------------------------------------
++
++// Writes the given character to the output as UTF-8, escaped. Call this
++// function only when the input is wide. Returns true on success. Failure
++// means there was some problem with the encoding, we'll still try to
++// update the |*begin| pointer and add a placeholder character to the
++// output so processing can continue.
++//
++// We will append the character starting at ch[begin] with the buffer ch
++// being |length|. |*begin| will be updated to point to the last character
++// consumed (we may consume more than one for UTF-16) so that if called in
++// a loop, incrementing the pointer will move to the next character.
++//
++// Every single output character will be escaped. This means that if you
++// give it an ASCII character as input, it will be escaped. Some code uses
++// this when it knows that a character is invalid according to its rules
++// for validity. If you don't want escaping for ASCII characters, you will
++// have to filter them out prior to calling this function.
++//
++// Assumes that ch[begin] is within range in the array, but does not assume
++// that any following characters are.
++inline bool AppendUTF8EscapedChar(const char* str, int* begin, int length, CanonOutput* output) {
++  // ReadUTF8Char will handle invalid characters for us and give us the
++  // kUnicodeReplacementCharacter, so we don't have to do special checking
++  // after failure, just pass through the failure to the caller.
++  unsigned ch;
++  bool success = ReadUTFChar(str, begin, length, &ch);
++  AppendUTF8EscapedValue(ch, output);
++  return success;
++}
++
++// Given a '%' character at |*begin| in the string |spec|, this will decode
++// the escaped value and put it into |*unescaped_value| on success (returns
++// true). On failure, this will return false, and will not write into
++// |*unescaped_value|.
++//
++// |*begin| will be updated to point to the last character of the escape
++// sequence so that when called with the index of a for loop, the next time
++// through it will point to the next character to be considered. On failure,
++// |*begin| will be unchanged.
++inline bool Is8BitChar(char /*c*/) {
++  return true; // this case is specialized to avoid a warning
++}
++
++template <typename CHAR>
++inline bool DecodeEscaped(const CHAR* spec, int* begin, int end, unsigned char* unescaped_value) {
++  if (*begin + 3 > end || !Is8BitChar(spec[*begin + 1]) || !Is8BitChar(spec[*begin + 2])) {
++    // Invalid escape sequence because there's not enough room, or the
++    // digits are not ASCII.
++    return false;
++  }
++
++  unsigned char first = static_cast<unsigned char>(spec[*begin + 1]);
++  unsigned char second = static_cast<unsigned char>(spec[*begin + 2]);
++  if (!IsHexChar(first) || !IsHexChar(second)) {
++    // Invalid hex digits, fail.
++    return false;
++  }
++
++  // Valid escape sequence.
++  *unescaped_value = (HexCharToValue(first) << 4) + HexCharToValue(second);
++  *begin += 2;
++  return true;
++}
++
++} // namespace url
++
++#endif // URL_URL_CANON_INTERNAL_H_
+diff --git a/source/common/chromium_url/url_canon_path.cc b/source/common/chromium_url/url_canon_path.cc
+new file mode 100644
+index 000000000..2e13dc0cf
+--- /dev/null
++++ b/source/common/chromium_url/url_canon_path.cc
+@@ -0,0 +1,417 @@
++// Envoy snapshot of Chromium URL path normalization, see README.md.
++// NOLINT(namespace-envoy)
++
++// Copyright 2013 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include <limits.h>
++
++#include "common/chromium_url/url_canon.h"
++#include "common/chromium_url/url_canon_internal.h"
++#include "common/chromium_url/url_parse_internal.h"
++
++namespace url {
++
++namespace {
++
++enum CharacterFlags {
++  // Pass through unchanged, whether escaped or unescaped. This doesn't
++  // actually set anything so you can't OR it to check, it's just to make the
++  // table below more clear when neither ESCAPE or UNESCAPE is set.
++  PASS = 0,
++
++  // This character requires special handling in DoPartialPath. Doing this test
++  // first allows us to filter out the common cases of regular characters that
++  // can be directly copied.
++  SPECIAL = 1,
++
++  // This character must be escaped in the canonical output. Note that all
++  // escaped chars also have the "special" bit set so that the code that looks
++  // for this is triggered. Not valid with PASS or ESCAPE
++  ESCAPE_BIT = 2,
++  ESCAPE = ESCAPE_BIT | SPECIAL,
++
++  // This character must be unescaped in canonical output. Not valid with
++  // ESCAPE or PASS. We DON'T set the SPECIAL flag since if we encounter these
++  // characters unescaped, they should just be copied.
++  UNESCAPE = 4,
++
++  // This character is disallowed in URLs. Note that the "special" bit is also
++  // set to trigger handling.
++  INVALID_BIT = 8,
++  INVALID = INVALID_BIT | SPECIAL,
++};
++
++// This table contains one of the above flag values. Note some flags are more
++// than one bits because they also turn on the "special" flag. Special is the
++// only flag that may be combined with others.
++//
++// This table is designed to match exactly what IE does with the characters.
++//
++// Dot is even more special, and the escaped version is handled specially by
++// IsDot. Therefore, we don't need the "escape" flag, and even the "unescape"
++// bit is never handled (we just need the "special") bit.
++const unsigned char kPathCharLookup[0x100] = {
++    //   NULL     control chars...
++    INVALID, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    //   control chars...
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    //   ' '      !        "        #        $        %        &        '        (        )        *
++    //   +        ,        -        . /
++    ESCAPE, PASS, ESCAPE, ESCAPE, PASS, ESCAPE, PASS, PASS, PASS, PASS, PASS, PASS, PASS, UNESCAPE,
++    SPECIAL, PASS,
++    //   0        1        2        3        4        5        6        7        8        9        :
++    //   ;        <        =        >        ?
++    UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE,
++    UNESCAPE, PASS, PASS, ESCAPE, PASS, ESCAPE, ESCAPE,
++    //   @        A        B        C        D        E        F        G        H        I        J
++    //   K        L        M        N        O
++    PASS, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE,
++    UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE,
++    //   P        Q        R        S        T        U        V        W        X        Y        Z
++    //   [        \        ]        ^        _
++    UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE,
++    UNESCAPE, UNESCAPE, PASS, ESCAPE, PASS, ESCAPE, UNESCAPE,
++    //   `        a        b        c        d        e        f        g        h        i        j
++    //   k        l        m        n        o
++    ESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE,
++    UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE,
++    //   p        q        r        s        t        u        v        w        x        y        z
++    //   {        |        }        ~        <NBSP>
++    UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE, UNESCAPE,
++    UNESCAPE, UNESCAPE, ESCAPE, ESCAPE, ESCAPE, UNESCAPE, ESCAPE,
++    //   ...all the high-bit characters are escaped
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE,
++    ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE, ESCAPE};
++
++enum DotDisposition {
++  // The given dot is just part of a filename and is not special.
++  NOT_A_DIRECTORY,
++
++  // The given dot is the current directory.
++  DIRECTORY_CUR,
++
++  // The given dot is the first of a double dot that should take us up one.
++  DIRECTORY_UP
++};
++
++// When the path resolver finds a dot, this function is called with the
++// character following that dot to see what it is. The return value
++// indicates what type this dot is (see above). This code handles the case
++// where the dot is at the end of the input.
++//
++// |*consumed_len| will contain the number of characters in the input that
++// express what we found.
++//
++// If the input is "../foo", |after_dot| = 1, |end| = 6, and
++// at the end, |*consumed_len| = 2 for the "./" this function consumed. The
++// original dot length should be handled by the caller.
++template <typename CHAR>
++DotDisposition ClassifyAfterDot(const CHAR* spec, int after_dot, int end, int* consumed_len) {
++  if (after_dot == end) {
++    // Single dot at the end.
++    *consumed_len = 0;
++    return DIRECTORY_CUR;
++  }
++  if (IsURLSlash(spec[after_dot])) {
++    // Single dot followed by a slash.
++    *consumed_len = 1; // Consume the slash
++    return DIRECTORY_CUR;
++  }
++
++  int second_dot_len = IsDot(spec, after_dot, end);
++  if (second_dot_len) {
++    int after_second_dot = after_dot + second_dot_len;
++    if (after_second_dot == end) {
++      // Double dot at the end.
++      *consumed_len = second_dot_len;
++      return DIRECTORY_UP;
++    }
++    if (IsURLSlash(spec[after_second_dot])) {
++      // Double dot followed by a slash.
++      *consumed_len = second_dot_len + 1;
++      return DIRECTORY_UP;
++    }
++  }
++
++  // The dots are followed by something else, not a directory.
++  *consumed_len = 0;
++  return NOT_A_DIRECTORY;
++}
++
++// Rewinds the output to the previous slash. It is assumed that the output
++// ends with a slash and this doesn't count (we call this when we are
++// appending directory paths, so the previous path component has and ending
++// slash).
++//
++// This will stop at the first slash (assumed to be at position
++// |path_begin_in_output| and not go any higher than that. Some web pages
++// do ".." too many times, so we need to handle that brokenness.
++//
++// It searches for a literal slash rather than including a backslash as well
++// because it is run only on the canonical output.
++//
++// The output is guaranteed to end in a slash when this function completes.
++void BackUpToPreviousSlash(int path_begin_in_output, CanonOutput* output) {
++  DCHECK(output->length() > 0);
++
++  int i = output->length() - 1;
++  DCHECK(output->at(i) == '/');
++  if (i == path_begin_in_output)
++    return; // We're at the first slash, nothing to do.
++
++  // Now back up (skipping the trailing slash) until we find another slash.
++  i--;
++  while (output->at(i) != '/' && i > path_begin_in_output)
++    i--;
++
++  // Now shrink the output to just include that last slash we found.
++  output->set_length(i + 1);
++}
++
++// Looks for problematic nested escape sequences and escapes the output as
++// needed to ensure they can't be misinterpreted.
++//
++// Our concern is that in input escape sequence that's invalid because it
++// contains nested escape sequences might look valid once those are unescaped.
++// For example, "%%300" is not a valid escape sequence, but after unescaping the
++// inner "%30" this becomes "%00" which is valid. Leaving this in the output
++// string can result in callers re-canonicalizing the string and unescaping this
++// sequence, thus resulting in something fundamentally different than the
++// original input here. This can cause a variety of problems.
++//
++// This function is called after we've just unescaped a sequence that's within
++// two output characters of a previous '%' that we know didn't begin a valid
++// escape sequence in the input string. We look for whether the output is going
++// to turn into a valid escape sequence, and if so, convert the initial '%' into
++// an escaped "%25" so the output can't be misinterpreted.
++//
++// |spec| is the input string we're canonicalizing.
++// |next_input_index| is the index of the next unprocessed character in |spec|.
++// |input_len| is the length of |spec|.
++// |last_invalid_percent_index| is the index in |output| of a previously-seen
++// '%' character. The caller knows this '%' character isn't followed by a valid
++// escape sequence in the input string.
++// |output| is the canonicalized output thus far. The caller guarantees this
++// ends with a '%' followed by one or two characters, and the '%' is the one
++// pointed to by |last_invalid_percent_index|. The last character in the string
++// was just unescaped.
++template <typename CHAR>
++void CheckForNestedEscapes(const CHAR* spec, int next_input_index, int input_len,
++                           int last_invalid_percent_index, CanonOutput* output) {
++  const int length = output->length();
++  const char last_unescaped_char = output->at(length - 1);
++
++  // If |output| currently looks like "%c", we need to try appending the next
++  // input character to see if this will result in a problematic escape
++  // sequence. Note that this won't trigger on the first nested escape of a
++  // two-escape sequence like "%%30%30" -- we'll allow the conversion to
++  // "%0%30" -- but the second nested escape will be caught by this function
++  // when it's called again in that case.
++  const bool append_next_char = last_invalid_percent_index == length - 2;
++  if (append_next_char) {
++    // If the input doesn't contain a 7-bit character next, this case won't be a
++    // problem.
++    if ((next_input_index == input_len) || (spec[next_input_index] >= 0x80))
++      return;
++    output->push_back(static_cast<char>(spec[next_input_index]));
++  }
++
++  // Now output ends like "%cc". Try to unescape this.
++  int begin = last_invalid_percent_index;
++  unsigned char temp;
++  if (DecodeEscaped(output->data(), &begin, output->length(), &temp)) {
++    // New escape sequence found. Overwrite the characters following the '%'
++    // with "25", and push_back() the one or two characters that were following
++    // the '%' when we were called.
++    if (!append_next_char)
++      output->push_back(output->at(last_invalid_percent_index + 1));
++    output->set(last_invalid_percent_index + 1, '2');
++    output->set(last_invalid_percent_index + 2, '5');
++    output->push_back(last_unescaped_char);
++  } else if (append_next_char) {
++    // Not a valid escape sequence, but we still need to undo appending the next
++    // source character so the caller can process it normally.
++    output->set_length(length);
++  }
++}
++
++// Appends the given path to the output. It assumes that if the input path
++// starts with a slash, it should be copied to the output. If no path has
++// already been appended to the output (the case when not resolving
++// relative URLs), the path should begin with a slash.
++//
++// If there are already path components (this mode is used when appending
++// relative paths for resolving), it assumes that the output already has
++// a trailing slash and that if the input begins with a slash, it should be
++// copied to the output.
++//
++// We do not collapse multiple slashes in a row to a single slash. It seems
++// no web browsers do this, and we don't want incompatibilities, even though
++// it would be correct for most systems.
++template <typename CHAR, typename UCHAR>
++bool DoPartialPath(const CHAR* spec, const Component& path, int path_begin_in_output,
++                   CanonOutput* output) {
++  int end = path.end();
++
++  // We use this variable to minimize the amount of work done when unescaping --
++  // we'll only call CheckForNestedEscapes() when this points at one of the last
++  // couple of characters in |output|.
++  int last_invalid_percent_index = INT_MIN;
++
++  bool success = true;
++  for (int i = path.begin; i < end; i++) {
++    UCHAR uch = static_cast<UCHAR>(spec[i]);
++    if (sizeof(CHAR) > 1 && uch >= 0x80) {
++      // We only need to test wide input for having non-ASCII characters. For
++      // narrow input, we'll always just use the lookup table. We don't try to
++      // do anything tricky with decoding/validating UTF-8. This function will
++      // read one or two UTF-16 characters and append the output as UTF-8. This
++      // call will be removed in 8-bit mode.
++      success &= AppendUTF8EscapedChar(spec, &i, end, output);
++    } else {
++      // Normal ASCII character or 8-bit input, use the lookup table.
++      unsigned char out_ch = static_cast<unsigned char>(uch);
++      unsigned char flags = kPathCharLookup[out_ch];
++      if (flags & SPECIAL) {
++        // Needs special handling of some sort.
++        int dotlen;
++        if ((dotlen = IsDot(spec, i, end)) > 0) {
++          // See if this dot was preceded by a slash in the output. We
++          // assume that when canonicalizing paths, they will always
++          // start with a slash and not a dot, so we don't have to
++          // bounds check the output.
++          //
++          // Note that we check this in the case of dots so we don't have to
++          // special case slashes. Since slashes are much more common than
++          // dots, this actually increases performance measurably (though
++          // slightly).
++          DCHECK(output->length() > path_begin_in_output);
++          if (output->length() > path_begin_in_output && output->at(output->length() - 1) == '/') {
++            // Slash followed by a dot, check to see if this is means relative
++            int consumed_len;
++            switch (ClassifyAfterDot<CHAR>(spec, i + dotlen, end, &consumed_len)) {
++            case NOT_A_DIRECTORY:
++              // Copy the dot to the output, it means nothing special.
++              output->push_back('.');
++              i += dotlen - 1;
++              break;
++            case DIRECTORY_CUR: // Current directory, just skip the input.
++              i += dotlen + consumed_len - 1;
++              break;
++            case DIRECTORY_UP:
++              BackUpToPreviousSlash(path_begin_in_output, output);
++              i += dotlen + consumed_len - 1;
++              break;
++            }
++          } else {
++            // This dot is not preceded by a slash, it is just part of some
++            // file name.
++            output->push_back('.');
++            i += dotlen - 1;
++          }
++
++        } else if (out_ch == '\\') {
++          // Convert backslashes to forward slashes
++          output->push_back('/');
++
++        } else if (out_ch == '%') {
++          // Handle escape sequences.
++          unsigned char unescaped_value;
++          if (DecodeEscaped(spec, &i, end, &unescaped_value)) {
++            // Valid escape sequence, see if we keep, reject, or unescape it.
++            // Note that at this point DecodeEscape() will have advanced |i| to
++            // the last character of the escape sequence.
++            char unescaped_flags = kPathCharLookup[unescaped_value];
++
++            if (unescaped_flags & UNESCAPE) {
++              // This escaped value shouldn't be escaped. Try to copy it.
++              output->push_back(unescaped_value);
++              // If we just unescaped a value within 2 output characters of the
++              // '%' from a previously-detected invalid escape sequence, we
++              // might have an input string with problematic nested escape
++              // sequences; detect and fix them.
++              if (last_invalid_percent_index >= (output->length() - 3)) {
++                CheckForNestedEscapes(spec, i + 1, end, last_invalid_percent_index, output);
++              }
++            } else {
++              // Either this is an invalid escaped character, or it's a valid
++              // escaped character we should keep escaped. In the first case we
++              // should just copy it exactly and remember the error. In the
++              // second we also copy exactly in case the server is sensitive to
++              // changing the case of any hex letters.
++              output->push_back('%');
++              output->push_back(static_cast<char>(spec[i - 1]));
++              output->push_back(static_cast<char>(spec[i]));
++              if (unescaped_flags & INVALID_BIT)
++                success = false;
++            }
++          } else {
++            // Invalid escape sequence. IE7+ rejects any URLs with such
++            // sequences, while other browsers pass them through unchanged. We
++            // use the permissive behavior.
++            // TODO(brettw): Consider testing IE's strict behavior, which would
++            // allow removing the code to handle nested escapes above.
++            last_invalid_percent_index = output->length();
++            output->push_back('%');
++          }
++
++        } else if (flags & INVALID_BIT) {
++          // For NULLs, etc. fail.
++          AppendEscapedChar(out_ch, output);
++          success = false;
++
++        } else if (flags & ESCAPE_BIT) {
++          // This character should be escaped.
++          AppendEscapedChar(out_ch, output);
++        }
++      } else {
++        // Nothing special about this character, just append it.
++        output->push_back(out_ch);
++      }
++    }
++  }
++  return success;
++}
++
++template <typename CHAR, typename UCHAR>
++bool DoPath(const CHAR* spec, const Component& path, CanonOutput* output, Component* out_path) {
++  bool success = true;
++  out_path->begin = output->length();
++  if (path.len > 0) {
++    // Write out an initial slash if the input has none. If we just parse a URL
++    // and then canonicalize it, it will of course have a slash already. This
++    // check is for the replacement and relative URL resolving cases of file
++    // URLs.
++    if (!IsURLSlash(spec[path.begin]))
++      output->push_back('/');
++
++    success = DoPartialPath<CHAR, UCHAR>(spec, path, out_path->begin, output);
++  } else {
++    // No input, canonical path is a slash.
++    output->push_back('/');
++  }
++  out_path->len = output->length() - out_path->begin;
++  return success;
++}
++
++} // namespace
++
++bool CanonicalizePath(const char* spec, const Component& path, CanonOutput* output,
++                      Component* out_path) {
++  return DoPath<char, unsigned char>(spec, path, output, out_path);
++}
++
++} // namespace url
+diff --git a/source/common/chromium_url/url_canon_stdstring.cc b/source/common/chromium_url/url_canon_stdstring.cc
+new file mode 100644
+index 000000000..dc501d66e
+--- /dev/null
++++ b/source/common/chromium_url/url_canon_stdstring.cc
+@@ -0,0 +1,33 @@
++// Envoy snapshot of Chromium URL path normalization, see README.md.
++// NOLINT(namespace-envoy)
++
++// Copyright 2013 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "common/chromium_url/url_canon_stdstring.h"
++
++namespace url {
++
++StdStringCanonOutput::StdStringCanonOutput(std::string* str) : CanonOutput(), str_(str) {
++  cur_len_ = static_cast<int>(str_->size()); // Append to existing data.
++  buffer_ = str_->empty() ? NULL : &(*str_)[0];
++  buffer_len_ = static_cast<int>(str_->size());
++}
++
++StdStringCanonOutput::~StdStringCanonOutput() {
++  // Nothing to do, we don't own the string.
++}
++
++void StdStringCanonOutput::Complete() {
++  str_->resize(cur_len_);
++  buffer_len_ = cur_len_;
++}
++
++void StdStringCanonOutput::Resize(int sz) {
++  str_->resize(sz);
++  buffer_ = str_->empty() ? NULL : &(*str_)[0];
++  buffer_len_ = sz;
++}
++
++} // namespace url
+diff --git a/source/common/chromium_url/url_canon_stdstring.h b/source/common/chromium_url/url_canon_stdstring.h
+new file mode 100644
+index 000000000..e502b1a3e
+--- /dev/null
++++ b/source/common/chromium_url/url_canon_stdstring.h
+@@ -0,0 +1,58 @@
++// Envoy snapshot of Chromium URL path normalization, see README.md.
++// NOLINT(namespace-envoy)
++
++// Copyright 2013 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef URL_URL_CANON_STDSTRING_H_
++#define URL_URL_CANON_STDSTRING_H_
++
++// This header file defines a canonicalizer output method class for STL
++// strings. Because the canonicalizer tries not to be dependent on the STL,
++// we have segregated it here.
++
++#include <string>
++
++#include "common/chromium_url/envoy_shim.h"
++#include "common/chromium_url/url_canon.h"
++
++#define DISALLOW_COPY_AND_ASSIGN(TypeName)                                                         \
++  TypeName(const TypeName&) = delete;                                                              \
++  TypeName& operator=(const TypeName&) = delete
++
++namespace url {
++
++// Write into a std::string given in the constructor. This object does not own
++// the string itself, and the user must ensure that the string stays alive
++// throughout the lifetime of this object.
++//
++// The given string will be appended to; any existing data in the string will
++// be preserved.
++//
++// Note that when canonicalization is complete, the string will likely have
++// unused space at the end because we make the string very big to start out
++// with (by |initial_size|). This ends up being important because resize
++// operations are slow, and because the base class needs to write directly
++// into the buffer.
++//
++// Therefore, the user should call Complete() before using the string that
++// this class wrote into.
++class COMPONENT_EXPORT(URL) StdStringCanonOutput : public CanonOutput {
++public:
++  StdStringCanonOutput(std::string* str);
++  ~StdStringCanonOutput() override;
++
++  // Must be called after writing has completed but before the string is used.
++  void Complete();
++
++  void Resize(int sz) override;
++
++protected:
++  std::string* str_;
++  DISALLOW_COPY_AND_ASSIGN(StdStringCanonOutput);
++};
++
++} // namespace url
++
++#endif // URL_URL_CANON_STDSTRING_H_
+diff --git a/source/common/chromium_url/url_parse.h b/source/common/chromium_url/url_parse.h
+new file mode 100644
+index 000000000..31d7d3f16
+--- /dev/null
++++ b/source/common/chromium_url/url_parse.h
+@@ -0,0 +1,49 @@
++// Envoy snapshot of Chromium URL path normalization, see README.md.
++// NOLINT(namespace-envoy)
++
++// Copyright 2013 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef URL_PARSE_H_
++#define URL_PARSE_H_
++
++namespace url {
++
++// Component ------------------------------------------------------------------
++
++// Represents a substring for URL parsing.
++struct Component {
++  Component() : begin(0), len(-1) {}
++
++  // Normal constructor: takes an offset and a length.
++  Component(int b, int l) : begin(b), len(l) {}
++
++  int end() const { return begin + len; }
++
++  // Returns true if this component is valid, meaning the length is given. Even
++  // valid components may be empty to record the fact that they exist.
++  bool is_valid() const { return (len != -1); }
++
++  // Returns true if the given component is specified on false, the component
++  // is either empty or invalid.
++  bool is_nonempty() const { return (len > 0); }
++
++  void reset() {
++    begin = 0;
++    len = -1;
++  }
++
++  bool operator==(const Component& other) const { return begin == other.begin && len == other.len; }
++
++  int begin; // Byte offset in the string of this component.
++  int len;   // Will be -1 if the component is unspecified.
++};
++
++// Helper that returns a component created with the given begin and ending
++// points. The ending point is non-inclusive.
++inline Component MakeRange(int begin, int end) { return Component(begin, end - begin); }
++
++} // namespace url
++
++#endif // URL_PARSE_H_
+diff --git a/source/common/chromium_url/url_parse_internal.h b/source/common/chromium_url/url_parse_internal.h
+new file mode 100644
+index 000000000..a8c158190
+--- /dev/null
++++ b/source/common/chromium_url/url_parse_internal.h
+@@ -0,0 +1,18 @@
++// Envoy snapshot of Chromium URL path normalization, see README.md.
++// NOLINT(namespace-envoy)
++
++// Copyright 2013 The Chromium Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef URL_URL_PARSE_INTERNAL_H_
++#define URL_URL_PARSE_INTERNAL_H_
++
++namespace url {
++
++// We treat slashes and backslashes the same for IE compatibility.
++inline bool IsURLSlash(char ch) { return ch == '/' || ch == '\\'; }
++
++} // namespace url
++
++#endif // URL_URL_PARSE_INTERNAL_H_
+diff --git a/tools/spelling_dictionary.txt b/tools/spelling_dictionary.txt
+index fcb2fcdb0..4c6520b12 100644
+--- a/tools/spelling_dictionary.txt
++++ b/tools/spelling_dictionary.txt
+@@ -148,6 +148,7 @@ MiB
+ NACK
+ NACKed
+ NBF
++NBSP
+ NDEBUG
+ NGHTTP
+ NOLINT
+@@ -186,6 +187,7 @@ RCU
+ RDN
+ RDS
+ RDWR
++README
+ REIMPLEMENT
+ REQ
+ RFC
+@@ -254,6 +256,7 @@ UTC
+ UTF
+ UUID
+ UUIDs
++VC
+ VH
+ VLOG
+ WKT
+@@ -318,8 +321,11 @@ broadcasted
+ buf
+ builtin
+ cancellable
++canonicalization
+ canonicalize
++canonicalizing
+ canonicalized
++canonicalizer
+ cardinality
+ casted
+ chrono
+@@ -683,6 +689,7 @@ symlinked
+ sync
+ sys
+ sysctl
++sz
+ tbl
+ tcmalloc
+ templated
+@@ -713,7 +720,9 @@ undrained
+ uneject
+ unejected
+ unejection
++unescape
+ unescaped
++unescaping
+ uninsantiated
+ uninstantiated
+ unix
+@@ -767,6 +776,8 @@ xhtml
+ xid
+ xxhash
+ xxs
++xxxx
++xxxxx
+ xyz
+ zag
+ zig
+-- 
+2.21.0.392.gf8f6787159e-goog
+

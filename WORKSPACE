@@ -7,8 +7,8 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_SHA = "925810d00b0d3095a8e67fd4e04e0f597ed188bb"
-ENVOY_SHA256 = "26d1f14e881455546cf0e222ec92a8e1e5f65cb2c5761d63c66598b39cd9c47d"
+ENVOY_SHA = "ed9e04277328486d397ce074517516824a877922"
+ENVOY_SHA256 = "6f80e569d985fc40c10446ddd3a77412189e77e9d44c4d5edd7160d9e3539be4"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -17,6 +17,12 @@ http_archive(
     url = "https://github.com/envoyproxy/envoy/archive/" + ENVOY_SHA + ".tar.gz",
     sha256 = ENVOY_SHA256,
     strip_prefix = "envoy-" + ENVOY_SHA,
+    patches = [
+        "@//patches:0001-codec-reject-embedded-NUL-in-headers.-2.patch",
+        "@//patches:0002-build-import-manually-minified-Chrome-URL-lib.-3.patch",
+        "@//patches:0003-hcm-path-normalization.-1.patch",
+    ],
+    patch_args = ["-p1"],
 )
 
 #
@@ -27,7 +33,7 @@ http_archive(
 #   the workspace above.
 # - loads of "//..." need to be renamed as "@envoy//..."
 #
-load("@envoy//bazel:repositories.bzl", "envoy_dependencies")
+load("@envoy//bazel:repositories.bzl", "GO_VERSION", "envoy_dependencies")
 envoy_dependencies()
 
 load("@rules_foreign_cc//:workspace_definitions.bzl", "rules_foreign_cc_dependencies")
@@ -39,20 +45,20 @@ cc_configure()
 load("@envoy_api//bazel:repositories.bzl", "api_dependencies")
 api_dependencies()
 
-load("@io_bazel_rules_go//go:def.bzl", "go_register_toolchains", "go_rules_dependencies")
+load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
 go_rules_dependencies()
-go_register_toolchains()
+go_register_toolchains(go_version = GO_VERSION)
 
 
 # Dependencies for Istio filters.
 # Cf. https://github.com/istio/proxy.
 
-ISTIO_PROXY_SHA = "a5d5a464251e940f2d59a23ec598deb0277a8dd3"
-ISTIO_PROXY_SHA256 = "8ef6fefe754bf7ff672d96aadfba88975b6ca7acea2bb3a7dbeaf08bd8f13152"
+ISTIO_PROXY_SHA = "eef6690db70d92c18cb398a2bca7a141468e12a6"
+ISTIO_PROXY_SHA256 = "6b0c38fd800a70fe900a44558be4dfa27106fd9fe041ac0891799fadf807a1e8"
 
 http_archive(
     name = "istio_proxy",
-    url = "https://github.com/istio/proxy/archive/" + ISTIO_PROXY_SHA + ".tar.gz",
+    url = "https://github.com/jrajahalme/proxy/archive/" + ISTIO_PROXY_SHA + ".tar.gz",
     sha256 = ISTIO_PROXY_SHA256,
     strip_prefix = "proxy-" + ISTIO_PROXY_SHA,
 )
