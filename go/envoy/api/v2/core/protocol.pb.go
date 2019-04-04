@@ -166,12 +166,12 @@ func (m *Http1ProtocolOptions) GetDefaultHostForHttp_10() string {
 }
 
 type Http2ProtocolOptions struct {
-	// `Maximum table size <http://httpwg.org/specs/rfc7541.html#rfc.section.4.2>`_
+	// `Maximum table size <https://httpwg.org/specs/rfc7541.html#rfc.section.4.2>`_
 	// (in octets) that the encoder is permitted to use for the dynamic HPACK table. Valid values
 	// range from 0 to 4294967295 (2^32 - 1) and defaults to 4096. 0 effectively disables header
 	// compression.
 	HpackTableSize *wrappers.UInt32Value `protobuf:"bytes,1,opt,name=hpack_table_size,json=hpackTableSize,proto3" json:"hpack_table_size,omitempty"`
-	// `Maximum concurrent streams <http://httpwg.org/specs/rfc7540.html#rfc.section.5.1.2>`_
+	// `Maximum concurrent streams <https://httpwg.org/specs/rfc7540.html#rfc.section.5.1.2>`_
 	// allowed for peer on one HTTP/2 connection. Valid values range from 1 to 2147483647 (2^31 - 1)
 	// and defaults to 2147483647.
 	MaxConcurrentStreams *wrappers.UInt32Value `protobuf:"bytes,2,opt,name=max_concurrent_streams,json=maxConcurrentStreams,proto3" json:"max_concurrent_streams,omitempty"`

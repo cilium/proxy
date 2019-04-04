@@ -414,7 +414,7 @@ type CertificateValidationContext struct {
 	// [#not-implemented-hide:] Must present signed certificate time-stamp.
 	RequireSignedCertificateTimestamp *wrappers.BoolValue `protobuf:"bytes,6,opt,name=require_signed_certificate_timestamp,json=requireSignedCertificateTimestamp,proto3" json:"require_signed_certificate_timestamp,omitempty"`
 	// An optional `certificate revocation list
-	// <http://https://en.wikipedia.org/wiki/Certificate_revocation_list>`_
+	// <https://en.wikipedia.org/wiki/Certificate_revocation_list>`_
 	// (in PEM format). If specified, Envoy will verify that the presented peer
 	// certificate has not been revoked by this CRL. If this DataSource contains
 	// multiple CRLs, all of them will be used.
