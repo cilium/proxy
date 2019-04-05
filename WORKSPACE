@@ -7,8 +7,8 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_SHA = "ed9e04277328486d397ce074517516824a877922"
-ENVOY_SHA256 = "6f80e569d985fc40c10446ddd3a77412189e77e9d44c4d5edd7160d9e3539be4"
+ENVOY_SHA = "e95ef6bc43daeda16451ad4ef20979d8e07a5299"
+ENVOY_SHA256 = "72eb752a69c3e8f63ab0f1d68ae04ad95e0d23a5b6ced9ceaf442a41d701e8a6"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -17,12 +17,6 @@ http_archive(
     url = "https://github.com/envoyproxy/envoy/archive/" + ENVOY_SHA + ".tar.gz",
     sha256 = ENVOY_SHA256,
     strip_prefix = "envoy-" + ENVOY_SHA,
-    patches = [
-        "@//patches:0001-codec-reject-embedded-NUL-in-headers.-2.patch",
-        "@//patches:0002-build-import-manually-minified-Chrome-URL-lib.-3.patch",
-        "@//patches:0003-hcm-path-normalization.-1.patch",
-    ],
-    patch_args = ["-p1"],
 )
 
 #
