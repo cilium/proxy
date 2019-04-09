@@ -8,7 +8,7 @@
         {
 +         "name": "xds-grpc-cilium",
 +         "type": "STATIC",
-+         "connect_timeout": {{ .connect_timeout }},
++         "connect_timeout": "{{ .connect_timeout }}",
 +         "lb_policy": "ROUND_ROBIN",
 +         "hosts": [
 +           {

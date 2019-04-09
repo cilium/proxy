@@ -2,11 +2,17 @@
   "node": {
     "id": "{{ .nodeID }}",
     "cluster": "{{ .cluster }}",
-    {{ if .zone }}
     "locality": {
-      "zone": "{{ .zone }}"
+      {{ if .region }}
+      "region": "{{ .region }}",
+      {{ end }}
+      {{ if .zone }}
+      "zone": "{{ .zone }}",
+      {{ end }}
+      {{ if .sub_zone }}
+      "sub_zone": "{{ .sub_zone }}",
+      {{ end }}
     },
-    {{ end }}
     "metadata": {{ .meta_json_str }}
   },
   "stats_config": {
@@ -39,15 +45,30 @@
       {
         "tag_name": "listener_address",
         "regex": "^listener\\.(((?:[_.[:digit:]]*|[_\\[\\]aAbBcCdDeEfF[:digit:]]*))\\.)"
+      },
+      {
+        "tag_name": "mongo_prefix",
+        "regex": "^mongo\\.(.+?)\\.(collection|cmd|cx_|op_|delays_|decoding_)(.*?)$"
       }
-    ]
+    ],
+    "stats_matcher": {
+      "inclusion_list": {
+        "patterns": [
+          {{- range $a, $s := .inclusionPatterns }}
+            {
+              "prefix": "{{$s}}"
+            },
+          {{- end }}
+        ]
+      }
+    }
   },
   "admin": {
     "access_log_path": "/dev/null",
     "address": {
       "socket_address": {
         "address": "127.0.0.1",
-        "port_value": 15000
+        "port_value": {{ .config.ProxyAdminPort }}
       }
     }
   },
@@ -81,7 +102,7 @@
             "socket_address": {
               "protocol": "TCP",
               "address": "127.0.0.1",
-              "port_value": 15000
+              "port_value": {{ .config.ProxyAdminPort }}
             }
           }
         ]
@@ -204,6 +225,20 @@
         ]
       }
       {{ end }}
+      {{ if .envoy_metrics_service }}
+      ,
+      {
+        "name": "envoy_metrics_service",
+        "type": "STRICT_DNS",
+        "connect_timeout": "1s",
+        "lb_policy": "ROUND_ROBIN",
+        "hosts": [
+          {
+            "socket_address": {{ .envoy_metrics_service }}
+          }
+        ]
+      }
+      {{ end }}
     ],
     "listeners":[
       {
@@ -259,7 +294,10 @@
     "http": {
       "name": "envoy.zipkin",
       "config": {
-        "collector_cluster": "zipkin"
+        "collector_cluster": "zipkin",
+        "collector_endpoint": "/api/v1/spans",
+        "trace_id_128bit": "true",
+        "shared_span_context": "false"
       }
     }
   }
@@ -275,9 +313,22 @@
     }
   }
   {{ end }}
-  {{ if .statsd }}
+  {{ if or .envoy_metrics_service .statsd }}
   ,
   "stats_sinks": [
+    {{ if .envoy_metrics_service }}
+    {
+      "name": "envoy.metrics_service",
+      "config": {
+        "grpc_service": {
+          "envoy_grpc": {
+            "cluster_name": "envoy_metrics_service"
+          }
+        }
+      }
+    },
+    {{ end }}
+    {{ if .statsd }}
     {
       "name": "envoy.statsd",
       "config": {
@@ -285,7 +336,8 @@
           "socket_address": {{ .statsd }}
         }
       }
-    }
+    },
+    {{ end }}
   ]
   {{ end }}
 }
