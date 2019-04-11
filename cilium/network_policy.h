@@ -255,7 +255,7 @@ public:
     const auto& npmap = tls_->getTyped<ThreadLocalPolicyMap>().policies_;
     auto it = npmap.find(endpoint_policy_name);
     if (it == npmap.end()) {
-      ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::Allowed(): No policy found for endpoint {}", endpoint_policy_name);
+      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::Allowed(): No policy found for endpoint {}", endpoint_policy_name);
       return false;
     }
     return it->second->Allowed(ingress, port, remote_id, headers);
@@ -269,7 +269,7 @@ public:
     const auto& npmap = tls_->getTyped<ThreadLocalPolicyMap>().policies_;
     auto it = npmap.find(endpoint_policy_name);
     if (it == npmap.end()) {
-      ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::useProxylib(): No policy found for endpoint {}", endpoint_policy_name);
+      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::useProxylib(): No policy found for endpoint {}", endpoint_policy_name);
       return false;
     }
     return it->second->useProxylib(ingress, port, l7_proto);
