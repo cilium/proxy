@@ -54,7 +54,7 @@ RUN export BAZEL_VERSION=`cat BAZEL_VERSION` \
 # Add minimum Envoy files needed for the deps build. Touching any of these
 # in the cilium repo will trigger this stage to be re-built.
 #
-COPY Makefile.deps WORKSPACE tools bazel ./
+COPY Makefile.deps WORKSPACE .bazelrc tools bazel ./
 COPY BUILD_DEPS BUILD
 
 RUN \
