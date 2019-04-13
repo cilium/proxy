@@ -24,7 +24,7 @@ CHECK_FORMAT ?= ./bazel-bin/check_format.py.runfiles/envoy/tools/check_format.py
 
 SHELL=/bin/bash -o pipefail
 BAZEL ?= $(QUIET) bazel
-BAZEL_FILTER ?= 2>&1 | grep -v -e "bazel-out/.*/genfiles/external/.*: warning: directory does not exist."
+BAZEL_FILTER ?= 2>&1 | grep -v -e "INFO: From .*:" -e "external/.*: warning: directory does not exist."
 BAZEL_OPTS ?=
 BAZEL_TEST_OPTS ?= --jobs=1
 BAZEL_CACHE ?= ~/.cache/bazel
