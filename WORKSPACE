@@ -7,8 +7,8 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_SHA = "e95ef6bc43daeda16451ad4ef20979d8e07a5299"
-ENVOY_SHA256 = "72eb752a69c3e8f63ab0f1d68ae04ad95e0d23a5b6ced9ceaf442a41d701e8a6"
+ENVOY_SHA = "ac7aa5ac8a815e5277b4d4659c5c02145fa1d56f"
+ENVOY_SHA256 = "3f13facc893ef0c5063c7391a1ffca8de0f52425c8a7a49ef45e69dbb5e7304b"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -27,6 +27,9 @@ http_archive(
 #   the workspace above.
 # - loads of "//..." need to be renamed as "@envoy//..."
 #
+load("@envoy//bazel:api_repositories.bzl", "envoy_api_dependencies")
+envoy_api_dependencies()
+
 load("@envoy//bazel:repositories.bzl", "GO_VERSION", "envoy_dependencies")
 envoy_dependencies()
 
@@ -36,9 +39,6 @@ rules_foreign_cc_dependencies()
 load("@envoy//bazel:cc_configure.bzl", "cc_configure")
 cc_configure()
 
-load("@envoy_api//bazel:repositories.bzl", "api_dependencies")
-api_dependencies()
-
 load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
 go_rules_dependencies()
 go_register_toolchains(go_version = GO_VERSION)
@@ -47,12 +47,12 @@ go_register_toolchains(go_version = GO_VERSION)
 # Dependencies for Istio filters.
 # Cf. https://github.com/istio/proxy.
 
-ISTIO_PROXY_SHA = "eef6690db70d92c18cb398a2bca7a141468e12a6"
-ISTIO_PROXY_SHA256 = "6b0c38fd800a70fe900a44558be4dfa27106fd9fe041ac0891799fadf807a1e8"
+ISTIO_PROXY_SHA = "a169a0c0cd86b51538c240e2d037fa8f7f5860ae"
+ISTIO_PROXY_SHA256 = "2fe34b4fe6aca9fdb3f0b5a9361b5a9e2ee27d5768780ccb312fed61c9684d47"
 
 http_archive(
     name = "istio_proxy",
-    url = "https://github.com/jrajahalme/proxy/archive/" + ISTIO_PROXY_SHA + ".tar.gz",
+    url = "https://github.com/istio/proxy/archive/" + ISTIO_PROXY_SHA + ".tar.gz",
     sha256 = ISTIO_PROXY_SHA256,
     strip_prefix = "proxy-" + ISTIO_PROXY_SHA,
 )
