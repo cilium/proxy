@@ -5,6 +5,7 @@
 #include "common/common/logger.h"
 
 #include "proxymap.h"
+#include "network_policy.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -57,11 +58,12 @@ public:
 
 class SocketOption : public SocketMarkOption {
 public:
-SocketOption(const ProxyMapSharedPtr& maps, uint32_t source_identity, uint32_t destination_identity, bool ingress, uint16_t port, uint16_t proxy_port, std::string&& pod_ip)
-  : SocketMarkOption(source_identity, ingress), maps_(maps), destination_identity_(destination_identity), port_(port), proxy_port_(proxy_port), pod_ip_(std::move(pod_ip)) {
+SocketOption(std::shared_ptr<const Cilium::NetworkPolicyMap> npmap, const ProxyMapSharedPtr& maps, uint32_t source_identity, uint32_t destination_identity, bool ingress, uint16_t port, uint16_t proxy_port, std::string&& pod_ip)
+  : SocketMarkOption(source_identity, ingress), npmap_(npmap), maps_(maps), destination_identity_(destination_identity), port_(port), proxy_port_(proxy_port), pod_ip_(std::move(pod_ip)) {
     ENVOY_LOG(debug, "Cilium SocketOption(): source_identity: {}, destination_identity: {}, ingress: {}, port: {}, proxy_port: {}, pod_ip: {}", identity_, destination_identity_, ingress_, port_, proxy_port_, pod_ip_);
   }
 
+  std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
   ProxyMapSharedPtr maps_;
   uint32_t destination_identity_;
   uint16_t port_;
@@ -69,5 +71,18 @@ SocketOption(const ProxyMapSharedPtr& maps, uint32_t source_identity, uint32_t d
   std::string pod_ip_;
 };
 
+static inline
+const Cilium::SocketOption* GetSocketOption(const Network::Socket::OptionsSharedPtr& options) {
+  if (options) {
+    for (const auto& option: *options) {
+      auto opt = dynamic_cast<const Cilium::SocketOption*>(option.get());
+      if (opt) {
+	return opt;
+      }
+    }
+  }
+  return nullptr;
+}
+ 
 } // namespace Cilium
 } // namespace Envoy

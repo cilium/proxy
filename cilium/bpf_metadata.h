@@ -9,6 +9,7 @@
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/proxymap.h"
 #include "cilium/host_map.h"
+#include "cilium/network_policy.h"
 
 namespace Envoy {
 namespace Filter {
@@ -27,6 +28,7 @@ public:
   virtual bool getMetadata(Network::ConnectionSocket &socket);
 
   bool is_ingress_;
+  std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
   Cilium::ProxyMapSharedPtr maps_{};
   std::shared_ptr<const Cilium::PolicyHostMap> hosts_;
 };

@@ -71,44 +71,36 @@ Config::Config(const Json::Object&, Server::Configuration::FactoryContext&)
 Network::FilterStatus Instance::onNewConnection() {
   ENVOY_LOG(debug, "Cilium Network: onNewConnection");
   auto& conn = callbacks_->connection();
-  const auto& options_ = conn.socketOptions();
-  if (options_) {
-    const Cilium::SocketOption* option = nullptr;
-    for (const auto& option_: *options_) {
-      option = dynamic_cast<const Cilium::SocketOption*>(option_.get());
-      if (option) {
-	if (option->maps_) {
-	  // Insert connection callback to delete the proxymap entry once the connection is closed.
-	  maps_ = option->maps_;
-	  proxy_port_ = option->proxy_port_;
-	  if (proxy_port_ != 0) {
-	    conn.addConnectionCallbacks(*this);
-	    ENVOY_CONN_LOG(debug, "Cilium Network: Added connection callbacks to delete proxymap entry later", conn);
-	  }
-	} else {
-	  ENVOY_CONN_LOG(debug, "Cilium Network: No proxymap", conn);
-	}
+  const auto option = Cilium::GetSocketOption(conn.socketOptions());
+  if (option) {
+    if (option->maps_) {
+      // Insert connection callback to delete the proxymap entry once the connection is closed.
+      maps_ = option->maps_;
+      proxy_port_ = option->proxy_port_;
+      if (proxy_port_ != 0) {
+	conn.addConnectionCallbacks(*this);
+	ENVOY_CONN_LOG(debug, "Cilium Network: Added connection callbacks to delete proxymap entry later", conn);
+      }
+    } else {
+      ENVOY_CONN_LOG(debug, "Cilium Network: No proxymap", conn);
+    }
 
-	if (config_->go_proto_.length() > 0 && config_->proxylib_.get() != nullptr) {
-	  const std::string& policy_name = config_->policy_name_.length() ? config_->policy_name_ : option->pod_ip_;
+    const std::string& policy_name = config_->policy_name_.length() ? config_->policy_name_ : option->pod_ip_;
+    std::string l7proto = config_->go_proto_;
+    if (config_->proxylib_.get() != nullptr &&
+	(l7proto.length() > 0 ||
+	 (option->npmap_ && option->npmap_->useProxylib(policy_name, option->ingress_, option->port_, l7proto)))) {
 
-	  go_parser_ = config_->proxylib_->NewInstance(conn, config_->go_proto_, option->ingress_, option->identity_,
-						       option->destination_identity_, conn.remoteAddress()->asString(),
-						       conn.localAddress()->asString(), policy_name);
-	  if (go_parser_.get() == nullptr) {
-	    ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found", conn, config_->go_proto_);
-	    return Network::FilterStatus::StopIteration;
-	  }
-	}
-
-	break;
+      go_parser_ = config_->proxylib_->NewInstance(conn, l7proto, option->ingress_, option->identity_,
+						   option->destination_identity_, conn.remoteAddress()->asString(),
+						   conn.localAddress()->asString(), policy_name);
+      if (go_parser_.get() == nullptr) {
+	ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found", conn, config_->go_proto_);
+	return Network::FilterStatus::StopIteration;
       }
     }
-    if (!option) {
-      ENVOY_CONN_LOG(warn, "Cilium Network: Cilium Socket Option not found", conn);
-    }
   } else {
-    ENVOY_CONN_LOG(warn, "Cilium Network: No socket options", conn);
+    ENVOY_CONN_LOG(warn, "Cilium Network: Cilium Socket Option not found", conn);
   }
 
   return Network::FilterStatus::Continue;

@@ -12,8 +12,6 @@
 #include "cilium/accesslog.h"
 #include "cilium/api/l7policy.pb.h"
 
-#include "cilium/network_policy.h"
-
 namespace Envoy {
 namespace Cilium {
 
@@ -49,7 +47,6 @@ public:
 
   FilterStats stats_;
   const std::string policy_name_;
-  std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
   std::string denied_403_body_;
   absl::optional<bool> is_ingress_;
 

@@ -62,6 +62,7 @@ namespace BpfMetadata {
 // Singleton registration via macro defined in envoy/singleton/manager.h
 SINGLETON_MANAGER_REGISTRATION(cilium_bpf_proxymap);
 SINGLETON_MANAGER_REGISTRATION(cilium_host_map);
+SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
 
 namespace {
 
@@ -71,6 +72,19 @@ createHostMap(Server::Configuration::ListenerFactoryContext& context) {
     SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context] {
       auto map = std::make_shared<Cilium::PolicyHostMap>(
           context.localInfo(), context.clusterManager(),
+	  context.dispatcher(), context.random(), context.scope(),
+	  context.threadLocal());
+      map->startSubscription();
+      return map;
+    });
+}
+
+std::shared_ptr<const Cilium::NetworkPolicyMap>
+createPolicyMap(Server::Configuration::FactoryContext& context) {
+  return context.singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
+    SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context] {
+      auto map = std::make_shared<Cilium::NetworkPolicyMap>(
+	  context.localInfo(), context.clusterManager(),
 	  context.dispatcher(), context.random(), context.scope(),
 	  context.threadLocal());
       map->startSubscription();
@@ -94,6 +108,10 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
     }
   }
   hosts_ = createHostMap(context);
+
+  // Get the shared policy provider, or create it if not already created.
+  // Note that the API config source is assumed to be the same for all filter instances!
+  npmap_ = createPolicyMap(context);
 }
 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
@@ -123,8 +141,9 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     if (hosts_ && socket.localAddress()->ip()) {
       destination_identity = hosts_->resolve(socket.localAddress()->ip());
     }
-    socket.addOption(std::make_shared<Cilium::SocketOption>(maps_, source_identity, destination_identity, is_ingress_, orig_dport, proxy_port, std::move(pod_ip)));
+    socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, source_identity, destination_identity, is_ingress_, orig_dport, proxy_port, std::move(pod_ip)));
   }
+
   return ok;
 }
 

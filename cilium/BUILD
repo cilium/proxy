@@ -6,6 +6,28 @@ load(
 )
 
 envoy_cc_library(
+    name = "network_policy_lib",
+    srcs = [
+	"network_policy.cc",
+    ],	    	
+    hdrs = [
+        "network_policy.h",
+    ],
+    repository = "@envoy",
+    deps = [
+        "@envoy//source/exe:envoy_common_lib",
+        "@envoy//source/common/common:logger_lib",
+        "@envoy//source/common/network:address_lib",
+        "@envoy//source/common/local_info:local_info_lib",
+        "@envoy//include/envoy/config:subscription_interface",
+        "@envoy//include/envoy/singleton:manager_interface",
+        "@envoy//source/common/router:config_utility_lib",
+	"//cilium:grpc_subscription_lib",
+        "//cilium/api:npds_cc",
+    ],
+)
+
+envoy_cc_library(
     name = "socket_option_lib",
     hdrs = [
         "socket_option.h",
@@ -15,6 +37,7 @@ envoy_cc_library(
         "@envoy//include/envoy/network:listen_socket_interface",
         "@envoy//source/common/common:logger_lib",
 	"//cilium:proxymap_lib",
+        "//cilium:network_policy_lib",
     ],
 )
 
@@ -41,25 +64,18 @@ envoy_cc_library(
     srcs = [
         "accesslog.cc",
         "l7policy.cc",
-        "network_policy.cc",
     ],
     hdrs = [
         "accesslog.h",
         "l7policy.h",
-        "network_policy.h",
     ],
     repository = "@envoy",
     deps = [
-        "@envoy//source/exe:envoy_common_lib",
-        "@envoy//source/common/network:address_lib",
         "@envoy//include/envoy/config:subscription_interface",
-        "@envoy//include/envoy/singleton:manager_interface",
-        "@envoy//source/common/local_info:local_info_lib",
         "//cilium/api:accesslog_proto_cc",
         "//cilium/api:l7policy_cc",
-        "//cilium/api:npds_cc",
-        "//cilium:grpc_subscription_lib",
         "//cilium:socket_option_lib",
+        "//cilium:network_policy_lib",
     ],
 )
 
@@ -154,7 +170,6 @@ envoy_cc_library(
         "@envoy//include/envoy/registry:registry",
         "@envoy//include/envoy/server:filter_config_interface",
         "@envoy//source/common/common:assert_lib",
-        "@envoy//source/common/local_info:local_info_lib",
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/network:address_lib",
         "@envoy//source/common/router:config_utility_lib",
@@ -163,5 +178,6 @@ envoy_cc_library(
         "//cilium:grpc_subscription_lib",
         "//cilium:proxymap_lib",
         "//cilium:socket_option_lib",
+        "//cilium:network_policy_lib",
     ],
 )

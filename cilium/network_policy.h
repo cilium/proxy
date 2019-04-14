@@ -113,13 +113,16 @@ public:
 
     class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
     public:
-      PortNetworkPolicyRules(const google::protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) : have_http_rules_(false) {
+      PortNetworkPolicyRules(const google::protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
 	if (rules.size() == 0) {
 	    ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): No rules, will allow everything.");
 	}
 	for (const auto& it: rules) {
 	  if (it.has_http_rules()) {
 	    have_http_rules_ = true;
+	  }
+	  if (l7_proto_.length() == 0 && it.l7_proto().length() > 0) {
+	    l7_proto_ = it.l7_proto();
 	  }
 	  rules_.emplace_back(PortNetworkPolicyRule(it));
 	}
@@ -145,8 +148,15 @@ public:
 	return false;
       }
 
+      bool useProxylib(std::string& l7_proto) const {
+	ENVOY_LOG(debug, "Cilium L7 PortNetworkPolicyRules::useProxylib(): returning {}", l7_proto_);
+	l7_proto = l7_proto_;
+	return l7_proto_.length() > 0;
+      }
+
       std::vector<PortNetworkPolicyRule> rules_; // Allowed if empty.
-      bool have_http_rules_;
+      bool have_http_rules_{};
+      std::string l7_proto_{};
     };
     
     class PortNetworkPolicy : public Logger::Loggable<Logger::Id::config> {
@@ -191,6 +201,15 @@ public:
 	return found_port_rule ? false : true;
       }
 
+      bool useProxylib(uint32_t port, std::string& l7_proto) const {
+	auto it = rules_.find(port);
+	if (it != rules_.end()) {
+	  return it->second.useProxylib(l7_proto);
+	}
+	ENVOY_LOG(debug, "Cilium L7 PortNetworkPolicy::useProxylib(): returning false (no policy for port)", port);
+	return false;
+      }
+
       std::unordered_map<uint32_t, PortNetworkPolicyRules> rules_;
     };
 
@@ -200,6 +219,12 @@ public:
       return ingress
 	? ingress_.Matches(port, remote_id, headers)
 	: egress_.Matches(port, remote_id, headers);
+    }
+
+    bool useProxylib(bool ingress, uint32_t port, std::string& l7_proto) const {
+      return ingress
+	? ingress_.useProxylib(port, l7_proto)
+	: egress_.useProxylib(port, l7_proto);
     }
 
   private:
@@ -234,6 +259,20 @@ public:
       return false;
     }
     return it->second->Allowed(ingress, port, remote_id, headers);
+  }
+
+  bool useProxylib(const std::string& endpoint_policy_name, bool ingress, uint32_t port, std::string& l7_proto) const {
+    if (tls_->get().get() == nullptr) {
+      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::useProxylib(): NULL TLS object!");
+      return false;
+    }
+    const auto& npmap = tls_->getTyped<ThreadLocalPolicyMap>().policies_;
+    auto it = npmap.find(endpoint_policy_name);
+    if (it == npmap.end()) {
+      ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::useProxylib(): No policy found for endpoint {}", endpoint_policy_name);
+      return false;
+    }
+    return it->second->useProxylib(ingress, port, l7_proto);
   }
 
   // Config::SubscriptionCallbacks

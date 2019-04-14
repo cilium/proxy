@@ -11,14 +11,10 @@
 #include "common/config/utility.h"
 #include "common/http/header_map_impl.h"
 
-#include "cilium/network_policy.h"
 #include "cilium/socket_option.h"
 
 namespace Envoy {
 namespace Cilium {
-
-// Singleton registration via macro defined in envoy/singleton/manager.h
-SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
 
 class ConfigFactory
     : public Server::Configuration::NamedHttpFilterConfigFactory {
@@ -58,23 +54,6 @@ static Registry::RegisterFactory<
     ConfigFactory, Server::Configuration::NamedHttpFilterConfigFactory>
     register_;
 
-namespace {
-
-std::shared_ptr<const Cilium::NetworkPolicyMap>
-createPolicyMap(Server::Configuration::FactoryContext& context) {
-  return context.singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
-    SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context] {
-      auto map = std::make_shared<Cilium::NetworkPolicyMap>(
-	  context.localInfo(), context.clusterManager(),
-	  context.dispatcher(), context.random(), context.scope(),
-	  context.threadLocal());
-      map->startSubscription();
-      return map;
-    });
-}
-
-} // namespace
-
 Config::Config(const std::string& policy_name, const std::string& access_log_path,
 	       const std::string& denied_403_body, const absl::optional<bool>& is_ingress,
 	       Server::Configuration::FactoryContext& context)
@@ -94,10 +73,6 @@ Config::Config(const std::string& policy_name, const std::string& access_log_pat
   if (len < 2 || denied_403_body_[len-2] != '\r' || denied_403_body_[len-1] != '\n') {
     denied_403_body_.append("\r\n");
   }
-
-  // Get the shared policy provider, or create it if not already created.
-  // Note that the API config source is assumed to be the same for all filter instances!
-  npmap_ = createPolicyMap(context);
 }
 
 Config::Config(const Json::Object &config, Server::Configuration::FactoryContext& context)
@@ -129,42 +104,32 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, 
   const auto& conn = callbacks_->connection();
   bool ingress = false;
   bool allowed = false;
-  if (config_->npmap_ && conn) {
-    const auto& options_ = conn->socketOptions();
-    if (options_) {
-      const Cilium::SocketOption* option = nullptr;
-      for (const auto& option_: *options_) {
-	option = dynamic_cast<const Cilium::SocketOption*>(option_.get());
-	if (option) {
-	  if (config_->is_ingress_) {
-	    ingress = config_->is_ingress_.value();
-	  } else {
-	    ingress = option->ingress_;
-	  }
-	  const std::string& policy_name = config_->policy_name_.length() ? config_->policy_name_ : option->pod_ip_;
+  if (conn) {
+    const auto option = Cilium::GetSocketOption(conn->socketOptions());
+    if (option) {
+      if (config_->is_ingress_) {
+	ingress = config_->is_ingress_.value();
+      } else {
+	ingress = option->ingress_;
+      }
+      const std::string& policy_name = config_->policy_name_.length() ? config_->policy_name_ : option->pod_ip_;
 
-	  if (ingress) {
-	    allowed = config_->npmap_->Allowed(policy_name, ingress, option->port_,
-					       option->identity_, headers);
-	  } else {
-	    allowed = config_->npmap_->Allowed(policy_name, ingress, option->port_,
-					       option->destination_identity_, headers);
-	  }
-	  ENVOY_LOG(debug, "Cilium L7: {} ({}->{}) policy lookup for endpoint {}: {}",
-		    ingress ? "Ingress" : "Egress",
-		    option->identity_, option->destination_identity_,
-		    policy_name, allowed ? "ALLOW" : "DENY");
-	  break;
-	}
+      if (ingress) {
+	allowed = option->npmap_->Allowed(policy_name, ingress, option->port_,
+					  option->identity_, headers);
+      } else {
+	allowed = option->npmap_->Allowed(policy_name, ingress, option->port_,
+					  option->destination_identity_, headers);
       }
-      if (!option) {
-	ENVOY_LOG(warn, "Cilium L7: Cilium Socket Option not found");
-      }
+      ENVOY_LOG(debug, "Cilium L7: {} ({}->{}) policy lookup for endpoint {}: {}",
+		ingress ? "Ingress" : "Egress",
+		option->identity_, option->destination_identity_,
+		policy_name, allowed ? "ALLOW" : "DENY");
     } else {
-      ENVOY_LOG(warn, "Cilium L7: No socket options");
+      ENVOY_LOG(warn, "Cilium L7: Cilium Socket Option not found");
     }
   } else {
-    ENVOY_LOG(warn, "Cilium L7: No policy map or no connection");
+    ENVOY_LOG(warn, "Cilium L7: No connection");
   }
 
   // Fill in the log entry
