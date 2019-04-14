@@ -9,6 +9,7 @@
 FROM quay.io/cilium/cilium-builder:2019-03-16 as builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /go/src/github.com/cilium/cilium/envoy
+COPY . ./
 
 #
 # Additional Envoy Build dependencies
@@ -37,10 +38,6 @@ RUN go get -u github.com/golang/protobuf/protoc-gen-go \
 	&& (cd /go/src/github.com/lyft/protoc-gen-validate ; git checkout 4349a359d42fdfee53b85dd5c89a2f169e1dc6b2 ; make build)
 
 #
-# Extract the needed Bazel version from the repo
-#
-COPY BAZEL_VERSION ./
-#
 # Install Bazel
 #
 RUN export BAZEL_VERSION=`cat BAZEL_VERSION` \
@@ -51,17 +48,12 @@ RUN export BAZEL_VERSION=`cat BAZEL_VERSION` \
 	&& rm bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh
 
 #
-# Add minimum Envoy files needed for the deps build. Touching any of these
-# in the cilium repo will trigger this stage to be re-built.
+# Build and keep the cache
 #
-COPY Makefile.deps WORKSPACE .bazelrc tools bazel ./
-COPY BUILD_DEPS BUILD
-
 RUN \
 	# Extract Envoy source version (git SHA) from WORKSPACE
 	grep "ENVOY_SHA[ \t]*=" WORKSPACE | cut -d \" -f 2 > SOURCE_VERSION \
-	# Build only Envoy dependencies
-	&& make PKG_BUILD=1 -f Makefile.deps
+	&& make PKG_BUILD=1 cilium-envoy && rm ./bazel-bin/cilium-envoy
 
 #
 # Absolutely nothing after making envoy deps!
