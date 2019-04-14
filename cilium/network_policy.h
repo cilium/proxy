@@ -17,7 +17,7 @@ namespace Envoy {
 namespace Cilium {
 
 class NetworkPolicyMap : public Singleton::Instance,
-                         Config::SubscriptionCallbacks,
+                         Envoy::Config::SubscriptionCallbacks,
                          public std::enable_shared_from_this<NetworkPolicyMap>,
                          public Logger::Loggable<Logger::Id::config> {
 public:
