@@ -110,12 +110,20 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     proxy_port = 0; // no proxy_port when no bpf.
     ok = true;
   }
+  std::string pod_ip;
+  if (is_ingress_ && socket.localAddress()->ip()) {
+    pod_ip = socket.localAddress()->ip()->addressAsString();
+    ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
+  } else if (!is_ingress_ && socket.remoteAddress()->ip()) {
+    pod_ip = socket.remoteAddress()->ip()->addressAsString();
+    ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
+  }
   if (ok) {
     // Resolve the destination security ID
     if (hosts_ && socket.localAddress()->ip()) {
       destination_identity = hosts_->resolve(socket.localAddress()->ip());
     }
-    socket.addOption(std::make_shared<Cilium::SocketOption>(maps_, source_identity, destination_identity, is_ingress_, orig_dport, proxy_port));
+    socket.addOption(std::make_shared<Cilium::SocketOption>(maps_, source_identity, destination_identity, is_ingress_, orig_dport, proxy_port, std::move(pod_ip)));
   }
   return ok;
 }

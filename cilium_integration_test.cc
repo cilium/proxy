@@ -164,7 +164,7 @@ std::string policy_config;
 const std::string BASIC_POLICY = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
-  name: '173'
+  name: '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
   - port: 80
@@ -214,9 +214,13 @@ public:
     // as required by the original_dst cluster.
     socket.restoreLocalAddress(original_dst_address);
     if (is_ingress_) {
-      socket.addOption(std::make_shared<Cilium::SocketOption>(maps_, 1, 173, true, 80, 10000));
+      std::string pod_ip = original_dst_address->ip()->addressAsString();
+      ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
+      socket.addOption(std::make_shared<Cilium::SocketOption>(maps_, 1, 173, true, 80, 10000, std::move(pod_ip)));
     } else {
-      socket.addOption(std::make_shared<Cilium::SocketOption>(maps_, 173, hosts_->resolve(socket.localAddress()->ip()), false, 80, 10001));
+      std::string pod_ip = socket.localAddress()->ip()->addressAsString();
+      ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
+      socket.addOption(std::make_shared<Cilium::SocketOption>(maps_, 173, hosts_->resolve(socket.localAddress()->ip()), false, 80, 10001, std::move(pod_ip)));
     }
     return true;
   }
@@ -412,7 +416,6 @@ static_resources:
           - name: test_l7policy
             config:
               access_log_path: "{{ test_udsdir }}/access_log.sock"
-              policy_name: "173"
           - name: envoy.router
           route_config:
             name: policy_enabled
@@ -460,7 +463,7 @@ public:
   }
 
   void Denied(Http::TestHeaderMapImpl&& headers) {
-    policy_config = BASIC_POLICY;
+    policy_config = TestEnvironment::substitute(BASIC_POLICY, GetParam());
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
@@ -470,7 +473,7 @@ public:
   }
 
   void Accepted(Http::TestHeaderMapImpl&& headers) {
-    policy_config = BASIC_POLICY;
+    policy_config = TestEnvironment::substitute(BASIC_POLICY, GetParam());
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
@@ -779,7 +782,7 @@ TEST_P(CiliumIntegrationTest, L3DeniedPath) {
 
 TEST_P(CiliumIntegrationTest, DuplicatePort) {
   // This policy has a duplicate port number, and will be rejected.
-  policy_config = BASIC_POLICY + R"EOF(  - port: 80
+  policy_config = TestEnvironment::substitute(BASIC_POLICY, GetParam()) + R"EOF(  - port: 80
     rules:
     - remote_policies: [ 2 ]
       http_rules:
@@ -1383,7 +1386,6 @@ static_resources:
           proxylib_params:
             access-log-path: "{{ test_udsdir }}/access_log.sock"
           l7_proto: "test.blockparser"
-          policy_name: "FooBar"
       - name: envoy.tcp_proxy
         config:
           stat_prefix: tcp_stats

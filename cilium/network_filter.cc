@@ -90,9 +90,11 @@ Network::FilterStatus Instance::onNewConnection() {
 	}
 
 	if (config_->go_proto_.length() > 0 && config_->proxylib_.get() != nullptr) {
+	  const std::string& policy_name = config_->policy_name_.length() ? config_->policy_name_ : option->pod_ip_;
+
 	  go_parser_ = config_->proxylib_->NewInstance(conn, config_->go_proto_, option->ingress_, option->identity_,
 						       option->destination_identity_, conn.remoteAddress()->asString(),
-						       conn.localAddress()->asString(), config_->policy_name_);
+						       conn.localAddress()->asString(), policy_name);
 	  if (go_parser_.get() == nullptr) {
 	    ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found", conn, config_->go_proto_);
 	    return Network::FilterStatus::StopIteration;

@@ -57,15 +57,16 @@ public:
 
 class SocketOption : public SocketMarkOption {
 public:
-  SocketOption(const ProxyMapSharedPtr& maps, uint32_t source_identity, uint32_t destination_identity, bool ingress, uint16_t port, uint16_t proxy_port)
-    : SocketMarkOption(source_identity, ingress), maps_(maps), destination_identity_(destination_identity), port_(port), proxy_port_(proxy_port) {
-    ENVOY_LOG(debug, "Cilium SocketOption(): source_identity: {}, destination_identity: {}, ingress: {}, port: {}, proxy_port: {}", identity_, destination_identity_, ingress_, port_, proxy_port_);
+SocketOption(const ProxyMapSharedPtr& maps, uint32_t source_identity, uint32_t destination_identity, bool ingress, uint16_t port, uint16_t proxy_port, std::string&& pod_ip)
+  : SocketMarkOption(source_identity, ingress), maps_(maps), destination_identity_(destination_identity), port_(port), proxy_port_(proxy_port), pod_ip_(std::move(pod_ip)) {
+    ENVOY_LOG(debug, "Cilium SocketOption(): source_identity: {}, destination_identity: {}, ingress: {}, port: {}, proxy_port: {}, pod_ip: {}", identity_, destination_identity_, ingress_, port_, proxy_port_, pod_ip_);
   }
 
   ProxyMapSharedPtr maps_;
   uint32_t destination_identity_;
   uint16_t port_;
   uint16_t proxy_port_;
+  std::string pod_ip_;
 };
 
 } // namespace Cilium

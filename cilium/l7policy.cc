@@ -141,17 +141,19 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, 
 	  } else {
 	    ingress = option->ingress_;
 	  }
+	  const std::string& policy_name = config_->policy_name_.length() ? config_->policy_name_ : option->pod_ip_;
+
 	  if (ingress) {
-	    allowed = config_->npmap_->Allowed(config_->policy_name_, ingress, option->port_,
+	    allowed = config_->npmap_->Allowed(policy_name, ingress, option->port_,
 					       option->identity_, headers);
 	  } else {
-	    allowed = config_->npmap_->Allowed(config_->policy_name_, ingress, option->port_,
+	    allowed = config_->npmap_->Allowed(policy_name, ingress, option->port_,
 					       option->destination_identity_, headers);
 	  }
 	  ENVOY_LOG(debug, "Cilium L7: {} ({}->{}) policy lookup for endpoint {}: {}",
 		    ingress ? "Ingress" : "Egress",
 		    option->identity_, option->destination_identity_,
-		    config_->policy_name_, allowed ? "ALLOW" : "DENY");
+		    policy_name, allowed ? "ALLOW" : "DENY");
 	  break;
 	}
       }
