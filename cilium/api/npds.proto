@@ -51,6 +51,11 @@ message NetworkPolicy {
   // combination.
   // Optional. If empty, all flows in this direction are denied.
   repeated PortNetworkPolicy egress_per_port_policies = 4;
+
+  // Name of the conntrack map to use with this policy.
+  // The paths to various Cilium conntrack maps are derived using this name.
+  // Optional. If empty, proxymap lookup is used instead of conntrack map.
+  string conntrack_map_name = 5;
 }
 
 // A network policy to whitelist flows to a specific destination L4 port,

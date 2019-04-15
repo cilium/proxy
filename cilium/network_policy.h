@@ -12,6 +12,7 @@
 #include "envoy/http/header_map.h"
 
 #include "cilium/api/npds.pb.h"
+#include "cilium/conntrack.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -36,13 +37,17 @@ public:
   // pointer is formed by the caller of the constructor, hence this
   // can't be called from the constructor!
   void startSubscription() { subscription_->start({}, *this); }
-  
+
+  void setPolicyNotifier(Cilium::CtMapSharedPtr& ct) { ctmap_ = ct; }
+
   class PolicyInstance {
   public:
     PolicyInstance(uint64_t hash, const cilium::NetworkPolicy& proto)
-        : hash_(hash), policy_proto_(proto), ingress_(policy_proto_.ingress_per_port_policies()),
+        : conntrack_map_name_(proto.conntrack_map_name()), hash_(hash), policy_proto_(proto),
+          ingress_(policy_proto_.ingress_per_port_policies()),
           egress_(policy_proto_.egress_per_port_policies()) {}
 
+    std::string conntrack_map_name_;
     uint64_t hash_;
     const cilium::NetworkPolicy policy_proto_;
 
@@ -275,6 +280,20 @@ public:
     return it->second->useProxylib(ingress, port, l7_proto);
   }
 
+  std::string conntrackName(const std::string& endpoint_policy_name) const {
+    if (tls_->get().get() == nullptr) {
+      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::conntrackName(): NULL TLS object!");
+      return "";
+    }
+    const auto& npmap = tls_->getTyped<ThreadLocalPolicyMap>().policies_;
+    auto it = npmap.find(endpoint_policy_name);
+    if (it == npmap.end()) {
+      ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::conntrackName(): No policy found for endpoint {}", endpoint_policy_name);
+      return "";
+    }
+    return it->second->conntrack_map_name_;
+  }
+
   // Config::SubscriptionCallbacks
   void onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources,
 		      const std::string& version_info) override;
@@ -298,6 +317,7 @@ private:
   const std::shared_ptr<const PolicyInstance> null_instance_{nullptr};
   static uint64_t instance_id_;
   std::string name_;
+  Cilium::CtMapSharedPtr ctmap_;
 };
 
 } // namespace Cilium

@@ -7,9 +7,10 @@
 #include "common/common/logger.h"
 
 #include "cilium/api/bpf_metadata.pb.h"
-#include "cilium/proxymap.h"
+#include "cilium/conntrack.h"
 #include "cilium/host_map.h"
 #include "cilium/network_policy.h"
+#include "cilium/proxymap.h"
 
 namespace Envoy {
 namespace Filter {
@@ -30,6 +31,7 @@ public:
   bool is_ingress_;
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
   Cilium::ProxyMapSharedPtr maps_{};
+  Cilium::CtMapSharedPtr ct_maps_{};
   std::shared_ptr<const Cilium::PolicyHostMap> hosts_;
 };
 

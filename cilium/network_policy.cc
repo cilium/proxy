@@ -44,6 +44,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
   ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", name_, resources.size(), version_info);
 
   std::unordered_set<std::string> keeps;
+  std::unordered_set<std::string> ct_maps_to_keep;
 
   // Collect a shared vector of policies to be added
   auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstance>>>();
@@ -51,6 +52,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
     auto config = MessageUtil::anyConvert<cilium::NetworkPolicy>(resource);
     ENVOY_LOG(debug, "Received Network Policy for endpoint {} in onConfigUpdate() version {}: {}", config.name(), version_info, config.DebugString());
     keeps.insert(config.name());
+    ct_maps_to_keep.insert(config.conntrack_map_name());
 
     MessageUtil::validate(config);
 
@@ -69,9 +71,18 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
 
   // Collect a shared vector of policy names to be removed
   auto to_be_deleted = std::make_shared<std::vector<std::string>>();
+  // Collect a shared vector of conntrack maps to close
+  auto cts_to_be_closed = std::make_shared<std::unordered_set<std::string>>();
   for (auto& pair: tls_->getTyped<ThreadLocalPolicyMap>().policies_) {
     if (keeps.find(pair.first) == keeps.end()) {
       to_be_deleted->emplace_back(pair.first);
+    }
+    // insert conntrack map names we don't want to keep and that have not been already inserted.
+    auto& ct_map_name = pair.second->conntrack_map_name_;
+    if (ct_maps_to_keep.find(ct_map_name) == ct_maps_to_keep.end() &&
+	cts_to_be_closed->find(ct_map_name) == cts_to_be_closed->end()) {
+      ENVOY_LOG(debug, "Closing conntrack map {}", ct_map_name);
+      cts_to_be_closed->insert(ct_map_name);
     }
   }
 
@@ -99,6 +110,15 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
       } else {
 	// Keep this at info level for now to see if this happens in the wild
 	ENVOY_LOG(warn, "Skipping stale network policy update");
+      }
+    },
+    // delete old cts when all threads have updated their policies
+    [weak_this, cts_to_be_closed]() -> void {
+      if (cts_to_be_closed->size() > 0) {
+	std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock();
+	if (shared_this && shared_this->ctmap_ && shared_this->tls_->get().get() != nullptr) {
+	  shared_this->ctmap_->closeMaps(cts_to_be_closed);
+	}
       }
     });
 }

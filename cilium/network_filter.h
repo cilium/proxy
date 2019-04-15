@@ -9,8 +9,9 @@
 #include "common/common/logger.h"
 
 #include "cilium/api/network_filter.pb.h"
-#include "cilium/proxymap.h"
+#include "cilium/conntrack.h"
 #include "cilium/proxylib.h"
+#include "cilium/proxymap.h"
 
 namespace Envoy {
 namespace Filter {
@@ -54,7 +55,7 @@ public:
   Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;
   
   // Network::ConnectionCallbacks
-  void onEvent(Network::ConnectionEvent event) override;
+  void onEvent(Network::ConnectionEvent) override;
   void onAboveWriteBufferHighWatermark() override {}
   void onBelowWriteBufferLowWatermark() override {}
 

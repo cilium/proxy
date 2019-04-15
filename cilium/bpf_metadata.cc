@@ -60,6 +60,7 @@ namespace Filter {
 namespace BpfMetadata {
 
 // Singleton registration via macro defined in envoy/singleton/manager.h
+SINGLETON_MANAGER_REGISTRATION(cilium_bpf_conntrack);
 SINGLETON_MANAGER_REGISTRATION(cilium_bpf_proxymap);
 SINGLETON_MANAGER_REGISTRATION(cilium_host_map);
 SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
@@ -80,14 +81,15 @@ createHostMap(Server::Configuration::ListenerFactoryContext& context) {
 }
 
 std::shared_ptr<const Cilium::NetworkPolicyMap>
-createPolicyMap(Server::Configuration::FactoryContext& context) {
+createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct) {
   return context.singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
-    SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context] {
+    SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, &ct] {
       auto map = std::make_shared<Cilium::NetworkPolicyMap>(
 	  context.localInfo(), context.clusterManager(),
 	  context.dispatcher(), context.random(), context.scope(),
 	  context.threadLocal());
       map->startSubscription();
+      map->setPolicyNotifier(ct);
       return map;
     });
 }
@@ -103,7 +105,15 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
         SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_proxymap), [&bpf_root] {
 	  return std::make_shared<Cilium::ProxyMap>(bpf_root);
 	});
-    if (bpf_root != maps_->bpfRoot()) {
+    ct_maps_ = context.singletonManager().getTyped<Cilium::CtMap>(
+        SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
+	  return std::make_shared<Cilium::CtMap>(bpf_root);
+	});
+    if (maps_ == nullptr && ct_maps_ == nullptr) {
+      throw EnvoyException(fmt::format("cilium.bpf_metadata: Can't open bpf maps at {}", bpf_root));
+    }
+    if (bpf_root != (maps_ ? maps_->bpfRoot() : ct_maps_->bpfRoot())) {
+      // bpf root may not change during runtime
       throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
     }
   }
@@ -111,7 +121,8 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
 
   // Get the shared policy provider, or create it if not already created.
   // Note that the API config source is assumed to be the same for all filter instances!
-  npmap_ = createPolicyMap(context);
+
+  npmap_ = createPolicyMap(context, ct_maps_);
 }
 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
@@ -119,15 +130,6 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   uint16_t orig_dport, proxy_port;
   bool ok = false;
 
-  if (maps_) {
-    ok = maps_->getBpfMetadata(socket, &source_identity, &orig_dport, &proxy_port);
-  } else if (hosts_ && socket.remoteAddress()->ip() && socket.localAddress()->ip()) {
-    // Resolve the source security ID
-    source_identity = hosts_->resolve(socket.remoteAddress()->ip());
-    orig_dport = socket.localAddress()->ip()->port();
-    proxy_port = 0; // no proxy_port when no bpf.
-    ok = true;
-  }
   std::string pod_ip;
   if (is_ingress_ && socket.localAddress()->ip()) {
     pod_ip = socket.localAddress()->ip()->addressAsString();
@@ -136,12 +138,46 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     pod_ip = socket.remoteAddress()->ip()->addressAsString();
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
+
+  // Cilium >= 1.6 uses TPROXY for redirection, without NATting the
+  // destination addresses. In this case we only need the source
+  // security ID, which we can get from the conntrack map, but only if
+  // the map name is configured.
+  //
+  // Cilium < 1.6 uses REDIRECT, which NATs the destination address
+  // and port. Proxymap is used to retrieve the originals, as well as
+  // the source security ID.
+  proxy_port = 0;
+  orig_dport = socket.localAddress()->ip()->port();
+  auto ct_name = npmap_->conntrackName(pod_ip);
+  if (ct_name.length() > 0) {
+    if (ct_maps_) {
+      ok = ct_maps_->getBpfMetadata(ct_name, socket, is_ingress_, &source_identity);
+    } else {
+      ENVOY_LOG_MISC(warn, "Cilium could not open conntrack map for requested map name: {}", ct_name);      
+    }
+  } else if (maps_) {
+    ok = maps_->getBpfMetadata(socket, &source_identity, &orig_dport, &proxy_port);
+  }
+
+  // If neither is available (as in a sidecar proxy), we map the
+  // source security ID from the source address.
+  if (!ok && hosts_ && socket.remoteAddress()->ip() && socket.localAddress()->ip()) {
+    // Resolve the source security ID
+    source_identity = hosts_->resolve(socket.remoteAddress()->ip());
+    socket.restoreLocalAddress(socket.localAddress()); // mark as `restored`
+    ENVOY_LOG_MISC(debug, "Set Local address {}, restored: {}", socket.localAddress()->asString(),
+		   socket.localAddressRestored());    
+    ok = true;
+  }
   if (ok) {
     // Resolve the destination security ID
     if (hosts_ && socket.localAddress()->ip()) {
       destination_identity = hosts_->resolve(socket.localAddress()->ip());
     }
-    socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, source_identity, destination_identity, is_ingress_, orig_dport, proxy_port, std::move(pod_ip)));
+    // Pass the metadata to an Envoy socket option we can retrieve
+    // later in other Cilium filters.
+    socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, ct_maps_, source_identity, destination_identity, is_ingress_, orig_dport, proxy_port, std::move(pod_ip)));
   }
 
   return ok;

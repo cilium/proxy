@@ -73,16 +73,14 @@ Network::FilterStatus Instance::onNewConnection() {
   auto& conn = callbacks_->connection();
   const auto option = Cilium::GetSocketOption(conn.socketOptions());
   if (option) {
-    if (option->maps_) {
+    maps_ = option->GetProxyMap();
+    if (maps_) {
       // Insert connection callback to delete the proxymap entry once the connection is closed.
-      maps_ = option->maps_;
       proxy_port_ = option->proxy_port_;
       if (proxy_port_ != 0) {
 	conn.addConnectionCallbacks(*this);
 	ENVOY_CONN_LOG(debug, "Cilium Network: Added connection callbacks to delete proxymap entry later", conn);
       }
-    } else {
-      ENVOY_CONN_LOG(debug, "Cilium Network: No proxymap", conn);
     }
 
     const std::string& policy_name = config_->policy_name_.length() ? config_->policy_name_ : option->pod_ip_;

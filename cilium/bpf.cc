@@ -14,6 +14,8 @@
 
 #include "linux/bpf.h"
 
+#include "common/common/logger.h"
+
 namespace Envoy {
 namespace Cilium {
 
@@ -44,8 +46,9 @@ bool Bpf::open(const std::string &path) {
   if (fd_ >= 0) {
     // Open fdinfo to check the map type and key and value size.
     std::string line;
-    std::ifstream bpf_file("/proc/" + std::to_string(getpid()) + "/fdinfo/" +
-                           std::to_string(fd_));
+    std::string bpf_file_path("/proc/" + std::to_string(getpid()) + "/fdinfo/" +
+			      std::to_string(fd_));
+    std::ifstream bpf_file(bpf_file_path);
     if (bpf_file.is_open()) {
       uint32_t map_type = UINT32_MAX, key_size = UINT32_MAX,
                value_size = UINT32_MAX;
@@ -70,12 +73,18 @@ bool Bpf::open(const std::string &path) {
       }
       bpf_file.close();
 
-      if (map_type == map_type_ && key_size == key_size_ &&
-          value_size == value_size_) {
+      if ((map_type == map_type_ || (map_type == BPF_MAP_TYPE_LRU_HASH && map_type_ == BPF_MAP_TYPE_HASH))
+	  && key_size == key_size_ && value_size == value_size_) {
         return true;
       }
+      ENVOY_LOG_MISC(warn, "cilium.bpf_metadata: map {} mismatch {}!={} || {}!={} || {}!={}", path,
+		     map_type, map_type_, key_size, key_size_, value_size, value_size_);
+    } else {
+      ENVOY_LOG_MISC(warn, "cilium.bpf_metadata: map {} could not open bpf file {}", path, bpf_file_path);
     }
     close();
+  } else {
+    ENVOY_LOG_MISC(warn, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path, strerror(errno));
   }
 
   return false;
