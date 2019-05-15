@@ -62,6 +62,10 @@ struct ResetableSlice : GoSlice<T> {
 
     return len;
   }
+  bool at_capacity() {
+    // Return true if all of the available space was used, not affected by draining
+    return (data_ + len_) >= (base_ + cap_);
+  }
   void reset() {
     data_ = base_;
     len_ = 0;

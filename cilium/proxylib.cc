@@ -203,6 +203,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
 
   FilterResult res;
   bool terminal_op_seen = false;
+  bool inject_buf_exhausted = false;
 
   do {
     ops.reset();
@@ -296,10 +297,18 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
       return FILTER_PARSER_ERROR;
     }
 
+    if (dir.inject_slice_.len() > 0) {
+      ENVOY_CONN_LOG(warn, "Cilium Network::OnIO: {} bytes abandoned in inject buffer", conn_, dir.inject_slice_.len());
+      return FILTER_PARSER_ERROR;
+    }
+
+    inject_buf_exhausted = dir.inject_slice_.at_capacity();
+
     // Make space for more injected data
     dir.inject_slice_.reset();
 
-  } while (!terminal_op_seen && ops.len() == max_ops);
+    // Loop back if ops or inject buffer was exhausted
+  } while (!terminal_op_seen && (ops.len() == max_ops || inject_buf_exhausted));
 
   if (output.length() < 100) {
     ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Output on return: {}", conn_, output.toString());
