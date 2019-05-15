@@ -235,11 +235,11 @@ public:
     if (is_ingress_) {
       std::string pod_ip = original_dst_address->ip()->addressAsString();
       ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
-      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, 1, 173, true, 80, 10000, std::move(pod_ip)));
+      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, ct_maps_, 1, 173, true, 80, 10000, std::move(pod_ip)));
     } else {
       std::string pod_ip = socket.localAddress()->ip()->addressAsString();
       ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
-      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, 173, hosts_->resolve(socket.localAddress()->ip()), false, 80, 10001, std::move(pod_ip)));
+      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, ct_maps_, 173, hosts_->resolve(socket.localAddress()->ip()), false, 80, 10001, std::move(pod_ip)));
     }
 
     return true;
@@ -271,7 +271,7 @@ createHostMap(const std::string& config, Server::Configuration::ListenerFactoryC
         Envoy::Config::SubscriptionStats stats =
 	  Envoy::Config::Utility::generateStats(context.scope());
         auto subscription =
-	  std::make_unique<Envoy::Config::FilesystemSubscriptionImpl<cilium::NetworkPolicyHosts>>(
+	  std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
 	      context.dispatcher(), path, stats, context.api());
        
         auto map = std::make_shared<Cilium::PolicyHostMap>(std::move(subscription),
@@ -288,9 +288,9 @@ createPolicyMap(const std::string& config, Server::Configuration::FactoryContext
         // File subscription.
 	std::string path = TestEnvironment::writeStringToFileForTest("network_policy.yaml", config);
 	ENVOY_LOG_MISC(debug, "Loading Cilium Network Policy from file \'{}\' instead of using gRPC", path);
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path);
+        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path, context.api());
         Envoy::Config::SubscriptionStats stats = Envoy::Config::Utility::generateStats(context.scope());
-        auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl<cilium::NetworkPolicy>>(context.dispatcher(), path, stats);
+        auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(context.dispatcher(), path, stats, context.api());
        
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(std::move(subscription), context.threadLocal());
 	map->startSubscription();
@@ -505,10 +505,9 @@ public:
     ThreadLocal::InstanceImpl tls;
 
     MessageUtil::loadFromFile(path, message, *api_.get());
-    const auto typed_resources = Config::Utility::getTypedResources<cilium::NetworkPolicyHosts>(message);
     Envoy::Cilium::PolicyHostMap hmap(tls);
 
-    EXPECT_THROW_WITH_MESSAGE(hmap.onConfigUpdate(typed_resources, "1"), EnvoyException, exmsg);
+    EXPECT_THROW_WITH_MESSAGE(hmap.onConfigUpdate(message.resources(), "1"), EnvoyException, exmsg);
     tls.shutdownGlobalThreading();
   }
 
@@ -547,10 +546,9 @@ resources:
   ThreadLocal::InstanceImpl tls;
 
   MessageUtil::loadFromFile(path, message, *api_.get());
-  const auto typed_resources = Config::Utility::getTypedResources<cilium::NetworkPolicyHosts>(message);
   auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(tls);
 
-  VERBOSE_EXPECT_NO_THROW(hmap->onConfigUpdate(typed_resources, "2"));
+  VERBOSE_EXPECT_NO_THROW(hmap->onConfigUpdate(message.resources(), "2"));
 
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()), 173);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.0").ip()), 12);
