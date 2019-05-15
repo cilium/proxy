@@ -1544,4 +1544,35 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartialMulti
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
 
+TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectBufferOverflow) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  tcp_client->write("26:INJECT reply direction\n");
+  tcp_client->write("27:DROP original direction\n");
+
+  char buf[5000];
+  memset(buf, 'A', sizeof buf);
+  strncpy(buf, "5000:INSERT original direction", 30);
+  buf[sizeof buf - 1] = '\n';
+  
+  tcp_client->write(buf);
+  tcp_client->waitForData("26:INJECT reply direction\n", false);
+
+  ASSERT_TRUE(fake_upstream_connection->waitForData(FakeRawConnection::waitForInexactMatch(buf)));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(noMatch("DROP")));
+
+  ASSERT_TRUE(fake_upstream_connection->write("24:DROP reply direction\n"));
+  ASSERT_TRUE(fake_upstream_connection->write("25:PASS2 reply direction\n"));
+  tcp_client->waitForData("25:PASS2 reply direction\n", false);
+
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  tcp_client->waitForHalfClose();
+  tcp_client->write("", true);
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+}
+
 } // namespace Envoy
