@@ -31,13 +31,6 @@ RUN apt-get update \
 	&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 #
-# Install Additional Go deps
-#
-RUN go get -u github.com/golang/protobuf/protoc-gen-go \
-	&& go get -d github.com/lyft/protoc-gen-validate \
-	&& (cd /go/src/github.com/lyft/protoc-gen-validate ; git checkout 4349a359d42fdfee53b85dd5c89a2f169e1dc6b2 ; make build)
-
-#
 # Install Bazel
 #
 RUN export BAZEL_VERSION=`cat BAZEL_VERSION` \
