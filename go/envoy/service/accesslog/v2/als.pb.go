@@ -11,6 +11,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/lyft/protoc-gen-validate/validate"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -409,6 +411,14 @@ type AccessLogServiceServer interface {
 	// until it gets an ACK so it could then retry. This API is designed for high throughput with the
 	// expectation that it might be lossy.
 	StreamAccessLogs(AccessLogService_StreamAccessLogsServer) error
+}
+
+// UnimplementedAccessLogServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedAccessLogServiceServer struct {
+}
+
+func (*UnimplementedAccessLogServiceServer) StreamAccessLogs(srv AccessLogService_StreamAccessLogsServer) error {
+	return status.Errorf(codes.Unimplemented, "method StreamAccessLogs not implemented")
 }
 
 func RegisterAccessLogServiceServer(s *grpc.Server, srv AccessLogServiceServer) {

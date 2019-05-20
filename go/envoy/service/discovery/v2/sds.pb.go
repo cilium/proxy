@@ -10,6 +10,8 @@ import (
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -153,6 +155,17 @@ func (c *secretDiscoveryServiceClient) FetchSecrets(ctx context.Context, in *v2.
 type SecretDiscoveryServiceServer interface {
 	StreamSecrets(SecretDiscoveryService_StreamSecretsServer) error
 	FetchSecrets(context.Context, *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error)
+}
+
+// UnimplementedSecretDiscoveryServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedSecretDiscoveryServiceServer struct {
+}
+
+func (*UnimplementedSecretDiscoveryServiceServer) StreamSecrets(srv SecretDiscoveryService_StreamSecretsServer) error {
+	return status.Errorf(codes.Unimplemented, "method StreamSecrets not implemented")
+}
+func (*UnimplementedSecretDiscoveryServiceServer) FetchSecrets(ctx context.Context, req *v2.DiscoveryRequest) (*v2.DiscoveryResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchSecrets not implemented")
 }
 
 func RegisterSecretDiscoveryServiceServer(s *grpc.Server, srv SecretDiscoveryServiceServer) {
