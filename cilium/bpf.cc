@@ -83,6 +83,8 @@ bool Bpf::open(const std::string &path) {
       ENVOY_LOG_MISC(warn, "cilium.bpf_metadata: map {} could not open bpf file {}", path, bpf_file_path);
     }
     close();
+  } else if (errno == ENOENT) {
+    ENVOY_LOG_MISC(debug, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path, strerror(errno));
   } else {
     ENVOY_LOG_MISC(warn, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path, strerror(errno));
   }
