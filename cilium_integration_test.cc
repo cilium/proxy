@@ -235,11 +235,11 @@ public:
     if (is_ingress_) {
       std::string pod_ip = original_dst_address->ip()->addressAsString();
       ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
-      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, ct_maps_, 1, 173, true, 80, 10000, std::move(pod_ip)));
+      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, 1, 173, true, 80, 10000, std::move(pod_ip)));
     } else {
       std::string pod_ip = socket.localAddress()->ip()->addressAsString();
       ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
-      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, ct_maps_, 173, hosts_->resolve(socket.localAddress()->ip()), false, 80, 10001, std::move(pod_ip)));
+      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, 173, hosts_->resolve(socket.localAddress()->ip()), false, 80, 10001, std::move(pod_ip)));
     }
 
     return true;
