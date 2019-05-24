@@ -63,6 +63,7 @@ namespace BpfMetadata {
 SINGLETON_MANAGER_REGISTRATION(cilium_bpf_conntrack);
 SINGLETON_MANAGER_REGISTRATION(cilium_bpf_proxymap);
 SINGLETON_MANAGER_REGISTRATION(cilium_host_map);
+SINGLETON_MANAGER_REGISTRATION(cilium_ipcache);
 SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
 
 namespace {
@@ -109,7 +110,15 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
         SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
 	  return std::make_shared<Cilium::CtMap>(bpf_root);
 	});
-    if (maps_ == nullptr && ct_maps_ == nullptr) {
+    ipcache_ = context.singletonManager().getTyped<Cilium::IPCache>(
+        SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
+	  auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
+	  if (!ipcache->Open()) {
+	    ipcache.reset();
+	  }
+	  return ipcache;
+	});
+    if (maps_ == nullptr && ct_maps_ == nullptr && ipcache_ == nullptr) {
       throw EnvoyException(fmt::format("cilium.bpf_metadata: Can't open bpf maps at {}", bpf_root));
     }
     if (bpf_root != (maps_ ? maps_->bpfRoot() : ct_maps_->bpfRoot())) {
@@ -117,7 +126,11 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
       throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
     }
   }
-  hosts_ = createHostMap(context);
+
+  // Only create the hosts map if ipcache can't be opened
+  if (ipcache_ == nullptr) {
+    hosts_ = createHostMap(context);
+  }
 
   // Get the shared policy provider, or create it if not already created.
   // Note that the API config source is assumed to be the same for all filter instances!
@@ -142,7 +155,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Cilium >= 1.6 uses TPROXY for redirection, without NATting the
   // destination addresses. In this case we only need the source
   // security ID, which we can get from the conntrack map, but only if
-  // the map name is configured.
+  // the map name is configured (via the network policy for the pod).
   //
   // Cilium < 1.6 uses REDIRECT, which NATs the destination address
   // and port. Proxymap is used to retrieve the originals, as well as
@@ -162,9 +175,16 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   // If neither is available (as in a sidecar proxy), we map the
   // source security ID from the source address.
-  if (!ok && hosts_ && socket.remoteAddress()->ip() && socket.localAddress()->ip()) {
-    // Resolve the source security ID
-    source_identity = hosts_->resolve(socket.remoteAddress()->ip());
+  if (!ok && socket.remoteAddress()->ip() && socket.localAddress()->ip()) {
+    if (ipcache_ != nullptr) {
+      // Resolve the source security ID from the IPCache
+      source_identity = ipcache_->resolve(socket.remoteAddress()->ip());
+    } else if (hosts_ != nullptr) {
+      // Resolve the source security ID
+      source_identity = hosts_->resolve(socket.remoteAddress()->ip());
+    }
+    // Mark the local address as restored, so that the original dst cluster will forward
+    // without complaining.
     socket.restoreLocalAddress(socket.localAddress()); // mark as `restored`
     ENVOY_LOG_MISC(debug, "Set Local address {}, restored: {}", socket.localAddress()->asString(),
 		   socket.localAddressRestored());    
@@ -172,8 +192,12 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   }
   if (ok) {
     // Resolve the destination security ID
-    if (hosts_ && socket.localAddress()->ip()) {
-      destination_identity = hosts_->resolve(socket.localAddress()->ip());
+    if (socket.localAddress()->ip()) {
+      if (ipcache_ != nullptr) {
+	destination_identity = ipcache_->resolve(socket.localAddress()->ip());
+      } else if (hosts_ != nullptr) {
+	destination_identity = hosts_->resolve(socket.localAddress()->ip());
+      }
     }
     // Pass the metadata to an Envoy socket option we can retrieve
     // later in other Cilium filters.

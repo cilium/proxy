@@ -99,6 +99,24 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "ipcache_lib",
+    srcs = [
+        "ipcache.cc",
+    ],
+    hdrs = [
+        "ipcache.h",
+    ],
+    repository = "@envoy",
+    deps = [
+        "@envoy//include/envoy/singleton:manager_interface",
+        "@envoy//source/common/common:assert_lib",
+        "@envoy//source/common/common:logger_lib",
+        "@envoy//source/common/network:address_lib",
+        "//cilium:bpf_lib",
+    ],
+)
+
+envoy_cc_library(
     name = "proxymap_lib",
     srcs = [
         "proxymap.cc",
@@ -213,6 +231,7 @@ envoy_cc_library(
         "//cilium/api:nphds_cc",
         "//cilium:conntrack_lib",
         "//cilium:grpc_subscription_lib",
+        "//cilium:ipcache_lib",
         "//cilium:proxymap_lib",
         "//cilium:socket_option_lib",
         "//cilium:network_policy_lib",

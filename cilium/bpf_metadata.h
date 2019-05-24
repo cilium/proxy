@@ -9,6 +9,7 @@
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/conntrack.h"
 #include "cilium/host_map.h"
+#include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
 #include "cilium/proxymap.h"
 
@@ -29,10 +30,11 @@ public:
   virtual bool getMetadata(Network::ConnectionSocket &socket);
 
   bool is_ingress_;
-  std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
+  std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
   Cilium::ProxyMapSharedPtr maps_{};
   Cilium::CtMapSharedPtr ct_maps_{};
-  std::shared_ptr<const Cilium::PolicyHostMap> hosts_;
+  Cilium::IPCacheSharedPtr ipcache_{};
+  std::shared_ptr<const Cilium::PolicyHostMap> hosts_{};
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;
