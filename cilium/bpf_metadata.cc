@@ -101,30 +101,31 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
     : is_ingress_(config.is_ingress()) {
   // Note: all instances use the bpf root of the first filter with non-empty bpf_root instantiated!
   std::string bpf_root = config.bpf_root();
-  if (bpf_root.length() > 0) {
-    maps_ = context.singletonManager().getTyped<Cilium::ProxyMap>(
-        SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_proxymap), [&bpf_root] {
-	  return std::make_shared<Cilium::ProxyMap>(bpf_root);
-	});
-    ct_maps_ = context.singletonManager().getTyped<Cilium::CtMap>(
-        SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
-	  return std::make_shared<Cilium::CtMap>(bpf_root);
-	});
-    ipcache_ = context.singletonManager().getTyped<Cilium::IPCache>(
-        SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
-	  auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
-	  if (!ipcache->Open()) {
-	    ipcache.reset();
-	  }
-	  return ipcache;
-	});
-    if (maps_ == nullptr && ct_maps_ == nullptr && ipcache_ == nullptr) {
-      throw EnvoyException(fmt::format("cilium.bpf_metadata: Can't open bpf maps at {}", bpf_root));
-    }
-    if (bpf_root != (maps_ ? maps_->bpfRoot() : ct_maps_->bpfRoot())) {
-      // bpf root may not change during runtime
-      throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
-    }
+  if (bpf_root.length() == 0) {
+    bpf_root = "/sys/fs/bpf"; // Cilium default bpf root
+  }
+  maps_ = context.singletonManager().getTyped<Cilium::ProxyMap>(
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_proxymap), [&bpf_root] {
+	return std::make_shared<Cilium::ProxyMap>(bpf_root);
+      });
+  ct_maps_ = context.singletonManager().getTyped<Cilium::CtMap>(
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
+	return std::make_shared<Cilium::CtMap>(bpf_root);
+      });
+  ipcache_ = context.singletonManager().getTyped<Cilium::IPCache>(
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
+	auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
+	if (!ipcache->Open()) {
+	  ipcache.reset();
+	}
+	return ipcache;
+      });
+  if (maps_ == nullptr && ct_maps_ == nullptr && ipcache_ == nullptr) {
+    throw EnvoyException(fmt::format("cilium.bpf_metadata: Can't open bpf maps at {}", bpf_root));
+  }
+  if (bpf_root != (maps_ ? maps_->bpfRoot() : ct_maps_->bpfRoot())) {
+    // bpf root may not change during runtime
+    throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
   }
 
   // Only create the hosts map if ipcache can't be opened
