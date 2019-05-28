@@ -21,7 +21,8 @@ chmod 2755 /usr/local/bin/envoy
 # the "xds-grpc-cilium" cluster used by the Cilium filters to connect to Cilium
 # agent via a Unix domain socket.
 # This file is adapted from Istio's API v2 bootstrap:
-# https://github.com/istio/istio/blob/1.1.0-snapshot.2/tools/deb/envoy_bootstrap_v2.json
+# $ wget https://raw.githubusercontent.com/istio/istio/1.1.7/tools/deb/envoy_bootstrap_v2.json
+# $ patch -o envoy_bootstrap_tmpl.json < envoy_bootstrap_v2.patch
 COPY envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
 
 ENTRYPOINT ["/usr/local/bin/pilot-agent"]
