@@ -110,6 +110,7 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
       });
   ct_maps_ = context.singletonManager().getTyped<Cilium::CtMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
+	// Even if opening the global maps fail, local maps may still succeed later.
 	return std::make_shared<Cilium::CtMap>(bpf_root);
       });
   ipcache_ = context.singletonManager().getTyped<Cilium::IPCache>(
@@ -117,13 +118,11 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
 	auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
 	if (!ipcache->Open()) {
 	  ipcache.reset();
+	  ENVOY_LOG_MISC(warn, "ipcache bpf map open failed.");
 	}
 	return ipcache;
       });
-  if (maps_ == nullptr && ct_maps_ == nullptr && ipcache_ == nullptr) {
-    throw EnvoyException(fmt::format("cilium.bpf_metadata: Can't open bpf maps at {}", bpf_root));
-  }
-  if (bpf_root != (maps_ ? maps_->bpfRoot() : ct_maps_->bpfRoot())) {
+  if (bpf_root != ct_maps_->bpfRoot()) {
     // bpf root may not change during runtime
     throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
   }
@@ -140,16 +139,24 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
 }
 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
-  uint32_t source_identity, destination_identity = Cilium::ID::WORLD;
+  uint32_t source_identity = 0, destination_identity = 0;
   uint16_t orig_dport, proxy_port;
   bool ok = false;
+  const auto sip = socket.remoteAddress()->ip();
+  const auto dip = socket.localAddress()->ip();
 
+  if (!sip || !dip) {
+    ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}",
+		   socket.remoteAddress()->asString(), socket.localAddress()->asString());
+    return false;
+  }
+  
   std::string pod_ip;
-  if (is_ingress_ && socket.localAddress()->ip()) {
-    pod_ip = socket.localAddress()->ip()->addressAsString();
+  if (is_ingress_) {
+    pod_ip = dip->addressAsString();
     ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
-  } else if (!is_ingress_ && socket.remoteAddress()->ip()) {
-    pod_ip = socket.remoteAddress()->ip()->addressAsString();
+  } else {
+    pod_ip = sip->addressAsString();
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
 
@@ -161,64 +168,70 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Cilium < 1.6 uses REDIRECT, which NATs the destination address
   // and port. Proxymap is used to retrieve the originals, as well as
   // the source security ID.
+  //
+  // Proxymap use will be deprecated when Cilium 1.6 is the oldest
+  // supported version.
+  //
+  // The source identity is needed for both ingress and egress.
   proxy_port = 0;
-  orig_dport = socket.localAddress()->ip()->port();
+  orig_dport = dip->port();
   auto ct_name = npmap_->conntrackName(pod_ip);
   if (ct_name.length() > 0) {
-    if (ct_maps_) {
-      ok = ct_maps_->getBpfMetadata(ct_name, socket, is_ingress_, &source_identity);
-    } else {
-      ENVOY_LOG_MISC(warn, "Cilium could not open conntrack map for requested map name: {}", ct_name);      
-    }
+    ok = ct_maps_->getBpfMetadata(ct_name, socket, is_ingress_, &source_identity);
   } else if (maps_) {
     ok = maps_->getBpfMetadata(socket, &source_identity, &orig_dport, &proxy_port);
   }
-
-  // If neither is available (as in a sidecar proxy), we map the
-  // source security ID from the source address.
-  if (!ok && socket.remoteAddress()->ip() && socket.localAddress()->ip()) {
-    if (ipcache_ != nullptr) {
-      // Resolve the source security ID from the IPCache
-      source_identity = ipcache_->resolve(socket.remoteAddress()->ip());
-    } else if (hosts_ != nullptr) {
-      // Resolve the source security ID
-      source_identity = hosts_->resolve(socket.remoteAddress()->ip());
-    }
+  if (!ok) {
     // Mark the local address as restored, so that the original dst cluster will forward
-    // without complaining.
+    // without complaining. This happens only when the destination address is already correct
+    // (TPROXY or sidecar).
     socket.restoreLocalAddress(socket.localAddress()); // mark as `restored`
     ENVOY_LOG_MISC(debug, "Set Local address {}, restored: {}", socket.localAddress()->asString(),
 		   socket.localAddressRestored());    
-    ok = true;
-  }
-  if (ok) {
-    // Resolve the destination security ID
-    if (socket.localAddress()->ip()) {
-      if (ipcache_ != nullptr) {
-	destination_identity = ipcache_->resolve(socket.localAddress()->ip());
-      } else if (hosts_ != nullptr) {
-	destination_identity = hosts_->resolve(socket.localAddress()->ip());
-      }
-    }
-    // Pass the metadata to an Envoy socket option we can retrieve
-    // later in other Cilium filters.
-    socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, source_identity, destination_identity, is_ingress_, orig_dport, proxy_port, std::move(pod_ip)));
   }
 
-  return ok;
+  // Resolve the source security ID, if not already resolved
+  if (source_identity == 0) {
+    if (ipcache_ != nullptr) {
+      // Resolve the source security ID from the IPCache
+      source_identity = ipcache_->resolve(sip);
+    } else if (hosts_ != nullptr) {
+      // Resolve the source security ID
+      source_identity = hosts_->resolve(sip);
+    }
+  }
+  // default source identity to the world if needed
+  if (source_identity == 0) {
+    source_identity = Cilium::ID::WORLD;
+    ENVOY_LOG(debug,
+              "cilium.bpf_metadata ({}): Source identity defaults to WORLD",
+              is_ingress_ ? "ingress" : "egress");
+  }
+
+  // Resolve the destination security ID for egress
+  if (!is_ingress_) {
+    if (ipcache_ != nullptr) {
+      destination_identity = ipcache_->resolve(dip);
+    } else if (hosts_ != nullptr) {
+      destination_identity = hosts_->resolve(dip);
+    }
+    // default destination identity to the world if needed
+    if (destination_identity == 0) {
+      destination_identity = Cilium::ID::WORLD;
+      ENVOY_LOG(debug, "cilium.bpf_metadata (egress): Destination identity defaults to WORLD");
+    }
+  }
+
+  // Pass the metadata to an Envoy socket option we can retrieve
+  // later in other Cilium filters.
+  socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, source_identity, destination_identity, is_ingress_, orig_dport, proxy_port, std::move(pod_ip)));
+
+  return true;
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks &cb) {
   Network::ConnectionSocket &socket = cb.socket();
-  if (!config_->getMetadata(socket)) {
-    ENVOY_LOG(debug,
-              "cilium.bpf_metadata ({}): NO metadata for the connection",
-              config_->is_ingress_ ? "ingress" : "egress");
-  } else {
-    ENVOY_LOG(trace,
-              "cilium.bpf_metadata ({}): GOT metadata for new connection",
-              config_->is_ingress_ ? "ingress" : "egress");
-  }
+  config_->getMetadata(socket);
 
   // Set socket options for linger and keepalive (5 minutes).
   int rc;

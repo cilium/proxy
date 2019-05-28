@@ -172,9 +172,10 @@ void CtMap::closeMaps(const std::shared_ptr<std::unordered_set<std::string>>& to
 }
 
 CtMap::CtMap(const std::string &bpf_root) : bpf_root_(bpf_root) {
-  // Try to open the bpf maps from Cilium specific paths
-  openMap4("global");
-  openMap6("global");
+  if (openMap4("global") == ct_maps4_.end() &&
+      openMap6("global") == ct_maps6_.end()) {
+    ENVOY_LOG(debug, "cilium.bpf_metadata: conntrack map global open failed: ({})", strerror(errno));
+  }
 }
 
 // map_name is "global" for the global maps, or endpoint ID for local maps
