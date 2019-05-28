@@ -106,7 +106,12 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
   }
   maps_ = context.singletonManager().getTyped<Cilium::ProxyMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_proxymap), [&bpf_root] {
-	return std::make_shared<Cilium::ProxyMap>(bpf_root);
+	auto maps = std::make_shared<Cilium::ProxyMap>(bpf_root);
+	if (!maps->Open()) {
+	  maps.reset();
+	  ENVOY_LOG_MISC(warn, "proxymap bpf map open failed.");
+	}
+	return maps;
       });
   ct_maps_ = context.singletonManager().getTyped<Cilium::CtMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {

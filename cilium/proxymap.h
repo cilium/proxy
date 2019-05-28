@@ -14,6 +14,8 @@ class ProxyMap : public Singleton::Instance, Logger::Loggable<Logger::Id::filter
 public:
   ProxyMap(const std::string &bpf_root);
 
+  bool Open();
+
   const std::string& bpfRoot() { return bpf_root_; }
 
   bool getBpfMetadata(Network::ConnectionSocket& socket, uint32_t* identity, uint16_t* orig_dport, uint16_t* proxy_port);

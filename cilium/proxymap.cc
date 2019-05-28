@@ -61,20 +61,28 @@ ProxyMap::Proxy6Map::Proxy6Map()
     : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct proxy6_tbl_key),
           sizeof(struct proxy6_tbl_value)) {}
 
-ProxyMap::ProxyMap(const std::string &bpf_root) : bpf_root_(bpf_root) {
+ProxyMap::ProxyMap(const std::string &bpf_root) : bpf_root_(bpf_root) {}
+
+bool ProxyMap::Open() {
   // Open the bpf maps from Cilium specific paths
 
   std::string path4(bpf_root_ + "/tc/globals/cilium_proxy4");
-  if (!proxy4map_.open(path4)) {
-    ENVOY_LOG(info, "cilium.bpf_metadata: Cannot open IPv4 proxy map at {}", path4);
+  bool open4 = proxy4map_.open(path4);
+  if (!open4) {
+    ENVOY_LOG(debug, "cilium.bpf_metadata: Cannot open IPv4 proxy map at {}", path4);
   }
 
   std::string path6(bpf_root_ + "/tc/globals/cilium_proxy6");
-  if (!proxy6map_.open(path6)) {
-    ENVOY_LOG(info, "cilium.bpf_metadata: Cannot open IPv6 proxy map at {}", path6);
+  bool open6 = proxy6map_.open(path6);
+  if (!open6) {
+    ENVOY_LOG(debug, "cilium.bpf_metadata: Cannot open IPv6 proxy map at {}", path6);
   }
 
-  ENVOY_LOG(trace, "cilium.bpf_metadata: Created proxymap.");
+  if (open4 || open6) {
+    ENVOY_LOG(debug, "cilium.bpf_metadata: Created proxymap.");
+  }
+
+  return open4 || open6;
 }
 
 bool ProxyMap::getBpfMetadata(Network::ConnectionSocket &socket, uint32_t* identity, uint16_t* orig_dport, uint16_t* proxy_port) {
