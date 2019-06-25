@@ -487,7 +487,9 @@ public:
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     response->waitForEndStream();
 
-    EXPECT_STREQ("403", response->headers().Status()->value().c_str());
+    uint64_t status;
+    StringUtil::atoull(response->headers().Status()->value().getStringView().data(), status, 10);
+    EXPECT_EQ(403, status);
   }
 
   void Accepted(Http::TestHeaderMapImpl&& headers) {
@@ -496,7 +498,9 @@ public:
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
 
-    EXPECT_STREQ("200", response->headers().Status()->value().c_str());
+    uint64_t status;
+    StringUtil::atoull(response->headers().Status()->value().getStringView().data(), status, 10);
+    EXPECT_EQ(200, status);
   }
 
   void InvalidHostMap(const std::string& config, const char* exmsg) {
@@ -814,7 +818,9 @@ TEST_P(CiliumIntegrationTest, DuplicatePort) {
   auto response = codec_client_->makeHeaderOnlyRequest(headers);
   response->waitForEndStream();
 
-  EXPECT_STREQ("403", response->headers().Status()->value().c_str());
+  uint64_t status;
+  StringUtil::atoull(response->headers().Status()->value().getStringView().data(), status, 10);
+  EXPECT_EQ(403, status);
 }
 
 class CiliumIntegrationEgressTest : public CiliumHttpIntegrationTest {
@@ -1574,5 +1580,69 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectBufferOverfl
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
+
+namespace Cilium {
+
+extern const absl::string_view pathSV;
+extern const absl::string_view methodSV;
+extern const absl::string_view authoritySV;
+extern const absl::string_view xForwardedProtoSV;
+
+class CiliumTest : public testing::Test {
+protected:
+  Event::SimulatedTimeSystem time_system_;
+  Network::Address::InstanceConstSharedPtr local_address_;
+  Network::Address::InstanceConstSharedPtr remote_address_;  
+};
+
+TEST_F(CiliumTest, AccessLog) {
+  Http::TestHeaderMapImpl headers{
+    {":method", "GET"},
+      {":path", "/"},
+	{":authority", "host"},
+	  {"x-forwarded-proto", "http"},
+	    {"x-request-id", "ba41267c-cfc2-4a92-ad3e-cd084ab099b4"}};
+  NiceMock<StreamInfo::MockStreamInfo> stream_info;
+  stream_info.protocol_ = Http::Protocol::Http11;
+  stream_info.start_time_ = time_system_.systemTime();
+  Network::MockConnection connection;
+  Network::Socket::OptionsSharedPtr options = std::make_shared<Network::Socket::Options>();
+  options->push_back(std::make_shared<Cilium::SocketOption>(nullptr, nullptr, 1, 173, true, 80, 10000, "1.2.3.4"));
+  local_address_ = std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80);
+  remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("5.6.7.8", 45678);
+
+  ENVOY_LOG_MISC(error, "source_address: {}", remote_address_->asString());
+  ENVOY_LOG_MISC(error, "destination_address: {}", local_address_->asString());
+
+  EXPECT_CALL(connection, socketOptions()).WillOnce(testing::ReturnRef(options));
+  EXPECT_CALL(connection, localAddress()).WillRepeatedly(testing::ReturnRef(local_address_));
+  EXPECT_CALL(connection, remoteAddress()).WillRepeatedly(testing::ReturnRef(remote_address_));
+
+  AccessLog::Entry log;
+
+  log.InitFromRequest("1.2.3.4", true, &connection, headers, stream_info);
+
+  EXPECT_EQ(log.entry.is_ingress(), true);
+  EXPECT_EQ(log.entry.entry_type(), ::cilium::EntryType::Request);
+  EXPECT_NE(log.entry.timestamp(), 0);
+  EXPECT_STREQ(log.entry.policy_name().c_str(), "1.2.3.4");
+  EXPECT_STREQ("1.2.3.4:80", log.entry.destination_address().c_str());
+  EXPECT_STREQ("5.6.7.8:45678", log.entry.source_address().c_str());
+  EXPECT_EQ(1, log.entry.source_security_id());
+  EXPECT_EQ(173, log.entry.destination_security_id());
+
+  EXPECT_EQ(log.entry.has_http(), true);
+  EXPECT_EQ(::cilium::HttpProtocol::HTTP11, log.entry.http().http_protocol());
+  EXPECT_STREQ("/", log.entry.http().path().c_str());
+  EXPECT_STREQ("GET", log.entry.http().method().c_str());
+  EXPECT_STREQ("host", log.entry.http().host().c_str());
+  EXPECT_STREQ("http", log.entry.http().scheme().c_str());
+
+  EXPECT_EQ(log.entry.http().headers_size(), 1);
+  EXPECT_STREQ(log.entry.http().headers(0).key().c_str(), "x-request-id");
+  EXPECT_STREQ(log.entry.http().headers(0).value().c_str(), "ba41267c-cfc2-4a92-ad3e-cd084ab099b4");
+}
+
+} // namespace Cilium
 
 } // namespace Envoy

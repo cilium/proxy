@@ -56,6 +56,13 @@ AccessLog::AccessLog(std::string path) : path_(path), fd_(-1), open_count_(1) {}
 
 AccessLog::~AccessLog() {}
 
+#define CONST_STRING_VIEW(NAME, STR) const absl::string_view NAME = {STR, sizeof (STR) - 1}
+
+CONST_STRING_VIEW(pathSV, ":path");
+CONST_STRING_VIEW(methodSV, ":method");
+CONST_STRING_VIEW(authoritySV, ":authority");
+CONST_STRING_VIEW(xForwardedProtoSV, "x-forwarded-proto");
+
 void AccessLog::Entry::InitFromRequest(
     std::string policy_name, bool ingress, const Network::Connection *conn,
     const Http::HeaderMap &headers, const StreamInfo::StreamInfo &info) {
@@ -85,11 +92,12 @@ void AccessLog::Entry::InitFromRequest(
   if (conn) {
     const auto& options_ = conn->socketOptions();
     if (options_) {
-      const Cilium::SocketMarkOption* option = nullptr;
+      const Cilium::SocketOption* option = nullptr;
       for (const auto& option_: *options_) {
-	option = dynamic_cast<const Cilium::SocketMarkOption*>(option_.get());
+	option = dynamic_cast<const Cilium::SocketOption*>(option_.get());
 	if (option) {
 	  entry.set_source_security_id(option->identity_);
+	  entry.set_destination_security_id(option->destination_identity_);
 	  break;
 	}
       }
@@ -97,39 +105,45 @@ void AccessLog::Entry::InitFromRequest(
 	ENVOY_CONN_LOG(warn, "accesslog: Cilium Socket Option not found", *conn);
       }
     }
-    entry.set_source_address(conn->remoteAddress()->asString());
-    entry.set_destination_address(conn->localAddress()->asString());
+    auto source_address = conn->remoteAddress();
+    if (source_address != nullptr) {
+      entry.set_source_address(source_address->asString());
+    }
+    auto destination_address = conn->localAddress();
+    if (destination_address != nullptr) {
+      entry.set_destination_address(destination_address->asString());
+    }
   }
 
   // request headers
   headers.iterate(
       [](const Http::HeaderEntry &header, void *entry_) -> Http::HeaderMap::Iterate {
-        const Http::HeaderString &key = header.key();
-        const char* value = header.value().c_str();
+        const absl::string_view key = header.key().getStringView();
+        const absl::string_view value = header.value().getStringView();
         auto entry = static_cast<::cilium::HttpLogEntry *>(entry_);
 
-        if (key == ":path") {
-          entry->set_path(value);
-        } else if (key == ":method") {
-          entry->set_method(value);
-        } else if (key == ":authority") {
-          entry->set_host(value);
-        } else if (key == "x-forwarded-proto") {
+        if (key == pathSV) {
+          entry->set_path(value.data(), value.size());
+        } else if (key == methodSV) {
+          entry->set_method(value.data(), value.size());
+        } else if (key == authoritySV) {
+          entry->set_host(value.data(), value.size());
+        } else if (key == xForwardedProtoSV) {
           // Envoy sets the ":scheme" header later in the router filter
           // according to the upstream protocol (TLS vs. clear), but we want to
           // get the downstream scheme, which is provided in
           // "x-forwarded-proto".
-          entry->set_scheme(value);
+          entry->set_scheme(value.data(), value.size());
         } else {
           ::cilium::KeyValue *kv = entry->add_headers();
-          kv->set_key(key.c_str());
-          kv->set_value(value);
+          kv->set_key(key.data(), key.size());
+          kv->set_value(value.data(), value.size());
         }
         return Http::HeaderMap::Iterate::Continue;
       },
       http_entry);
 
-    entry.set_is_ingress(ingress);
+  entry.set_is_ingress(ingress);
 }
 
 void AccessLog::Entry::UpdateFromResponse(
@@ -150,7 +164,7 @@ void AccessLog::Entry::UpdateFromResponse(
     const Http::HeaderEntry *status_entry = headers.Status();
     if (status_entry) {
       uint64_t status;
-      if (StringUtil::atoull(status_entry->value().c_str(), status, 10)) {
+      if (StringUtil::atoull(status_entry->value().getStringView().data(), status, 10)) {
         http_entry->set_status(status);
       }
     }

@@ -144,7 +144,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, 
     config_->stats_.access_denied_.inc();
 
     // Return a 403 response
-    callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr, absl::nullopt);
+    callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr, absl::nullopt, absl::string_view());
     return Http::FilterHeadersStatus::StopIteration;
   }
 
