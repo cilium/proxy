@@ -1,7 +1,7 @@
 #
 # Pre-built cilium-envoy image
 #
-FROM quay.io/cilium/cilium-envoy:18ed0eab0eb161b21e25c50b8d360ba6507b9a4b as cilium-envoy
+FROM quay.io/cilium/cilium-envoy:74a21763dce81def53aef3a76ccc794bd9a062ad as cilium-envoy
 
 FROM istio/proxytproxy_debug:@ISTIO_VERSION@
 
@@ -21,7 +21,7 @@ chmod 2755 /usr/local/bin/envoy
 # the "xds-grpc-cilium" cluster used by the Cilium filters to connect to Cilium
 # agent via a Unix domain socket.
 # This file is adapted from Istio's API v2 bootstrap:
-# $ wget https://raw.githubusercontent.com/istio/istio/1.1.7/tools/deb/envoy_bootstrap_v2.json
+# $ wget https://raw.githubusercontent.com/istio/istio/1.2.0/tools/packaging/common/envoy_bootstrap_v2.json
 # $ patch -o envoy_bootstrap_tmpl.json < envoy_bootstrap_v2.patch
 COPY envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
 
