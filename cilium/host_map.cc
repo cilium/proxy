@@ -184,8 +184,6 @@ void PolicyHostMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt:
 void PolicyHostMap::onConfigUpdateFailed(const EnvoyException*) {
   // We need to allow server startup to continue, even if we have a bad
   // config.
-  ENVOY_LOG(warn, "Bad NetworkPolicyHosts Configuration");
-  logmaps("onConfigUpdateFailed(): keeping old config");
 }
 
 } // namespace Cilium
