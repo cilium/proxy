@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "common/common/logger.h"
+
 union bpf_attr;
 
 namespace Envoy {
@@ -19,7 +21,7 @@ namespace Cilium {
 /**
  * Bpf system call interface.
  */
-class Bpf {
+class Bpf : public Logger::Loggable<Logger::Id::filter> {
 public:
   /**
    * Create a bpf map object without actually creating or opening a bpf map yet.

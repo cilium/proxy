@@ -86,7 +86,7 @@ CtMap::CtMaps4::CtMaps4(const std::string& bpf_root, const std::string& map_name
 
   std::string path4tcp(bpf_root + "/tc/globals/cilium_ct4_" + map_name);
   if (!ctmap4_tcp_.open(path4tcp)) {
-    ENVOY_LOG(info, "cilium.bpf_metadata: Cannot open IPv4 conntrack map at {}", path4tcp);
+    ENVOY_LOG(warn, "cilium.bpf_metadata: Cannot open IPv4 conntrack map at {}", path4tcp);
     return;
   }
   std::string path4any(bpf_root + "/tc/globals/cilium_ct_any4_" + map_name);
@@ -104,7 +104,7 @@ CtMap::CtMaps6::CtMaps6(const std::string& bpf_root, const std::string& map_name
 
   std::string path6tcp(bpf_root + "/tc/globals/cilium_ct6_" + map_name);
   if (!ctmap6_tcp_.open(path6tcp)) {
-    ENVOY_LOG(info, "cilium.bpf_metadata: Cannot open IPv6 conntrack map at {}", path6tcp);
+    ENVOY_LOG(warn, "cilium.bpf_metadata: Cannot open IPv6 conntrack map at {}", path6tcp);
     return;
   }
   std::string path6any(bpf_root + "/tc/globals/cilium_ct_any6_" + map_name);
@@ -131,7 +131,7 @@ CtMap::openMap4(const std::string& map_name) {
     }
     pair.first->second.reset(maps);
   }
-  ENVOY_LOG(trace, "cilium.bpf_metadata: Opened IPv4 conntrack map {}", map_name);
+  ENVOY_LOG(debug, "cilium.bpf_metadata: Opened IPv4 conntrack map {}", map_name);
   return pair.first;
 }
 
@@ -150,7 +150,7 @@ CtMap::openMap6(const std::string& map_name) {
     }
     pair.first->second.reset(maps);
   }
-  ENVOY_LOG(trace, "cilium.bpf_metadata: Opened IPv6 conntrack map {}", map_name);
+  ENVOY_LOG(debug, "cilium.bpf_metadata: Opened IPv6 conntrack map {}", map_name);
   return pair.first;
 }
 
@@ -161,12 +161,12 @@ void CtMap::closeMaps(const std::shared_ptr<std::unordered_set<std::string>>& to
     auto ct4 = ct_maps4_.find(name);
     if (ct4 != ct_maps4_.end()) {
       ct_maps4_.erase(ct4);
-      ENVOY_LOG(trace, "cilium.bpf_metadata: Closed IPv4 conntrack map {}", name);
+      ENVOY_LOG(debug, "cilium.bpf_metadata: Closed IPv4 conntrack map {}", name);
     }
     auto ct6 = ct_maps6_.find(name);
     if (ct6 != ct_maps6_.end()) {
       ct_maps6_.erase(ct6);
-      ENVOY_LOG(trace, "cilium.bpf_metadata: Closed IPv6 conntrack map {}", name);
+      ENVOY_LOG(debug, "cilium.bpf_metadata: Closed IPv6 conntrack map {}", name);
     }
   }
 }

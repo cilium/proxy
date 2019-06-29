@@ -79,7 +79,7 @@ bool ProxyMap::Open() {
   }
 
   if (open4 || open6) {
-    ENVOY_LOG(debug, "cilium.bpf_metadata: Created proxymap.");
+    ENVOY_LOG(debug, "cilium.bpf_metadata: Opened proxymap.");
   }
 
   return open4 || open6;

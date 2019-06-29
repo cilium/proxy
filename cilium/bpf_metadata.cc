@@ -109,7 +109,6 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
 	auto maps = std::make_shared<Cilium::ProxyMap>(bpf_root);
 	if (!maps->Open()) {
 	  maps.reset();
-	  ENVOY_LOG_MISC(warn, "proxymap bpf map open failed.");
 	}
 	return maps;
       });
@@ -123,7 +122,6 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
 	auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
 	if (!ipcache->Open()) {
 	  ipcache.reset();
-	  ENVOY_LOG_MISC(warn, "ipcache bpf map open failed.");
 	}
 	return ipcache;
       });

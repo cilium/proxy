@@ -9,7 +9,7 @@
 namespace Envoy {
 namespace Cilium {
 
-  class IPCache : public Singleton::Instance, public Bpf, Logger::Loggable<Logger::Id::filter> {
+class IPCache : public Singleton::Instance, public Bpf {
 public:
   IPCache(const std::string &bpf_root);
   bool Open();

@@ -58,7 +58,7 @@ bool IPCache::Open() {
     ENVOY_LOG(info, "cilium.ipcache: Cannot open ipcache map at {}", path);
     return false;
   }
-  ENVOY_LOG(trace, "cilium.ipcache: Opened ipcache.");
+  ENVOY_LOG(debug, "cilium.ipcache: Opened ipcache.");
   return true;
 }
 
