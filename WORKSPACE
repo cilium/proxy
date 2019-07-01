@@ -46,9 +46,9 @@ go_register_toolchains(go_version = GO_VERSION)
 
 # Dependencies for Istio filters.
 # Cf. https://github.com/istio/proxy.
-# Version 1.2.0
-ISTIO_PROXY_SHA = "7767d3a6fd8def76b44f5c03283ba3f2f9dd74a9"
-ISTIO_PROXY_SHA256 = "24ad5225b7387a710987311105ed7c295df9aaddae569492c758dca318dea99f"
+# Version 1.2.2
+ISTIO_PROXY_SHA = "a975561b980463f08689d3debe33bb9eefc80c3d"
+ISTIO_PROXY_SHA256 = "c0123fe73be4c9f2fe5e673952743ceb836f5972a8377ea876d90b7ab63af6eb"
 
 http_archive(
     name = "istio_proxy",
