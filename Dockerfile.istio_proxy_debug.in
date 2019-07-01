@@ -1,7 +1,7 @@
 #
 # Pre-built cilium-envoy image
 #
-FROM quay.io/cilium/cilium-envoy:74a21763dce81def53aef3a76ccc794bd9a062ad as cilium-envoy
+FROM quay.io/cilium/cilium-envoy:5fd04721d8db90e1d5f3ad1ac8ba4f6ac91e623a as cilium-envoy
 
 FROM istio/proxytproxy_debug:@ISTIO_VERSION@
 
