@@ -29,11 +29,6 @@ public:
   createFilterFactoryFromProto(const Protobuf::Message& proto_config,
 			       Configuration::ListenerFactoryContext& context) override {
     auto config = std::make_shared<Filter::BpfMetadata::Config>(MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(proto_config), context);
-    // Set the socket mark option for the listen socket.
-    // Can use identity 0 on the listen socket option, as the bpf datapath is only interested
-    // in whether the proxy is ingress, egress, or if there is no proxy at all.
-    context.addListenSocketOption(std::make_shared<Cilium::SocketMarkOption>(0, config->is_ingress_));
-
     return [config](Network::ListenerFilterManager &filter_manager) mutable -> void {
       filter_manager.addAcceptFilter(std::make_unique<Filter::BpfMetadata::Instance>(config));
     };
