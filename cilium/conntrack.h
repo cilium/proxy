@@ -1,13 +1,13 @@
 #pragma once
 
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <functional>
 #include <memory>
 
 #include "common/common/logger.h"
-#include "envoy/network/listen_socket.h"
-#include "envoy/network/connection.h"
+#include "envoy/network/address.h"
 #include "envoy/singleton/instance.h"
 
 #include "bpf.h"
@@ -32,7 +32,8 @@ public:
 
   const std::string& bpfRoot() { return bpf_root_; }
 
-  bool getBpfMetadata(const std::string& map_name, Network::ConnectionSocket& socket, bool ingress, uint32_t* identity);
+  uint32_t lookupSrcIdentity(const std::string& map_name, const Network::Address::Ip* sip,
+			     const Network::Address::Ip* dip, bool ingress);
 
 private:
   class CtMap4 : public Bpf {
@@ -67,8 +68,6 @@ public:
 private:
   std::unordered_map<const std::string, std::unique_ptr<CtMaps4>>::iterator openMap4(const std::string& map_name);
   std::unordered_map<const std::string, std::unique_ptr<CtMaps6>>::iterator openMap6(const std::string& map_name);
-  uint32_t lookupSrcIdentity(const std::string& map_name, const Network::Address::Ip* ip,
-			     const Network::Address::Ip* rip, bool ingress);
 
   // All known conntrack maps. Populated with the "global" maps at startup,
   // further maps are opened and inserted on demand.

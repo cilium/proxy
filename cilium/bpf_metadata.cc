@@ -138,17 +138,36 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
   uint32_t source_identity = 0, destination_identity = 0;
-  uint16_t orig_dport, proxy_port;
-  bool ok = false;
+  uint16_t orig_dport = 0, proxy_port = 0;
+
   const auto sip = socket.remoteAddress()->ip();
-  const auto dip = socket.localAddress()->ip();
+  auto dip = socket.localAddress()->ip();
 
   if (!sip || !dip) {
     ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}",
 		   socket.remoteAddress()->asString(), socket.localAddress()->asString());
     return false;
   }
-  
+
+  // Cilium < 1.6 uses REDIRECT, which NATs the destination address
+  // and port. Proxymap is used to retrieve the originals, as well as
+  // the source security ID.
+  // Proxymap use will be deprecated when Cilium 1.6 is the oldest
+  // supported version.
+  //
+  // We do this first as this likely restores the destination address
+  if (maps_) {
+    // Cilium < 1.6, NOT a sidecar
+    maps_->getBpfMetadata(socket, &source_identity, &orig_dport, &proxy_port);
+    dip = socket.localAddress()->ip();
+  } else {
+    // Cilium >= 1.6, OR a sidecar. In both cases TPROXY is being used
+    // and the destination address is not NATted. Let the
+    // OriginalDstCluster know the destination address can be used.
+    socket.restoreLocalAddress(socket.localAddress()); // mark as `restored`
+    orig_dport = dip->port();
+  }
+
   std::string pod_ip;
   if (is_ingress_) {
     pod_ip = dip->addressAsString();
@@ -158,52 +177,33 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
 
-  // Cilium >= 1.6 uses TPROXY for redirection, without NATting the
-  // destination addresses. In this case we only need the source
-  // security ID, which we can get from the conntrack map, but only if
-  // the map name is configured (via the network policy for the pod).
-  //
-  // Cilium < 1.6 uses REDIRECT, which NATs the destination address
-  // and port. Proxymap is used to retrieve the originals, as well as
-  // the source security ID.
-  //
-  // Proxymap use will be deprecated when Cilium 1.6 is the oldest
-  // supported version.
-  //
-  // The source identity is needed for both ingress and egress.
-  proxy_port = 0;
-  orig_dport = dip->port();
-  auto ct_name = npmap_->conntrackName(pod_ip);
-  if (ct_name.length() > 0) {
-    ok = ct_maps_->getBpfMetadata(ct_name, socket, is_ingress_, &source_identity);
-  } else if (maps_) {
-    ok = maps_->getBpfMetadata(socket, &source_identity, &orig_dport, &proxy_port);
-  }
-  if (!ok) {
-    // Mark the local address as restored, so that the original dst cluster will forward
-    // without complaining. This happens only when the destination address is already correct
-    // (TPROXY or sidecar).
-    socket.restoreLocalAddress(socket.localAddress()); // mark as `restored`
-    ENVOY_LOG_MISC(debug, "Set Local address {}, restored: {}", socket.localAddress()->asString(),
-		   socket.localAddressRestored());    
-  }
-
   // Resolve the source security ID, if not already resolved
   if (source_identity == 0) {
-    if (ipcache_ != nullptr) {
-      // Resolve the source security ID from the IPCache
-      source_identity = ipcache_->resolve(sip);
-    } else if (hosts_ != nullptr) {
-      // Resolve the source security ID
-      source_identity = hosts_->resolve(sip);
+    // Cilium >= 1.6 provides the conntrack name in the policy
+    auto ct_name = npmap_->conntrackName(pod_ip);
+    if (ct_name.length() > 0) {
+      // This fails for the sidecar proxy, which has no access to bpf maps.
+      // In that case the source_identity will be mapped from the source IP below.
+      source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
     }
-  }
-  // default source identity to the world if needed
-  if (source_identity == 0) {
-    source_identity = Cilium::ID::WORLD;
-    ENVOY_LOG(debug,
-              "cilium.bpf_metadata ({}): Source identity defaults to WORLD",
-              is_ingress_ ? "ingress" : "egress");
+
+    if (source_identity == 0) {
+      if (ipcache_ != nullptr) {
+	// Resolve the source security ID from the IPCache
+	source_identity = ipcache_->resolve(sip);
+      } else if (hosts_ != nullptr) {
+	// Resolve the source security ID from xDS hosts map
+	source_identity = hosts_->resolve(sip);
+      }
+
+      // default source identity to the world if needed
+      if (source_identity == 0) {
+	source_identity = Cilium::ID::WORLD;
+	ENVOY_LOG(debug,
+		  "cilium.bpf_metadata ({}): Source identity defaults to WORLD",
+		  is_ingress_ ? "ingress" : "egress");
+      }
+    }
   }
 
   // Resolve the destination security ID for egress

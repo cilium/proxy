@@ -179,8 +179,8 @@ CtMap::CtMap(const std::string &bpf_root) : bpf_root_(bpf_root) {
 }
 
 // map_name is "global" for the global maps, or endpoint ID for local maps
-uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Address::Ip* ip,
-				  const Network::Address::Ip* rip, bool ingress)
+uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Address::Ip* sip,
+				  const Network::Address::Ip* dip, bool ingress)
 {
   ENVOY_LOG(debug, "cilium.bpf_metadata: Using conntrack map {}", map_name);
 
@@ -188,12 +188,12 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
   struct ipv6_ct_tuple key6 {};
   struct ct_entry value {};
 
-  if (ip->version() == Network::Address::IpVersion::v4 &&
-      rip->version() == Network::Address::IpVersion::v4) {
-    key4.daddr = ip->ipv4()->address();
-    key4.saddr = rip->ipv4()->address();
-    key4.sport = htons(rip->port());
-    key4.dport = htons(ip->port());
+  if (sip->version() == Network::Address::IpVersion::v4 &&
+      dip->version() == Network::Address::IpVersion::v4) {
+    key4.daddr = dip->ipv4()->address();
+    key4.saddr = sip->ipv4()->address();
+    key4.sport = htons(sip->port());
+    key4.dport = htons(dip->port());
     key4.nexthdr = 6; // TCP only for now
     key4.flags = ingress ? TUPLE_F_IN : TUPLE_F_OUT; // also reversed
 
@@ -202,25 +202,25 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
 	"cilium.bpf_metadata: Looking up key: {:x}, {:x}, {:x}, {:x}, {:x}, {:x}",
 	ntohl(key4.daddr), ntohl(key4.saddr), ntohs(key4.dport), ntohs(key4.sport), key4.nexthdr,
 	key4.flags);
-  } else if (ip->version() == Network::Address::IpVersion::v6 &&
-	     rip->version() == Network::Address::IpVersion::v6) {
-    absl::uint128 daddr = ip->ipv6()->address();
-    absl::uint128 saddr = rip->ipv6()->address();
+  } else if (sip->version() == Network::Address::IpVersion::v6 &&
+	     dip->version() == Network::Address::IpVersion::v6) {
+    absl::uint128 daddr = dip->ipv6()->address();
+    absl::uint128 saddr = sip->ipv6()->address();
     memcpy(&key6.daddr, &daddr, 16);
     memcpy(&key6.saddr, &saddr, 16);
-    key6.sport = htons(rip->port());
-    key6.dport = htons(ip->port());
+    key6.sport = htons(sip->port());
+    key6.dport = htons(dip->port());
     key6.nexthdr = 6; // TCP only for now
     key6.flags = ingress ? TUPLE_F_IN : TUPLE_F_OUT;
   } else {
     ENVOY_LOG(
         info,
 	"cilium.bpf_metadata: Address type mismatch: Source: {}, Dest: {}",
-	rip->addressAsString(), ip->addressAsString());
+	sip->addressAsString(), dip->addressAsString());
     return 0;
   }
 
-  if (ip->version() == Network::Address::IpVersion::v4) {
+  if (dip->version() == Network::Address::IpVersion::v4) {
     // Lock for the duration of the map lookup and conntrack lookup
     std::lock_guard<std::mutex> guard(maps_mutex_);
     auto it = ct_maps4_.find(map_name);
@@ -258,21 +258,6 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
     }
   }
   return value.src_sec_id;
-}
-
-bool CtMap::getBpfMetadata(const std::string& map_name, Network::ConnectionSocket &socket, bool ingress, uint32_t* identity) {
-  Network::Address::InstanceConstSharedPtr local_address = socket.localAddress();
-  Network::Address::InstanceConstSharedPtr remote_address = socket.remoteAddress();
-
-  if (local_address->type() == Network::Address::Type::Ip &&
-      remote_address->type() == Network::Address::Type::Ip) {
-    *identity = lookupSrcIdentity(map_name, local_address->ip(), remote_address->ip(), ingress);
-    if (*identity != 0) {
-      socket.restoreLocalAddress(local_address); // Mark local address as restored
-      return true;
-    }
-  }
-  return false;
 }
 
 } // namespace Cilium
