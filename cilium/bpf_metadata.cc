@@ -95,34 +95,34 @@ createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSha
 Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::ListenerFactoryContext& context)
     : is_ingress_(config.is_ingress()) {
   // Note: all instances use the bpf root of the first filter with non-empty bpf_root instantiated!
+  // Only try opening bpf maps if bpf root is explicitly configured
   std::string bpf_root = config.bpf_root();
-  if (bpf_root.length() == 0) {
-    bpf_root = "/sys/fs/bpf"; // Cilium default bpf root
-  }
-  maps_ = context.singletonManager().getTyped<Cilium::ProxyMap>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_proxymap), [&bpf_root] {
-	auto maps = std::make_shared<Cilium::ProxyMap>(bpf_root);
-	if (!maps->Open()) {
-	  maps.reset();
-	}
-	return maps;
-      });
-  ct_maps_ = context.singletonManager().getTyped<Cilium::CtMap>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
-	// Even if opening the global maps fail, local maps may still succeed later.
-	return std::make_shared<Cilium::CtMap>(bpf_root);
-      });
-  ipcache_ = context.singletonManager().getTyped<Cilium::IPCache>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
-	auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
-	if (!ipcache->Open()) {
-	  ipcache.reset();
-	}
-	return ipcache;
-      });
-  if (bpf_root != ct_maps_->bpfRoot()) {
-    // bpf root may not change during runtime
-    throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
+  if (bpf_root.length() > 0) {
+    maps_ = context.singletonManager().getTyped<Cilium::ProxyMap>(
+	SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_proxymap), [&bpf_root] {
+	  auto maps = std::make_shared<Cilium::ProxyMap>(bpf_root);
+	  if (!maps->Open()) {
+	    maps.reset();
+	  }
+	  return maps;
+	});
+    ct_maps_ = context.singletonManager().getTyped<Cilium::CtMap>(
+	SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
+	  // Even if opening the global maps fail, local maps may still succeed later.
+	  return std::make_shared<Cilium::CtMap>(bpf_root);
+	});
+    ipcache_ = context.singletonManager().getTyped<Cilium::IPCache>(
+	SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
+	  auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
+	  if (!ipcache->Open()) {
+	    ipcache.reset();
+	  }
+	  return ipcache;
+	});
+    if (bpf_root != ct_maps_->bpfRoot()) {
+      // bpf root may not change during runtime
+      throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
+    }
   }
 
   // Only create the hosts map if ipcache can't be opened
@@ -156,7 +156,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // supported version.
   //
   // We do this first as this likely restores the destination address
-  if (maps_) {
+  if (maps_ != nullptr) {
     // Cilium < 1.6, NOT a sidecar
     maps_->getBpfMetadata(socket, &source_identity, &orig_dport, &proxy_port);
     dip = socket.localAddress()->ip();
@@ -179,14 +179,13 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   // Resolve the source security ID, if not already resolved
   if (source_identity == 0) {
-    // Cilium >= 1.6 provides the conntrack name in the policy
-    auto ct_name = npmap_->conntrackName(pod_ip);
-    if (ct_name.length() > 0) {
-      // This fails for the sidecar proxy, which has no access to bpf maps.
-      // In that case the source_identity will be mapped from the source IP below.
-      source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
+    if (ct_maps_ != nullptr) {
+      // Cilium >= 1.6 provides the conntrack name in the policy
+      auto ct_name = npmap_->conntrackName(pod_ip);
+      if (ct_name.length() > 0) {
+	source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
+      }
     }
-
     if (source_identity == 0) {
       if (ipcache_ != nullptr) {
 	// Resolve the source security ID from the IPCache
@@ -199,7 +198,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       // default source identity to the world if needed
       if (source_identity == 0) {
 	source_identity = Cilium::ID::WORLD;
-	ENVOY_LOG(debug,
+	ENVOY_LOG(trace,
 		  "cilium.bpf_metadata ({}): Source identity defaults to WORLD",
 		  is_ingress_ ? "ingress" : "egress");
       }
@@ -216,7 +215,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     // default destination identity to the world if needed
     if (destination_identity == 0) {
       destination_identity = Cilium::ID::WORLD;
-      ENVOY_LOG(debug, "cilium.bpf_metadata (egress): Destination identity defaults to WORLD");
+      ENVOY_LOG(trace, "cilium.bpf_metadata (egress): Destination identity defaults to WORLD");
     }
   }
 
