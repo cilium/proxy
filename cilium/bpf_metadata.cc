@@ -5,6 +5,7 @@
 
 #include "common/common/assert.h"
 #include "common/common/fmt.h"
+#include "common/network/socket_option_factory.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/registry/registry.h"
 #include "envoy/singleton/manager.h"
@@ -139,42 +140,44 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
   uint32_t source_identity = 0, destination_identity = 0;
   uint16_t orig_dport = 0, proxy_port = 0;
-
-  const auto sip = socket.remoteAddress()->ip();
+  Network::Address::InstanceConstSharedPtr src_address = socket.remoteAddress();
+  const auto sip = src_address->ip();
   auto dip = socket.localAddress()->ip();
 
   if (!sip || !dip) {
     ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}",
-		   socket.remoteAddress()->asString(), socket.localAddress()->asString());
+		   src_address->asString(), socket.localAddress()->asString());
     return false;
   }
 
   // Cilium < 1.6 uses REDIRECT, which NATs the destination address
   // and port. Proxymap is used to retrieve the originals, as well as
   // the source security ID.
-  // Proxymap use will be deprecated when Cilium 1.6 is the oldest
-  // supported version.
-  //
+  // Cilium >= 1.6 and sidecars use TPROXY, so the destination address
+  // is not NATted.
+  bool with_tproxy = (maps_ == nullptr);
+  
   // We do this first as this likely restores the destination address
-  if (maps_ != nullptr) {
-    // Cilium < 1.6, NOT a sidecar
-    maps_->getBpfMetadata(socket, &source_identity, &orig_dport, &proxy_port);
-    dip = socket.localAddress()->ip();
-  } else {
-    // Cilium >= 1.6, OR a sidecar. In both cases TPROXY is being used
-    // and the destination address is not NATted. Let the
-    // OriginalDstCluster know the destination address can be used.
+  if (with_tproxy) {
+    // Let the OriginalDstCluster know the destination address can be used.
     socket.restoreLocalAddress(socket.localAddress()); // mark as `restored`
     orig_dport = dip->port();
+  } else {
+    // Proxymap ('maps_') use will be deprecated when Cilium 1.6 is the oldest
+    // supported version.
+    maps_->getBpfMetadata(socket, &source_identity, &orig_dport, &proxy_port);
+    dip = socket.localAddress()->ip();
   }
 
-  std::string pod_ip;
+  std::string pod_ip, other_ip;
   if (is_ingress_) {
     pod_ip = dip->addressAsString();
-    ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
+    other_ip = sip->addressAsString();
+    ENVOY_LOG_MISC(debug, "INGRESS POD IP: {}, source IP: {}", pod_ip, other_ip);
   } else {
     pod_ip = sip->addressAsString();
-    ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
+    other_ip = dip->addressAsString();
+    ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {}", pod_ip, other_ip);
   }
 
   // Resolve the source security ID, if not already resolved
@@ -219,10 +222,19 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     }
   }
 
+  // Only use the original source address for TPROXY egress proxy if the
+  // other end is not in the same node. This allows the destination
+  // node to derive the source policy ID from the original source IP.
+  if (with_tproxy && !is_ingress_ && !npmap_->exists(other_ip)) {
+    socket.addOptions(Network::SocketOptionFactory::buildIpTransparentOptions());
+  } else {
+    src_address = nullptr;
+  }
+
   // Pass the metadata to an Envoy socket option we can retrieve
   // later in other Cilium filters.
-  socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, source_identity, destination_identity, is_ingress_, orig_dport, proxy_port, std::move(pod_ip)));
-
+  socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, source_identity, destination_identity,
+      is_ingress_, orig_dport, proxy_port, std::move(pod_ip), src_address));
   return true;
 }
 

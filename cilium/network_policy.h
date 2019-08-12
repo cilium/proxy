@@ -295,6 +295,21 @@ public:
     return it->second->conntrack_map_name_;
   }
 
+  bool exists(const std::string& endpoint_policy_name) const {
+    if (tls_->get().get() == nullptr) {
+      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::exists(): NULL TLS object!");
+      return false;
+    }
+    const auto& npmap = tls_->getTyped<ThreadLocalPolicyMap>().policies_;
+    auto it = npmap.find(endpoint_policy_name);
+    if (it == npmap.end()) {
+      ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::exists(): No policy found for endpoint {}", endpoint_policy_name);
+      return false;
+    }
+    ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::exists(): Policy found for endpoint {}", endpoint_policy_name);
+    return true;
+  }
+
   // Config::SubscriptionCallbacks
   void onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources,
 		      const std::string& version_info) override;
