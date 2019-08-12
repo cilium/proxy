@@ -1,0 +1,489 @@
+From bf3582910bd9324eea134c96e178774e354fdceb Mon Sep 17 00:00:00 2001
+From: yanavlasov <yavlasov@google.com>
+Date: Fri, 2 Aug 2019 16:56:12 -0400
+Subject: [PATCH 8/9] Disable outbound flood mitigation through runtime config
+ (#22)
+
+Signed-off-by: Yan Avlasov <yavlasov@google.com>
+---
+ docs/root/intro/version_history.rst       |   6 +
+ source/common/http/http2/BUILD            |   1 +
+ source/common/http/http2/codec_impl.cc    |  53 ++++++++
+ source/common/http/http2/codec_impl.h     |  23 +---
+ source/common/runtime/runtime_impl.cc     |  11 ++
+ source/common/runtime/runtime_impl.h      |   1 +
+ test/common/http/http2/BUILD              |   5 +
+ test/common/http/http2/codec_impl_test.cc | 207 +++++++++++++++++++++++++++++-
+ test/common/runtime/runtime_impl_test.cc  |  10 ++
+ 9 files changed, 295 insertions(+), 22 deletions(-)
+
+diff --git a/docs/root/intro/version_history.rst b/docs/root/intro/version_history.rst
+index 18fb19c5f6..7396b12401 100644
+--- a/docs/root/intro/version_history.rst
++++ b/docs/root/intro/version_history.rst
+@@ -5,11 +5,17 @@ Version history
+ ================
+ * http: added mitigation of client initiated atacks that result in flooding of the downstream HTTP/2 connections.
+ * http: added :ref:`inbound_empty_frames_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the limit on consecutive inbound frames with an empty payload and no end stream flag. The limit is configured by setting the :ref:`max_consecutive_inbound_frames_with_empty_payload config setting <envoy_api_field_core.Http2ProtocolOptions.max_consecutive_inbound_frames_with_empty_payload>`.
++  Runtime feature `envoy.reloadable_features.http2_protocol_options.max_consecutive_inbound_frames_with_empty_payload` overrides :ref:`max_consecutive_inbound_frames_with_empty_payload setting <envoy_api_field_core.Http2ProtocolOptions.max_consecutive_inbound_frames_with_empty_payload>`. Large override value (i.e. 2147483647) effectively disables mitigation of inbound frames with empty payload.
+ * http: added :ref:`inbound_priority_frames_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the limit on inbound PRIORITY frames. The limit is configured by setting the :ref:`max_inbound_priority_frames_per_stream config setting <envoy_api_field_core.Http2ProtocolOptions.max_inbound_priority_frames_per_stream>`.
++  Runtime feature `envoy.reloadable_features.http2_protocol_options.max_inbound_priority_frames_per_stream` overrides :ref:`max_inbound_priority_frames_per_stream setting <envoy_api_field_core.Http2ProtocolOptions.max_inbound_priority_frames_per_stream>`. Large override value effectively disables flood mitigation of inbound PRIORITY frames.
+ * http: added :ref:`inbound_window_update_frames_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the limit on inbound WINDOW_UPDATE frames. The limit is configured by setting the :ref:`max_inbound_window_update_frames_per_data_frame_sent config setting <envoy_api_field_core.Http2ProtocolOptions.max_inbound_window_update_frames_per_data_frame_sent>`.
++  Runtime feature `envoy.reloadable_features.http2_protocol_options.max_inbound_window_update_frames_per_data_frame_sent` overrides :ref:`max_inbound_window_update_frames_per_data_frame_sent setting <envoy_api_field_core.Http2ProtocolOptions.max_inbound_window_update_frames_per_data_frame_sent>`. Large override value effectively disables flood mitigation of inbound WINDOW_UPDATE frames.
+ * http: added :ref:`outbound_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the outbound queue limit. The limit is configured by setting the :ref:`max_outbound_frames config setting <envoy_api_field_core.Http2ProtocolOptions.max_outbound_frames>`
++  Runtime feature `envoy.reloadable_features.http2_protocol_options.max_outbound_frames` overrides :ref:`max_outbound_frames config setting <envoy_api_field_core.Http2ProtocolOptions.max_outbound_frames>`. Large override value effectively disables flood mitigation of outbound frames of all types.
+ * http: added :ref:`outbound_control_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the outbound queue limit for PING, SETTINGS and RST_STREAM frames. The limit is configured by setting the :ref:`max_outbound_control_frames config setting <envoy_api_field_core.Http2ProtocolOptions.max_outbound_control_frames>`.
++  Runtime feature `envoy.reloadable_features.http2_protocol_options.max_outbound_control_frames` overrides :ref:`max_outbound_control_frames config setting <envoy_api_field_core.Http2ProtocolOptions.max_outbound_control_frames>`. Large override value effectively disables flood mitigation of outbound frames of types PING, SETTINGS and RST_STREAM.
+ * http: enabled strict validation of HTTP/2 messaging. Previous behavior can be restored using :ref:`stream_error_on_invalid_http_messaging config setting <envoy_api_field_core.Http2ProtocolOptions.stream_error_on_invalid_http_messaging>`.
++  Runtime feature `envoy.reloadable_features.http2_protocol_options.stream_error_on_invalid_http_messaging` overrides :ref:`stream_error_on_invalid_http_messaging config setting <envoy_api_field_core.Http2ProtocolOptions.stream_error_on_invalid_http_messaging>`.
+ 
+ 1.11.0 (July 11, 2019)
+ ======================
+diff --git a/source/common/http/http2/BUILD b/source/common/http/http2/BUILD
+index 7d51a2208d..2133d6238e 100644
+--- a/source/common/http/http2/BUILD
++++ b/source/common/http/http2/BUILD
+@@ -40,6 +40,7 @@ envoy_cc_library(
+         "//source/common/http:header_map_lib",
+         "//source/common/http:headers_lib",
+         "//source/common/http:utility_lib",
++        "//source/common/runtime:runtime_lib",
+     ],
+ )
+ 
+diff --git a/source/common/http/http2/codec_impl.cc b/source/common/http/http2/codec_impl.cc
+index e45f07a101..1752eb299f 100644
+--- a/source/common/http/http2/codec_impl.cc
++++ b/source/common/http/http2/codec_impl.cc
+@@ -346,6 +346,59 @@ void ConnectionImpl::StreamImpl::onMetadataDecoded(MetadataMapPtr&& metadata_map
+   decoder_->decodeMetadata(std::move(metadata_map_ptr));
+ }
+ 
++namespace {
++
++const char InvalidHttpMessagingOverrideKey[] =
++    "envoy.reloadable_features.http2_protocol_options.stream_error_on_invalid_http_messaging";
++const char MaxOutboundFramesOverrideKey[] =
++    "envoy.reloadable_features.http2_protocol_options.max_outbound_frames";
++const char MaxOutboundControlFramesOverrideKey[] =
++    "envoy.reloadable_features.http2_protocol_options.max_outbound_control_frames";
++const char MaxConsecutiveInboundFramesWithEmptyPayloadOverrideKey[] =
++    "envoy.reloadable_features.http2_protocol_options."
++    "max_consecutive_inbound_frames_with_empty_payload";
++const char MaxInboundPriorityFramesPerStreamOverrideKey[] =
++    "envoy.reloadable_features.http2_protocol_options.max_inbound_priority_frames_per_stream";
++const char MaxInboundWindowUpdateFramesPerDataFrameSentOverrideKey[] =
++    "envoy.reloadable_features.http2_protocol_options."
++    "max_inbound_window_update_frames_per_data_frame_sent";
++
++bool checkRuntimeOverride(bool config_value, const char* override_key) {
++  return Runtime::runtimeFeatureEnabled(override_key) ? true : config_value;
++}
++
++} // namespace
++
++ConnectionImpl::ConnectionImpl(Network::Connection& connection, Stats::Scope& stats,
++                               const Http2Settings& http2_settings,
++                               const uint32_t max_request_headers_kb)
++    : stats_{ALL_HTTP2_CODEC_STATS(POOL_COUNTER_PREFIX(stats, "http2."))}, connection_(connection),
++      max_request_headers_kb_(max_request_headers_kb),
++      per_stream_buffer_limit_(http2_settings.initial_stream_window_size_),
++      stream_error_on_invalid_http_messaging_(checkRuntimeOverride(
++          http2_settings.stream_error_on_invalid_http_messaging_, InvalidHttpMessagingOverrideKey)),
++      flood_detected_(false),
++      max_outbound_frames_(
++          Runtime::getInteger(MaxOutboundFramesOverrideKey, http2_settings.max_outbound_frames_)),
++      frame_buffer_releasor_([this](const Buffer::OwnedBufferFragmentImpl* fragment) {
++        releaseOutboundFrame(fragment);
++      }),
++      max_outbound_control_frames_(Runtime::getInteger(
++          MaxOutboundControlFramesOverrideKey, http2_settings.max_outbound_control_frames_)),
++      control_frame_buffer_releasor_([this](const Buffer::OwnedBufferFragmentImpl* fragment) {
++        releaseOutboundControlFrame(fragment);
++      }),
++      max_consecutive_inbound_frames_with_empty_payload_(
++          Runtime::getInteger(MaxConsecutiveInboundFramesWithEmptyPayloadOverrideKey,
++                              http2_settings.max_consecutive_inbound_frames_with_empty_payload_)),
++      max_inbound_priority_frames_per_stream_(
++          Runtime::getInteger(MaxInboundPriorityFramesPerStreamOverrideKey,
++                              http2_settings.max_inbound_priority_frames_per_stream_)),
++      max_inbound_window_update_frames_per_data_frame_sent_(Runtime::getInteger(
++          MaxInboundWindowUpdateFramesPerDataFrameSentOverrideKey,
++          http2_settings.max_inbound_window_update_frames_per_data_frame_sent_)),
++      dispatching_(false), raised_goaway_(false), pending_deferred_reset_(false) {}
++
+ ConnectionImpl::~ConnectionImpl() { nghttp2_session_del(session_); }
+ 
+ void ConnectionImpl::dispatch(Buffer::Instance& data) {
+diff --git a/source/common/http/http2/codec_impl.h b/source/common/http/http2/codec_impl.h
+index 70bc2da1e3..8c1760f9f8 100644
+--- a/source/common/http/http2/codec_impl.h
++++ b/source/common/http/http2/codec_impl.h
+@@ -21,6 +21,7 @@
+ #include "common/http/http2/metadata_decoder.h"
+ #include "common/http/http2/metadata_encoder.h"
+ #include "common/http/utility.h"
++#include "common/runtime/runtime_impl.h"
+ 
+ #include "absl/types/optional.h"
+ #include "nghttp2/nghttp2.h"
+@@ -78,27 +79,7 @@ public:
+ class ConnectionImpl : public virtual Connection, protected Logger::Loggable<Logger::Id::http2> {
+ public:
+   ConnectionImpl(Network::Connection& connection, Stats::Scope& stats,
+-                 const Http2Settings& http2_settings, const uint32_t max_request_headers_kb)
+-      : stats_{ALL_HTTP2_CODEC_STATS(POOL_COUNTER_PREFIX(stats, "http2."))},
+-        connection_(connection), max_request_headers_kb_(max_request_headers_kb),
+-        per_stream_buffer_limit_(http2_settings.initial_stream_window_size_),
+-        stream_error_on_invalid_http_messaging_(
+-            http2_settings.stream_error_on_invalid_http_messaging_),
+-        flood_detected_(false), max_outbound_frames_(http2_settings.max_outbound_frames_),
+-        frame_buffer_releasor_([this](const Buffer::OwnedBufferFragmentImpl* fragment) {
+-          releaseOutboundFrame(fragment);
+-        }),
+-        max_outbound_control_frames_(http2_settings.max_outbound_control_frames_),
+-        control_frame_buffer_releasor_([this](const Buffer::OwnedBufferFragmentImpl* fragment) {
+-          releaseOutboundControlFrame(fragment);
+-        }),
+-        max_consecutive_inbound_frames_with_empty_payload_(
+-            http2_settings.max_consecutive_inbound_frames_with_empty_payload_),
+-        max_inbound_priority_frames_per_stream_(
+-            http2_settings.max_inbound_priority_frames_per_stream_),
+-        max_inbound_window_update_frames_per_data_frame_sent_(
+-            http2_settings.max_inbound_window_update_frames_per_data_frame_sent_),
+-        dispatching_(false), raised_goaway_(false), pending_deferred_reset_(false) {}
++                 const Http2Settings& http2_settings, const uint32_t max_request_headers_kb);
+ 
+   ~ConnectionImpl();
+ 
+diff --git a/source/common/runtime/runtime_impl.cc b/source/common/runtime/runtime_impl.cc
+index 6ed82c39a3..3c8643c1e3 100644
+--- a/source/common/runtime/runtime_impl.cc
++++ b/source/common/runtime/runtime_impl.cc
+@@ -35,6 +35,17 @@ bool runtimeFeatureEnabled(absl::string_view feature) {
+   return RuntimeFeaturesDefaults::get().enabledByDefault(feature);
+ }
+ 
++uint64_t getInteger(absl::string_view feature, uint64_t default_value) {
++  ASSERT(absl::StartsWith(feature, "envoy.reloadable_features"));
++  if (Runtime::LoaderSingleton::getExisting()) {
++    return Runtime::LoaderSingleton::getExisting()->threadsafeSnapshot()->getInteger(
++        std::string(feature), default_value);
++  }
++  ENVOY_LOG_TO_LOGGER(Envoy::Logger::Registry::getLog(Envoy::Logger::Id::runtime), warn,
++                      "Unable to use runtime singleton for feature {}", feature);
++  return default_value;
++}
++
+ const size_t RandomGeneratorImpl::UUID_LENGTH = 36;
+ 
+ uint64_t RandomGeneratorImpl::random() {
+diff --git a/source/common/runtime/runtime_impl.h b/source/common/runtime/runtime_impl.h
+index a41260eca0..1d0cef2ae5 100644
+--- a/source/common/runtime/runtime_impl.h
++++ b/source/common/runtime/runtime_impl.h
+@@ -31,6 +31,7 @@ namespace Envoy {
+ namespace Runtime {
+ 
+ bool runtimeFeatureEnabled(absl::string_view feature);
++uint64_t getInteger(absl::string_view feature, uint64_t default_value);
+ 
+ using RuntimeSingleton = ThreadSafeSingleton<Loader>;
+ 
+diff --git a/test/common/http/http2/BUILD b/test/common/http/http2/BUILD
+index 3540556021..ae51864b72 100644
+--- a/test/common/http/http2/BUILD
++++ b/test/common/http/http2/BUILD
+@@ -22,8 +22,13 @@ envoy_cc_test(
+         "//source/common/http/http2:codec_lib",
+         "//source/common/stats:stats_lib",
+         "//test/common/http:common_lib",
++        "//test/common/http/http2:http2_frame",
+         "//test/mocks/http:http_mocks",
++        "//test/mocks/init:init_mocks",
++        "//test/mocks/local_info:local_info_mocks",
+         "//test/mocks/network:network_mocks",
++        "//test/mocks/protobuf:protobuf_mocks",
++        "//test/mocks/thread_local:thread_local_mocks",
+         "//test/mocks/upstream:upstream_mocks",
+         "//test/test_common:utility_lib",
+     ],
+diff --git a/test/common/http/http2/codec_impl_test.cc b/test/common/http/http2/codec_impl_test.cc
+index 0dc5bb358a..e738c140af 100644
+--- a/test/common/http/http2/codec_impl_test.cc
++++ b/test/common/http/http2/codec_impl_test.cc
+@@ -9,8 +9,13 @@
+ #include "common/http/http2/codec_impl.h"
+ 
+ #include "test/common/http/common.h"
++#include "test/common/http/http2/http2_frame.h"
+ #include "test/mocks/http/mocks.h"
++#include "test/mocks/init/mocks.h"
++#include "test/mocks/local_info/mocks.h"
+ #include "test/mocks/network/mocks.h"
++#include "test/mocks/protobuf/mocks.h"
++#include "test/mocks/thread_local/mocks.h"
+ #include "test/test_common/printers.h"
+ #include "test/test_common/utility.h"
+ 
+@@ -164,7 +169,89 @@ class Http2CodecImplTest : public ::testing::TestWithParam<Http2SettingsTestPara
+                            protected Http2CodecImplTestFixture {
+ public:
+   Http2CodecImplTest()
+-      : Http2CodecImplTestFixture(::testing::get<0>(GetParam()), ::testing::get<1>(GetParam())) {}
++      : Http2CodecImplTestFixture(::testing::get<0>(GetParam()), ::testing::get<1>(GetParam())),
++        api_(Api::createApiForTest()) {
++    envoy::config::bootstrap::v2::LayeredRuntime config;
++    config.add_layers()->mutable_admin_layer();
++
++    // Create a runtime loader, so that tests can manually manipulate runtime
++    // guarded features.
++    loader_ = std::make_unique<Runtime::ScopedLoaderSingleton>(
++        std::make_unique<Runtime::LoaderImpl>(dispatcher_, tls_, config, local_info_, init_manager_,
++                                              store_, generator_, validation_visitor_, *api_));
++  }
++
++protected:
++  void priorityFlood() {
++    initialize();
++
++    TestHeaderMapImpl request_headers;
++    HttpTestUtility::addDefaultHeaders(request_headers, "POST");
++    EXPECT_CALL(request_decoder_, decodeHeaders_(_, false));
++    request_encoder_->encodeHeaders(request_headers, false);
++
++    nghttp2_priority_spec spec = {0, 10, 0};
++    // HTTP/2 codec adds 1 to the number of active streams when computing PRIORITY frames limit
++    constexpr uint32_t max_allowed =
++        2 * Http2Settings::DEFAULT_MAX_INBOUND_PRIORITY_FRAMES_PER_STREAM;
++    for (uint32_t i = 0; i < max_allowed + 1; ++i) {
++      EXPECT_EQ(0, nghttp2_submit_priority(client_->session(), NGHTTP2_FLAG_NONE, 1, &spec));
++    }
++  }
++
++  void windowUpdateFlood() {
++    initialize();
++
++    TestHeaderMapImpl request_headers;
++    HttpTestUtility::addDefaultHeaders(request_headers);
++    EXPECT_CALL(request_decoder_, decodeHeaders_(_, true));
++    request_encoder_->encodeHeaders(request_headers, true);
++
++    // Send one DATA frame back
++    EXPECT_CALL(response_decoder_, decodeHeaders_(_, false));
++    EXPECT_CALL(response_decoder_, decodeData(_, false));
++    TestHeaderMapImpl response_headers{{":status", "200"}};
++    response_encoder_->encodeHeaders(response_headers, false);
++    Buffer::OwnedImpl data("0");
++    EXPECT_NO_THROW(response_encoder_->encodeData(data, false));
++
++    // See the limit formula in the
++    // `Envoy::Http::Http2::ServerConnectionImpl::checkInboundFrameLimits()' method.
++    constexpr uint32_t max_allowed =
++        1 + 2 * (Http2Settings::DEFAULT_MAX_INBOUND_WINDOW_UPDATE_FRAMES_PER_DATA_FRAME_SENT + 1);
++    for (uint32_t i = 0; i < max_allowed + 1; ++i) {
++      EXPECT_EQ(0, nghttp2_submit_window_update(client_->session(), NGHTTP2_FLAG_NONE, 1, 1));
++    }
++  }
++
++  void emptyDataFlood(Buffer::OwnedImpl& data) {
++    initialize();
++
++    TestHeaderMapImpl request_headers;
++    HttpTestUtility::addDefaultHeaders(request_headers, "POST");
++    EXPECT_CALL(request_decoder_, decodeHeaders_(_, false));
++    request_encoder_->encodeHeaders(request_headers, false);
++
++    // HTTP/2 codec does not send empty DATA frames with no END_STREAM flag.
++    // To make this work, send raw bytes representing empty DATA frames bypassing client codec.
++    Http2Frame emptyDataFrame = Http2Frame::makeEmptyDataFrame(0);
++    constexpr uint32_t max_allowed =
++        Http2Settings::DEFAULT_MAX_CONSECUTIVE_INBOUND_FRAMES_WITH_EMPTY_PAYLOAD;
++    for (uint32_t i = 0; i < max_allowed + 1; ++i) {
++      data.add(emptyDataFrame.data(), emptyDataFrame.size());
++    }
++  }
++
++private:
++  Event::MockDispatcher dispatcher_;
++  NiceMock<ThreadLocal::MockInstance> tls_;
++  Stats::IsolatedStoreImpl store_;
++  Runtime::MockRandomGenerator generator_;
++  Api::ApiPtr api_;
++  NiceMock<LocalInfo::MockLocalInfo> local_info_;
++  Init::MockManager init_manager_;
++  NiceMock<ProtobufMessage::MockValidationVisitor> validation_visitor_;
++  std::unique_ptr<Runtime::ScopedLoaderSingleton> loader_;
+ };
+ 
+ TEST_P(Http2CodecImplTest, ShutdownNotice) {
+@@ -408,6 +495,25 @@ TEST_P(Http2CodecImplTest, InvalidHeadersFrameAllowed) {
+   server_wrapper_.dispatch(Buffer::OwnedImpl(), *server_);
+ }
+ 
++TEST_P(Http2CodecImplTest, InvalidHeadersFrameOverriden) {
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"envoy.reloadable_features.http2_protocol_options.stream_error_on_invalid_http_messaging",
++        "true"}});
++  initialize();
++
++  MockStreamCallbacks request_callbacks;
++  request_encoder_->getStream().addCallbacks(request_callbacks);
++
++  ON_CALL(client_connection_, write(_, _))
++      .WillByDefault(
++          Invoke([&](Buffer::Instance& data, bool) -> void { server_wrapper_.buffer_.add(data); }));
++
++  request_encoder_->encodeHeaders(TestHeaderMapImpl{}, true);
++  EXPECT_CALL(server_stream_callbacks_, onResetStream(StreamResetReason::LocalReset, _));
++  EXPECT_CALL(request_callbacks, onResetStream(StreamResetReason::RemoteReset, _));
++  server_wrapper_.dispatch(Buffer::OwnedImpl(), *server_);
++}
++
+ TEST_P(Http2CodecImplTest, TrailingHeaders) {
+   initialize();
+ 
+@@ -1144,6 +1250,28 @@ TEST_P(Http2CodecImplTest, PingFlood) {
+   EXPECT_EQ(1, stats_store_.counter("http2.outbound_control_flood").value());
+ }
+ 
++// Verify that codec allows PING flood when mitigation is disabled
++TEST_P(Http2CodecImplTest, PingFloodMitigationDisabled) {
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"envoy.reloadable_features.http2_protocol_options.max_outbound_control_frames",
++        "2147483647"}});
++  initialize();
++
++  TestHeaderMapImpl request_headers;
++  HttpTestUtility::addDefaultHeaders(request_headers);
++  EXPECT_CALL(request_decoder_, decodeHeaders_(_, false));
++  request_encoder_->encodeHeaders(request_headers, false);
++
++  // Send one frame above the outbound control queue size limit
++  for (uint32_t i = 0; i < Http2Settings::DEFAULT_MAX_OUTBOUND_CONTROL_FRAMES + 1; ++i) {
++    EXPECT_EQ(0, nghttp2_submit_ping(client_->session(), NGHTTP2_FLAG_NONE, nullptr));
++  }
++
++  EXPECT_CALL(server_connection_, write(_, _))
++      .Times(Http2Settings::DEFAULT_MAX_OUTBOUND_CONTROL_FRAMES + 1);
++  EXPECT_NO_THROW(client_->sendPendingFrames());
++}
++
+ // Verify that outbound control frame counter decreases when send buffer is drained
+ TEST_P(Http2CodecImplTest, PingFloodCounterReset) {
+   static const int kMaxOutboundControlFrames = 100;
+@@ -1249,6 +1377,36 @@ TEST_P(Http2CodecImplTest, ResponseDataFlood) {
+   EXPECT_EQ(1, stats_store_.counter("http2.outbound_flood").value());
+ }
+ 
++// Verify that codec allows outbound DATA flood when mitigation is disabled
++TEST_P(Http2CodecImplTest, ResponseDataFloodMitigationDisabled) {
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"envoy.reloadable_features.http2_protocol_options.max_outbound_frames", "2147483647"}});
++  initialize();
++
++  TestHeaderMapImpl request_headers;
++  HttpTestUtility::addDefaultHeaders(request_headers);
++  EXPECT_CALL(request_decoder_, decodeHeaders_(_, false));
++  request_encoder_->encodeHeaders(request_headers, false);
++
++  // +2 is to account for HEADERS and PING ACK, that is used to trigger mitigation
++  EXPECT_CALL(server_connection_, write(_, _))
++      .Times(Http2Settings::DEFAULT_MAX_OUTBOUND_FRAMES + 2);
++  EXPECT_CALL(response_decoder_, decodeHeaders_(_, false)).Times(1);
++  EXPECT_CALL(response_decoder_, decodeData(_, false))
++      .Times(Http2Settings::DEFAULT_MAX_OUTBOUND_FRAMES);
++  TestHeaderMapImpl response_headers{{":status", "200"}};
++  response_encoder_->encodeHeaders(response_headers, false);
++  // Account for the single HEADERS frame above
++  for (uint32_t i = 0; i < Http2Settings::DEFAULT_MAX_OUTBOUND_FRAMES; ++i) {
++    Buffer::OwnedImpl data("0");
++    EXPECT_NO_THROW(response_encoder_->encodeData(data, false));
++  }
++  // Presently flood mitigation is done only when processing downstream data
++  // So we need to send stream from downstream client to trigger mitigation
++  EXPECT_EQ(0, nghttp2_submit_ping(client_->session(), NGHTTP2_FLAG_NONE, nullptr));
++  EXPECT_NO_THROW(client_->sendPendingFrames());
++}
++
+ // Verify that outbound frame counter decreases when send buffer is drained
+ TEST_P(Http2CodecImplTest, ResponseDataFloodCounterReset) {
+   static const int kMaxOutboundFrames = 100;
+@@ -1323,6 +1481,53 @@ TEST_P(Http2CodecImplTest, PingStacksWithDataFlood) {
+   EXPECT_EQ(1, stats_store_.counter("http2.outbound_flood").value());
+ }
+ 
++TEST_P(Http2CodecImplTest, PriorityFlood) {
++  priorityFlood();
++  EXPECT_THROW(client_->sendPendingFrames(), FrameFloodException);
++}
++
++TEST_P(Http2CodecImplTest, PriorityFloodOverride) {
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"envoy.reloadable_features.http2_protocol_options.max_inbound_priority_frames_per_stream",
++        "2147483647"}});
++
++  priorityFlood();
++  EXPECT_NO_THROW(client_->sendPendingFrames());
++}
++
++TEST_P(Http2CodecImplTest, WindowUpdateFlood) {
++  windowUpdateFlood();
++  EXPECT_THROW(client_->sendPendingFrames(), FrameFloodException);
++}
++
++TEST_P(Http2CodecImplTest, WindowUpdateFloodOverride) {
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"envoy.reloadable_features.http2_protocol_options.max_inbound_window_update_frames_per_"
++        "data_frame_sent",
++        "2147483647"}});
++  windowUpdateFlood();
++  EXPECT_NO_THROW(client_->sendPendingFrames());
++}
++
++TEST_P(Http2CodecImplTest, EmptyDataFlood) {
++  Buffer::OwnedImpl data;
++  emptyDataFlood(data);
++  EXPECT_CALL(request_decoder_, decodeData(_, false));
++  EXPECT_THROW(server_wrapper_.dispatch(data, *server_), FrameFloodException);
++}
++
++TEST_P(Http2CodecImplTest, EmptyDataFloodOverride) {
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"envoy.reloadable_features.http2_protocol_options.max_consecutive_inbound_frames_with_"
++        "empty_payload",
++        "2147483647"}});
++  Buffer::OwnedImpl data;
++  emptyDataFlood(data);
++  EXPECT_CALL(request_decoder_, decodeData(_, false))
++      .Times(Http2Settings::DEFAULT_MAX_CONSECUTIVE_INBOUND_FRAMES_WITH_EMPTY_PAYLOAD + 1);
++  EXPECT_NO_THROW(server_wrapper_.dispatch(data, *server_));
++}
++
+ } // namespace Http2
+ } // namespace Http
+ } // namespace Envoy
+diff --git a/test/common/runtime/runtime_impl_test.cc b/test/common/runtime/runtime_impl_test.cc
+index 3d39c6b8e9..4b3e040c62 100644
+--- a/test/common/runtime/runtime_impl_test.cc
++++ b/test/common/runtime/runtime_impl_test.cc
+@@ -692,6 +692,16 @@ TEST(NoRuntime, FeatureEnabled) {
+   EXPECT_EQ(true, runtimeFeatureEnabled("envoy.reloadable_features.test_feature_true"));
+ }
+ 
++TEST(NoRuntime, DefaultIntValues) {
++  // Make sure the registry is not set up.
++  ASSERT_TRUE(Runtime::LoaderSingleton::getExisting() == nullptr);
++
++  // Feature defaults should still work.
++  EXPECT_EQ(0x1230000ABCDULL,
++            getInteger("envoy.reloadable_features.test_int_feature_default", 0x1230000ABCDULL));
++  EXPECT_EQ(0, getInteger("envoy.reloadable_features.test_int_feature_zero", 0));
++}
++
+ // Test RTDS layer(s).
+ class RtdsLoaderImplTest : public LoaderImplTest {
+ public:
+-- 
+2.11.0
+

@@ -1,0 +1,105 @@
+From e8c9b2033f7bc108c914f00055760cbf9f28a222 Mon Sep 17 00:00:00 2001
+From: Piotr Sikora <piotrsikora@google.com>
+Date: Wed, 31 Jul 2019 10:29:55 -0700
+Subject: [PATCH 4/9] runtime: changing snapshot access to be const (#7677)
+ (#26)
+
+This is a precursor to #7601 just to land the API change more quickly and make sure it sticks.
+
+Risk Level: Low
+Testing: existing unit tests
+Docs Changes: n/a
+Release Notes: n/a
+
+Signed-off-by: Alyssa Wilk <alyssar@chromium.org>
+Signed-off-by: Piotr Sikora <piotrsikora@google.com>
+---
+ include/envoy/runtime/runtime.h          | 4 ++--
+ source/common/runtime/runtime_impl.cc    | 2 +-
+ source/common/runtime/runtime_impl.h     | 2 +-
+ test/common/runtime/runtime_impl_test.cc | 4 ++--
+ test/mocks/runtime/mocks.h               | 2 +-
+ 5 files changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/include/envoy/runtime/runtime.h b/include/envoy/runtime/runtime.h
+index b3e3ebeb46..bd3e759ee1 100644
+--- a/include/envoy/runtime/runtime.h
++++ b/include/envoy/runtime/runtime.h
+@@ -220,11 +220,11 @@ public:
+   virtual void initialize(Upstream::ClusterManager& cm) PURE;
+ 
+   /**
+-   * @return Snapshot& the current snapshot. This reference is safe to use for the duration of
++   * @return const Snapshot& the current snapshot. This reference is safe to use for the duration of
+    *         the calling routine, but may be overwritten on a future event loop cycle so should be
+    *         fetched again when needed.
+    */
+-  virtual Snapshot& snapshot() PURE;
++  virtual const Snapshot& snapshot() PURE;
+ 
+   /**
+    * Merge the given map of key-value pairs into the runtime's state. To remove a previous merge for
+diff --git a/source/common/runtime/runtime_impl.cc b/source/common/runtime/runtime_impl.cc
+index a1369e6ab1..ae565aecbd 100644
+--- a/source/common/runtime/runtime_impl.cc
++++ b/source/common/runtime/runtime_impl.cc
+@@ -557,7 +557,7 @@ void LoaderImpl::loadNewSnapshot() {
+   });
+ }
+ 
+-Snapshot& LoaderImpl::snapshot() { return tls_->getTyped<Snapshot>(); }
++const Snapshot& LoaderImpl::snapshot() { return tls_->getTyped<Snapshot>(); }
+ 
+ void LoaderImpl::mergeValues(const std::unordered_map<std::string, std::string>& values) {
+   if (admin_layer_ == nullptr) {
+diff --git a/source/common/runtime/runtime_impl.h b/source/common/runtime/runtime_impl.h
+index 855dc1ea37..b9344d0cc9 100644
+--- a/source/common/runtime/runtime_impl.h
++++ b/source/common/runtime/runtime_impl.h
+@@ -243,7 +243,7 @@ public:
+ 
+   // Runtime::Loader
+   void initialize(Upstream::ClusterManager& cm) override;
+-  Snapshot& snapshot() override;
++  const Snapshot& snapshot() override;
+   void mergeValues(const std::unordered_map<std::string, std::string>& values) override;
+ 
+ private:
+diff --git a/test/common/runtime/runtime_impl_test.cc b/test/common/runtime/runtime_impl_test.cc
+index cb73ae6e73..e5edecfc5b 100644
+--- a/test/common/runtime/runtime_impl_test.cc
++++ b/test/common/runtime/runtime_impl_test.cc
+@@ -155,7 +155,7 @@ TEST_F(DiskLoaderImplTest, All) {
+   EXPECT_EQ(123UL, loader_->snapshot().getInteger("file4", 1));
+ 
+   bool value;
+-  SnapshotImpl* snapshot = reinterpret_cast<SnapshotImpl*>(&loader_->snapshot());
++  const SnapshotImpl* snapshot = reinterpret_cast<const SnapshotImpl*>(&loader_->snapshot());
+ 
+   // Validate that the layer name is set properly for static layers.
+   EXPECT_EQ("base", snapshot->getLayers()[0]->name());
+@@ -538,7 +538,7 @@ TEST_F(StaticLoaderImplTest, ProtoParsing) {
+ 
+   // Boolean getting.
+   bool value;
+-  SnapshotImpl* snapshot = reinterpret_cast<SnapshotImpl*>(&loader_->snapshot());
++  const SnapshotImpl* snapshot = reinterpret_cast<const SnapshotImpl*>(&loader_->snapshot());
+ 
+   EXPECT_EQ(true, snapshot->getBoolean("file11", value));
+   EXPECT_EQ(true, value);
+diff --git a/test/mocks/runtime/mocks.h b/test/mocks/runtime/mocks.h
+index e67e343619..5cb8230a14 100644
+--- a/test/mocks/runtime/mocks.h
++++ b/test/mocks/runtime/mocks.h
+@@ -63,7 +63,7 @@ public:
+   ~MockLoader();
+ 
+   MOCK_METHOD1(initialize, void(Upstream::ClusterManager& cm));
+-  MOCK_METHOD0(snapshot, Snapshot&());
++  MOCK_METHOD0(snapshot, const Snapshot&());
+   MOCK_METHOD1(mergeValues, void(const std::unordered_map<std::string, std::string>&));
+ 
+   testing::NiceMock<MockSnapshot> snapshot_;
+-- 
+2.11.0
+

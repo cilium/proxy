@@ -1,0 +1,857 @@
+From 564c0210995efe2247244089671b7eec1b7ffa9b Mon Sep 17 00:00:00 2001
+From: Piotr Sikora <piotrsikora@google.com>
+Date: Tue, 30 Jul 2019 23:58:41 -0400
+Subject: [PATCH 2/6] http2: limit the number of inbound frames. (#20)
+
+This change adds protections against flooding using PRIORITY
+and/or WINDOW_UPDATE frames, as well as frames with an empty
+payload and no end stream flag.
+
+Fixes CVE-2019-9511, CVE-2019-9513 and CVE-2019-9518.
+
+Signed-off-by: Piotr Sikora <piotrsikora@google.com>
+---
+ api/envoy/api/v2/core/protocol.proto            |  42 +++++++-
+ docs/root/configuration/http_conn_man/stats.rst |   3 +
+ docs/root/intro/version_history.rst             |   5 +-
+ include/envoy/http/codec.h                      |  12 +++
+ source/common/http/http2/codec_impl.cc          | 119 +++++++++++++++++++-
+ source/common/http/http2/codec_impl.h           |  53 ++++++++-
+ source/common/http/utility.cc                   |   9 ++
+ test/common/http/http2/codec_impl_test.cc       |  11 ++
+ test/common/http/http2/http2_frame.cc           |  52 +++++++++
+ test/common/http/http2/http2_frame.h            |  15 +++
+ test/common/http/utility_test.cc                |   6 ++
+ test/integration/http2_integration_test.cc      | 138 ++++++++++++++++++++++--
+ test/integration/http2_integration_test.h       |   4 +-
+ test/test_common/utility.cc                     |   3 +
+ 14 files changed, 452 insertions(+), 20 deletions(-)
+
+diff --git a/api/envoy/api/v2/core/protocol.proto b/api/envoy/api/v2/core/protocol.proto
+index becd596a0e..a5a8ba3327 100644
+--- a/api/envoy/api/v2/core/protocol.proto
++++ b/api/envoy/api/v2/core/protocol.proto
+@@ -49,6 +49,7 @@ message Http1ProtocolOptions {
+   string default_host_for_http_10 = 3;
+ }
+ 
++// [#comment:next free field: 12]
+ message Http2ProtocolOptions {
+   // `Maximum table size <https://httpwg.org/specs/rfc7541.html#rfc.section.4.2>`_
+   // (in octets) that the encoder is permitted to use for the dynamic HPACK table. Valid values
+@@ -94,18 +95,53 @@ message Http2ProtocolOptions {
+ 
+   // Limit the number of pending outbound downstream frames of all types (frames that are waiting to
+   // be written into the socket). Exceeding this limit triggers flood mitigation and connection is
+-  // terminated. The "http2.outbound_flood" stat tracks the number of terminated connections due to
+-  // flood mitigation. The default limit is 10000.
++  // terminated. The ``http2.outbound_flood`` stat tracks the number of terminated connections due
++  // to flood mitigation. The default limit is 10000.
+   // [#comment:TODO: implement same limits for upstream outbound frames as well.]
+   google.protobuf.UInt32Value max_outbound_frames = 7 [(validate.rules).uint32 = {gte: 1}];
+ 
+   // Limit the number of pending outbound downstream frames of types PING, SETTINGS and RST_STREAM,
+   // preventing high memory utilization when receiving continuous stream of these frames. Exceeding
+   // this limit triggers flood mitigation and connection is terminated. The
+-  // "http2.outbound_control_flood" stat tracks the number of terminated connections due to flood
++  // ``http2.outbound_control_flood`` stat tracks the number of terminated connections due to flood
+   // mitigation. The default limit is 1000.
+   // [#comment:TODO: implement same limits for upstream outbound frames as well.]
+   google.protobuf.UInt32Value max_outbound_control_frames = 8 [(validate.rules).uint32 = {gte: 1}];
++
++  // Limit the number of consecutive inbound frames of types HEADERS, CONTINUATION and DATA with an
++  // empty payload and no end stream flag. Those frames have no legitimate use and are abusive, but
++  // might be a result of a broken HTTP/2 implementation. The `http2.inbound_empty_frames_flood``
++  // stat tracks the number of connections terminated due to flood mitigation.
++  // Setting this to 0 will terminate connection upon receiving first frame with an empty payload
++  // and no end stream flag. The default limit is 1.
++  // [#comment:TODO: implement same limits for upstream inbound frames as well.]
++  google.protobuf.UInt32Value max_consecutive_inbound_frames_with_empty_payload = 9;
++
++  // Limit the number of inbound PRIORITY frames allowed per each opened stream. If the number
++  // of PRIORITY frames received over the lifetime of connection exceeds the value calculated
++  // using this formula::
++  //
++  //     max_inbound_priority_frames_per_stream * (1 + inbound_streams)
++  //
++  // the connection is terminated. The ``http2.inbound_priority_frames_flood`` stat tracks
++  // the number of connections terminated due to flood mitigation. The default limit is 100.
++  // [#comment:TODO: implement same limits for upstream inbound frames as well.]
++  google.protobuf.UInt32Value max_inbound_priority_frames_per_stream = 10;
++
++  // Limit the number of inbound WINDOW_UPDATE frames allowed per DATA frame sent. If the number
++  // of WINDOW_UPDATE frames received over the lifetime of connection exceeds the value calculated
++  // using this formula::
++  //
++  //     1 + 2 * (inbound_streams +
++  //              max_inbound_window_update_frames_per_data_frame_sent * outbound_data_frames)
++  //
++  // the connection is terminated. The ``http2.inbound_priority_frames_flood`` stat tracks
++  // the number of connections terminated due to flood mitigation. The default limit is 10.
++  // Setting this to 1 should be enough to support HTTP/2 implementations with basic flow control,
++  // but more complex implementations that try to estimate available bandwidth require at least 2.
++  // [#comment:TODO: implement same limits for upstream inbound frames as well.]
++  google.protobuf.UInt32Value max_inbound_window_update_frames_per_data_frame_sent = 11
++      [(validate.rules).uint32 = {gte: 1}];
+ }
+ 
+ // [#not-implemented-hide:]
+diff --git a/docs/root/configuration/http_conn_man/stats.rst b/docs/root/configuration/http_conn_man/stats.rst
+index 3c5a0cdae1..dc4f798790 100644
+--- a/docs/root/configuration/http_conn_man/stats.rst
++++ b/docs/root/configuration/http_conn_man/stats.rst
+@@ -111,6 +111,9 @@ All http2 statistics are rooted at *http2.*
+ 
+    header_overflow, Counter, Total number of connections reset due to the headers being larger than the :ref:`configured value <envoy_api_field_config.filter.network.http_connection_manager.v2.HttpConnectionManager.max_request_headers_kb>`.
+    headers_cb_no_stream, Counter, Total number of errors where a header callback is called without an associated stream. This tracks an unexpected occurrence due to an as yet undiagnosed bug
++   inbound_empty_frames_flood, Counter, Total number of connections terminated for exceeding the limit on consecutive inbound frames with an empty payload and no end stream flag. The limit is configured by setting the :ref:`max_consecutive_inbound_frames_with_empty_payload config setting <envoy_api_field_core.Http2ProtocolOptions.max_consecutive_inbound_frames_with_empty_payload>`.
++   inbound_priority_frames_flood, Counter, Total number of connections terminated for exceeding the limit on inbound frames of type PRIORITY. The limit is configured by setting the :ref:`max_inbound_priority_frames_per_stream config setting <envoy_api_field_core.Http2ProtocolOptions.max_inbound_priority_frames_per_stream>`.
++   inbound_window_update_frames_flood, Counter, Total number of connections terminated for exceeding the limit on inbound frames of type WINDOW_UPDATE. The limit is configured by setting the :ref:`max_inbound_window_updateframes_per_data_frame_sent config setting <envoy_api_field_core.Http2ProtocolOptions.max_inbound_window_update_frames_per_data_frame_sent>`.
+    outbound_flood, Counter, Total number of connections terminated for exceeding the limit on outbound frames of all types. The limit is configured by setting the :ref:`max_outbound_frames config setting <envoy_api_field_core.Http2ProtocolOptions.max_outbound_frames>`.
+    outbound_control_flood, Counter, "Total number of connections terminated for exceeding the limit on outbound frames of types PING, SETTINGS and RST_STREAM. The limit is configured by setting the :ref:`max_outbound_control_frames config setting <envoy_api_field_core.Http2ProtocolOptions.max_outbound_control_frames>`."
+    rx_messaging_error, Counter, Total number of invalid received frames that violated `section 8 <https://tools.ietf.org/html/rfc7540#section-8>`_ of the HTTP/2 spec. This will result in a *tx_reset*
+diff --git a/docs/root/intro/version_history.rst b/docs/root/intro/version_history.rst
+index 223773dfe5..7272960614 100644
+--- a/docs/root/intro/version_history.rst
++++ b/docs/root/intro/version_history.rst
+@@ -3,7 +3,10 @@ Version history
+ 
+ 1.11.1 (Pending)
+ ================
+-* http: added mitigation of client initiated atacks that result in flooding of the outbound queue of downstream HTTP/2 connections.
++* http: added mitigation of client initiated atacks that result in flooding of the downstream HTTP/2 connections.
++* http: added :ref:`inbound_empty_frames_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the limit on consecutive inbound frames with an empty payload and no end stream flag. The limit is configured by setting the :ref:`max_consecutive_inbound_frames_with_empty_payload config setting <envoy_api_field_core.Http2ProtocolOptions.max_consecutive_inbound_frames_with_empty_payload>`.
++* http: added :ref:`inbound_priority_frames_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the limit on inbound PRIORITY frames. The limit is configured by setting the :ref:`max_inbound_priority_frames_per_stream config setting <envoy_api_field_core.Http2ProtocolOptions.max_inbound_priority_frames_per_stream>`.
++* http: added :ref:`inbound_window_update_frames_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the limit on inbound WINDOW_UPDATE frames. The limit is configured by setting the :ref:`max_inbound_window_update_frames_per_data_frame_sent config setting <envoy_api_field_core.Http2ProtocolOptions.max_inbound_window_update_frames_per_data_frame_sent>`.
+ * http: added :ref:`outbound_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the outbound queue limit. The limit is configured by setting the :ref:`max_outbound_frames config setting <envoy_api_field_core.Http2ProtocolOptions.max_outbound_frames>`
+ * http: added :ref:`outbound_control_flood <config_http_conn_man_stats_per_codec>` counter stat to the HTTP/2 codec stats, for tracking number of connections terminated for exceeding the outbound queue limit for PING, SETTINGS and RST_STREAM frames. The limit is configured by setting the :ref:`max_outbound_control_frames config setting <envoy_api_field_core.Http2ProtocolOptions.max_outbound_control_frames>`.
+ 
+diff --git a/include/envoy/http/codec.h b/include/envoy/http/codec.h
+index d05943c0f9..6c2b09b2f6 100644
+--- a/include/envoy/http/codec.h
++++ b/include/envoy/http/codec.h
+@@ -237,6 +237,11 @@ struct Http2Settings {
+   bool allow_metadata_{DEFAULT_ALLOW_METADATA};
+   uint32_t max_outbound_frames_{DEFAULT_MAX_OUTBOUND_FRAMES};
+   uint32_t max_outbound_control_frames_{DEFAULT_MAX_OUTBOUND_CONTROL_FRAMES};
++  uint32_t max_consecutive_inbound_frames_with_empty_payload_{
++      DEFAULT_MAX_CONSECUTIVE_INBOUND_FRAMES_WITH_EMPTY_PAYLOAD};
++  uint32_t max_inbound_priority_frames_per_stream_{DEFAULT_MAX_INBOUND_PRIORITY_FRAMES_PER_STREAM};
++  uint32_t max_inbound_window_update_frames_per_data_frame_sent_{
++      DEFAULT_MAX_INBOUND_WINDOW_UPDATE_FRAMES_PER_DATA_FRAME_SENT};
+ 
+   // disable HPACK compression
+   static const uint32_t MIN_HPACK_TABLE_SIZE = 0;
+@@ -279,6 +284,13 @@ struct Http2Settings {
+   static const uint32_t DEFAULT_MAX_OUTBOUND_FRAMES = 10000;
+   // Default limit on the number of outbound frames of types PING, SETTINGS and RST_STREAM.
+   static const uint32_t DEFAULT_MAX_OUTBOUND_CONTROL_FRAMES = 1000;
++  // Default limit on the number of consecutive inbound frames with an empty payload
++  // and no end stream flag.
++  static const uint32_t DEFAULT_MAX_CONSECUTIVE_INBOUND_FRAMES_WITH_EMPTY_PAYLOAD = 1;
++  // Default limit on the number of inbound frames of type PRIORITY (per stream).
++  static const uint32_t DEFAULT_MAX_INBOUND_PRIORITY_FRAMES_PER_STREAM = 100;
++  // Default limit on the number of inbound frames of type WINDOW_UPDATE (per DATA frame sent).
++  static const uint32_t DEFAULT_MAX_INBOUND_WINDOW_UPDATE_FRAMES_PER_DATA_FRAME_SENT = 10;
+ };
+ 
+ /**
+diff --git a/source/common/http/http2/codec_impl.cc b/source/common/http/http2/codec_impl.cc
+index fe7518c19c..d59c16676a 100644
+--- a/source/common/http/http2/codec_impl.cc
++++ b/source/common/http/http2/codec_impl.cc
+@@ -252,6 +252,8 @@ int ConnectionImpl::StreamImpl::onDataSourceSend(const uint8_t* framehd, size_t
+   // https://nghttp2.org/documentation/types.html#c.nghttp2_send_data_callback
+   static const uint64_t FRAME_HEADER_SIZE = 9;
+ 
++  parent_.outbound_data_frames_++;
++
+   Buffer::OwnedImpl output;
+   if (!parent_.addOutboundFrameFragment(output, framehd, FRAME_HEADER_SIZE)) {
+     ENVOY_CONN_LOG(debug, "error sending data frame: Too many frames in the outbound queue",
+@@ -355,7 +357,7 @@ void ConnectionImpl::dispatch(Buffer::Instance& data) {
+     dispatching_ = true;
+     ssize_t rc =
+         nghttp2_session_mem_recv(session_, static_cast<const uint8_t*>(slice.mem_), slice.len_);
+-    if (rc == NGHTTP2_ERR_FLOODED) {
++    if (rc == NGHTTP2_ERR_FLOODED || flood_detected_) {
+       throw FrameFloodException(
+           "Flooding was detected in this HTTP/2 session, and it must be closed");
+     }
+@@ -408,9 +410,36 @@ void ConnectionImpl::shutdownNotice() {
+   sendPendingFrames();
+ }
+ 
++int ConnectionImpl::onBeforeFrameReceived(const nghttp2_frame_hd* hd) {
++  ENVOY_CONN_LOG(trace, "about to recv frame type={}, flags={}", connection_,
++                 static_cast<uint64_t>(hd->type), static_cast<uint64_t>(hd->flags));
++
++  // Track all the frames without padding here, since this is the only callback we receive
++  // for some of them (e.g. CONTINUATION frame, frames sent on closed streams, etc.).
++  // HEADERS frame is tracked in onBeginHeaders(), DATA frame is tracked in onFrameReceived().
++  if (hd->type != NGHTTP2_HEADERS && hd->type != NGHTTP2_DATA) {
++    if (!trackInboundFrames(hd, 0)) {
++      return NGHTTP2_ERR_FLOODED;
++    }
++  }
++
++  return 0;
++}
++
+ int ConnectionImpl::onFrameReceived(const nghttp2_frame* frame) {
+   ENVOY_CONN_LOG(trace, "recv frame type={}", connection_, static_cast<uint64_t>(frame->hd.type));
+ 
++  // onFrameReceived() is called with a complete HEADERS frame assembled from all the HEADERS
++  // and CONTINUATION frames, but we track them separately: HEADERS frames in onBeginHeaders()
++  // and CONTINUATION frames in onBeforeFrameReceived().
++  ASSERT(frame->hd.type != NGHTTP2_CONTINUATION);
++
++  if (frame->hd.type == NGHTTP2_DATA) {
++    if (!trackInboundFrames(&frame->hd, frame->data.padlen)) {
++      return NGHTTP2_ERR_FLOODED;
++    }
++  }
++
+   // Only raise GOAWAY once, since we don't currently expose stream information. Shutdown
+   // notifications are the same as a normal GOAWAY.
+   if (frame->hd.type == NGHTTP2_GOAWAY && !raised_goaway_) {
+@@ -567,7 +596,7 @@ int ConnectionImpl::onInvalidFrame(int32_t stream_id, int error_code) {
+ }
+ 
+ int ConnectionImpl::onBeforeFrameSend(const nghttp2_frame* frame) {
+-  ENVOY_CONN_LOG(trace, "about to sent frame type={}, flags={}", connection_,
++  ENVOY_CONN_LOG(trace, "about to send frame type={}, flags={}", connection_,
+                  static_cast<uint64_t>(frame->hd.type), static_cast<uint64_t>(frame->hd.flags));
+   ASSERT(!is_outbound_flood_monitored_control_frame_);
+   // Flag flood monitored outbound control frames.
+@@ -882,6 +911,11 @@ ConnectionImpl::Http2Callbacks::Http2Callbacks() {
+         return static_cast<ConnectionImpl*>(user_data)->onData(stream_id, data, len);
+       });
+ 
++  nghttp2_session_callbacks_set_on_begin_frame_callback(
++      callbacks_, [](nghttp2_session*, const nghttp2_frame_hd* hd, void* user_data) -> int {
++        return static_cast<ConnectionImpl*>(user_data)->onBeforeFrameReceived(hd);
++      });
++
+   nghttp2_session_callbacks_set_on_frame_recv_callback(
+       callbacks_, [](nghttp2_session*, const nghttp2_frame* frame, void* user_data) -> int {
+         return static_cast<ConnectionImpl*>(user_data)->onFrameReceived(frame);
+@@ -1042,6 +1076,11 @@ ServerConnectionImpl::ServerConnectionImpl(Network::Connection& connection,
+ int ServerConnectionImpl::onBeginHeaders(const nghttp2_frame* frame) {
+   // For a server connection, we should never get push promise frames.
+   ASSERT(frame->hd.type == NGHTTP2_HEADERS);
++
++  if (!trackInboundFrames(&frame->hd, frame->headers.padlen)) {
++    return NGHTTP2_ERR_FLOODED;
++  }
++
+   if (frame->headers.cat != NGHTTP2_HCAT_REQUEST) {
+     stats_.trailers_.inc();
+     ASSERT(frame->headers.cat == NGHTTP2_HCAT_HEADERS);
+@@ -1072,6 +1111,82 @@ int ServerConnectionImpl::onHeader(const nghttp2_frame* frame, HeaderString&& na
+   return saveHeader(frame, std::move(name), std::move(value));
+ }
+ 
++bool ServerConnectionImpl::trackInboundFrames(const nghttp2_frame_hd* hd, uint32_t padding_length) {
++  ENVOY_CONN_LOG(trace, "track inbound frame type={} flags={} length={} padding_length={}",
++                 connection_, static_cast<uint64_t>(hd->type), static_cast<uint64_t>(hd->flags),
++                 static_cast<uint64_t>(hd->length), padding_length);
++  switch (hd->type) {
++  case NGHTTP2_HEADERS:
++  case NGHTTP2_CONTINUATION:
++    // Track new streams.
++    if (hd->flags & NGHTTP2_FLAG_END_HEADERS) {
++      inbound_streams_++;
++    }
++    FALLTHRU;
++  case NGHTTP2_DATA:
++    // Track frames with an empty payload and no end stream flag.
++    if (hd->length - padding_length == 0 && !(hd->flags & NGHTTP2_FLAG_END_STREAM)) {
++      ENVOY_CONN_LOG(trace, "frame with an empty payload and no end stream flag.", connection_);
++      consecutive_inbound_frames_with_empty_payload_++;
++    } else {
++      consecutive_inbound_frames_with_empty_payload_ = 0;
++    }
++    break;
++  case NGHTTP2_PRIORITY:
++    inbound_priority_frames_++;
++    break;
++  case NGHTTP2_WINDOW_UPDATE:
++    inbound_window_update_frames_++;
++    break;
++  default:
++    break;
++  }
++
++  if (!checkInboundFrameLimits()) {
++    // NGHTTP2_ERR_FLOODED is overridden within nghttp2 library and it doesn't propagate
++    // all the way to nghttp2_session_mem_recv() where we need it.
++    flood_detected_ = true;
++    return false;
++  }
++
++  return true;
++}
++
++bool ServerConnectionImpl::checkInboundFrameLimits() {
++  ASSERT(dispatching_downstream_data_);
++
++  if (consecutive_inbound_frames_with_empty_payload_ >
++      max_consecutive_inbound_frames_with_empty_payload_) {
++    ENVOY_CONN_LOG(trace,
++                   "error reading frame: Too many consecutive frames with an empty payload "
++                   "received in this HTTP/2 session.",
++                   connection_);
++    stats_.inbound_empty_frames_flood_.inc();
++    return false;
++  }
++
++  if (inbound_priority_frames_ > max_inbound_priority_frames_per_stream_ * (1 + inbound_streams_)) {
++    ENVOY_CONN_LOG(trace,
++                   "error reading frame: Too many PRIORITY frames received in this HTTP/2 session.",
++                   connection_);
++    stats_.inbound_priority_frames_flood_.inc();
++    return false;
++  }
++
++  if (inbound_window_update_frames_ >
++      1 + 2 * (inbound_streams_ +
++               max_inbound_window_update_frames_per_data_frame_sent_ * outbound_data_frames_)) {
++    ENVOY_CONN_LOG(
++        trace,
++        "error reading frame: Too many WINDOW_UPDATE frames received in this HTTP/2 session.",
++        connection_);
++    stats_.inbound_window_update_frames_flood_.inc();
++    return false;
++  }
++
++  return true;
++}
++
+ void ServerConnectionImpl::checkOutboundQueueLimits() {
+   if (outbound_frames_ > max_outbound_frames_ && dispatching_downstream_data_) {
+     stats_.outbound_flood_.inc();
+diff --git a/source/common/http/http2/codec_impl.h b/source/common/http/http2/codec_impl.h
+index a552ff461e..abacca0582 100644
+--- a/source/common/http/http2/codec_impl.h
++++ b/source/common/http/http2/codec_impl.h
+@@ -41,6 +41,9 @@ const std::string CLIENT_MAGIC_PREFIX = "PRI * HTTP/2";
+ #define ALL_HTTP2_CODEC_STATS(COUNTER)                                                             \
+   COUNTER(header_overflow)                                                                         \
+   COUNTER(headers_cb_no_stream)                                                                    \
++  COUNTER(inbound_empty_frames_flood)                                                              \
++  COUNTER(inbound_priority_frames_flood)                                                           \
++  COUNTER(inbound_window_update_frames_flood)                                                      \
+   COUNTER(outbound_control_flood)                                                                  \
+   COUNTER(outbound_flood)                                                                          \
+   COUNTER(rx_messaging_error)                                                                      \
+@@ -79,7 +82,7 @@ public:
+       : stats_{ALL_HTTP2_CODEC_STATS(POOL_COUNTER_PREFIX(stats, "http2."))},
+         connection_(connection), max_request_headers_kb_(max_request_headers_kb),
+         per_stream_buffer_limit_(http2_settings.initial_stream_window_size_),
+-        max_outbound_frames_(http2_settings.max_outbound_frames_),
++        flood_detected_(false), max_outbound_frames_(http2_settings.max_outbound_frames_),
+         frame_buffer_releasor_([this](const Buffer::OwnedBufferFragmentImpl* fragment) {
+           releaseOutboundFrame(fragment);
+         }),
+@@ -87,6 +90,12 @@ public:
+         control_frame_buffer_releasor_([this](const Buffer::OwnedBufferFragmentImpl* fragment) {
+           releaseOutboundControlFrame(fragment);
+         }),
++        max_consecutive_inbound_frames_with_empty_payload_(
++            http2_settings.max_consecutive_inbound_frames_with_empty_payload_),
++        max_inbound_priority_frames_per_stream_(
++            http2_settings.max_inbound_priority_frames_per_stream_),
++        max_inbound_window_update_frames_per_data_frame_sent_(
++            http2_settings.max_inbound_window_update_frames_per_data_frame_sent_),
+         dispatching_(false), raised_goaway_(false), pending_deferred_reset_(false) {}
+ 
+   ~ConnectionImpl();
+@@ -299,6 +308,7 @@ protected:
+   const uint32_t max_request_headers_kb_;
+   uint32_t per_stream_buffer_limit_;
+   bool allow_metadata_;
++  bool flood_detected_;
+ 
+   // Set if the type of frame that is about to be sent is PING or SETTINGS with the ACK flag set, or
+   // RST_STREAM.
+@@ -320,11 +330,46 @@ protected:
+   // corresponding http2_protocol_options. Default value is 1000.
+   const uint32_t max_outbound_control_frames_;
+   const Buffer::OwnedBufferFragmentImpl::Releasor control_frame_buffer_releasor_;
++  // This counter keeps track of the number of consecutive inbound frames of types HEADERS,
++  // CONTINUATION and DATA with an empty payload and no end stream flag. If this counter exceeds
++  // the `max_consecutive_inbound_frames_with_empty_payload_` value the connection is terminated.
++  uint32_t consecutive_inbound_frames_with_empty_payload_ = 0;
++  // Maximum number of consecutive inbound frames of types HEADERS, CONTINUATION and DATA without
++  // a payload. Initialized from corresponding http2_protocol_options. Default value is 1.
++  const uint32_t max_consecutive_inbound_frames_with_empty_payload_;
++
++  // This counter keeps track of the number of inbound streams.
++  uint32_t inbound_streams_ = 0;
++  // This counter keeps track of the number of inbound PRIORITY frames. If this counter exceeds
++  // the value calculated using this formula:
++  //
++  //     max_inbound_priority_frames_per_stream_ * (1 + inbound_streams_)
++  //
++  // the connection is terminated.
++  uint64_t inbound_priority_frames_ = 0;
++  // Maximum number of inbound PRIORITY frames per stream. Initialized from corresponding
++  // http2_protocol_options. Default value is 100.
++  const uint32_t max_inbound_priority_frames_per_stream_;
++
++  // This counter keeps track of the number of inbound WINDOW_UPDATE frames. If this counter exceeds
++  // the value calculated using this formula:
++  //
++  //     1 + 2 * (inbound_streams_ +
++  //              max_inbound_window_update_frames_per_data_frame_sent_ * outbound_data_frames_)
++  //
++  // the connection is terminated.
++  uint64_t inbound_window_update_frames_ = 0;
++  // This counter keeps track of the number of outbound DATA frames.
++  uint64_t outbound_data_frames_ = 0;
++  // Maximum number of inbound WINDOW_UPDATE frames per outbound DATA frame sent. Initialized
++  // from corresponding http2_protocol_options. Default value is 10.
++  const uint32_t max_inbound_window_update_frames_per_data_frame_sent_;
+ 
+ private:
+   virtual ConnectionCallbacks& callbacks() PURE;
+   virtual int onBeginHeaders(const nghttp2_frame* frame) PURE;
+   int onData(int32_t stream_id, const uint8_t* data, size_t len);
++  int onBeforeFrameReceived(const nghttp2_frame_hd* hd);
+   int onFrameReceived(const nghttp2_frame* frame);
+   int onBeforeFrameSend(const nghttp2_frame* frame);
+   int onFrameSend(const nghttp2_frame* frame);
+@@ -347,6 +392,8 @@ private:
+   bool addOutboundFrameFragment(Buffer::OwnedImpl& output, const uint8_t* data, size_t length);
+   virtual void checkOutboundQueueLimits() PURE;
+   void incrementOutboundFrameCount(bool is_outbound_flood_monitored_control_frame);
++  virtual bool trackInboundFrames(const nghttp2_frame_hd* hd, uint32_t padding_length) PURE;
++  virtual bool checkInboundFrameLimits() PURE;
+ 
+   void releaseOutboundFrame(const Buffer::OwnedBufferFragmentImpl* fragment);
+   void releaseOutboundControlFrame(const Buffer::OwnedBufferFragmentImpl* fragment);
+@@ -382,6 +429,8 @@ private:
+   // of the clean-up loop, leaving resources in a half cleaned up state.
+   // TODO(yanavlasov): add flood mitigation for upstream connections as well.
+   void checkOutboundQueueLimits() override {}
++  bool trackInboundFrames(const nghttp2_frame_hd*, uint32_t) override { return true; }
++  bool checkInboundFrameLimits() override { return true; }
+ 
+   Http::ConnectionCallbacks& callbacks_;
+ };
+@@ -401,6 +450,8 @@ private:
+   int onBeginHeaders(const nghttp2_frame* frame) override;
+   int onHeader(const nghttp2_frame* frame, HeaderString&& name, HeaderString&& value) override;
+   void checkOutboundQueueLimits() override;
++  bool trackInboundFrames(const nghttp2_frame_hd* hd, uint32_t padding_length) override;
++  bool checkInboundFrameLimits() override;
+ 
+   // Http::Connection
+   // The reason for overriding the dispatch method is to do flood mitigation only when
+diff --git a/source/common/http/utility.cc b/source/common/http/utility.cc
+index 0f7db895df..56c3747abb 100644
+--- a/source/common/http/utility.cc
++++ b/source/common/http/utility.cc
+@@ -255,6 +255,15 @@ Utility::parseHttp2Settings(const envoy::api::v2::core::Http2ProtocolOptions& co
+   ret.max_outbound_control_frames_ =
+       PROTOBUF_GET_WRAPPED_OR_DEFAULT(config, max_outbound_control_frames,
+                                       Http::Http2Settings::DEFAULT_MAX_OUTBOUND_CONTROL_FRAMES);
++  ret.max_consecutive_inbound_frames_with_empty_payload_ = PROTOBUF_GET_WRAPPED_OR_DEFAULT(
++      config, max_consecutive_inbound_frames_with_empty_payload,
++      Http::Http2Settings::DEFAULT_MAX_CONSECUTIVE_INBOUND_FRAMES_WITH_EMPTY_PAYLOAD);
++  ret.max_inbound_priority_frames_per_stream_ = PROTOBUF_GET_WRAPPED_OR_DEFAULT(
++      config, max_inbound_priority_frames_per_stream,
++      Http::Http2Settings::DEFAULT_MAX_INBOUND_PRIORITY_FRAMES_PER_STREAM);
++  ret.max_inbound_window_update_frames_per_data_frame_sent_ = PROTOBUF_GET_WRAPPED_OR_DEFAULT(
++      config, max_inbound_window_update_frames_per_data_frame_sent,
++      Http::Http2Settings::DEFAULT_MAX_INBOUND_WINDOW_UPDATE_FRAMES_PER_DATA_FRAME_SENT);
+   ret.allow_connect_ = config.allow_connect();
+   ret.allow_metadata_ = config.allow_metadata();
+   return ret;
+diff --git a/test/common/http/http2/codec_impl_test.cc b/test/common/http/http2/codec_impl_test.cc
+index bf70107670..0232b34c94 100644
+--- a/test/common/http/http2/codec_impl_test.cc
++++ b/test/common/http/http2/codec_impl_test.cc
+@@ -99,6 +99,11 @@ public:
+     setting.allow_metadata_ = allow_metadata_;
+     setting.max_outbound_frames_ = max_outbound_frames_;
+     setting.max_outbound_control_frames_ = max_outbound_control_frames_;
++    setting.max_consecutive_inbound_frames_with_empty_payload_ =
++        max_consecutive_inbound_frames_with_empty_payload_;
++    setting.max_inbound_priority_frames_per_stream_ = max_inbound_priority_frames_per_stream_;
++    setting.max_inbound_window_update_frames_per_data_frame_sent_ =
++        max_inbound_window_update_frames_per_data_frame_sent_;
+   }
+ 
+   // corruptMetadataFramePayload assumes data contains at least 10 bytes of the beginning of a
+@@ -145,6 +150,12 @@ public:
+   uint32_t max_request_headers_kb_ = Http::DEFAULT_MAX_REQUEST_HEADERS_KB;
+   uint32_t max_outbound_frames_ = Http2Settings::DEFAULT_MAX_OUTBOUND_FRAMES;
+   uint32_t max_outbound_control_frames_ = Http2Settings::DEFAULT_MAX_OUTBOUND_CONTROL_FRAMES;
++  uint32_t max_consecutive_inbound_frames_with_empty_payload_ =
++      Http2Settings::DEFAULT_MAX_CONSECUTIVE_INBOUND_FRAMES_WITH_EMPTY_PAYLOAD;
++  uint32_t max_inbound_priority_frames_per_stream_ =
++      Http2Settings::DEFAULT_MAX_INBOUND_PRIORITY_FRAMES_PER_STREAM;
++  uint32_t max_inbound_window_update_frames_per_data_frame_sent_ =
++      Http2Settings::DEFAULT_MAX_INBOUND_WINDOW_UPDATE_FRAMES_PER_DATA_FRAME_SENT;
+ };
+ 
+ class Http2CodecImplTest : public ::testing::TestWithParam<Http2SettingsTestParam>,
+diff --git a/test/common/http/http2/http2_frame.cc b/test/common/http/http2/http2_frame.cc
+index ca4fb858a0..fc96cf77b8 100644
+--- a/test/common/http/http2/http2_frame.cc
++++ b/test/common/http/http2/http2_frame.cc
+@@ -120,6 +120,45 @@ Http2Frame Http2Frame::makeEmptySettingsFrame(SettingsFlags flags) {
+   return frame;
+ }
+ 
++Http2Frame Http2Frame::makeEmptyHeadersFrame(uint32_t stream_index, HeadersFlags flags) {
++  Http2Frame frame;
++  frame.buildHeader(Type::HEADERS, 0, static_cast<uint8_t>(flags),
++                    makeRequestStreamId(stream_index));
++  return frame;
++}
++
++Http2Frame Http2Frame::makeEmptyContinuationFrame(uint32_t stream_index, HeadersFlags flags) {
++  Http2Frame frame;
++  frame.buildHeader(Type::CONTINUATION, 0, static_cast<uint8_t>(flags),
++                    makeRequestStreamId(stream_index));
++  return frame;
++}
++
++Http2Frame Http2Frame::makeEmptyDataFrame(uint32_t stream_index, DataFlags flags) {
++  Http2Frame frame;
++  frame.buildHeader(Type::DATA, 0, static_cast<uint8_t>(flags), makeRequestStreamId(stream_index));
++  return frame;
++}
++
++Http2Frame Http2Frame::makePriorityFrame(uint32_t stream_index, uint32_t dependent_index) {
++  static constexpr size_t kPriorityPayloadSize = 5;
++  Http2Frame frame;
++  frame.buildHeader(Type::PRIORITY, kPriorityPayloadSize, 0, makeRequestStreamId(stream_index));
++  uint32_t dependent_net = makeRequestStreamId(dependent_index);
++  memcpy(&frame.data_[HeaderSize], reinterpret_cast<void*>(&dependent_net), sizeof(uint32_t));
++  return frame;
++}
++
++Http2Frame Http2Frame::makeWindowUpdateFrame(uint32_t stream_index, uint32_t increment) {
++  static constexpr size_t kWindowUpdatePayloadSize = 4;
++  Http2Frame frame;
++  frame.buildHeader(Type::WINDOW_UPDATE, kWindowUpdatePayloadSize, 0,
++                    makeRequestStreamId(stream_index));
++  uint32_t increment_net = htonl(increment);
++  memcpy(&frame.data_[HeaderSize], reinterpret_cast<void*>(&increment_net), sizeof(uint32_t));
++  return frame;
++}
++
+ Http2Frame Http2Frame::makeMalformedRequest(uint32_t stream_index) {
+   Http2Frame frame;
+   frame.buildHeader(Type::HEADERS, 0, orFlags(HeadersFlags::END_STREAM, HeadersFlags::END_HEADERS),
+@@ -143,6 +182,19 @@ Http2Frame Http2Frame::makeRequest(uint32_t stream_index, absl::string_view host
+   return frame;
+ }
+ 
++Http2Frame Http2Frame::makePostRequest(uint32_t stream_index, absl::string_view host,
++                                       absl::string_view path) {
++  Http2Frame frame;
++  frame.buildHeader(Type::HEADERS, 0, orFlags(HeadersFlags::END_HEADERS),
++                    makeRequestStreamId(stream_index));
++  frame.appendStaticHeader(StaticHeaderIndex::METHOD_POST);
++  frame.appendStaticHeader(StaticHeaderIndex::SCHEME_HTTPS);
++  frame.appendHeaderWithoutIndexing(StaticHeaderIndex::PATH, path);
++  frame.appendHeaderWithoutIndexing(StaticHeaderIndex::HOST, host);
++  frame.adjustPayloadSize();
++  return frame;
++}
++
+ } // namespace Http2
+ } // namespace Http
+ } // namespace Envoy
+diff --git a/test/common/http/http2/http2_frame.h b/test/common/http/http2/http2_frame.h
+index 88a051a2f1..760ae69e35 100644
+--- a/test/common/http/http2/http2_frame.h
++++ b/test/common/http/http2/http2_frame.h
+@@ -49,10 +49,16 @@ public:
+     END_HEADERS = 4,
+   };
+ 
++  enum class DataFlags : uint8_t {
++    NONE = 0,
++    END_STREAM = 1,
++  };
++
+   // See https://tools.ietf.org/html/rfc7541#appendix-A for static header indexes
+   enum class StaticHeaderIndex : uint8_t {
+     UNKNOWN,
+     METHOD_GET = 2,
++    METHOD_POST = 3,
+     PATH = 4,
+     STATUS_200 = 8,
+     STATUS_404 = 13,
+@@ -65,9 +71,18 @@ public:
+   // Methods for creating HTTP2 frames
+   static Http2Frame makePingFrame(absl::string_view data = nullptr);
+   static Http2Frame makeEmptySettingsFrame(SettingsFlags flags = SettingsFlags::NONE);
++  static Http2Frame makeEmptyHeadersFrame(uint32_t stream_index,
++                                          HeadersFlags flags = HeadersFlags::NONE);
++  static Http2Frame makeEmptyContinuationFrame(uint32_t stream_index,
++                                               HeadersFlags flags = HeadersFlags::NONE);
++  static Http2Frame makeEmptyDataFrame(uint32_t stream_index, DataFlags flags = DataFlags::NONE);
++  static Http2Frame makePriorityFrame(uint32_t stream_index, uint32_t dependent_index);
++  static Http2Frame makeWindowUpdateFrame(uint32_t stream_index, uint32_t increment);
+   static Http2Frame makeMalformedRequest(uint32_t stream_index);
+   static Http2Frame makeRequest(uint32_t stream_index, absl::string_view host,
+                                 absl::string_view path);
++  static Http2Frame makePostRequest(uint32_t stream_index, absl::string_view host,
++                                    absl::string_view path);
+ 
+   Type type() const { return static_cast<Type>(data_[3]); }
+   ResponseStatus responseStatus() const;
+diff --git a/test/common/http/utility_test.cc b/test/common/http/utility_test.cc
+index 4c27ead4a8..388f603623 100644
+--- a/test/common/http/utility_test.cc
++++ b/test/common/http/utility_test.cc
+@@ -268,6 +268,12 @@ TEST(HttpUtility, parseHttp2Settings) {
+     EXPECT_EQ(Http2Settings::DEFAULT_MAX_OUTBOUND_FRAMES, http2_settings.max_outbound_frames_);
+     EXPECT_EQ(Http2Settings::DEFAULT_MAX_OUTBOUND_CONTROL_FRAMES,
+               http2_settings.max_outbound_control_frames_);
++    EXPECT_EQ(Http2Settings::DEFAULT_MAX_CONSECUTIVE_INBOUND_FRAMES_WITH_EMPTY_PAYLOAD,
++              http2_settings.max_consecutive_inbound_frames_with_empty_payload_);
++    EXPECT_EQ(Http2Settings::DEFAULT_MAX_INBOUND_PRIORITY_FRAMES_PER_STREAM,
++              http2_settings.max_inbound_priority_frames_per_stream_);
++    EXPECT_EQ(Http2Settings::DEFAULT_MAX_INBOUND_WINDOW_UPDATE_FRAMES_PER_DATA_FRAME_SENT,
++              http2_settings.max_inbound_window_update_frames_per_data_frame_sent_);
+   }
+ 
+   {
+diff --git a/test/integration/http2_integration_test.cc b/test/integration/http2_integration_test.cc
+index ea7e686adf..f5b15df32e 100644
+--- a/test/integration/http2_integration_test.cc
++++ b/test/integration/http2_integration_test.cc
+@@ -1125,10 +1125,7 @@ void Http2FloodMitigationTest::startHttp2Session() {
+ }
+ 
+ // Verify that the server detects the flood of the given frame.
+-void Http2FloodMitigationTest::floodServer(const Http2Frame& frame) {
+-  config_helper_.setBufferLimits(1024, 1024); // Set buffer limits upstream and downstream.
+-  beginSession();
+-
++void Http2FloodMitigationTest::floodServer(const Http2Frame& frame, const std::string& flood_stat) {
+   // pack the as many frames as we can into 16k buffer
+   const int FrameCount = (16 * 1024) / frame.size();
+   std::vector<char> buf(FrameCount * frame.size());
+@@ -1148,7 +1145,7 @@ void Http2FloodMitigationTest::floodServer(const Http2Frame& frame) {
+   }
+ 
+   EXPECT_LE(total_bytes_sent, TransmitThreshold) << "Flood mitigation is broken.";
+-  EXPECT_EQ(1, test_server_->counter("http2.outbound_control_flood")->value());
++  EXPECT_EQ(1, test_server_->counter(flood_stat)->value());
+   // Verify that connection was closed abortively
+   EXPECT_EQ(0,
+             test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
+@@ -1156,7 +1153,8 @@ void Http2FloodMitigationTest::floodServer(const Http2Frame& frame) {
+ 
+ // Verify that the server detects the flood using specified request parameters.
+ void Http2FloodMitigationTest::floodServer(absl::string_view host, absl::string_view path,
+-                                           Http2Frame::ResponseStatus expected_http_status) {
++                                           Http2Frame::ResponseStatus expected_http_status,
++                                           const std::string& flood_stat) {
+   uint32_t request_idx = 0;
+   auto request = Http2Frame::makeRequest(request_idx, host, path);
+   sendFame(request);
+@@ -1171,7 +1169,7 @@ void Http2FloodMitigationTest::floodServer(absl::string_view host, absl::string_
+     total_bytes_sent += request.size();
+   }
+   EXPECT_LE(total_bytes_sent, TransmitThreshold) << "Flood mitigation is broken.";
+-  EXPECT_EQ(1, test_server_->counter("http2.outbound_flood")->value());
++  EXPECT_EQ(1, test_server_->counter(flood_stat)->value());
+   // Verify that connection was closed abortively
+   EXPECT_EQ(0,
+             test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
+@@ -1181,9 +1179,15 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, Http2FloodMitigationTest,
+                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                          TestUtility::ipTestParamsToString);
+ 
+-TEST_P(Http2FloodMitigationTest, Ping) { floodServer(Http2Frame::makePingFrame()); }
++TEST_P(Http2FloodMitigationTest, Ping) {
++  beginSession();
++  floodServer(Http2Frame::makePingFrame(), "http2.outbound_control_flood");
++}
+ 
+-TEST_P(Http2FloodMitigationTest, Settings) { floodServer(Http2Frame::makeEmptySettingsFrame()); }
++TEST_P(Http2FloodMitigationTest, Settings) {
++  beginSession();
++  floodServer(Http2Frame::makeEmptySettingsFrame(), "http2.outbound_control_flood");
++}
+ 
+ // Verify that the server can detect flood of internally generated 404 responses.
+ TEST_P(Http2FloodMitigationTest, 404) {
+@@ -1192,7 +1196,7 @@ TEST_P(Http2FloodMitigationTest, 404) {
+   beginSession();
+ 
+   // Send requests to a non existent path to generate 404s
+-  floodServer("host", "/notfound", Http2Frame::ResponseStatus::_404);
++  floodServer("host", "/notfound", Http2Frame::ResponseStatus::_404, "http2.outbound_flood");
+ }
+ 
+ // Verify that the server can detect flood of DATA frames
+@@ -1203,7 +1207,7 @@ TEST_P(Http2FloodMitigationTest, Data) {
+   beginSession();
+   fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
+ 
+-  floodServer("host", "/test/long/url", Http2Frame::ResponseStatus::_200);
++  floodServer("host", "/test/long/url", Http2Frame::ResponseStatus::_200, "http2.outbound_flood");
+ }
+ 
+ // Verify that the server can detect flood of RST_STREAM frames.
+@@ -1229,4 +1233,116 @@ TEST_P(Http2FloodMitigationTest, RST_STREAM) {
+             test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
+ }
+ 
++TEST_P(Http2FloodMitigationTest, EmptyHeaders) {
++  config_helper_.addConfigModifier(
++      [&](envoy::config::filter::network::http_connection_manager::v2::HttpConnectionManager& hcm)
++          -> void {
++        hcm.mutable_http2_protocol_options()
++            ->mutable_max_consecutive_inbound_frames_with_empty_payload()
++            ->set_value(0);
++      });
++  beginSession();
++
++  uint32_t request_idx = 0;
++  auto request = Http2Frame::makeEmptyHeadersFrame(request_idx);
++  sendFame(request);
++
++  tcp_client_->waitForDisconnect();
++
++  EXPECT_EQ(1, test_server_->counter("http2.inbound_empty_frames_flood")->value());
++  // Verify that connection was closed abortively
++  EXPECT_EQ(0,
++            test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
++}
++
++TEST_P(Http2FloodMitigationTest, EmptyHeadersContinuation) {
++  beginSession();
++
++  uint32_t request_idx = 0;
++  auto request = Http2Frame::makeEmptyHeadersFrame(request_idx);
++  sendFame(request);
++
++  for (int i = 0; i < 2; i++) {
++    request = Http2Frame::makeEmptyContinuationFrame(request_idx);
++    sendFame(request);
++  }
++
++  tcp_client_->waitForDisconnect();
++
++  EXPECT_EQ(1, test_server_->counter("http2.inbound_empty_frames_flood")->value());
++  // Verify that connection was closed abortively
++  EXPECT_EQ(0,
++            test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
++}
++
++TEST_P(Http2FloodMitigationTest, EmptyData) {
++  beginSession();
++  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
++
++  uint32_t request_idx = 0;
++  auto request = Http2Frame::makePostRequest(request_idx, "host", "/");
++  sendFame(request);
++
++  for (int i = 0; i < 2; i++) {
++    request = Http2Frame::makeEmptyDataFrame(request_idx);
++    sendFame(request);
++  }
++
++  tcp_client_->waitForDisconnect();
++
++  EXPECT_EQ(1, test_server_->counter("http2.inbound_empty_frames_flood")->value());
++  // Verify that connection was closed abortively
++  EXPECT_EQ(0,
++            test_server_->counter("http.config_test.downstream_cx_delayed_close_timeout")->value());
++}
++
++TEST_P(Http2FloodMitigationTest, PriorityIdleStream) {
++  beginSession();
++
++  floodServer(Http2Frame::makePriorityFrame(0, 1), "http2.inbound_priority_frames_flood");
++}
++
++TEST_P(Http2FloodMitigationTest, PriorityOpenStream) {
++  beginSession();
++  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
++
++  // Open stream.
++  uint32_t request_idx = 0;
++  auto request = Http2Frame::makeRequest(request_idx, "host", "/");
++  sendFame(request);
++
++  floodServer(Http2Frame::makePriorityFrame(request_idx, request_idx + 1),
++              "http2.inbound_priority_frames_flood");
++}
++
++TEST_P(Http2FloodMitigationTest, PriorityClosedStream) {
++  autonomous_upstream_ = true;
++  beginSession();
++  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
++
++  // Open stream.
++  uint32_t request_idx = 0;
++  auto request = Http2Frame::makeRequest(request_idx, "host", "/");
++  sendFame(request);
++  // Reading response marks this stream as closed in nghttp2.
++  auto frame = readFrame();
++  EXPECT_EQ(Http2Frame::Type::HEADERS, frame.type());
++
++  floodServer(Http2Frame::makePriorityFrame(request_idx, request_idx + 1),
++              "http2.inbound_priority_frames_flood");
++}
++
++TEST_P(Http2FloodMitigationTest, WindowUpdate) {
++  beginSession();
++  fake_upstreams_[0]->set_allow_unexpected_disconnects(true);
++
++  // Open stream.
++  uint32_t request_idx = 0;
++  auto request = Http2Frame::makeRequest(request_idx, "host", "/");
++  sendFame(request);
++
++  floodServer(Http2Frame::makeWindowUpdateFrame(request_idx, 1),
++              "http2.inbound_window_update_frames_flood");
++}
++
+ } // namespace Envoy
+diff --git a/test/integration/http2_integration_test.h b/test/integration/http2_integration_test.h
+index b993b0b47e..6a8df8be37 100644
+--- a/test/integration/http2_integration_test.h
++++ b/test/integration/http2_integration_test.h
+@@ -57,9 +57,9 @@ public:
+ 
+ protected:
+   void startHttp2Session();
+-  void floodServer(const Http2Frame& frame);
++  void floodServer(const Http2Frame& frame, const std::string& flood_stat);
+   void floodServer(absl::string_view host, absl::string_view path,
+-                   Http2Frame::ResponseStatus expected_http_status);
++                   Http2Frame::ResponseStatus expected_http_status, const std::string& flood_stat);
+   Http2Frame readFrame();
+   void sendFame(const Http2Frame& frame);
+   void beginSession();
+diff --git a/test/test_common/utility.cc b/test/test_common/utility.cc
+index 38ec2670f9..88f6271438 100644
+--- a/test/test_common/utility.cc
++++ b/test/test_common/utility.cc
+@@ -387,6 +387,9 @@ const uint32_t Http2Settings::DEFAULT_INITIAL_CONNECTION_WINDOW_SIZE;
+ const uint32_t Http2Settings::MIN_INITIAL_STREAM_WINDOW_SIZE;
+ const uint32_t Http2Settings::DEFAULT_MAX_OUTBOUND_FRAMES;
+ const uint32_t Http2Settings::DEFAULT_MAX_OUTBOUND_CONTROL_FRAMES;
++const uint32_t Http2Settings::DEFAULT_MAX_CONSECUTIVE_INBOUND_FRAMES_WITH_EMPTY_PAYLOAD;
++const uint32_t Http2Settings::DEFAULT_MAX_INBOUND_PRIORITY_FRAMES_PER_STREAM;
++const uint32_t Http2Settings::DEFAULT_MAX_INBOUND_WINDOW_UPDATE_FRAMES_PER_DATA_FRAME_SENT;
+ 
+ TestHeaderMapImpl::TestHeaderMapImpl() = default;
+ 
+-- 
+2.11.0
+

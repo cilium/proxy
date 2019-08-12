@@ -1,0 +1,262 @@
+From 8bc542f7481117d9be982837cd89dc26361800dc Mon Sep 17 00:00:00 2001
+From: Piotr Sikora <piotrsikora@google.com>
+Date: Wed, 31 Jul 2019 13:04:51 -0700
+Subject: [PATCH 5/9] runtime: making runtime accessible from non-worker
+ threads (#7695) (#27)
+
+Making runtime accessible for non-worker threads, and using the new accessor for runtime features.
+
+This allows the work done in #7601, moving the strict HTTP checks out of the HCM and into the codec, where the integration tests use them from client/server threads, and other downstream Envoys might use them from non-worker threads as well.
+
+Risk Level: High (affects runtime access for all runtime features)
+Testing: new unit tests, integration tests use in #7601
+Docs Changes: n/a
+Release Notes: n/a
+
+Signed-off-by: Alyssa Wilk <alyssar@chromium.org>
+Signed-off-by: Piotr Sikora <piotrsikora@google.com>
+---
+ include/envoy/runtime/runtime.h                 |  8 ++++-
+ include/envoy/thread_local/thread_local.h       | 10 +++++++
+ source/common/runtime/runtime_impl.cc           | 30 +++++++++++++++----
+ source/common/runtime/runtime_impl.h            |  4 +++
+ source/common/thread_local/thread_local_impl.cc |  6 +++-
+ source/common/thread_local/thread_local_impl.h  |  1 +
+ test/common/runtime/runtime_impl_test.cc        | 40 +++++++++++++++++++++++++
+ test/mocks/runtime/mocks.h                      |  1 +
+ test/mocks/thread_local/mocks.h                 |  2 ++
+ 9 files changed, 95 insertions(+), 7 deletions(-)
+
+diff --git a/include/envoy/runtime/runtime.h b/include/envoy/runtime/runtime.h
+index bd3e759ee1..f850ec18fd 100644
+--- a/include/envoy/runtime/runtime.h
++++ b/include/envoy/runtime/runtime.h
+@@ -222,11 +222,17 @@ public:
+   /**
+    * @return const Snapshot& the current snapshot. This reference is safe to use for the duration of
+    *         the calling routine, but may be overwritten on a future event loop cycle so should be
+-   *         fetched again when needed.
++   *         fetched again when needed. This may only be called from worker threads.
+    */
+   virtual const Snapshot& snapshot() PURE;
+ 
+   /**
++   * @return shared_ptr<const Snapshot> the current snapshot. This function may safely be called
++   *         from non-worker theads.
++   */
++  virtual std::shared_ptr<const Snapshot> threadsafeSnapshot() PURE;
++
++  /**
+    * Merge the given map of key-value pairs into the runtime's state. To remove a previous merge for
+    * a key, use an empty string as the value.
+    * @param values the values to merge
+diff --git a/include/envoy/thread_local/thread_local.h b/include/envoy/thread_local/thread_local.h
+index 14fac5cd5e..6f082a4607 100644
+--- a/include/envoy/thread_local/thread_local.h
++++ b/include/envoy/thread_local/thread_local.h
+@@ -29,6 +29,16 @@ public:
+   virtual ~Slot() = default;
+ 
+   /**
++   * Returns if there is thread local data for this thread.
++   *
++   * This should return true for Envoy worker threads and false for threads which do not have thread
++   * local storage allocated.
++   *
++   * @return true if registerThread has been called for this thread, false otherwise.
++   */
++  virtual bool currentThreadRegistered() PURE;
++
++  /**
+    * @return ThreadLocalObjectSharedPtr a thread local object stored in the slot.
+    */
+   virtual ThreadLocalObjectSharedPtr get() PURE;
+diff --git a/source/common/runtime/runtime_impl.cc b/source/common/runtime/runtime_impl.cc
+index ae565aecbd..6ed82c39a3 100644
+--- a/source/common/runtime/runtime_impl.cc
++++ b/source/common/runtime/runtime_impl.cc
+@@ -27,7 +27,8 @@ namespace Runtime {
+ bool runtimeFeatureEnabled(absl::string_view feature) {
+   ASSERT(absl::StartsWith(feature, "envoy.reloadable_features"));
+   if (Runtime::LoaderSingleton::getExisting()) {
+-    return Runtime::LoaderSingleton::getExisting()->snapshot().runtimeFeatureEnabled(feature);
++    return Runtime::LoaderSingleton::getExisting()->threadsafeSnapshot()->runtimeFeatureEnabled(
++        feature);
+   }
+   ENVOY_LOG_TO_LOGGER(Envoy::Logger::Registry::getLog(Envoy::Logger::Id::runtime), warn,
+                       "Unable to use runtime singleton for feature {}", feature);
+@@ -551,13 +552,32 @@ void RtdsSubscription::validateUpdateSize(uint32_t num_resources) {
+ }
+ 
+ void LoaderImpl::loadNewSnapshot() {
+-  ThreadLocal::ThreadLocalObjectSharedPtr ptr = createNewSnapshot();
+-  tls_->set([ptr = std::move(ptr)](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
+-    return ptr;
++  std::shared_ptr<SnapshotImpl> ptr = createNewSnapshot();
++  tls_->set([ptr](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
++    return std::static_pointer_cast<ThreadLocal::ThreadLocalObject>(ptr);
+   });
++
++  {
++    absl::MutexLock lock(&snapshot_mutex_);
++    thread_safe_snapshot_ = ptr;
++  }
++}
++
++const Snapshot& LoaderImpl::snapshot() {
++  ASSERT(tls_->currentThreadRegistered(), "snapshot can only be called from a worker thread");
++  return tls_->getTyped<Snapshot>();
+ }
+ 
+-const Snapshot& LoaderImpl::snapshot() { return tls_->getTyped<Snapshot>(); }
++std::shared_ptr<const Snapshot> LoaderImpl::threadsafeSnapshot() {
++  if (tls_->currentThreadRegistered()) {
++    return std::dynamic_pointer_cast<const Snapshot>(tls_->get());
++  }
++
++  {
++    absl::ReaderMutexLock lock(&snapshot_mutex_);
++    return thread_safe_snapshot_;
++  }
++}
+ 
+ void LoaderImpl::mergeValues(const std::unordered_map<std::string, std::string>& values) {
+   if (admin_layer_ == nullptr) {
+diff --git a/source/common/runtime/runtime_impl.h b/source/common/runtime/runtime_impl.h
+index b9344d0cc9..a41260eca0 100644
+--- a/source/common/runtime/runtime_impl.h
++++ b/source/common/runtime/runtime_impl.h
+@@ -244,6 +244,7 @@ public:
+   // Runtime::Loader
+   void initialize(Upstream::ClusterManager& cm) override;
+   const Snapshot& snapshot() override;
++  std::shared_ptr<const Snapshot> threadsafeSnapshot() override;
+   void mergeValues(const std::unordered_map<std::string, std::string>& values) override;
+ 
+ private:
+@@ -265,6 +266,9 @@ private:
+   Api::Api& api_;
+   std::vector<RtdsSubscriptionPtr> subscriptions_;
+   Upstream::ClusterManager* cm_{};
++
++  absl::Mutex snapshot_mutex_;
++  std::shared_ptr<const Snapshot> thread_safe_snapshot_ GUARDED_BY(snapshot_mutex_);
+ };
+ 
+ } // namespace Runtime
+diff --git a/source/common/thread_local/thread_local_impl.cc b/source/common/thread_local/thread_local_impl.cc
+index 6884aae42d..4e8c32fed7 100644
+--- a/source/common/thread_local/thread_local_impl.cc
++++ b/source/common/thread_local/thread_local_impl.cc
+@@ -37,8 +37,12 @@ SlotPtr InstanceImpl::allocateSlot() {
+   return slot;
+ }
+ 
++bool InstanceImpl::SlotImpl::currentThreadRegistered() {
++  return thread_local_data_.data_.size() > index_;
++}
++
+ ThreadLocalObjectSharedPtr InstanceImpl::SlotImpl::get() {
+-  ASSERT(thread_local_data_.data_.size() > index_);
++  ASSERT(currentThreadRegistered());
+   return thread_local_data_.data_[index_];
+ }
+ 
+diff --git a/source/common/thread_local/thread_local_impl.h b/source/common/thread_local/thread_local_impl.h
+index 820cd1504a..ad149a0916 100644
+--- a/source/common/thread_local/thread_local_impl.h
++++ b/source/common/thread_local/thread_local_impl.h
+@@ -34,6 +34,7 @@ private:
+ 
+     // ThreadLocal::Slot
+     ThreadLocalObjectSharedPtr get() override;
++    bool currentThreadRegistered() override;
+     void runOnAllThreads(Event::PostCb cb) override { parent_.runOnAllThreads(cb); }
+     void runOnAllThreads(Event::PostCb cb, Event::PostCb main_callback) override {
+       parent_.runOnAllThreads(cb, main_callback);
+diff --git a/test/common/runtime/runtime_impl_test.cc b/test/common/runtime/runtime_impl_test.cc
+index e5edecfc5b..3d39c6b8e9 100644
+--- a/test/common/runtime/runtime_impl_test.cc
++++ b/test/common/runtime/runtime_impl_test.cc
+@@ -610,6 +610,46 @@ TEST_F(StaticLoaderImplTest, ProtoParsing) {
+   EXPECT_EQ(2, store_.gauge("runtime.num_layers", Stats::Gauge::ImportMode::NeverImport).value());
+ }
+ 
++TEST_F(StaticLoaderImplTest, RuntimeFromNonWorkerThreads) {
++  // Force the thread to be considered a non-worker thread.
++  tls_.registered_ = false;
++  setup();
++
++  // Set up foo -> bar
++  loader_->mergeValues({{"foo", "bar"}});
++  EXPECT_EQ("bar", loader_->threadsafeSnapshot()->get("foo"));
++  const Snapshot* original_snapshot_pointer = loader_->threadsafeSnapshot().get();
++
++  // Now set up a test thread which verifies foo -> bar
++  //
++  // Then change foo and make sure the test thread picks up the change.
++  Thread::MutexBasicLockable mutex;
++  Thread::CondVar foo_read;
++  Thread::CondVar foo_changed;
++  const Snapshot* original_thread_snapshot_pointer = nullptr;
++  auto thread = Thread::threadFactoryForTest().createThread([&]() {
++    Thread::LockGuard lock(mutex);
++    EXPECT_EQ("bar", loader_->threadsafeSnapshot()->get("foo"));
++    original_thread_snapshot_pointer = loader_->threadsafeSnapshot().get();
++    EXPECT_EQ(original_thread_snapshot_pointer, loader_->threadsafeSnapshot().get());
++    foo_read.notifyOne();
++
++    foo_changed.wait(mutex);
++    EXPECT_EQ("eep", loader_->threadsafeSnapshot()->get("foo"));
++  });
++
++  {
++    Thread::LockGuard lock(mutex);
++    foo_read.wait(mutex);
++    loader_->mergeValues({{"foo", "eep"}});
++    foo_changed.notifyOne();
++    EXPECT_EQ("eep", loader_->threadsafeSnapshot()->get("foo"));
++  }
++
++  thread->join();
++  EXPECT_EQ(original_thread_snapshot_pointer, original_snapshot_pointer);
++}
++
+ class DiskLayerTest : public testing::Test {
+ protected:
+   DiskLayerTest() : api_(Api::createApiForTest()) {}
+diff --git a/test/mocks/runtime/mocks.h b/test/mocks/runtime/mocks.h
+index 5cb8230a14..73700781c2 100644
+--- a/test/mocks/runtime/mocks.h
++++ b/test/mocks/runtime/mocks.h
+@@ -64,6 +64,7 @@ public:
+ 
+   MOCK_METHOD1(initialize, void(Upstream::ClusterManager& cm));
+   MOCK_METHOD0(snapshot, const Snapshot&());
++  MOCK_METHOD0(threadsafeSnapshot, std::shared_ptr<const Snapshot>());
+   MOCK_METHOD1(mergeValues, void(const std::unordered_map<std::string, std::string>&));
+ 
+   testing::NiceMock<MockSnapshot> snapshot_;
+diff --git a/test/mocks/thread_local/mocks.h b/test/mocks/thread_local/mocks.h
+index 2439372288..d4c4dc51c8 100644
+--- a/test/mocks/thread_local/mocks.h
++++ b/test/mocks/thread_local/mocks.h
+@@ -58,6 +58,7 @@ public:
+ 
+     // ThreadLocal::Slot
+     ThreadLocalObjectSharedPtr get() override { return parent_.data_[index_]; }
++    bool currentThreadRegistered() override { return parent_.registered_; }
+     void runOnAllThreads(Event::PostCb cb) override { parent_.runOnAllThreads(cb); }
+     void runOnAllThreads(Event::PostCb cb, Event::PostCb main_callback) override {
+       parent_.runOnAllThreads(cb, main_callback);
+@@ -72,6 +73,7 @@ public:
+   testing::NiceMock<Event::MockDispatcher> dispatcher_;
+   std::vector<ThreadLocalObjectSharedPtr> data_;
+   bool shutdown_{};
++  bool registered_{true};
+ };
+ 
+ } // namespace ThreadLocal
+-- 
+2.11.0
+

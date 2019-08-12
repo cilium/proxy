@@ -17,6 +17,19 @@ http_archive(
     url = "https://github.com/envoyproxy/envoy/archive/" + ENVOY_SHA + ".tar.gz",
     sha256 = ENVOY_SHA256,
     strip_prefix = "envoy-" + ENVOY_SHA,
+    patches = [
+        "@//patches:1.11.1-0001-http2-Limit-the-number-of-outbound-frames-9.patch",
+        "@//patches:1.11.1-0002-http2-limit-the-number-of-inbound-frames.-20.patch",
+        "@//patches:1.11.1-0003-http2-enable-strict-validation-of-HTTP-2-headers.-19.patch",
+        "@//patches:1.11.1-0004-Always-disable-reads-when-connection-is-closed-with-.patch",
+        "@//patches:1.11.1-0005-release-bump-to-1.11.1.patch",
+        "@//patches:1.11.1-0006-Fix-flaky-http2-integration-tests-29.patch",
+        "@//patches:1.11.1-0007-runtime-changing-snapshot-access-to-be-const-7677-26.patch",
+        "@//patches:1.11.1-0008-runtime-making-runtime-accessible-from-non-worker-th.patch",
+        "@//patches:1.11.1-0009-Disable-outbound-flood-mitigation-through-runtime-co.patch",
+        "@//patches:1.11.1-0010-runtime-add-the-ability-to-log-downstream-HTTP-2-att.patch",
+    ],
+    patch_args = ["-p1"],
 )
 
 #
