@@ -124,7 +124,8 @@ protected:
 
 uint64_t PolicyHostMap::instance_id_ = 0;
 
-PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls) : tls_(tls.allocateSlot()) {
+PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls)
+    : tls_(tls.allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {
   instance_id_++;
   name_ = "cilium.hostmap." + fmt::format("{}", instance_id_) + ".";
   ENVOY_LOG(debug, "PolicyHostMap({}) created.", name_);  
@@ -148,7 +149,7 @@ PolicyHostMap::PolicyHostMap(const LocalInfo::LocalInfo& local_info, Upstream::C
 			     Stats::Scope &scope, ThreadLocal::SlotAllocator& tls)
   : PolicyHostMap(tls) {
   scope_ = scope.createScope(name_);
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", "cilium.NetworkPolicyHostsDiscoveryService.StreamNetworkPolicyHosts", local_info, cm, dispatcher, random, *scope_);
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", "cilium.NetworkPolicyHostsDiscoveryService.StreamNetworkPolicyHosts", local_info, cm, dispatcher, random, *scope_, *this);
 }
 
 void PolicyHostMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) {
@@ -157,7 +158,7 @@ void PolicyHostMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt:
   auto newmap = std::make_shared<ThreadLocalHostMapInitializer>();
 
   for (const auto& resource: resources) {
-    auto config = MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource);
+    auto config = MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource, validation_visitor_);
     ENVOY_LOG(trace, "Received NetworkPolicyHosts for policy {} in onConfigUpdate() version {}", config.policy(), version_info);
 
     MessageUtil::validate(config);

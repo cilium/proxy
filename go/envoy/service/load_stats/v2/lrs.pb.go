@@ -8,12 +8,10 @@ import (
 	fmt "fmt"
 	core "github.com/cilium/proxy/go/envoy/api/v2/core"
 	endpoint "github.com/cilium/proxy/go/envoy/api/v2/endpoint"
+	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"
-	_ "github.com/lyft/protoc-gen-validate/validate"
 	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -300,14 +298,6 @@ type LoadReportingServiceServer interface {
 	//    from around the world, computes global assignment and prepares traffic
 	//    assignment destined for each zone Envoys are located in. Goto 2.
 	StreamLoadStats(LoadReportingService_StreamLoadStatsServer) error
-}
-
-// UnimplementedLoadReportingServiceServer can be embedded to have forward compatible implementations.
-type UnimplementedLoadReportingServiceServer struct {
-}
-
-func (*UnimplementedLoadReportingServiceServer) StreamLoadStats(srv LoadReportingService_StreamLoadStatsServer) error {
-	return status.Errorf(codes.Unimplemented, "method StreamLoadStats not implemented")
 }
 
 func RegisterLoadReportingServiceServer(s *grpc.Server, srv LoadReportingServiceServer) {

@@ -6,6 +6,7 @@
 
 #include "common/common/logger.h"
 #include "common/http/header_utility.h"
+#include "common/protobuf/message_validator_impl.h"
 #include "envoy/config/subscription.h"
 #include "envoy/singleton/instance.h"
 #include "envoy/thread_local/thread_local.h"
@@ -36,7 +37,7 @@ public:
   // shared_from_this(), which cannot be called before a shared
   // pointer is formed by the caller of the constructor, hence this
   // can't be called from the constructor!
-  void startSubscription() { subscription_->start({}, *this); }
+  void startSubscription() { subscription_->start({}); }
 
   void setPolicyNotifier(Cilium::CtMapSharedPtr& ct) { ctmap_ = ct; }
 
@@ -307,11 +308,12 @@ public:
   }
   void onConfigUpdateFailed(const EnvoyException* e) override;
   std::string resourceName(const ProtobufWkt::Any& resource) override {
-    return MessageUtil::anyConvert<cilium::NetworkPolicy>(resource).name();
+    return MessageUtil::anyConvert<cilium::NetworkPolicy>(resource, validation_visitor_).name();
   }
 
 private:
   ThreadLocal::SlotPtr tls_;
+  ProtobufMessage::ValidationVisitor& validation_visitor_;
   Stats::ScopePtr scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   const std::shared_ptr<const PolicyInstance> null_instance_{nullptr};

@@ -12,8 +12,6 @@ import (
 	duration "github.com/golang/protobuf/ptypes/duration"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -681,17 +679,6 @@ type HealthDiscoveryServiceServer interface {
 	// request/response. Should we add an identifier to the HealthCheckSpecifier
 	// to bind with the response?
 	FetchHealthCheck(context.Context, *HealthCheckRequestOrEndpointHealthResponse) (*HealthCheckSpecifier, error)
-}
-
-// UnimplementedHealthDiscoveryServiceServer can be embedded to have forward compatible implementations.
-type UnimplementedHealthDiscoveryServiceServer struct {
-}
-
-func (*UnimplementedHealthDiscoveryServiceServer) StreamHealthCheck(srv HealthDiscoveryService_StreamHealthCheckServer) error {
-	return status.Errorf(codes.Unimplemented, "method StreamHealthCheck not implemented")
-}
-func (*UnimplementedHealthDiscoveryServiceServer) FetchHealthCheck(ctx context.Context, req *HealthCheckRequestOrEndpointHealthResponse) (*HealthCheckSpecifier, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method FetchHealthCheck not implemented")
 }
 
 func RegisterHealthDiscoveryServiceServer(s *grpc.Server, srv HealthDiscoveryServiceServer) {

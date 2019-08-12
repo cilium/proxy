@@ -6,10 +6,10 @@ package envoy_data_core_v2alpha
 import (
 	fmt "fmt"
 	core "github.com/cilium/proxy/go/envoy/api/v2/core"
+	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
-	_ "github.com/lyft/protoc-gen-validate/validate"
 	math "math"
 )
 

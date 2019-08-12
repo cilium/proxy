@@ -7,8 +7,8 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_SHA = "4f5b5e101a081e05924990b1903d9d46553558d4"
-ENVOY_SHA256 = "59b1599b8847543d7614c5507a33f14f9de49c34ac112cf0d6e082392294eaff"
+ENVOY_SHA = "bf169f9d3c8f4c682650c5390c088a4898940913"
+ENVOY_SHA256 = "f1ecdf7d636a8280db77d41b1a7e7669b6bb0cccb910bb039f7b76ce254b0e39"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -30,13 +30,13 @@ http_archive(
 load("@envoy//bazel:api_repositories.bzl", "envoy_api_dependencies")
 envoy_api_dependencies()
 
-load("@envoy//bazel:repositories.bzl", "GO_VERSION", "envoy_dependencies")
+load("@envoy//bazel:repositories.bzl", "envoy_dependencies", "GO_VERSION")
+load("@envoy//bazel:cc_configure.bzl", "cc_configure")
 envoy_dependencies()
 
 load("@rules_foreign_cc//:workspace_definitions.bzl", "rules_foreign_cc_dependencies")
 rules_foreign_cc_dependencies()
 
-load("@envoy//bazel:cc_configure.bzl", "cc_configure")
 cc_configure()
 
 load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
@@ -47,20 +47,20 @@ go_register_toolchains(go_version = GO_VERSION)
 # Dependencies for Istio filters.
 # Cf. https://github.com/istio/proxy.
 # Version 1.2.2
-ISTIO_PROXY_SHA = "a975561b980463f08689d3debe33bb9eefc80c3d"
-ISTIO_PROXY_SHA256 = "c0123fe73be4c9f2fe5e673952743ceb836f5972a8377ea876d90b7ab63af6eb"
+# ISTIO_PROXY_SHA = "a975561b980463f08689d3debe33bb9eefc80c3d"
+# ISTIO_PROXY_SHA256 = "c0123fe73be4c9f2fe5e673952743ceb836f5972a8377ea876d90b7ab63af6eb"
 
-http_archive(
-    name = "istio_proxy",
-    url = "https://github.com/istio/proxy/archive/" + ISTIO_PROXY_SHA + ".tar.gz",
-    sha256 = ISTIO_PROXY_SHA256,
-    strip_prefix = "proxy-" + ISTIO_PROXY_SHA,
-)
+#http_archive(
+#    name = "istio_proxy",
+#    url = "https://github.com/istio/proxy/archive/" + ISTIO_PROXY_SHA + ".tar.gz",
+#    sha256 = ISTIO_PROXY_SHA256,
+#    strip_prefix = "proxy-" + ISTIO_PROXY_SHA,
+#)
 
-load("@istio_proxy//:repositories.bzl", "mixerapi_dependencies")
-mixerapi_dependencies()
+#load("@istio_proxy//:repositories.bzl", "mixerapi_dependencies")
+#mixerapi_dependencies()
 
-bind(
-    name = "boringssl_crypto",
-    actual = "//external:ssl",
-)
+#bind(
+#    name = "boringssl_crypto",
+#    actual = "//external:ssl",
+#)

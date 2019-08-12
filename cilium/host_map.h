@@ -8,6 +8,7 @@
 
 #include "common/common/logger.h"
 #include "common/network/utility.h"
+#include "common/protobuf/message_validator_impl.h"
 #include "envoy/config/subscription.h"
 #include "envoy/singleton/instance.h"
 #include "envoy/thread_local/thread_local.h"
@@ -59,7 +60,7 @@ public:
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 
-  void startSubscription() { subscription_->start({}, *this); }
+  void startSubscription() { subscription_->start({}); }
 
   // A shared pointer to a immutable copy is held by each thread. Changes are done by
   // creating a new version and assigning the new shared pointer to the thread local
@@ -172,11 +173,12 @@ public:
   }
   void onConfigUpdateFailed(const EnvoyException* e) override;
   std::string resourceName(const ProtobufWkt::Any& resource) override {
-    return fmt::format("{}", MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource).policy());
+    return fmt::format("{}", MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource, validation_visitor_).policy());
   }
 
 private:
   ThreadLocal::SlotPtr tls_;
+  ProtobufMessage::ValidationVisitor& validation_visitor_;
   Stats::ScopePtr scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   static uint64_t instance_id_;

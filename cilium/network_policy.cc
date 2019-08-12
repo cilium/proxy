@@ -13,7 +13,8 @@ namespace Cilium {
 
 uint64_t NetworkPolicyMap::instance_id_ = 0;
 
-NetworkPolicyMap::NetworkPolicyMap(ThreadLocal::SlotAllocator& tls) : tls_(tls.allocateSlot()) {
+NetworkPolicyMap::NetworkPolicyMap(ThreadLocal::SlotAllocator& tls)
+    : tls_(tls.allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {
   instance_id_++;
   name_ = "cilium.policymap." + fmt::format("{}", instance_id_) + ".";
   ENVOY_LOG(debug, "NetworkPolicyMap({}) created.", name_);  
@@ -37,7 +38,7 @@ NetworkPolicyMap::NetworkPolicyMap(const LocalInfo::LocalInfo& local_info,
 				   ThreadLocal::SlotAllocator& tls)
   : NetworkPolicyMap(tls) {
   scope_ = scope.createScope(name_);
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", "cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies", local_info, cm, dispatcher, random, *scope_);
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", "cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies", local_info, cm, dispatcher, random, *scope_, *this);
 }
 
 void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) {
@@ -49,7 +50,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
   // Collect a shared vector of policies to be added
   auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstance>>>();
   for (const auto& resource: resources) {
-    auto config = MessageUtil::anyConvert<cilium::NetworkPolicy>(resource);
+    auto config = MessageUtil::anyConvert<cilium::NetworkPolicy>(resource, validation_visitor_);
     ENVOY_LOG(debug, "Received Network Policy for endpoint {} in onConfigUpdate() version {}: {}", config.name(), version_info, config.DebugString());
     keeps.insert(config.name());
     ct_maps_to_keep.insert(config.conntrack_map_name());

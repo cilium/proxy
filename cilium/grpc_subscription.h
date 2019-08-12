@@ -11,7 +11,7 @@ std::unique_ptr<Envoy::Config::Subscription>
 subscribe(const std::string& type_url, const std::string& grpc_method,
 	  const LocalInfo::LocalInfo& local_info,
 	  Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-	  Runtime::RandomGenerator& random, Stats::Scope &scope);
+	  Runtime::RandomGenerator& random, Stats::Scope &scope, Envoy::Config::SubscriptionCallbacks& callbacks);
 
 } // namespace Cilium
 } // namespace Envoy

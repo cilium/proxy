@@ -17,12 +17,15 @@ include Makefile.quiet
 # Depends on Envoy dependencies, Envoy must be built first
 
 PROTOC ?= bazel-out/host/bin/external/com_google_protobuf/protoc
+BIN_PATH ?= bazel-out/host/bin/external/com_github_golang_protobuf/protoc-gen-go/linux_amd64_stripped:bazel-out/host/bin/external/com_envoyproxy_protoc_gen_validate/linux_amd64_stripped
+
 ENVOY_API_PROTO_PATH = bazel-proxy/external/envoy/api
 CILIUM_PROTO_PATH = .
 PROTO_DEPS = \
 	-I bazel-proxy/external/com_google_protobuf/src \
 	-I bazel-proxy/external/googleapis \
-	-I bazel-proxy/external/com_lyft_protoc_gen_validate \
+	-I bazel-proxy/external/com_envoyproxy_protoc_gen_validate \
+	-I bazel-proxy/external/opencensus_proto \
 	-I bazel-proxy/external/com_github_gogo_protobuf
 
 GO_OUT = go
@@ -66,14 +69,14 @@ $(ENVOY_GO_TARGETS): $(ENVOY_PROTO_SOURCES) Makefile.api
 	$(QUIET)set -e; \
 	for path in $(ENVOY_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
+		PATH=$(PATH):$(BIN_PATH) $(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
 	done
 
 $(CILIUM_GO_TARGETS): $(CILIUM_PROTO_SOURCES) Makefile.api
 	$(QUIET)set -e; \
 	for path in $(CILIUM_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
+		PATH=$(PATH):$(BIN_PATH) $(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
 	done
 
 .PHONY: all

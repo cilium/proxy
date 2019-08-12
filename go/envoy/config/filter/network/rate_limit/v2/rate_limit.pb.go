@@ -7,10 +7,10 @@ import (
 	fmt "fmt"
 	ratelimit "github.com/cilium/proxy/go/envoy/api/v2/ratelimit"
 	v2 "github.com/cilium/proxy/go/envoy/config/ratelimit/v2"
+	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"
-	_ "github.com/lyft/protoc-gen-validate/validate"
 	math "math"
 )
 

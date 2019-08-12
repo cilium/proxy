@@ -11,7 +11,7 @@ std::unique_ptr<Envoy::Config::Subscription>
 subscribe(const std::string& type_url, const std::string& grpc_method,
 	  const LocalInfo::LocalInfo& local_info,
 	  Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-	  Runtime::RandomGenerator& random, Stats::Scope &scope) {
+	  Runtime::RandomGenerator& random, Stats::Scope &scope, Envoy::Config::SubscriptionCallbacks& callbacks) {
   // Hard-coded Cilium gRPC cluster
   // Note: No rate-limit settings are used, consider if needed.
   envoy::api::v2::core::ApiConfigSource api_config_source{};
@@ -30,7 +30,7 @@ subscribe(const std::string& type_url, const std::string& grpc_method,
 		Config::Utility::factoryForGrpcApiConfigSource(cm.grpcAsyncClientManager(),
 							       api_config_source,
 							       scope)->create(),
-		dispatcher, random, *method, type_url, Config::Utility::generateStats(scope), scope,
+		dispatcher, random, *method, type_url, callbacks, Config::Utility::generateStats(scope), scope,
 		Config::Utility::parseRateLimitSettings(api_config_source),
 		std::chrono::milliseconds(0) /* no initial fetch timeout */);
 }

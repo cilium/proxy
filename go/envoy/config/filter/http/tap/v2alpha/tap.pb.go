@@ -6,8 +6,8 @@ package envoy_config_filter_http_tap_v2alpha
 import (
 	fmt "fmt"
 	v2alpha "github.com/cilium/proxy/go/envoy/config/common/tap/v2alpha"
+	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
-	_ "github.com/lyft/protoc-gen-validate/validate"
 	math "math"
 )
 

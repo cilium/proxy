@@ -6,8 +6,8 @@ package envoy_admin_v2alpha
 import (
 	fmt "fmt"
 	v2alpha "github.com/cilium/proxy/go/envoy/service/tap/v2alpha"
+	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
-	_ "github.com/lyft/protoc-gen-validate/validate"
 	math "math"
 )
 

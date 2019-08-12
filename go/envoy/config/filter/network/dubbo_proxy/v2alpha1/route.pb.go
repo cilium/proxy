@@ -8,10 +8,10 @@ import (
 	route "github.com/cilium/proxy/go/envoy/api/v2/route"
 	_type "github.com/cilium/proxy/go/envoy/type"
 	matcher "github.com/cilium/proxy/go/envoy/type/matcher"
+	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/golang/protobuf/ptypes/wrappers"
-	_ "github.com/lyft/protoc-gen-validate/validate"
 	math "math"
 )
 
