@@ -6,7 +6,7 @@
 #
 # Using cilium-builder as the base to ensure libc etc. are in sync.
 #
-FROM quay.io/cilium/cilium-builder:2019-03-16 as builder
+FROM quay.io/cilium/cilium-builder:2019-07-11 as builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /go/src/github.com/cilium/cilium/envoy
 COPY . ./
@@ -24,7 +24,7 @@ RUN apt-get update \
 		libtool \
 		make \
 		ninja-build \
-		python \
+		python3 \
 		wget \
 		zip \
 	&& apt-get clean \
