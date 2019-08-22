@@ -30,6 +30,8 @@ public:
   virtual bool getMetadata(Network::ConnectionSocket &socket);
 
   bool is_ingress_;
+  bool may_use_original_source_address_;
+
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
   Cilium::ProxyMapSharedPtr maps_{};
   Cilium::CtMapSharedPtr ct_maps_{};

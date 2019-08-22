@@ -8,4 +8,9 @@ message BpfMetadata {
 
   // 'true' if the filter is on ingress listener, 'false' for egress listener.
   bool is_ingress = 2;
+
+  // Use of the original source address requires kernel datapath support which may or may not be available.
+  // 'true' if original source address functionality is availeble. Original source address use may still be
+  // skipped in scenarios where it is knows to not work.
+  bool may_use_original_source_address = 3;
 }

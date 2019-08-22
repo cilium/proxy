@@ -94,7 +94,8 @@ createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSha
 } // namespace
 
 Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::ListenerFactoryContext& context)
-    : is_ingress_(config.is_ingress()) {
+    : is_ingress_(config.is_ingress()),
+      may_use_original_source_address_(config.may_use_original_source_address()) {
   // Note: all instances use the bpf root of the first filter with non-empty bpf_root instantiated!
   // Only try opening bpf maps if bpf root is explicitly configured
   std::string bpf_root = config.bpf_root();
@@ -222,10 +223,10 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     }
   }
 
-  // Only use the original source address for TPROXY egress proxy if the
-  // other end is not in the same node. This allows the destination
-  // node to derive the source policy ID from the original source IP.
-  if (with_tproxy && !is_ingress_ && !npmap_->exists(other_ip)) {
+  // Only use the original source address if permitted and the other node is not in
+  // the same node and is not classified as WORLD.
+  if (may_use_original_source_address_ && destination_identity != Cilium::ID::WORLD
+      && !npmap_->exists(other_ip)) {
     socket.addOptions(Network::SocketOptionFactory::buildIpTransparentOptions());
   } else {
     src_address = nullptr;
