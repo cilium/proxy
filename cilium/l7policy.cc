@@ -57,7 +57,7 @@ static Registry::RegisterFactory<
 Config::Config(const std::string& policy_name, const std::string& access_log_path,
 	       const std::string& denied_403_body, const absl::optional<bool>& is_ingress,
 	       Server::Configuration::FactoryContext& context)
-    : stats_{ALL_CILIUM_STATS(POOL_COUNTER_PREFIX(context.scope(), "cilium"))},
+    : time_source_(context.timeSource()), stats_{ALL_CILIUM_STATS(POOL_COUNTER_PREFIX(context.scope(), "cilium"))},
       policy_name_(policy_name), denied_403_body_(denied_403_body), is_ingress_(is_ingress),
       access_log_(nullptr) {
   if (access_log_path.length()) {
@@ -154,7 +154,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, 
 
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::HeaderMap &headers,
                                                       bool) {
-  log_entry_.UpdateFromResponse(headers, callbacks_->streamInfo());
+  log_entry_.UpdateFromResponse(headers, config_->time_source_);
   config_->Log(log_entry_, denied_ ? ::cilium::EntryType::Denied
                                    : ::cilium::EntryType::Response);
   return Http::FilterHeadersStatus::Continue;

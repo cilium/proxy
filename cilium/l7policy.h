@@ -45,6 +45,7 @@ public:
 
   void Log(AccessLog::Entry &, ::cilium::EntryType);
 
+  TimeSource& time_source_;
   FilterStats stats_;
   const std::string policy_name_;
   std::string denied_403_body_;

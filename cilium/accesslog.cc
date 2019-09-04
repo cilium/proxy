@@ -147,26 +147,18 @@ void AccessLog::Entry::InitFromRequest(
 }
 
 void AccessLog::Entry::UpdateFromResponse(
-    const Http::HeaderMap &headers, const StreamInfo::StreamInfo &info) {
-  auto time = info.startTime();
-  if (info.lastUpstreamRxByteReceived()) {
-    time += info.lastUpstreamRxByteReceived().value();
-  }
+    const Http::HeaderMap &headers, TimeSource& time_source) {
+  auto time = time_source.systemTime();
   entry.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
                           time.time_since_epoch())
                           .count());
 
   ::cilium::HttpLogEntry* http_entry = entry.mutable_http();
-
-  if (info.responseCode()) {
-    http_entry->set_status(info.responseCode().value());
-  } else {
-    const Http::HeaderEntry *status_entry = headers.Status();
-    if (status_entry) {
-      uint64_t status;
-      if (absl::SimpleAtoi(status_entry->value().getStringView(), &status)) {
-        http_entry->set_status(status);
-      }
+  const Http::HeaderEntry *status_entry = headers.Status();
+  if (status_entry) {
+    uint64_t status;
+    if (absl::SimpleAtoi(status_entry->value().getStringView(), &status)) {
+      http_entry->set_status(status);
     }
   }
 }

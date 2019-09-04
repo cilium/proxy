@@ -26,7 +26,7 @@ public:
   public:
     void InitFromRequest(std::string policy_name, bool ingress, const Network::Connection *,
                          const Http::HeaderMap &, const StreamInfo::StreamInfo &);
-    void UpdateFromResponse(const Http::HeaderMap &, const StreamInfo::StreamInfo &);
+    void UpdateFromResponse(const Http::HeaderMap &, TimeSource&);
 
     ::cilium::LogEntry entry{};
   };
