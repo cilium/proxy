@@ -164,7 +164,7 @@ void AccessLog::Entry::UpdateFromResponse(
     const Http::HeaderEntry *status_entry = headers.Status();
     if (status_entry) {
       uint64_t status;
-      if (StringUtil::atoull(status_entry->value().getStringView().data(), status, 10)) {
+      if (absl::SimpleAtoi(status_entry->value().getStringView(), &status)) {
         http_entry->set_status(status);
       }
     }

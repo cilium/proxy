@@ -488,7 +488,7 @@ public:
     response->waitForEndStream();
 
     uint64_t status;
-    StringUtil::atoull(response->headers().Status()->value().getStringView().data(), status, 10);
+    absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status);
     EXPECT_EQ(403, status);
   }
 
@@ -499,7 +499,7 @@ public:
     auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
 
     uint64_t status;
-    StringUtil::atoull(response->headers().Status()->value().getStringView().data(), status, 10);
+    absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status);
     EXPECT_EQ(200, status);
   }
 
@@ -819,7 +819,7 @@ TEST_P(CiliumIntegrationTest, DuplicatePort) {
   response->waitForEndStream();
 
   uint64_t status;
-  StringUtil::atoull(response->headers().Status()->value().getStringView().data(), status, 10);
+  absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status);
   EXPECT_EQ(403, status);
 }
 
