@@ -175,9 +175,9 @@ public:
     UNREFERENCED_PARAMETER(removed_resources);
     UNREFERENCED_PARAMETER(system_version_info);
   }
-  void onConfigUpdateFailed(const EnvoyException* e) override;
+  void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason, const EnvoyException* e) override;
   std::string resourceName(const ProtobufWkt::Any& resource) override {
-    return fmt::format("{}", MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource, validation_visitor_).policy());
+    return fmt::format("{}", MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource).policy());
   }
 
 private:

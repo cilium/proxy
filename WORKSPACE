@@ -7,14 +7,14 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_SHA = "7a12f379e47a9f7cf7211c727fe8fc70b6a0a9ab"
-ENVOY_SHA256 = "7f261db13976b9f1bc1b433b57d7e5f585d827c352a7c56f8c2e3e7196a63f0d"
+ENVOY_SHA = "9c34f48147b84105b3e90ad8ffda26a886861ff5"
+ENVOY_SHA256 = "27e3f407a09f3eff43029846c72764c203163b4ec509674bd1983d25961e4f00"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "envoy",
-    url = "https://github.com/envoyproxy/envoy/archive/" + ENVOY_SHA + ".tar.gz",
+    url = "https://github.com/jrajahalme/envoy/archive/" + ENVOY_SHA + ".tar.gz",
     sha256 = ENVOY_SHA256,
     strip_prefix = "envoy-" + ENVOY_SHA,
     patches = [
@@ -30,22 +30,18 @@ http_archive(
 #   the workspace above.
 # - loads of "//..." need to be renamed as "@envoy//..."
 #
+
+load("@envoy//bazel:api_binding.bzl", "envoy_api_binding")
+envoy_api_binding()
+
 load("@envoy//bazel:api_repositories.bzl", "envoy_api_dependencies")
 envoy_api_dependencies()
 
-load("@envoy//bazel:repositories.bzl", "envoy_dependencies", "GO_VERSION")
-load("@envoy//bazel:cc_configure.bzl", "cc_configure")
+load("@envoy//bazel:repositories.bzl", "envoy_dependencies")
 envoy_dependencies()
 
-load("@rules_foreign_cc//:workspace_definitions.bzl", "rules_foreign_cc_dependencies")
-rules_foreign_cc_dependencies()
-
-cc_configure()
-
-load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
-go_rules_dependencies()
-go_register_toolchains(go_version = GO_VERSION)
-
+load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
+envoy_dependency_imports()
 
 # Dependencies for Istio filters.
 # Cf. https://github.com/istio/proxy.

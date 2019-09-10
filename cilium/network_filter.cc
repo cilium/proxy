@@ -26,7 +26,7 @@ public:
   Network::FilterFactoryCb
   createFilterFactoryFromProto(const Protobuf::Message& proto_config,
 			       FactoryContext& context) override {
-    auto config = std::make_shared<Filter::CiliumL3::Config>(MessageUtil::downcastAndValidate<const ::cilium::NetworkFilter&>(proto_config), context);
+    auto config = std::make_shared<Filter::CiliumL3::Config>(MessageUtil::downcastAndValidate<const ::cilium::NetworkFilter&>(proto_config, context.messageValidationVisitor()), context);
     return [config](Network::FilterManager &filter_manager) mutable -> void {
       filter_manager.addFilter(std::make_shared<Filter::CiliumL3::Instance>(config));
     };

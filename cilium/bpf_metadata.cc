@@ -29,7 +29,7 @@ public:
   Network::ListenerFilterFactoryCb
   createFilterFactoryFromProto(const Protobuf::Message& proto_config,
 			       Configuration::ListenerFactoryContext& context) override {
-    auto config = std::make_shared<Filter::BpfMetadata::Config>(MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(proto_config), context);
+    auto config = std::make_shared<Filter::BpfMetadata::Config>(MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(proto_config, context.messageValidationVisitor()), context);
     return [config](Network::ListenerFilterManager &filter_manager) mutable -> void {
       filter_manager.addAcceptFilter(std::make_unique<Filter::BpfMetadata::Instance>(config));
     };

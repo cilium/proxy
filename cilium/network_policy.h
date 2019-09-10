@@ -42,7 +42,7 @@ public:
     subscription_ = std::move(subscription);
     startSubscription();
   }
-  
+
   void setPolicyNotifier(Cilium::CtMapSharedPtr& ct) { ctmap_ = ct; }
 
   class PolicyInstance {
@@ -325,9 +325,9 @@ public:
     UNREFERENCED_PARAMETER(removed_resources);
     UNREFERENCED_PARAMETER(system_version_info);
   }
-  void onConfigUpdateFailed(const EnvoyException* e) override;
+  void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason, const EnvoyException* e) override;
   std::string resourceName(const ProtobufWkt::Any& resource) override {
-    return MessageUtil::anyConvert<cilium::NetworkPolicy>(resource, validation_visitor_).name();
+    return MessageUtil::anyConvert<cilium::NetworkPolicy>(resource).name();
   }
 
 private:

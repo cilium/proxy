@@ -1,10 +1,6 @@
 [[constraint]]
-  name = "github.com/gogo/protobuf"
-  revision = "v1.2.1"
-
-[[constraint]]
-  name = "github.com/lyft/protoc-gen-validate"
-  revision = "v0.0.13"
+  name = "github.com/envoyproxy/protoc-gen-validate"
+  revision = "2feaabb13a5d697b80fcb938c0ce37b24c9381ee"
 
 [prune]
   go-tests = true

@@ -33,7 +33,7 @@ public:
   createFilterFactoryFromProto(const Protobuf::Message& proto_config, const std::string&,
                                Server::Configuration::FactoryContext& context) override {
     auto config = std::make_shared<Cilium::Config>(
-        MessageUtil::downcastAndValidate<const ::cilium::L7Policy&>(proto_config), context);
+        MessageUtil::downcastAndValidate<const ::cilium::L7Policy&>(proto_config, context.messageValidationVisitor()), context);
     return [config](
                Http::FilterChainFactoryCallbacks &callbacks) mutable -> void {
       callbacks.addStreamFilter(std::make_shared<Cilium::AccessFilter>(config));

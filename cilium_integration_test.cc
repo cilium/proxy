@@ -271,10 +271,9 @@ createHostMap(const std::string& config, Server::Configuration::ListenerFactoryC
         Envoy::Config::SubscriptionStats stats =
 	  Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::PolicyHostMap>(context.threadLocal());
-        auto subscription =
-	  std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-	      context.dispatcher(), path, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
-	map->startSubscription(std::move(subscription));
+	auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
+            context.dispatcher(), path, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
+        map->startSubscription(std::move(subscription));
         return map;
     });
 }
@@ -289,10 +288,9 @@ createPolicyMap(const std::string& config, Server::Configuration::FactoryContext
         Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path, context.api());
         Envoy::Config::SubscriptionStats stats = Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context.threadLocal());
-        auto subscription =
-	  std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-              context.dispatcher(), path, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
-       	map->startSubscription(std::move(subscription));
+        auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
+            context.dispatcher(), path, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
+	map->startSubscription(std::move(subscription));
 	return map;
       });
 }
@@ -317,7 +315,8 @@ public:
     npmap = createPolicyMap(policy_config, context);
 
 
-    auto config = std::make_shared<Filter::BpfMetadata::TestConfig>(MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(proto_config), context);
+    auto config = std::make_shared<Filter::BpfMetadata::TestConfig>(
+        MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(proto_config, context.messageValidationVisitor()), context);
 
     return [config](
                Network::ListenerFilterManager &filter_manager) mutable -> void {
@@ -359,7 +358,7 @@ public:
   createFilterFactoryFromProto(const Protobuf::Message& proto_config, const std::string&,
                                Server::Configuration::FactoryContext& context) override {
     auto config = std::make_shared<Cilium::Config>(
-        MessageUtil::downcastAndValidate<const ::cilium::L7Policy&>(proto_config), context);
+        MessageUtil::downcastAndValidate<const ::cilium::L7Policy&>(proto_config, context.messageValidationVisitor()), context);
     return [config](
                Http::FilterChainFactoryCallbacks &callbacks) mutable -> void {
       callbacks.addStreamFilter(std::make_shared<Cilium::AccessFilter>(config));
