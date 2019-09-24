@@ -43,7 +43,7 @@ RUN export BAZEL_VERSION=`cat BAZEL_VERSION` \
 #
 # Build and keep the cache
 #
-RUN make PKG_BUILD=1 cilium-envoy && rm ./bazel-bin/cilium-envoy
+RUN make BAZEL_BUILD_OPTS=--jobs=1 PKG_BUILD=1 cilium-envoy && rm ./bazel-bin/cilium-envoy
 
 #
 # Absolutely nothing after making envoy deps!
