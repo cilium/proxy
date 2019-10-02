@@ -18,6 +18,8 @@ http_archive(
     sha256 = ENVOY_SHA256,
     strip_prefix = "envoy-" + ENVOY_SHA,
     patches = [
+        "@//patches:0001-Track-byteSize-of-HeaderMap-internally.patch",
+        "@//patches:0002-Add-configurable-limit-for-the-number-of-headers.patch",
     ],
     patch_args = ["-p1"],
 )
