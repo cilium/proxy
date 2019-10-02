@@ -7,8 +7,8 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_SHA = "bf169f9d3c8f4c682650c5390c088a4898940913"
-ENVOY_SHA256 = "f1ecdf7d636a8280db77d41b1a7e7669b6bb0cccb910bb039f7b76ce254b0e39"
+ENVOY_SHA = "e349fb6139e4b7a59a9a359be0ea45dd61e589c5"
+ENVOY_SHA256 = "7e4942724b48b3f476d23beea49dea68fb38bf08e69afd7b708b025f4a0822ee"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -18,16 +18,6 @@ http_archive(
     sha256 = ENVOY_SHA256,
     strip_prefix = "envoy-" + ENVOY_SHA,
     patches = [
-        "@//patches:1.11.1-0001-http2-Limit-the-number-of-outbound-frames-9.patch",
-        "@//patches:1.11.1-0002-http2-limit-the-number-of-inbound-frames.-20.patch",
-        "@//patches:1.11.1-0003-http2-enable-strict-validation-of-HTTP-2-headers.-19.patch",
-        "@//patches:1.11.1-0004-Always-disable-reads-when-connection-is-closed-with-.patch",
-        "@//patches:1.11.1-0005-release-bump-to-1.11.1.patch",
-        "@//patches:1.11.1-0006-Fix-flaky-http2-integration-tests-29.patch",
-        "@//patches:1.11.1-0007-runtime-changing-snapshot-access-to-be-const-7677-26.patch",
-        "@//patches:1.11.1-0008-runtime-making-runtime-accessible-from-non-worker-th.patch",
-        "@//patches:1.11.1-0009-Disable-outbound-flood-mitigation-through-runtime-co.patch",
-        "@//patches:1.11.1-0010-runtime-add-the-ability-to-log-downstream-HTTP-2-att.patch",
     ],
     patch_args = ["-p1"],
 )
