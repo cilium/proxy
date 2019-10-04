@@ -21,13 +21,6 @@ Dockerfile.istio_proxy_debug
 # Emacs backup files
 *~
 
-# Automatically generated when needed
-.dockerignore
-
-# Temporary files that allow build containers/VMs work without git
-GIT_VERSION
-SOURCE_VERSION
-
 # To run Envoy tests under gdb do "cd envoy && make debug && ln -s bazel-envoy/external external"
 external
 

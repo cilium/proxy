@@ -68,18 +68,10 @@ else
 	SOURCE_VERSION = $(shell cat SOURCE_VERSION)
 endif
 
-SOURCE_VERSION: .git
-	echo $(SOURCE_VERSION) >SOURCE_VERSION
-
-docker-image-builder: Dockerfile.builder
+docker-image-builder: Dockerfile.builder clean
 	$(DOCKER) build -f $< -t "quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)" .
 
-.dockerignore: .gitignore SOURCE_VERSION
-	echo $(SOURCE_VERSION)
-	$(QUIET)grep -v -E "(SOURCE|GIT)_VERSION" .gitignore >.dockerignore
-	$(QUIET)echo ".*" >>.dockerignore # .git pruned out
-
-docker-image-envoy: Dockerfile clean .dockerignore 
+docker-image-envoy: Dockerfile clean
 	@$(ECHO_GEN) docker-image-envoy
 	$(DOCKER) build -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)" .
 	$(QUIET)echo "Push like this when ready:"
@@ -105,13 +97,13 @@ $(CILIUM_ENVOY_BIN) $(CILIUM_ENVOY_RELEASE_BIN): force
 Dockerfile.%: Dockerfile.%.in
 	-sed "s/@ISTIO_VERSION@/$(ISTIO_VERSION)/" <$< >$@
 
-docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json .dockerignore
+docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
 	@$(ECHO_GEN) docker-istio-proxy
 	$(DOCKER) build -f $< -t cilium/istio_proxy:$(ISTIO_VERSION) .
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push cilium/istio_proxy:$(ISTIO_VERSION)"
 
-docker-istio-proxy-debug: Dockerfile.istio_proxy_debug envoy_bootstrap_tmpl.json .dockerignore 
+docker-istio-proxy-debug: Dockerfile.istio_proxy_debug envoy_bootstrap_tmpl.json
 	@$(ECHO_GEN) docker-istio-proxy-debug
 	$(DOCKER) build -f $< -t cilium/istio_proxy_debug:$(ISTIO_VERSION) .
 	$(QUIET)echo "Push like this when ready:"
@@ -155,6 +147,8 @@ clean-bins: force
 
 clean: force clean-bins
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
+	-rm .dockerignore
+	git status
 	@echo "Bazel clean skipped, try 'make veryclean' instead."
 
 veryclean: force clean-bins
