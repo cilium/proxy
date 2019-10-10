@@ -46,21 +46,25 @@ template <typename I> I masked(I addr, unsigned int plen) {
 enum ID : uint64_t { UNKNOWN = 0, WORLD = 2 };
 
 class PolicyHostMap : public Singleton::Instance,
-                      Config::SubscriptionCallbacks,
+                      public Config::SubscriptionCallbacks,
                       public std::enable_shared_from_this<PolicyHostMap>,
                       public Logger::Loggable<Logger::Id::config> {
 public:
   PolicyHostMap(const LocalInfo::LocalInfo& local_info,
 		Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
 		Runtime::RandomGenerator& random, Stats::Scope &scope, ThreadLocal::SlotAllocator& tls);
-  PolicyHostMap(std::unique_ptr<Envoy::Config::Subscription>&& subscription,
-		ThreadLocal::SlotAllocator& tls);
   PolicyHostMap(ThreadLocal::SlotAllocator& tls);
   ~PolicyHostMap() {
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 
   void startSubscription() { subscription_->start({}); }
+
+  // This is used for testing with a file-based subscription
+  void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
+    subscription_ = std::move(subscription);
+    startSubscription();
+  }
 
   // A shared pointer to a immutable copy is held by each thread. Changes are done by
   // creating a new version and assigning the new shared pointer to the thread local

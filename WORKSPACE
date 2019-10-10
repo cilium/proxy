@@ -7,8 +7,8 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_SHA = "e349fb6139e4b7a59a9a359be0ea45dd61e589c5"
-ENVOY_SHA256 = "7e4942724b48b3f476d23beea49dea68fb38bf08e69afd7b708b025f4a0822ee"
+ENVOY_SHA = "7a12f379e47a9f7cf7211c727fe8fc70b6a0a9ab"
+ENVOY_SHA256 = "7f261db13976b9f1bc1b433b57d7e5f585d827c352a7c56f8c2e3e7196a63f0d"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -18,8 +18,6 @@ http_archive(
     sha256 = ENVOY_SHA256,
     strip_prefix = "envoy-" + ENVOY_SHA,
     patches = [
-        "@//patches:0001-Track-byteSize-of-HeaderMap-internally.patch",
-        "@//patches:0002-Add-configurable-limit-for-the-number-of-headers.patch",
     ],
     patch_args = ["-p1"],
 )

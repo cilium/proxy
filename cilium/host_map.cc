@@ -136,13 +136,6 @@ PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls)
   });
 }
 
-// This is used for testing with a file-based subscription
-PolicyHostMap::PolicyHostMap(std::unique_ptr<Envoy::Config::Subscription>&& subscription,
-			     ThreadLocal::SlotAllocator& tls)
-  : PolicyHostMap(tls) {
-  subscription_ = std::move(subscription);
-}
-
 // This is used in production
 PolicyHostMap::PolicyHostMap(const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
 			     Event::Dispatcher& dispatcher, Runtime::RandomGenerator& random,

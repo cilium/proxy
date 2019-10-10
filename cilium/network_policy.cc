@@ -24,13 +24,6 @@ NetworkPolicyMap::NetworkPolicyMap(ThreadLocal::SlotAllocator& tls)
   });
 }
 
-// This is used for testing with a file-based subscription
-NetworkPolicyMap::NetworkPolicyMap(std::unique_ptr<Envoy::Config::Subscription>&& subscription,
-				   ThreadLocal::SlotAllocator& tls)
-  : NetworkPolicyMap(tls) {
-  subscription_ = std::move(subscription);
-}
-
 // This is used in production
 NetworkPolicyMap::NetworkPolicyMap(const LocalInfo::LocalInfo& local_info,
 				   Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
