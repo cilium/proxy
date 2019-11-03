@@ -85,6 +85,9 @@ public:
   }
 
 private:
+  void pause();
+  void resume();
+  
   ThreadLocal::SlotPtr tls_;
   ProtobufMessage::ValidationVisitor& validation_visitor_;
   Stats::ScopePtr scope_;

@@ -35,6 +35,20 @@ NetworkPolicyMap::NetworkPolicyMap(const LocalInfo::LocalInfo& local_info,
   subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", "cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies", local_info, cm, dispatcher, random, *scope_, *this);
 }
 
+void NetworkPolicyMap::pause() {
+  auto sub = dynamic_cast<GrpcSubscriptionImpl*>(subscription_.get());
+  if (sub) {
+    sub->pause();
+  }
+}
+
+void NetworkPolicyMap::resume() {
+  auto sub = dynamic_cast<GrpcSubscriptionImpl*>(subscription_.get());
+  if (sub) {
+    sub->resume();
+  }
+}
+
 void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) {
   ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", name_, resources.size(), version_info);
 
@@ -81,6 +95,10 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
     }
   }
 
+  // pause the subscription until the worker threads are done. No throws after this!
+  ENVOY_LOG(debug, "Pausing NPDS subscription");
+  pause();
+
   // 'this' may be already deleted when the worker threads get to execute the updates.
   // Manage this by taking a weak_ptr on 'this' and then, when the worker thread gets
   // to execute the posted lambda, try to convert the weak_ptr to a temporary shared_ptr.
@@ -109,9 +127,12 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
     },
     // delete old cts when all threads have updated their policies
     [weak_this, cts_to_be_closed]() -> void {
-      if (cts_to_be_closed->size() > 0) {
-	std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock();
-	if (shared_this && shared_this->ctmap_ && shared_this->tls_->get().get() != nullptr) {
+      std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock();
+      if (shared_this) {
+	// resume the subscription
+	ENVOY_LOG(debug, "Resuming NPDS subscription");
+	shared_this->resume();
+	if (shared_this->ctmap_ && shared_this->tls_->get().get() != nullptr && cts_to_be_closed->size() > 0) {
 	  shared_this->ctmap_->closeMaps(cts_to_be_closed);
 	}
       }

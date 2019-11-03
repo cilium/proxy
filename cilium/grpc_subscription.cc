@@ -7,7 +7,7 @@
 namespace Envoy {
 namespace Cilium {
 
-std::unique_ptr<Envoy::Config::Subscription>
+std::unique_ptr<GrpcSubscriptionImpl>
 subscribe(const std::string& type_url, const std::string& grpc_method,
 	  const LocalInfo::LocalInfo& local_info,
 	  Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
@@ -25,7 +25,7 @@ subscribe(const std::string& type_url, const std::string& grpc_method,
     throw EnvoyException(fmt::format("gRPC method {} not found.", grpc_method));
   }
 
-  return std::make_unique<Config::GrpcSubscriptionImpl>(
+  return std::make_unique<GrpcSubscriptionImpl>(
                 local_info,
 		Config::Utility::factoryForGrpcApiConfigSource(cm.grpcAsyncClientManager(),
 							       api_config_source,
