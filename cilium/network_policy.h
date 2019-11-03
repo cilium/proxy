@@ -17,6 +17,7 @@
 #include "extensions/transport_sockets/tls/context_config_impl.h"
 
 #include "cilium/api/npds.pb.h"
+#include "cilium/accesslog.h"
 #include "cilium/conntrack.h"
 
 namespace Envoy {
@@ -113,7 +114,27 @@ public:
 
 protected:
   class HttpNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
-public:
+    static envoy::api::v2::route::HeaderMatcher matcher(const cilium::HeaderMatch& config) {
+      envoy::api::v2::route::HeaderMatcher match;
+      match.set_name(config.name());
+      if (config.value().length() == 0) {
+	match.set_present_match(true);
+      } else {
+	match.set_exact_match(config.value());
+      }
+      return match;
+    }
+    class HeaderMatch : public Envoy::Http::HeaderUtility::HeaderData {
+    public:
+      HeaderMatch(const cilium::HeaderMatch& config)
+	: HeaderData(matcher(config)),
+	match_action_(config.match_action()),
+	mismatch_action_(config.mismatch_action()) {}
+
+      cilium::HeaderMatch::MatchAction match_action_;
+      cilium::HeaderMatch::MismatchAction mismatch_action_;
+    };
+  public:
     HttpNetworkPolicyRule(const cilium::HttpNetworkPolicyRule& rule) {
       ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
       for (const auto& header: rule.headers()) {
@@ -124,9 +145,26 @@ public:
 		  header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
 		  ? fmt::format("[{}-{})", header_data.range_.start(), header_data.range_.end())
 		  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
-		  ? header_data.value_
+		  ? "<VALUE>"
+		  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present
+		  ? "<PRESENT>"
 		  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
 		  ? "<REGEX>" : "<UNKNOWN>");
+      }
+      for (const auto& config: rule.header_matches()) {
+	header_matches_.emplace_back(HeaderMatch(config));
+	const auto& header_data = header_matches_.back();
+	ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData for headers_action {}={} (match: {}, mismatch: {})",
+		  header_data.name_.get(),
+		  header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
+		  ? fmt::format("[{}-{})", header_data.range_.start(), header_data.range_.end())
+		  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
+		  ? header_data.value_
+		  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present
+		  ? "<PRESENT>"
+		  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
+		  ? "<REGEX>" : "<UNKNOWN>",
+		  header_data.match_action_, header_data.mismatch_action_);
       }
     }
 
@@ -135,7 +173,96 @@ public:
       return Envoy::Http::HeaderUtility::matchHeaders(headers, headers_);
     }
 
+    // Should only be called after 'Matches' returns 'true'.
+    // Returns 'true' if matching can continue
+    bool HeaderMatches(Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
+      bool accepted = true;
+      for (const auto& header_data : header_matches_) {
+	::cilium::KeyValue *kv;
+	if (Envoy::Http::HeaderUtility::matchHeaders(headers, header_data)) {
+	  // Match action
+	  ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():HeaderMatches: match, {}: {}: Action {}",
+		    header_data.name_.get(), header_data.value_, header_data.match_action_);
+	  switch (header_data.match_action_) {
+	  case cilium::HeaderMatch::CONTINUE_ON_MATCH:
+	    continue;
+	  case cilium::HeaderMatch::FAIL_ON_MATCH:
+	  default: // fail closed if unknown action
+	    accepted = false;
+	    break;
+	  case cilium::HeaderMatch::DELETE_ON_MATCH:
+	    headers.remove(header_data.name_);
+	    break;
+	  }
+	  kv = log_entry.entry.mutable_http()->add_rejected_headers();
+	} else {
+	  // Mismatch action
+	  ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():HeaderMatches: no match, imposing header {}: {}: Action {}",
+		    header_data.name_.get(), header_data.value_, header_data.mismatch_action_);
+	  switch (header_data.mismatch_action_) {
+	  case cilium::HeaderMatch::FAIL_ON_MISMATCH:
+	  default:
+	    kv = log_entry.entry.mutable_http()->add_missing_headers();
+	    accepted = false;
+	    break;
+	  case cilium::HeaderMatch::CONTINUE_ON_MISMATCH:
+	    kv = log_entry.entry.mutable_http()->add_missing_headers();
+	    continue;
+	  case cilium::HeaderMatch::ADD_ON_MISMATCH:
+	    headers.addReferenceKey(header_data.name_, header_data.value_);
+	    kv = log_entry.entry.mutable_http()->add_missing_headers();
+	    break;
+	  case cilium::HeaderMatch::DELETE_ON_MISMATCH:
+	    if (header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present) {
+	      // presence match failed, nothing to do
+	      continue;
+	    }
+	    {
+	      // otherwise need to find out if the header existed or not
+	      const Envoy::Http::HeaderEntry* entry;
+	      auto res = headers.lookup(header_data.name_, &entry);
+	      struct Ctx {
+		const std::string& name_;
+		const Envoy::Http::HeaderString* value_;
+	      } ctx = {
+		header_data.name_.get(),
+		res == Envoy::Http::HeaderMap::Lookup::Found ? &entry->value() : nullptr
+	      };
+	      if (res == Envoy::Http::HeaderMap::Lookup::NotSupported) {
+		// non-supported header, find by iteration
+		headers.iterate([](const Envoy::Http::HeaderEntry& entry, void* ctx_) {
+				  auto* ctx = static_cast<Ctx*>(ctx_);
+				  if (entry.key() == ctx->name_) {
+				    ctx->value_ = &entry.value();
+				    return Envoy::Http::HeaderMap::Iterate::Break;
+				  }
+				  return Envoy::Http::HeaderMap::Iterate::Continue;
+				}, &ctx);
+	      }
+	      if (!ctx.value_) {
+		continue; // nothing to remove
+	      }
+	      // Remove the header with an incorrect value
+	      headers.remove(header_data.name_);
+	      kv = log_entry.entry.mutable_http()->add_rejected_headers();
+	      kv->set_key(ctx.name_);
+	      kv->set_value(ctx.value_->getStringView().data(), ctx.value_->getStringView().size());
+	    }
+	    continue;
+	  case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
+	    headers.setReferenceKey(header_data.name_, header_data.value_);
+	    kv = log_entry.entry.mutable_http()->add_missing_headers();
+	    break;
+	  }
+	}
+	kv->set_key(header_data.name_.get());
+	kv->set_value(header_data.value_);  
+      }
+      return accepted;
+    }
+
     std::vector<Envoy::Http::HeaderUtility::HeaderDataPtr> headers_; // Allowed if empty.
+    std::vector<HeaderMatch> header_matches_;
   };
 
   class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
@@ -211,9 +338,11 @@ public:
 	client_context_ = parent.transport_socket_factory_context_.sslContextManager().createSslClientContext(
             parent.transport_socket_factory_context_.scope(), *client_config_);
       }
-
       if (rule.has_http_rules()) {
 	for (const auto& http_rule: rule.http_rules().http_rules()) {
+	  if (http_rule.header_matches_size() > 0) {
+	    have_header_matches_ = true;
+	  }
 	  http_rules_.emplace_back(http_rule);
 	}
       }
@@ -230,18 +359,28 @@ public:
       return true;
     }
 
-    bool Matches(uint64_t remote_id, const Envoy::Http::HeaderMap& headers) const {
+    bool Matches(uint64_t remote_id, Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
       if (!Matches(remote_id)) {
 	return false;
       }
       if (http_rules_.size() > 0) {
+	bool matched = false;
 	for (const auto& rule: http_rules_) {
 	  if (rule.Matches(headers)) {
-	    return true;
+	    // Return on the first match if no rules have header actions
+	    if (!have_header_matches_) {
+	      return true;
+	    }
+	    // orherwise evaluate all rules to run all the header actions,
+	    // and remember if any of them matched
+	    if (rule.HeaderMatches(headers, log_entry)) {
+	      matched = true;
+	    }
 	  }
 	}
-	return false;
+	return matched;
       }
+      // Empty set matches any payload
       return true;
     }
 
@@ -272,6 +411,7 @@ public:
     std::unordered_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
     std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
     std::string l7_proto_{};
+    int have_header_matches_{false};
   };
 
   class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
@@ -288,7 +428,7 @@ public:
       }
     }
 
-    bool Matches(uint64_t remote_id, const Envoy::Http::HeaderMap& headers) const {
+    bool Matches(uint64_t remote_id, Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
       if (!have_http_rules_) {
 	// If there are no L7 rules, host proxy will not create a proxy redirect at all,
 	// whereby the decicion made by the bpf datapath is final. Emulate the same behavior
@@ -301,7 +441,7 @@ public:
 	return true;
       }
       for (const auto& rule: rules_) {
-	if (rule.Matches(remote_id, headers)) {
+	if (rule.Matches(remote_id, headers, log_entry)) {
 	  return true;
 	}
       }
@@ -338,11 +478,11 @@ public:
       }
     }
 
-    bool Matches(uint32_t port, uint64_t remote_id, const Envoy::Http::HeaderMap& headers) const {
+    bool Matches(uint32_t port, uint64_t remote_id, Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
       bool found_port_rule = false;
       auto it = rules_.find(port);
       if (it != rules_.end()) {
-	if (it->second.Matches(remote_id, headers)) {
+	if (it->second.Matches(remote_id, headers, log_entry)) {
 	  return true;
 	}
 	found_port_rule = true;
@@ -351,7 +491,7 @@ public:
       // Note: Wildcard port makes no sense for an L7 policy, but the policy could be a L3/L4 policy as well.
       it = rules_.find(0);
       if (it != rules_.end()) {
-	if (it->second.Matches(remote_id, headers)) {
+	if (it->second.Matches(remote_id, headers, log_entry)) {
 	  return true;
 	}
 	found_port_rule = true;
@@ -376,10 +516,10 @@ public:
 
 public:
   bool Allowed(bool ingress, uint32_t port, uint64_t remote_id,
-	       const Envoy::Http::HeaderMap& headers) const {
+	       Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
     return ingress
-      ? ingress_.Matches(port, remote_id, headers)
-      : egress_.Matches(port, remote_id, headers);
+      ? ingress_.Matches(port, remote_id, headers, log_entry)
+      : egress_.Matches(port, remote_id, headers, log_entry);
   }
 
   const PortNetworkPolicyRule* findPortPolicy(bool ingress, uint32_t port, uint64_t remote_id) const {

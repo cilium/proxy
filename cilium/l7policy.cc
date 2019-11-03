@@ -104,18 +104,20 @@ void AccessFilter::onDestroy() {}
 Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, bool) {
   headers.remove(Http::Headers::get().EnvoyOriginalDstHost);
   const auto& conn = callbacks_->connection();
-  bool ingress = false;
   bool allowed = false;
-  std::string policy_name{};
 
   if (conn) {
     const auto option = Cilium::GetSocketOption(conn->socketOptions());
     if (option) {
-      policy_name = option->pod_ip_;
-      ingress = option->ingress_;
+      std::string policy_name = option->pod_ip_;
+      bool ingress = option->ingress_;
+
+      // Fill in the log entry
+      log_entry_.InitFromRequest(policy_name, ingress, conn, headers, callbacks_->streamInfo());
+
       allowed = option->policy_ && option->policy_->Allowed(ingress, option->port_,
 							    ingress ? option->identity_ : option->destination_identity_,
-							    headers);
+							    headers, log_entry_);
       ENVOY_LOG(debug, "Cilium L7: {} ({}->{}) policy lookup for endpoint {}: {}",
 		ingress ? "Ingress" : "Egress",
 		option->identity_, option->destination_identity_,
@@ -127,9 +129,6 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, 
     ENVOY_LOG(warn, "Cilium L7: No connection");
   }
 
-  // Fill in the log entry
-  log_entry_.InitFromRequest(policy_name, ingress, callbacks_->connection(),
-                             headers, callbacks_->streamInfo());
   if (!allowed) {
     denied_ = true;
     config_->stats_.access_denied_.inc();

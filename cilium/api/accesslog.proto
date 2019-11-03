@@ -33,6 +33,15 @@ message HttpLogEntry {
 
   // Response info
   uint32 status = 7;      // Envoy ":status" header, zero for request
+
+  // missing_headers includes both headers that were added to the
+  // request, and headers that were merely logged as missing
+  repeated KeyValue missing_headers = 8;
+
+  // rejected_headers includes headers that were flagged as unallowed,
+  // which may have been removed, or merely logged and the request still
+  // allowed, or the request may have been dropped due to them.
+  repeated KeyValue rejected_headers = 9;
 }
 
 message L7LogEntry {

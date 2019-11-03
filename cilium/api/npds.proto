@@ -140,6 +140,28 @@ message HttpNetworkPolicyRules {
   repeated HttpNetworkPolicyRule http_rules = 1 [(validate.rules).repeated.min_items = 1];
 }
 
+message HeaderMatch {
+  string name = 1 [(validate.rules).string.min_bytes = 1];
+  string value = 2; // empty for presence match
+
+  // Action specifies what to do when the header matches.
+  enum MatchAction {
+    CONTINUE_ON_MATCH = 0; // Keep checking other matches (default)
+    FAIL_ON_MATCH     = 1; // Drop the request if no other rule matches
+    DELETE_ON_MATCH   = 2; // Remove the whole matching header
+  }
+  MatchAction match_action = 3;
+
+  enum MismatchAction {
+    FAIL_ON_MISMATCH     = 0; // Drop the request if no other rule matches (default)
+    CONTINUE_ON_MISMATCH = 1; // Keep checking other matches, log the mismatch
+    ADD_ON_MISMATCH      = 2; // Add 'value' to the multivalued header
+    DELETE_ON_MISMATCH   = 3; // Remove the whole mismatching header
+    REPLACE_ON_MISMATCH  = 4; // Replace the whole mismatching header with 'value'
+  }
+  MismatchAction mismatch_action = 4;
+}
+
 // An HTTP network policy rule, as a conjunction of predicates on HTTP requests.
 // If all the predicates of a rule match an HTTP request, the request is allowed. Otherwise, it is
 // denied.
@@ -156,6 +178,14 @@ message HttpNetworkPolicyRule {
   //
   // Optional. If empty, matches any HTTP request.
   repeated envoy.api.v2.route.HeaderMatcher headers = 1;
+
+  // header_matches is a set of HTTP header name and value pairs that
+  // will be matched against the request headers, if all the other match requirements
+  // in 'headers' are met. Each HeaderAction determines what to do when there is a match
+  // or mismatch.
+  //
+  // Optional.
+  repeated HeaderMatch header_matches = 2;
 }
 
 // A set of network policy rules that match Kafka requests.

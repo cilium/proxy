@@ -201,6 +201,65 @@ resources:
         - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
 )EOF";
 
+const std::string HEADER_ACTION_POLICY = R"EOF(version_info: "0"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  name: '{{ ntop_ip_loopback_address }}'
+  policy: 3
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+      http_rules:
+        http_rules:
+        - headers: [ { name: ':path', exact_match: '/allowed' } ]
+          header_matches:
+          - name: 'header42'
+            match_action: FAIL_ON_MATCH
+            mismatch_action: CONTINUE_ON_MISMATCH
+          - name: 'header1'
+            value: 'value1'
+            mismatch_action: REPLACE_ON_MISMATCH
+        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+          header_matches:
+          - name: 'user-agent'
+            value: 'CuRL'
+            mismatch_action: DELETE_ON_MISMATCH
+        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
+          header_matches:
+          - name: 'header2'
+            value: 'value2'
+            mismatch_action: ADD_ON_MISMATCH
+          - name: 'header42'
+            match_action: DELETE_ON_MATCH
+            mismatch_action: CONTINUE_ON_MISMATCH
+        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+          header_matches:
+          - name: 'header42'
+            value: '42'
+            mismatch_action: DELETE_ON_MISMATCH
+        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+    - remote_policies: [ 2 ]
+      http_rules:
+        http_rules:
+        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+      http_rules:
+        http_rules:
+        - headers: [ { name: ':path', exact_match: '/allowed' } ]
+        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
+        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+    - remote_policies: [ 2 ]
+      http_rules:
+        http_rules:
+        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+)EOF";
+
 const std::string TCP_POLICY = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
@@ -485,7 +544,7 @@ public:
   }
 
   void Denied(Http::TestHeaderMapImpl&& headers) {
-    policy_config = TestEnvironment::substitute(BASIC_POLICY, GetParam());
+    policy_config = TestEnvironment::substitute(HEADER_ACTION_POLICY, GetParam());
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
@@ -497,7 +556,7 @@ public:
   }
 
   void Accepted(Http::TestHeaderMapImpl&& headers) {
-    policy_config = TestEnvironment::substitute(BASIC_POLICY, GetParam());
+    policy_config = TestEnvironment::substitute(HEADER_ACTION_POLICY, GetParam());
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
@@ -768,16 +827,24 @@ TEST_P(CiliumIntegrationTest, DeniedPathPrefix) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathPrefix) {
-  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}, {"header1", "value1"}});
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathPrefixStrippedHeader) {
-  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"},
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}, {"header1", "value2"},
             {"x-envoy-original-dst-host", "1.1.1.1:9999"}});
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathRegex) {
   Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
+}
+
+TEST_P(CiliumIntegrationTest, AllowedPathRegexDeleteHeader) {
+  Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}, {"User-Agent", "test"}});
+}
+
+TEST_P(CiliumIntegrationTest, AllowedHostRegexDeleteHeader) {
+  Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "hostREGEXname"}, {"header42", "test"}});
 }
 
 TEST_P(CiliumIntegrationTest, DeniedPath) {
@@ -786,6 +853,18 @@ TEST_P(CiliumIntegrationTest, DeniedPath) {
 
 TEST_P(CiliumIntegrationTest, AllowedHostString) {
   Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "allowedHOST"}});
+}
+
+TEST_P(CiliumIntegrationTest, AllowedReplaced) {
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "allowedHOST"}});
+}
+
+TEST_P(CiliumIntegrationTest, Denied42) {
+  Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}, {"header42", "anything"}});
+}
+
+TEST_P(CiliumIntegrationTest, AllowedReplacedAndDeleted) {
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "allowedHOST"}, {"header42", "anything"}});
 }
 
 TEST_P(CiliumIntegrationTest, AllowedHostRegex) {
