@@ -17,6 +17,7 @@ envoy_cc_binary(
         "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
         "//cilium:l7policy_lib",
+        "//cilium:tls_wrapper_lib",
 
         # Istio filters.
         # Cf. https://github.com/istio/proxy/blob/master/src/envoy/BUILD#L23
@@ -36,13 +37,16 @@ envoy_cc_test(
     data = [
         "cilium_proxy_test.json",
         "proxylib/libcilium.so",
+        "@envoy//test/config/integration/certs",
     ],
     repository = "@envoy",
     deps = [
         "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
         "//cilium:l7policy_lib",
+        "//cilium:tls_wrapper_lib",
         "@envoy//test/integration:http_integration_lib",
+        #"@envoy//source/extensions/transport_sockets/tls:context_config_lib",
     ],
 )
 

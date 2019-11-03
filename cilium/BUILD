@@ -9,6 +9,23 @@ load(
 envoy_package()
 
 envoy_cc_library(
+    name = "tls_wrapper_lib",
+    visibility = ["//visibility:public"],
+    srcs = ["tls_wrapper.cc"],
+    hdrs = ["tls_wrapper.h"],
+    repository = "@envoy",
+    deps = [
+        "@envoy//include/envoy/network:transport_socket_interface",
+        "@envoy//include/envoy/registry",
+	"@envoy//include/envoy/server:transport_socket_config_interface",
+	"@envoy//source/server:transport_socket_config_lib",
+        "@envoy//source/extensions/transport_sockets/tls:ssl_socket_lib",
+        "//cilium:network_policy_lib",
+        "//cilium:socket_option_lib",
+    ],
+)
+
+envoy_cc_library(
     name = "network_policy_lib",
     srcs = [
 	"network_policy.cc",

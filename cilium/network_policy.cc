@@ -13,9 +13,11 @@ namespace Cilium {
 
 uint64_t NetworkPolicyMap::instance_id_ = 0;
 
+// Common base constructor
 // This is used directly for testing with a file-based subscription
-NetworkPolicyMap::NetworkPolicyMap(ThreadLocal::SlotAllocator& tls)
-    : tls_(tls.allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {
+NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
+  : tls_(context.threadLocal().allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
+    transport_socket_factory_context_(context.getTransportSocketFactoryContext()) {
   instance_id_++;
   name_ = "cilium.policymap." + fmt::format("{}", instance_id_) + ".";
   ENVOY_LOG(debug, "NetworkPolicyMap({}) created.", name_);  
@@ -26,13 +28,12 @@ NetworkPolicyMap::NetworkPolicyMap(ThreadLocal::SlotAllocator& tls)
 }
 
 // This is used in production
-NetworkPolicyMap::NetworkPolicyMap(const LocalInfo::LocalInfo& local_info,
-				   Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-				   Runtime::RandomGenerator& random, Stats::Scope &scope,
-				   ThreadLocal::SlotAllocator& tls)
-  : NetworkPolicyMap(tls) {
-  scope_ = scope.createScope(name_);
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", "cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies", local_info, cm, dispatcher, random, *scope_, *this);
+NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct)
+  : NetworkPolicyMap(context) {
+  ctmap_ = ct;
+  scope_ = context.scope().createScope(name_);
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", "cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies",
+			    context.localInfo(), context.clusterManager(), context.dispatcher(), context.random(), *scope_, *this);
 }
 
 void NetworkPolicyMap::pause() {
@@ -75,7 +76,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
     }
 
     // May throw
-    to_be_added->emplace_back(std::make_shared<PolicyInstance>(new_hash, config));
+    to_be_added->emplace_back(std::make_shared<PolicyInstance>(*this, new_hash, config));
   }
 
   // Collect a shared vector of policy names to be removed
@@ -142,6 +143,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
 void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason, const EnvoyException*) {
   // We need to allow server startup to continue, even if we have a bad
   // config.
+  ENVOY_LOG(debug, "Network Policy Update failed, keeping existing policy." );
 }
 
 } // namespace Cilium

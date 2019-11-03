@@ -21,8 +21,11 @@
 #include "common/protobuf/protobuf.h"
 #include "common/thread_local/thread_local_impl.h"
 #include "extensions/filters/network/http_connection_manager/config.h"
+#include "extensions/transport_sockets/tls/context_config_impl.h"
+#include "extensions/transport_sockets/tls/ssl_socket.h"
 
 #include "test/integration/http_integration.h"
+#include "test/integration/ssl_utility.h"
 #include "test/test_common/environment.h"
 #include "test/test_common/network_utility.h"
 
@@ -232,14 +235,22 @@ public:
     // as required by the original_dst cluster.
     socket.restoreLocalAddress(original_dst_address);
 
+    // TLS filter chain matches this, make namespace part of this (e.g., "default")?
+    socket.setDetectedTransportProtocol("cilium:default");
+
+    // This must be the full domain name
+    socket.setRequestedServerName("localhost");
+
     if (is_ingress_) {
       std::string pod_ip = original_dst_address->ip()->addressAsString();
       ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
-      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, 1, 173, true, 80, 10000, std::move(pod_ip), nullptr));
+      auto policy = npmap_->GetPolicyInstance(pod_ip);
+      socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, 1, 173, true, 80, 10000, std::move(pod_ip), nullptr));
     } else {
       std::string pod_ip = socket.localAddress()->ip()->addressAsString();
       ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
-      socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, 173, hosts_->resolve(socket.localAddress()->ip()), false, 80, 10001, std::move(pod_ip), nullptr));
+      auto policy = npmap_->GetPolicyInstance(pod_ip);
+      socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, 173, hosts_->resolve(socket.localAddress()->ip()), false, 80, 10001, std::move(pod_ip), nullptr));
     }
 
     return true;
@@ -287,7 +298,7 @@ createPolicyMap(const std::string& config, Server::Configuration::FactoryContext
 	ENVOY_LOG_MISC(debug, "Loading Cilium Network Policy from file \'{}\' instead of using gRPC", path);
         Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path, context.api());
         Envoy::Config::SubscriptionStats stats = Envoy::Config::Utility::generateStats(context.scope());
-        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context.threadLocal());
+        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
             context.dispatcher(), path, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
 	map->startSubscription(std::move(subscription));
@@ -313,7 +324,6 @@ public:
     // Create the file-based policy map before the filter is created, so that the singleton
     // is set before the gRPC subscription is attempted.
     npmap = createPolicyMap(policy_config, context);
-
 
     auto config = std::make_shared<Filter::BpfMetadata::TestConfig>(
         MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(proto_config, context.messageValidationVisitor()), context);
@@ -393,7 +403,7 @@ static_resources:
   clusters:
   - name: cluster1
     type: ORIGINAL_DST
-    lb_policy: ORIGINAL_DST_LB
+    lb_policy: CLUSTER_PROVIDED
     connect_timeout:
       seconds: 1
   - name: xds-grpc-cilium
@@ -420,7 +430,6 @@ static_resources:
       - name: cilium.network
         config:
           proxylib: "proxylib/libcilium.so"
-          l7_proto: "test.passer"
       - name: envoy.http_connection_manager
         typed_config:
           "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
@@ -802,7 +811,7 @@ TEST_P(CiliumIntegrationTest, DuplicatePort) {
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', value: '/only-2-allowed', regex: false } ]
+        - headers: [ { name: ':path', regex_match: '/only-2-allowed'} ]
 )EOF";
 
   // This would normally be allowed, but since the policy fails, everything will be rejected.
@@ -891,7 +900,7 @@ static_resources:
   clusters:
   - name: cluster1
     type: ORIGINAL_DST
-    lb_policy: ORIGINAL_DST_LB
+    lb_policy: CLUSTER_PROVIDED
     connect_timeout:
       seconds: 1
   - name: xds-grpc-cilium
@@ -918,7 +927,6 @@ static_resources:
       - name: cilium.network
         config:
           proxylib: "proxylib/libcilium.so"
-          l7_proto: "test.passer"
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
@@ -935,8 +943,16 @@ public:
     enable_half_close_ = true;
   }
 
+  ~CiliumTcpIntegrationTest() override {
+    TearDown();
+  }
+
+  virtual std::string testPolicy() {
+    return TestEnvironment::substitute(TCP_POLICY, GetParam());
+  }
+
   void initialize() override {
-    policy_config = TestEnvironment::substitute(TCP_POLICY, GetParam());
+    policy_config = testPolicy();
     config_helper_.renameListener("tcp_proxy");
     BaseIntegrationTest::initialize();
     // Pass the fake upstream address to the cilium bpf filter that will set it as an "original destination address".
@@ -1173,7 +1189,7 @@ static_resources:
   clusters:
   - name: cluster1
     type: ORIGINAL_DST
-    lb_policy: ORIGINAL_DST_LB
+    lb_policy: CLUSTER_PROVIDED
     connect_timeout:
       seconds: 1
   - name: xds-grpc-cilium
@@ -1200,7 +1216,6 @@ static_resources:
       - name: cilium.network
         config:
           proxylib: "proxylib/libcilium.so"
-          l7_proto: "test.lineparser"
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
@@ -1208,9 +1223,30 @@ static_resources:
           cluster: cluster1
 )EOF";
 
+const std::string TCP_POLICY_LINEPARSER = R"EOF(version_info: "0"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  name: '{{ ntop_ip_loopback_address }}'
+  policy: 3
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+      l7_proto: "test.lineparser"
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+      l7_proto: "test.lineparser"
+)EOF";
+
 class CiliumGoLinetesterIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumGoLinetesterIntegrationTest() : CiliumTcpIntegrationTest(fmt::format(TestEnvironment::substitute(cilium_linetester_config_fmt, GetParam()), "true")) {}
+
+  std::string testPolicy() override {
+    return TestEnvironment::substitute(TCP_POLICY_LINEPARSER, GetParam());
+  }
 };
 
 INSTANTIATE_TEST_CASE_P(IpVersions, CiliumGoLinetesterIntegrationTest,
@@ -1364,7 +1400,7 @@ static_resources:
   clusters:
   - name: cluster1
     type: ORIGINAL_DST
-    lb_policy: ORIGINAL_DST_LB
+    lb_policy: CLUSTER_PROVIDED
     connect_timeout:
       seconds: 1
   - name: xds-grpc-cilium
@@ -1393,7 +1429,6 @@ static_resources:
           proxylib: "proxylib/libcilium.so"
           proxylib_params:
             access-log-path: "{{ test_udsdir }}/access_log.sock"
-          l7_proto: "test.blockparser"
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
@@ -1401,9 +1436,30 @@ static_resources:
           cluster: cluster1
 )EOF";
 
+const std::string TCP_POLICY_BLOCKPARSER = R"EOF(version_info: "0"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  name: '{{ ntop_ip_loopback_address }}'
+  policy: 3
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+      l7_proto: "test.blockparser"
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+      l7_proto: "test.blockparser"
+)EOF";
+
 class CiliumGoBlocktesterIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumGoBlocktesterIntegrationTest() : CiliumTcpIntegrationTest(fmt::format(TestEnvironment::substitute(cilium_blocktester_config_fmt, GetParam()), "true")) {}
+
+  std::string testPolicy() override {
+    return TestEnvironment::substitute(TCP_POLICY_BLOCKPARSER, GetParam());
+  }
 };
 
 INSTANTIATE_TEST_CASE_P(IpVersions, CiliumGoBlocktesterIntegrationTest,
@@ -1627,6 +1683,893 @@ TEST_F(CiliumTest, AccessLog) {
   EXPECT_EQ(log.entry.http().headers_size(), 1);
   EXPECT_STREQ(log.entry.http().headers(0).key().c_str(), "x-request-id");
   EXPECT_STREQ(log.entry.http().headers(0).value().c_str(), "ba41267c-cfc2-4a92-ad3e-cd084ab099b4");
+}
+
+//
+// Cilium filters with TCP proxy & Upstream TLS
+//
+
+// params: is_ingress ("true", "false")
+const std::string cilium_tls_tcp_proxy_config_fmt = R"EOF(
+admin:
+  access_log_path: /dev/null
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 0
+static_resources:
+  clusters:
+  - name: tls-cluster
+    type: ORIGINAL_DST
+    lb_policy: CLUSTER_PROVIDED
+    connect_timeout:
+      seconds: 1
+    transport_socket:
+      name: "cilium.tls_wrapper"
+  - name: xds-grpc-cilium
+    connect_timeout:
+      seconds: 5
+    type: STATIC
+    lb_policy: ROUND_ROBIN
+    http2_protocol_options:
+    hosts:
+    - pipe:
+        path: /var/run/cilium/xds.sock
+  listeners:
+    name: listener_0
+    address:
+      socket_address:
+        address: 127.0.0.1
+        port_value: 0
+    listener_filters:
+    - name: test_bpf_metadata
+      config:
+        is_ingress: {0}
+    filter_chains:
+    - filters:
+      - name: cilium.network
+        config:
+          proxylib: "proxylib/libcilium.so"
+      - name: envoy.tcp_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
+          stat_prefix: tcp_stats
+          cluster: tls-cluster
+)EOF";
+
+const std::string cilium_listener_tls_context_fmt = R"EOF(
+      transport_socket:
+        name: "cilium.tls_wrapper"
+)EOF";
+
+Network::TransportSocketFactoryPtr
+createClientSslTransportSocketFactory(Ssl::ContextManager& context_manager, Api::Api& api) {
+  std::string yaml_plain = R"EOF(
+  common_tls_context:
+    validation_context:
+      trusted_ca:
+        filename: "{{ test_rundir }}/test/config/integration/certs/cacert.pem"
+)EOF";
+
+  envoy::api::v2::auth::UpstreamTlsContext tls_context;
+  TestUtility::loadFromYaml(TestEnvironment::substitute(yaml_plain), tls_context);
+
+  NiceMock<Server::Configuration::MockTransportSocketFactoryContext> mock_factory_ctx;
+  ON_CALL(mock_factory_ctx, api()).WillByDefault(testing::ReturnRef(api));
+  auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
+      tls_context, "", mock_factory_ctx);
+  static auto* client_stats_store = new Stats::TestIsolatedStoreImpl();
+  return Network::TransportSocketFactoryPtr{
+      new Extensions::TransportSockets::Tls::ClientSslSocketFactory(std::move(cfg), context_manager,
+                                                                    *client_stats_store)};
+}
+
+class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
+public:
+  CiliumTLSIntegrationTest(const std::string& config)
+    : CiliumTcpIntegrationTest(config) {
+    for (Logger::Logger& logger : Logger::Registry::loggers()) {
+      logger.setLevel(spdlog::level::trace);
+    }
+  }
+
+  void initialize() override {
+    CiliumTcpIntegrationTest::initialize();
+
+    payload_reader_.reset(new WaitForPayloadReader(*dispatcher_));
+  }
+
+  void createUpstreams() override {
+    if (upstream_tls_) {
+      fake_upstreams_.emplace_back(new FakeUpstream(
+          createUpstreamSslContext(), 0, FakeHttpConnection::Type::HTTP1, version_, timeSystem(),
+          true));
+    } else {
+      CiliumTcpIntegrationTest::createUpstreams(); // maybe BaseIntegrationTest::createUpstreams()
+    }
+  }
+
+  void TearDown() override {
+    CiliumTcpIntegrationTest::TearDown();
+  }
+
+  // TODO(mattklein123): This logic is duplicated in various places. Cleanup in a follow up.
+  Network::TransportSocketFactoryPtr createUpstreamSslContext() {
+    envoy::api::v2::auth::DownstreamTlsContext tls_context;
+    auto* common_tls_context = tls_context.mutable_common_tls_context();
+    auto* tls_cert = common_tls_context->add_tls_certificates();
+    tls_cert->mutable_certificate_chain()->set_filename(TestEnvironment::runfilesPath(
+        fmt::format("test/config/integration/certs/{}cert.pem", upstream_cert_name_)));
+    tls_cert->mutable_private_key()->set_filename(TestEnvironment::runfilesPath(
+        fmt::format("test/config/integration/certs/{}key.pem", upstream_cert_name_)));
+
+    auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
+        tls_context, factory_context_);
+
+    static Stats::Scope* upstream_stats_store = new Stats::IsolatedStoreImpl();
+    return std::make_unique<Extensions::TransportSockets::Tls::ServerSslSocketFactory>(
+        std::move(cfg), context_manager_, *upstream_stats_store, std::vector<std::string>{});
+  }
+
+  void setupConnections() {
+    initialize();
+    fake_upstreams_[0]->setReadDisableOnNewConnection(false);
+
+    // Set up the mock buffer factory so the newly created SSL client will have a mock write
+    // buffer. This allows us to track the bytes actually written to the socket.
+
+    EXPECT_CALL(*mock_buffer_factory_, create_(_, _))
+        .Times(1)
+        .WillOnce(Invoke([&](std::function<void()> below_low,
+                             std::function<void()> above_high) -> Buffer::Instance* {
+          client_write_buffer_ = new NiceMock<MockWatermarkBuffer>(below_low, above_high);
+          ON_CALL(*client_write_buffer_, move(_))
+              .WillByDefault(Invoke(client_write_buffer_, &MockWatermarkBuffer::baseMove));
+          ON_CALL(*client_write_buffer_, drain(_))
+              .WillByDefault(Invoke(client_write_buffer_, &MockWatermarkBuffer::trackDrains));
+          return client_write_buffer_;
+        }));
+    // Set up the SSL client.
+    Network::Address::InstanceConstSharedPtr address =
+        Ssl::getSslAddress(version_, lookupPort("tcp_proxy"));
+    context_ = createClientSslTransportSocketFactory(context_manager_, *api_);
+    ssl_client_ =
+        dispatcher_->createClientConnection(address, Network::Address::InstanceConstSharedPtr(),
+                                            context_->createTransportSocket(nullptr), nullptr);
+
+    // Perform the SSL handshake. Loopback is whitelisted in tcp_proxy.json for the ssl_auth
+    // filter so there will be no pause waiting on auth data.
+    ssl_client_->addConnectionCallbacks(connect_callbacks_);
+    ssl_client_->enableHalfClose(true);
+    ssl_client_->addReadFilter(payload_reader_);
+    ssl_client_->connect();
+    while (!connect_callbacks_.connected()) {
+      dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
+    }
+  }
+
+  // Test proxying data in both directions with envoy doing TCP and TLS
+  // termination.
+  void sendAndReceiveTlsData(const std::string& data_to_send_upstream,
+                             const std::string& data_to_send_downstream) {
+    FakeRawConnectionPtr fake_upstream_connection;
+    AssertionResult result = fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection);
+    RELEASE_ASSERT(result, result.message());
+
+    // Ship some data upstream.
+    Buffer::OwnedImpl buffer(data_to_send_upstream);
+    ssl_client_->write(buffer, false);
+    while (client_write_buffer_->bytes_drained() != data_to_send_upstream.size()) {
+      dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
+    }
+
+    // Make sure the data makes it upstream.
+    ASSERT_TRUE(fake_upstream_connection->waitForData(data_to_send_upstream.size()));
+
+    // Now send data downstream and make sure it arrives.
+    ASSERT_TRUE(fake_upstream_connection->write(data_to_send_downstream));
+    payload_reader_->set_data_to_wait_for(data_to_send_downstream);
+    ssl_client_->dispatcher().run(Event::Dispatcher::RunType::Block);
+
+    // Clean up.
+    Buffer::OwnedImpl empty_buffer;
+    ssl_client_->write(empty_buffer, true);
+    dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
+    ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+    ASSERT_TRUE(fake_upstream_connection->write("", true));
+    ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+    ssl_client_->dispatcher().run(Event::Dispatcher::RunType::Block);
+    EXPECT_TRUE(payload_reader_->readLastByte());
+    EXPECT_TRUE(connect_callbacks_.closed());
+  }
+
+  // Upstream
+  bool upstream_tls_{true};
+  std::string upstream_cert_name_{"upstreamlocalhost"};
+
+  // Downstream
+  std::shared_ptr<WaitForPayloadReader> payload_reader_;
+  MockWatermarkBuffer* client_write_buffer_;
+  Network::TransportSocketFactoryPtr context_;
+  Network::ClientConnectionPtr ssl_client_;
+  ConnectionStatusCallbacks connect_callbacks_;
+};
+
+const std::string TCP_POLICY_UPSTREAM_TLS = R"EOF(version_info: "0"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  name: '{{ ntop_ip_loopback_address }}'
+  policy: 3
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+      upstream_tls_context:
+        trusted_ca: "-----BEGIN CERTIFICATE-----\nMIID7zCCAtegAwIBAgIUQygBeIE4nv9JGaDKixnhwkK5viEwDQYJKoZIhvcNAQEL\nBQAwfzELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcM\nDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBEx5ZnQxGTAXBgNVBAsMEEx5ZnQgRW5n\naW5lZXJpbmcxGTAXBgNVBAMMEFRlc3QgVXBzdHJlYW0gQ0EwHhcNMTkwNzA4MjE0\nNTU2WhcNMjEwNzA3MjE0NTU2WjB/MQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2Fs\naWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwETHlmdDEZ\nMBcGA1UECwwQTHlmdCBFbmdpbmVlcmluZzEZMBcGA1UEAwwQVGVzdCBVcHN0cmVh\nbSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMJ7AetbhOCUxB/A\nyYt+4rxyMVUFX9izqbOU9nuUxsB/avGhYpVjj5cNaLPdGX+c7g65Vz0yGDSskDGD\nukcSFqRSZ2E4/S4gKSIMEslBr2OX+Dqh0XmoAwl4IrtZefCE3inivJdzm0JwI7Yr\nk2qQqsTpJnsWkMSxXUQJYTJ56UFXTkKqF3jSReIQtFMV65T/2x2NLRJ8KuMS7Mbo\nBTBATRsUfbJJWCnzcp2LrKV5sZ/HsJLK/F74jdcvfJQMW49Lq1TZaB5NYSVyFEf6\ntiT43JOcvVkRPBgHDtaiDhWF2WTmPSEB6cHaRwGgBFwjQ1SvZR6f6xexocn44GZE\noSqWJN8CAwEAAaNjMGEwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYw\nHQYDVR0OBBYEFOLTMLryzNAcuxe3cKEhClkL7IduMB8GA1UdIwQYMBaAFOLTMLry\nzNAcuxe3cKEhClkL7IduMA0GCSqGSIb3DQEBCwUAA4IBAQBT88sT8RsoAk6PnnVs\nKWBoC75BnIZr8o1nxBK0zog6Ez4J32aVzEXPicgBg6hf6v77eqbbQ+O7Ayf+YQWj\nl9w9IiXRW1x94tKBrX44O85qTr/xtkfpmQWGKq5fBpdJnZp7lSfGfaG9gasPUNpG\ngfvF/vlYrrJoyvUOG6HQjZ7n7m6f8GEUymCtC68oJcLVL0xkvx/jcvGeJfI5U6yr\nz9nc1W7FcOhrFEetOIH2BwlIN5To3vPbN4zEzt9VPUHZ3m2899hUiMZJaanEexp7\nTZJJ12rHSIJ4MKwQQ5fEmioeluM0uY7EIR72VEsudA8bkXSkbDGs6Q49K9OX+nRB\n4P3c\n-----END CERTIFICATE-----\n"
+      downstream_tls_context:
+        certificate_chain: "-----BEGIN CERTIFICATE-----\nMIIEYTCCA0mgAwIBAgIJAILStmLgUUcVMA0GCSqGSIb3DQEBCwUAMHYxCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRYwFAYDVQQHDA1TYW4gRnJhbmNp\nc2NvMQ0wCwYDVQQKDARMeWZ0MRkwFwYDVQQLDBBMeWZ0IEVuZ2luZWVyaW5nMRAw\nDgYDVQQDDAdUZXN0IENBMB4XDTE4MTIxNzIwMTgwMFoXDTIwMTIxNjIwMTgwMFow\ngaYxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRYwFAYDVQQHDA1T\nYW4gRnJhbmNpc2NvMQ0wCwYDVQQKDARMeWZ0MRkwFwYDVQQLDBBMeWZ0IEVuZ2lu\nZWVyaW5nMRowGAYDVQQDDBFUZXN0IEJhY2tlbmQgVGVhbTEkMCIGCSqGSIb3DQEJ\nARYVYmFja2VuZC10ZWFtQGx5ZnQuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\nMIIBCgKCAQEAuvPdQdmwZongPAgQho/Vipd3PZWrQ6BKxIb4l/RvqtVP321IUTLs\n4vVwpXoYJ+12L+XOO3jCInszs53tHjFpTI1GE8/sasmgR6LRr2krwSoVRHPqUoc9\ntzkDG1SzKP2TRTi1MTI3FO+TnLFahntO9Zstxhv1Epz5GZ/xQLE0/LLoRYzcynL/\niflk18iL1KM8i0Hy4cKjclOaUdnh2nh753iJfxCSb5wJfx4FH1qverYHHT6FopYR\nV40Cg0yYXcYo8yNwrg+EBY8QAT2JOMDokXNKbZpmVKiBlh0QYMX6BBiW249v3sYl\n3Ve+fZvCkle3W0xP0xJw8PdX0NRbvGOrBQIDAQABo4HAMIG9MAwGA1UdEwEB/wQC\nMAAwCwYDVR0PBAQDAgXgMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEFBQcDATBB\nBgNVHREEOjA4hh5zcGlmZmU6Ly9seWZ0LmNvbS9iYWNrZW5kLXRlYW2CCGx5ZnQu\nY29tggx3d3cubHlmdC5jb20wHQYDVR0OBBYEFLHmMm0DV9jCHJSWVRwyPYpBw62r\nMB8GA1UdIwQYMBaAFBQz1vaSbPuePL++7GTMqLAMtk3kMA0GCSqGSIb3DQEBCwUA\nA4IBAQAwx3/M2o00W8GlQ3OT4y/hQGb5K2aytxx8QeSmJaaZTJbvaHhe0x3/fLgq\nuWrW3WEWFtwasilySjOrFOtB9UNmJmNOHSJD3Bslbv5htRaWnoFPCXdwZtVMdoTq\nIHIQqLoos/xj3kVD5sJSYySrveMeKaeUILTkb5ZubSivye1X2yiJLR7AtuwuiMio\nCdIOqhn6xJqYhT7z0IhdKpLNPk4w1tBZSKOXqzrXS4uoJgTC67hWslWWZ2VC6IvZ\nFmKuuGZamCCj6F1QF2IjMVM8evl84hEnN0ajdkA/QWnil9kcWvBm15Ho+oTvvJ7s\nM8MD3RDSq/90FSiME4vbyNEyTmj0\n-----END CERTIFICATE-----\n"
+        private_key: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAuvPdQdmwZongPAgQho/Vipd3PZWrQ6BKxIb4l/RvqtVP321I\nUTLs4vVwpXoYJ+12L+XOO3jCInszs53tHjFpTI1GE8/sasmgR6LRr2krwSoVRHPq\nUoc9tzkDG1SzKP2TRTi1MTI3FO+TnLFahntO9Zstxhv1Epz5GZ/xQLE0/LLoRYzc\nynL/iflk18iL1KM8i0Hy4cKjclOaUdnh2nh753iJfxCSb5wJfx4FH1qverYHHT6F\nopYRV40Cg0yYXcYo8yNwrg+EBY8QAT2JOMDokXNKbZpmVKiBlh0QYMX6BBiW249v\n3sYl3Ve+fZvCkle3W0xP0xJw8PdX0NRbvGOrBQIDAQABAoIBAQCkPLR1sy47BokN\nc/BApn9sn5/LZH7ujBTjDce6hqzLIVZn6/OKEfj1cbWiSd6KxRv8/B/vMykpbZ5/\n/w9eZP4imEGmChWhwruh8zHOrdAYhEXmuwZxtgnLurQ2AHTcX9hPCYB0Va76H3ZI\nQ65JUm6NaeQOlGT6ExjrIA2rTYJFM84I1xH3XbDulS9S2FXNP9RIjV70HzvZw2LR\n1qSNfrnGAEbUCdrZT4BAYTGam5L061ofencYLAorr8K0eVWhUjGV9Jjpq8aG8zy5\nOy1070I0d7Iexfu7T1sQDIqpNkOtQxI8feQEKeKlRKYx6YEQ9vaVwBGa0SBVxQem\nE3YdXBnBAoGBAORlz8wlYqCx25htO/eLgr9hN+eKNhNTo4l905aZrG8SPinaHl15\nn+dQdzlJMVm/rh5+VE0NR0U/vzd3SrdnzczksuGFn0Us/Yg+zOl1+8+GFAtqw3js\nudFLKksChz4Rk/fZo2djtSiFS5aGBtw0Z9T7eorubkTSSfJ7IT99HIu5AoGBANGL\n0ff5U2LV/Y/opKP7xOlxSCVI617N5i0sYMJ9EUaWzvquidzM46T4fwlAeIvAtks7\nACO1cRPuWredZ/gEZ3RguZMxs6llwxwVCaQk/2vbOfATWmyqpGC9UBS/TpYVXbL5\nWUMsdBs4DdAFz8aCrrFBcDeCg4V4w+gHYkFV+LetAoGAB3Ny1fwaPZfPzCc0H51D\nhK7NPhZ6MSM3YJLkRjN5Np5nvMHK383J86fiW9IRdBYWvhPs+B6Ixq+Ps2WG4HjY\nc+i6FTVgvsb69mjmEm+w6VI8cSroeZdvcG59ULkiZFn6c8l71TGhhVLj5mM08hYb\nlQ0nMEUa/8/Ebc6qhQG13rECgYEAm8AZaP9hA22a8oQxG9HfIsSYo1331JemJp19\nrhHX7WfaoGlq/zsrWUt64R2SfA3ZcUGBcQlD61SXCTNuO+LKIq5iQQ4IRDjnNNBO\nQjtdvoVMIy2/YFXVqDIOe91WRCfNZWIA/vTjt/eKDLzFGv+3aPkCt7/CkkqZErWq\nSnXkUGECgYAvkemYu01V1WcJotvLKkVG68jwjMq7jURpbn8oQVlFR8zEh+2UipLB\nOmrNZjmdrhQe+4rzs9XCLE/EZsn7SsygwMyVhgCYzWc/SswADq7Wdbigpmrs+grW\nfg7yxbPGinTyraMd0x3Ty924LLscoJMWUBl7qGeQ2iUdnELmZgLN2Q==\n-----END RSA PRIVATE KEY-----\n"
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+)EOF";
+
+class CiliumTLSProxyIntegrationTest : public CiliumTLSIntegrationTest {
+public:
+  CiliumTLSProxyIntegrationTest() : CiliumTLSIntegrationTest(fmt::format(TestEnvironment::substitute(cilium_tls_tcp_proxy_config_fmt, GetParam()), "true")) {}
+
+  std::string testPolicy() override {
+    return TestEnvironment::substitute(TCP_POLICY_UPSTREAM_TLS, GetParam());
+  }
+};
+
+INSTANTIATE_TEST_CASE_P(IpVersions, CiliumTLSProxyIntegrationTest,
+                        testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                        TestUtility::ipTestParamsToString);
+
+// Test upstream writing before downstream does.
+TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamWritesFirst) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  ASSERT_TRUE(fake_upstream_connection->write("hello"));
+  tcp_client->waitForData("hello");
+
+  tcp_client->write("hello");
+  ASSERT_TRUE(fake_upstream_connection->waitForData(5));
+
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  tcp_client->waitForHalfClose();
+  tcp_client->write("", true);
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+}
+
+// Test proxying data in both directions, and that all data is flushed properly
+// when there is an upstream disconnect.
+TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamDisconnect) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  tcp_client->write("hello");
+
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  ASSERT_TRUE(fake_upstream_connection->waitForData(5));
+  ASSERT_TRUE(fake_upstream_connection->write("world"));
+  ASSERT_TRUE(fake_upstream_connection->close());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  tcp_client->waitForHalfClose();
+  tcp_client->close();
+
+  EXPECT_EQ("world", tcp_client->data());
+}
+
+// Test proxying data in both directions, and that all data is flushed properly
+// when the client disconnects.
+TEST_P(CiliumTLSProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  tcp_client->write("hello");
+
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  ASSERT_TRUE(fake_upstream_connection->waitForData(5));
+  ASSERT_TRUE(fake_upstream_connection->write("world"));
+  tcp_client->waitForData("world");
+  tcp_client->write("hello", true);
+  ASSERT_TRUE(fake_upstream_connection->waitForData(10));
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect(true));
+  tcp_client->waitForDisconnect();
+}
+
+TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyLargeWrite) {
+  config_helper_.setBufferLimits(1024, 1024);
+  initialize();
+
+  std::string data(1024 * 16, 'a');
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  tcp_client->write(data);
+
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  ASSERT_TRUE(fake_upstream_connection->waitForData(data.size()));
+  ASSERT_TRUE(fake_upstream_connection->write(data));
+  tcp_client->waitForData(data);
+  tcp_client->close();
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->close());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+
+  uint32_t upstream_pauses =
+      test_server_->counter("cluster.tls-cluster.upstream_flow_control_paused_reading_total")
+          ->value();
+  uint32_t upstream_resumes =
+      test_server_->counter("cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
+          ->value();
+  EXPECT_EQ(upstream_pauses, upstream_resumes);
+
+  uint32_t downstream_pauses =
+      test_server_->counter("tcp.tcp_stats.downstream_flow_control_paused_reading_total")->value();
+  uint32_t downstream_resumes =
+      test_server_->counter("tcp.tcp_stats.downstream_flow_control_resumed_reading_total")->value();
+  EXPECT_EQ(downstream_pauses, downstream_resumes);
+}
+
+// Test that a downstream flush works correctly (all data is flushed)
+TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyDownstreamFlush) {
+  // Use a very large size to make sure it is larger than the kernel socket read buffer.
+  const uint32_t size = 50 * 1024 * 1024;
+  config_helper_.setBufferLimits(size / 4, size / 4);
+  initialize();
+
+  std::string data(size, 'a');
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  tcp_client->readDisable(true);
+  tcp_client->write("", true);
+
+  // This ensures that readDisable(true) has been run on it's thread
+  // before tcp_client starts writing.
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+
+  ASSERT_TRUE(fake_upstream_connection->write(data, true));
+
+  test_server_->waitForCounterGe("cluster.tls-cluster.upstream_flow_control_paused_reading_total", 1);
+  EXPECT_EQ(test_server_->counter("cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
+                ->value(),
+            0);
+  tcp_client->readDisable(false);
+  tcp_client->waitForData(data);
+  tcp_client->waitForHalfClose();
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+
+  uint32_t upstream_pauses =
+      test_server_->counter("cluster.tls-cluster.upstream_flow_control_paused_reading_total")
+          ->value();
+  uint32_t upstream_resumes =
+      test_server_->counter("cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
+          ->value();
+  EXPECT_GE(upstream_pauses, upstream_resumes);
+  EXPECT_GT(upstream_resumes, 0);
+}
+
+// Test that an upstream flush works correctly (all data is flushed)
+TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlush) {
+  // Use a very large size to make sure it is larger than the kernel socket read buffer.
+  const uint32_t size = 50 * 1024 * 1024;
+  config_helper_.setBufferLimits(size, size);
+  initialize();
+
+  std::string data(size, 'a');
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  // Disabling read does not let the TLS handshake to finish. We should be able to wait for
+  // ConnectionEvent::Connected, which is raised after the TLS handshake has completed,
+  // but just wait for a while instead for now.
+  usleep(10000);
+
+  ASSERT_TRUE(fake_upstream_connection->readDisable(true));
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+
+  // This ensures that fake_upstream_connection->readDisable has been run on it's thread
+  // before tcp_client starts writing.
+  tcp_client->waitForHalfClose();
+
+  tcp_client->write(data, true);
+
+  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
+  ASSERT_TRUE(fake_upstream_connection->readDisable(false));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(data.size()));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+
+  tcp_client->waitForHalfClose();
+
+  EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
+  EXPECT_EQ(test_server_->gauge("tcp.tcp_stats.upstream_flush_active")->value(), 0);
+}
+
+// Test that Envoy doesn't crash or assert when shutting down with an upstream flush active
+TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlushEnvoyExit) {
+  // Use a very large size to make sure it is larger than the kernel socket read buffer.
+  const uint32_t size = 50 * 1024 * 1024;
+  config_helper_.setBufferLimits(size, size);
+  initialize();
+
+  std::string data(size, 'a');
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  // Disabling read does not let the TLS handshake to finish. We should be able to wait for
+  // ConnectionEvent::Connected, which is raised after the TLS handshake has completed,
+  // but just wait for a while instead for now.
+  usleep(10000);
+
+  ASSERT_TRUE(fake_upstream_connection->readDisable(true));
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+
+  // This ensures that fake_upstream_connection->readDisable has been run on it's thread
+  // before tcp_client starts writing.
+  tcp_client->waitForHalfClose();
+
+  tcp_client->write(data, true);
+
+  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
+  test_server_.reset();
+  ASSERT_TRUE(fake_upstream_connection->close());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+
+  // Success criteria is that no ASSERTs fire and there are no leaks.
+}
+
+//
+// Cilium filters with TCP proxy & Upstream TLS
+//
+
+// params: is_ingress ("true", "false")
+const std::string cilium_tls_downstream_tcp_proxy_config_fmt = R"EOF(
+admin:
+  access_log_path: /dev/null
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 0
+static_resources:
+  clusters:
+  - name: tls-cluster
+    type: ORIGINAL_DST
+    lb_policy: CLUSTER_PROVIDED
+    connect_timeout:
+      seconds: 1
+    transport_socket:
+      name: "cilium.tls_wrapper"
+  - name: xds-grpc-cilium
+    connect_timeout:
+      seconds: 5
+    type: STATIC
+    lb_policy: ROUND_ROBIN
+    http2_protocol_options:
+    hosts:
+    - pipe:
+        path: /var/run/cilium/xds.sock
+  listeners:
+    name: listener_0
+    address:
+      socket_address:
+        address: 127.0.0.1
+        port_value: 0
+    listener_filters:
+    - name: test_bpf_metadata
+      config:
+        is_ingress: {0}
+    - name: "envoy.listener.tls_inspector"
+    filter_chains:
+    - filters:
+      - name: cilium.network
+        config:
+          proxylib: "proxylib/libcilium.so"
+      - name: envoy.tcp_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
+          stat_prefix: tcp_stats
+          cluster: tls-cluster
+    - filter_chain_match:
+        transport_protocol: "tls"
+      transport_socket:
+        name: "cilium.tls_wrapper"
+      filters:
+      - name: cilium.network
+        config:
+          proxylib: "proxylib/libcilium.so"
+      - name: envoy.tcp_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
+          stat_prefix: tcp_stats
+          cluster: tls-cluster
+)EOF";
+
+class CiliumDownstreamTLSIntegrationTest : public CiliumTLSIntegrationTest {
+public:
+  CiliumDownstreamTLSIntegrationTest() : CiliumTLSIntegrationTest(fmt::format(TestEnvironment::substitute(cilium_tls_downstream_tcp_proxy_config_fmt, GetParam()), "true")) {}
+
+  std::string testPolicy() override {
+    return TestEnvironment::substitute(TCP_POLICY_UPSTREAM_TLS, GetParam());
+  }
+};
+
+INSTANTIATE_TEST_CASE_P(IpVersions, CiliumDownstreamTLSIntegrationTest,
+                        testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                        TestUtility::ipTestParamsToString);
+
+TEST_P(CiliumDownstreamTLSIntegrationTest, SendTlsToTlsListener) {
+  setupConnections();
+  sendAndReceiveTlsData("hello", "world");
+}
+
+TEST_P(CiliumDownstreamTLSIntegrationTest, LargeBidirectionalTlsWrites) {
+  setupConnections();
+  std::string large_data(1024 * 8, 'a');
+  sendAndReceiveTlsData(large_data, large_data);
+}
+
+// Test that a half-close on the downstream side is proxied correctly.
+TEST_P(CiliumDownstreamTLSIntegrationTest, DownstreamHalfClose) {
+  setupConnections();
+
+  FakeRawConnectionPtr fake_upstream_connection;
+  AssertionResult result = fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection);
+  RELEASE_ASSERT(result, result.message());
+
+  Buffer::OwnedImpl empty_buffer;
+  ssl_client_->write(empty_buffer, true);
+  dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+
+  const std::string data("data");
+  ASSERT_TRUE(fake_upstream_connection->write(data, false));
+  payload_reader_->set_data_to_wait_for(data);
+  ssl_client_->dispatcher().run(Event::Dispatcher::RunType::Block);
+  EXPECT_FALSE(payload_reader_->readLastByte());
+
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  ssl_client_->dispatcher().run(Event::Dispatcher::RunType::Block);
+  EXPECT_TRUE(payload_reader_->readLastByte());
+  EXPECT_TRUE(connect_callbacks_.closed());
+}
+
+// Test that a half-close on the upstream side is proxied correctly.
+TEST_P(CiliumDownstreamTLSIntegrationTest, UpstreamHalfClose) {
+  setupConnections();
+
+  FakeRawConnectionPtr fake_upstream_connection;
+  AssertionResult result = fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection);
+  RELEASE_ASSERT(result, result.message());
+
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ssl_client_->dispatcher().run(Event::Dispatcher::RunType::Block);
+  EXPECT_TRUE(payload_reader_->readLastByte());
+  EXPECT_FALSE(connect_callbacks_.closed());
+
+  const std::string& val("data");
+  Buffer::OwnedImpl buffer(val);
+  ssl_client_->write(buffer, false);
+  while (client_write_buffer_->bytes_drained() != val.size()) {
+    dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
+  }
+  ASSERT_TRUE(fake_upstream_connection->waitForData(val.size()));
+
+  Buffer::OwnedImpl empty_buffer;
+  ssl_client_->write(empty_buffer, true);
+  while (!connect_callbacks_.closed()) {
+    dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
+  }
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+}
+
+//
+// Cilium filters with HTTP proxy & Downstream/Upstream TLS
+//
+
+// params: is_ingress ("true", "false")
+const std::string cilium_tls_http_proxy_config_fmt = R"EOF(
+admin:
+  access_log_path: /dev/null
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 0
+static_resources:
+  clusters:
+  - name: cluster1
+    type: ORIGINAL_DST
+    lb_policy: CLUSTER_PROVIDED
+    connect_timeout:
+      seconds: 1
+  - name: tls-cluster
+    type: ORIGINAL_DST
+    lb_policy: CLUSTER_PROVIDED
+    connect_timeout:
+      seconds: 1
+    transport_socket:
+      name: "cilium.tls_wrapper"
+  - name: xds-grpc-cilium
+    connect_timeout:
+      seconds: 5
+    type: STATIC
+    lb_policy: ROUND_ROBIN
+    http2_protocol_options:
+    hosts:
+    - pipe:
+        path: /var/run/cilium/xds.sock
+  listeners:
+    name: http
+    address:
+      socket_address:
+        address: 127.0.0.1
+        port_value: 0
+    listener_filters:
+    - name: test_bpf_metadata
+      config:
+        is_ingress: {0}
+    filter_chains:
+    - filters:
+      - name: cilium.network
+      - name: envoy.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+          stat_prefix: config_test
+          codec_type: auto
+          http_filters:
+          - name: test_l7policy
+            config:
+              access_log_path: "{{ test_udsdir }}/access_log.sock"
+          - name: envoy.router
+          route_config:
+            name: policy_enabled
+            virtual_hosts:
+              name: integration
+              domains: "*"
+              routes:
+              - route:
+                  cluster: cluster1
+                  max_grpc_timeout:
+                    seconds: 0
+                    nanos: 0
+                match:
+                  prefix: "/"
+    - filter_chain_match:
+        transport_protocol: "cilium:default"
+        server_names: [ "localhost" ]
+      filters:
+      - name: cilium.network
+      - name: envoy.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+          stat_prefix: config_test
+          codec_type: auto
+          http_filters:
+          - name: test_l7policy
+            config:
+              access_log_path: "{{ test_udsdir }}/access_log.sock"
+          - name: envoy.router
+          route_config:
+            name: policy_enabled
+            virtual_hosts:
+              name: integration
+              require_tls: ALL
+              domains: "*"
+              routes:
+              - route:
+                  cluster: tls-cluster
+                  max_grpc_timeout:
+                    seconds: 0
+                    nanos: 0
+                match:
+                  prefix: "/"
+)EOF";
+
+const std::string BASIC_TLS_POLICY = R"EOF(version_info: "0"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  name: '{{ ntop_ip_loopback_address }}'
+  policy: 3
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+      http_rules:
+        http_rules:
+        - headers: [ { name: ':path', exact_match: '/allowed' } ]
+        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
+        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+      upstream_tls_context:
+        trusted_ca: "-----BEGIN CERTIFICATE-----\nMIID7zCCAtegAwIBAgIUQygBeIE4nv9JGaDKixnhwkK5viEwDQYJKoZIhvcNAQEL\nBQAwfzELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcM\nDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBEx5ZnQxGTAXBgNVBAsMEEx5ZnQgRW5n\naW5lZXJpbmcxGTAXBgNVBAMMEFRlc3QgVXBzdHJlYW0gQ0EwHhcNMTkwNzA4MjE0\nNTU2WhcNMjEwNzA3MjE0NTU2WjB/MQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2Fs\naWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwETHlmdDEZ\nMBcGA1UECwwQTHlmdCBFbmdpbmVlcmluZzEZMBcGA1UEAwwQVGVzdCBVcHN0cmVh\nbSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMJ7AetbhOCUxB/A\nyYt+4rxyMVUFX9izqbOU9nuUxsB/avGhYpVjj5cNaLPdGX+c7g65Vz0yGDSskDGD\nukcSFqRSZ2E4/S4gKSIMEslBr2OX+Dqh0XmoAwl4IrtZefCE3inivJdzm0JwI7Yr\nk2qQqsTpJnsWkMSxXUQJYTJ56UFXTkKqF3jSReIQtFMV65T/2x2NLRJ8KuMS7Mbo\nBTBATRsUfbJJWCnzcp2LrKV5sZ/HsJLK/F74jdcvfJQMW49Lq1TZaB5NYSVyFEf6\ntiT43JOcvVkRPBgHDtaiDhWF2WTmPSEB6cHaRwGgBFwjQ1SvZR6f6xexocn44GZE\noSqWJN8CAwEAAaNjMGEwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYw\nHQYDVR0OBBYEFOLTMLryzNAcuxe3cKEhClkL7IduMB8GA1UdIwQYMBaAFOLTMLry\nzNAcuxe3cKEhClkL7IduMA0GCSqGSIb3DQEBCwUAA4IBAQBT88sT8RsoAk6PnnVs\nKWBoC75BnIZr8o1nxBK0zog6Ez4J32aVzEXPicgBg6hf6v77eqbbQ+O7Ayf+YQWj\nl9w9IiXRW1x94tKBrX44O85qTr/xtkfpmQWGKq5fBpdJnZp7lSfGfaG9gasPUNpG\ngfvF/vlYrrJoyvUOG6HQjZ7n7m6f8GEUymCtC68oJcLVL0xkvx/jcvGeJfI5U6yr\nz9nc1W7FcOhrFEetOIH2BwlIN5To3vPbN4zEzt9VPUHZ3m2899hUiMZJaanEexp7\nTZJJ12rHSIJ4MKwQQ5fEmioeluM0uY7EIR72VEsudA8bkXSkbDGs6Q49K9OX+nRB\n4P3c\n-----END CERTIFICATE-----\n"
+      downstream_tls_context:
+        certificate_chain: "-----BEGIN CERTIFICATE-----\nMIIEYTCCA0mgAwIBAgIJAILStmLgUUcVMA0GCSqGSIb3DQEBCwUAMHYxCzAJBgNV\nBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRYwFAYDVQQHDA1TYW4gRnJhbmNp\nc2NvMQ0wCwYDVQQKDARMeWZ0MRkwFwYDVQQLDBBMeWZ0IEVuZ2luZWVyaW5nMRAw\nDgYDVQQDDAdUZXN0IENBMB4XDTE4MTIxNzIwMTgwMFoXDTIwMTIxNjIwMTgwMFow\ngaYxCzAJBgNVBAYTAlVTMRMwEQYDVQQIDApDYWxpZm9ybmlhMRYwFAYDVQQHDA1T\nYW4gRnJhbmNpc2NvMQ0wCwYDVQQKDARMeWZ0MRkwFwYDVQQLDBBMeWZ0IEVuZ2lu\nZWVyaW5nMRowGAYDVQQDDBFUZXN0IEJhY2tlbmQgVGVhbTEkMCIGCSqGSIb3DQEJ\nARYVYmFja2VuZC10ZWFtQGx5ZnQuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8A\nMIIBCgKCAQEAuvPdQdmwZongPAgQho/Vipd3PZWrQ6BKxIb4l/RvqtVP321IUTLs\n4vVwpXoYJ+12L+XOO3jCInszs53tHjFpTI1GE8/sasmgR6LRr2krwSoVRHPqUoc9\ntzkDG1SzKP2TRTi1MTI3FO+TnLFahntO9Zstxhv1Epz5GZ/xQLE0/LLoRYzcynL/\niflk18iL1KM8i0Hy4cKjclOaUdnh2nh753iJfxCSb5wJfx4FH1qverYHHT6FopYR\nV40Cg0yYXcYo8yNwrg+EBY8QAT2JOMDokXNKbZpmVKiBlh0QYMX6BBiW249v3sYl\n3Ve+fZvCkle3W0xP0xJw8PdX0NRbvGOrBQIDAQABo4HAMIG9MAwGA1UdEwEB/wQC\nMAAwCwYDVR0PBAQDAgXgMB0GA1UdJQQWMBQGCCsGAQUFBwMCBggrBgEFBQcDATBB\nBgNVHREEOjA4hh5zcGlmZmU6Ly9seWZ0LmNvbS9iYWNrZW5kLXRlYW2CCGx5ZnQu\nY29tggx3d3cubHlmdC5jb20wHQYDVR0OBBYEFLHmMm0DV9jCHJSWVRwyPYpBw62r\nMB8GA1UdIwQYMBaAFBQz1vaSbPuePL++7GTMqLAMtk3kMA0GCSqGSIb3DQEBCwUA\nA4IBAQAwx3/M2o00W8GlQ3OT4y/hQGb5K2aytxx8QeSmJaaZTJbvaHhe0x3/fLgq\nuWrW3WEWFtwasilySjOrFOtB9UNmJmNOHSJD3Bslbv5htRaWnoFPCXdwZtVMdoTq\nIHIQqLoos/xj3kVD5sJSYySrveMeKaeUILTkb5ZubSivye1X2yiJLR7AtuwuiMio\nCdIOqhn6xJqYhT7z0IhdKpLNPk4w1tBZSKOXqzrXS4uoJgTC67hWslWWZ2VC6IvZ\nFmKuuGZamCCj6F1QF2IjMVM8evl84hEnN0ajdkA/QWnil9kcWvBm15Ho+oTvvJ7s\nM8MD3RDSq/90FSiME4vbyNEyTmj0\n-----END CERTIFICATE-----\n"
+        private_key: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEAuvPdQdmwZongPAgQho/Vipd3PZWrQ6BKxIb4l/RvqtVP321I\nUTLs4vVwpXoYJ+12L+XOO3jCInszs53tHjFpTI1GE8/sasmgR6LRr2krwSoVRHPq\nUoc9tzkDG1SzKP2TRTi1MTI3FO+TnLFahntO9Zstxhv1Epz5GZ/xQLE0/LLoRYzc\nynL/iflk18iL1KM8i0Hy4cKjclOaUdnh2nh753iJfxCSb5wJfx4FH1qverYHHT6F\nopYRV40Cg0yYXcYo8yNwrg+EBY8QAT2JOMDokXNKbZpmVKiBlh0QYMX6BBiW249v\n3sYl3Ve+fZvCkle3W0xP0xJw8PdX0NRbvGOrBQIDAQABAoIBAQCkPLR1sy47BokN\nc/BApn9sn5/LZH7ujBTjDce6hqzLIVZn6/OKEfj1cbWiSd6KxRv8/B/vMykpbZ5/\n/w9eZP4imEGmChWhwruh8zHOrdAYhEXmuwZxtgnLurQ2AHTcX9hPCYB0Va76H3ZI\nQ65JUm6NaeQOlGT6ExjrIA2rTYJFM84I1xH3XbDulS9S2FXNP9RIjV70HzvZw2LR\n1qSNfrnGAEbUCdrZT4BAYTGam5L061ofencYLAorr8K0eVWhUjGV9Jjpq8aG8zy5\nOy1070I0d7Iexfu7T1sQDIqpNkOtQxI8feQEKeKlRKYx6YEQ9vaVwBGa0SBVxQem\nE3YdXBnBAoGBAORlz8wlYqCx25htO/eLgr9hN+eKNhNTo4l905aZrG8SPinaHl15\nn+dQdzlJMVm/rh5+VE0NR0U/vzd3SrdnzczksuGFn0Us/Yg+zOl1+8+GFAtqw3js\nudFLKksChz4Rk/fZo2djtSiFS5aGBtw0Z9T7eorubkTSSfJ7IT99HIu5AoGBANGL\n0ff5U2LV/Y/opKP7xOlxSCVI617N5i0sYMJ9EUaWzvquidzM46T4fwlAeIvAtks7\nACO1cRPuWredZ/gEZ3RguZMxs6llwxwVCaQk/2vbOfATWmyqpGC9UBS/TpYVXbL5\nWUMsdBs4DdAFz8aCrrFBcDeCg4V4w+gHYkFV+LetAoGAB3Ny1fwaPZfPzCc0H51D\nhK7NPhZ6MSM3YJLkRjN5Np5nvMHK383J86fiW9IRdBYWvhPs+B6Ixq+Ps2WG4HjY\nc+i6FTVgvsb69mjmEm+w6VI8cSroeZdvcG59ULkiZFn6c8l71TGhhVLj5mM08hYb\nlQ0nMEUa/8/Ebc6qhQG13rECgYEAm8AZaP9hA22a8oQxG9HfIsSYo1331JemJp19\nrhHX7WfaoGlq/zsrWUt64R2SfA3ZcUGBcQlD61SXCTNuO+LKIq5iQQ4IRDjnNNBO\nQjtdvoVMIy2/YFXVqDIOe91WRCfNZWIA/vTjt/eKDLzFGv+3aPkCt7/CkkqZErWq\nSnXkUGECgYAvkemYu01V1WcJotvLKkVG68jwjMq7jURpbn8oQVlFR8zEh+2UipLB\nOmrNZjmdrhQe+4rzs9XCLE/EZsn7SsygwMyVhgCYzWc/SswADq7Wdbigpmrs+grW\nfg7yxbPGinTyraMd0x3Ty924LLscoJMWUBl7qGeQ2iUdnELmZgLN2Q==\n-----END RSA PRIVATE KEY-----\n"
+    - remote_policies: [ 2 ]
+      http_rules:
+        http_rules:
+        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 1 ]
+      http_rules:
+        http_rules:
+        - headers: [ { name: ':path', exact_match: '/allowed' } ]
+        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
+        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+    - remote_policies: [ 2 ]
+      http_rules:
+        http_rules:
+        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+)EOF";
+
+  /*
+   * Use filter_chain_match on a requestedServerName that is set by the cilium bpf metadata filter based on the applicable network policy?
+   * "example.domain.name.namespace"
+   */
+class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
+public:
+  CiliumHttpTLSIntegrationTest(const std::string& config) : CiliumHttpIntegrationTest(config) {}
+  ~CiliumHttpTLSIntegrationTest() {}
+
+  void initialize() override {
+    CiliumHttpIntegrationTest::initialize();
+    fake_upstreams_[0]->setReadDisableOnNewConnection(false);
+    fake_upstreams_[0]->set_allow_unexpected_disconnects(allow_unexpected_disconnects_);
+
+    // Set up the SSL client.
+    Network::Address::InstanceConstSharedPtr address =
+        Ssl::getSslAddress(version_, lookupPort("http"));
+    context_ = createClientSslTransportSocketFactory(context_manager_, *api_);
+    Network::ClientConnectionPtr ssl_client_ =
+        dispatcher_->createClientConnection(address, Network::Address::InstanceConstSharedPtr(),
+                                            context_->createTransportSocket(nullptr), nullptr);
+
+    ssl_client_->enableHalfClose(true);
+    codec_client_ = makeHttpConnection(std::move(ssl_client_));
+  }
+
+  void createUpstreams() override {
+    if (upstream_tls_) {
+      fake_upstreams_.emplace_back(new FakeUpstream(
+          createUpstreamSslContext(), 0, FakeHttpConnection::Type::HTTP1, version_, timeSystem(),
+          true));
+    } else {
+      CiliumHttpIntegrationTest::createUpstreams();
+    }
+  }
+
+  // TODO(mattklein123): This logic is duplicated in various places. Cleanup in a follow up.
+  Network::TransportSocketFactoryPtr createUpstreamSslContext() {
+    envoy::api::v2::auth::DownstreamTlsContext tls_context;
+    auto* common_tls_context = tls_context.mutable_common_tls_context();
+    auto* tls_cert = common_tls_context->add_tls_certificates();
+    tls_cert->mutable_certificate_chain()->set_filename(TestEnvironment::runfilesPath(
+        fmt::format("test/config/integration/certs/{}cert.pem", upstream_cert_name_)));
+    tls_cert->mutable_private_key()->set_filename(TestEnvironment::runfilesPath(
+        fmt::format("test/config/integration/certs/{}key.pem", upstream_cert_name_)));
+    ENVOY_LOG_MISC(debug, "Fake Upstream Downstream TLS context: {}", tls_context.DebugString());
+    auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
+        tls_context, factory_context_);
+
+    static Stats::Scope* upstream_stats_store = new Stats::IsolatedStoreImpl();
+    return std::make_unique<Extensions::TransportSockets::Tls::ServerSslSocketFactory>(
+        std::move(cfg), context_manager_, *upstream_stats_store, std::vector<std::string>{});
+  }
+
+  void Denied(Http::TestHeaderMapImpl&& headers) {
+    policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
+    initialize();
+    auto response = codec_client_->makeHeaderOnlyRequest(headers);
+    response->waitForEndStream();
+
+    uint64_t status;
+    EXPECT_EQ(true, absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status));
+    EXPECT_EQ(403, status);
+  }
+
+  void Failed(Http::TestHeaderMapImpl&& headers) {
+    policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
+    allow_unexpected_disconnects_ = true;
+    initialize();
+    auto response = codec_client_->makeHeaderOnlyRequest(headers);
+    response->waitForEndStream();
+
+    uint64_t status;
+    EXPECT_EQ(true, absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status));
+    EXPECT_EQ(503, status);
+  }
+
+  void Accepted(Http::TestHeaderMapImpl&& headers) {
+    policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
+    initialize();
+    auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
+
+    uint64_t status;
+    EXPECT_EQ(true, absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status));
+    EXPECT_EQ(200, status);
+  }
+
+  // Upstream
+  bool upstream_tls_{true};
+  std::string upstream_cert_name_{"upstreamlocalhost"};
+  bool allow_unexpected_disconnects_{false};
+
+  // Downstream
+  Network::TransportSocketFactoryPtr context_;
+};
+
+class CiliumTLSHttpIntegrationTest : public CiliumHttpTLSIntegrationTest {
+public:
+  CiliumTLSHttpIntegrationTest()
+    : CiliumHttpTLSIntegrationTest(fmt::format(TestEnvironment::substitute(cilium_tls_http_proxy_config_fmt + cilium_listener_tls_context_fmt, GetParam()), "true")) {}
+};
+
+INSTANTIATE_TEST_CASE_P(
+    IpVersions, CiliumTLSHttpIntegrationTest,
+    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+
+TEST_P(CiliumTLSHttpIntegrationTest, DeniedPathPrefix) {
+  Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "localhost"}});
+}
+
+TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefix) {
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "localhost"}});
+}
+
+TEST_P(CiliumTLSHttpIntegrationTest, InvalidHostNameSNI) {
+  // SNI is now coming from the cilium listener filter, so it is accepted
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "nonlocalhost"}});
+}
+
+TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefixStrippedHeader) {
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "localhost"},
+            {"x-envoy-original-dst-host", "1.1.1.1:9999"}});
+}
+
+TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathRegex) {
+  Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "localhost"}});
+}
+
+TEST_P(CiliumTLSHttpIntegrationTest, DeniedPath) {
+  Denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "localhost"}});
+}
+
+TEST_P(CiliumTLSHttpIntegrationTest, DeniedMethod) {
+  Denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "localhost"}});
+}
+
+TEST_P(CiliumTLSHttpIntegrationTest, AcceptedMethod) {
+  Accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "localhost"}});
+}
+
+TEST_P(CiliumTLSHttpIntegrationTest, L3DeniedPath) {
+  Denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "localhost"}});
 }
 
 } // namespace Cilium

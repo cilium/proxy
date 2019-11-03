@@ -76,6 +76,21 @@ message PortNetworkPolicy {
   repeated PortNetworkPolicyRule rules = 3;
 }
 
+message TLSContext {
+	// CA certificates. If present, the counterparty must provide a valid certificate.
+	string trusted_ca = 1;
+
+	// Certificate chain
+	string certificate_chain = 2;
+
+	// Private key
+	string private_key = 3;
+
+	// Server Name Indicator. For downstream this helps choose the certificate to present to the client.
+	// For upstream this will be used as the SNI on the client connection.
+	repeated string server_names = 4;
+}
+
 // A network policy rule, as a conjunction of predicates on L3/L7 flows.
 // If all the predicates of a rule match a flow, the flow is matched by the
 // rule.
@@ -85,6 +100,12 @@ message PortNetworkPolicyRule {
   // applied on the flow's remote host is contained in this set.
   // Optional. If not specified, any remote host is matched by this predicate.
   repeated uint64 remote_policies = 1 [(validate.rules).repeated.unique = true];
+
+  // Optional downstream TLS context. If present, the incoming connection must be a TLS connection.
+  TLSContext downstream_tls_context = 3;
+
+  // Optional upstream TLS context. If present, the outgoing connection will use TLS.
+  TLSContext upstream_tls_context = 4;
 
   // Optional L7 protocol parser name. This is only used if the parser is not
   // one of the well knows ones. If specified, the l7 parser having this name
