@@ -36,8 +36,7 @@ struct FilterStats {
  */
 class Config : public Logger::Loggable<Logger::Id::filter> {
 public:
-  Config(const std::string& policy_name, const std::string& access_log_path,
-	 const std::string& denied_403_body, const absl::optional<bool>& is_ingress,
+  Config(const std::string& access_log_path, const std::string& denied_403_body,
 	 Server::Configuration::FactoryContext& context);
   Config(const Json::Object &config, Server::Configuration::FactoryContext& context);
   Config(const ::cilium::L7Policy &config, Server::Configuration::FactoryContext& context);
@@ -47,9 +46,7 @@ public:
 
   TimeSource& time_source_;
   FilterStats stats_;
-  const std::string policy_name_;
   std::string denied_403_body_;
-  absl::optional<bool> is_ingress_;
 
 private:
   AccessLog *access_log_;

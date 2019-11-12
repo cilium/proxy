@@ -181,11 +181,13 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {}", pod_ip, other_ip);
   }
 
+  const auto& policy = npmap_->GetPolicyInstance(pod_ip);
+
   // Resolve the source security ID, if not already resolved
   if (source_identity == 0) {
     if (ct_maps_ != nullptr) {
       // Cilium >= 1.6 provides the conntrack name in the policy
-      auto ct_name = npmap_->conntrackName(pod_ip);
+      auto ct_name = policy->conntrackName();
       if (ct_name.length() > 0) {
 	source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
       }
@@ -234,7 +236,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   // Pass the metadata to an Envoy socket option we can retrieve
   // later in other Cilium filters.
-  socket.addOption(std::make_shared<Cilium::SocketOption>(npmap_, maps_, source_identity, destination_identity,
+  socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, source_identity, destination_identity,
       is_ingress_, orig_dport, proxy_port, std::move(pod_ip), src_address));
   return true;
 }

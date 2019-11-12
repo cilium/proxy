@@ -8,9 +8,10 @@
 #include "common/common/assert.h"
 #include "common/common/fmt.h"
 
-#include "cilium/socket_option.h"
-#include "cilium/network_filter.h"
 #include "cilium/api/network_filter.pb.validate.h"
+#include "cilium/network_filter.h"
+#include "cilium/network_policy.h"
+#include "cilium/socket_option.h"
 
 namespace Envoy {
 namespace Server {
@@ -58,15 +59,16 @@ static Registry::RegisterFactory<CiliumNetworkConfigFactory, NamedNetworkFilterC
 namespace Filter {
 namespace CiliumL3 {
 
-Config::Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext&)
-  : go_proto_(config.l7_proto()), policy_name_(config.policy_name()) {
+Config::Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext&) {
   if (config.proxylib().length() > 0) {
     proxylib_ = std::make_shared<Cilium::GoFilter>(config.proxylib(), config.proxylib_params());
   }
+  if (config.policy_name() != "" || config.l7_proto() != "") {
+    throw EnvoyException(fmt::format("network: 'policy_name' and 'go_proto' are no longer supported: \'{}\'", config.DebugString()));
+  }
 }
   
-Config::Config(const Json::Object&, Server::Configuration::FactoryContext&)
-  : go_proto_(""), policy_name_("") {} // Dummy, not used.
+Config::Config(const Json::Object&, Server::Configuration::FactoryContext&) {} // Dummy, not used.
 
 Network::FilterStatus Instance::onNewConnection() {
   ENVOY_LOG(debug, "Cilium Network: onNewConnection");
@@ -83,17 +85,17 @@ Network::FilterStatus Instance::onNewConnection() {
       }
     }
 
-    const std::string& policy_name = config_->policy_name_.length() ? config_->policy_name_ : option->pod_ip_;
-    std::string l7proto = config_->go_proto_;
-    if (config_->proxylib_.get() != nullptr &&
-	(l7proto.length() > 0 ||
-	 (option->npmap_ && option->npmap_->useProxylib(policy_name, option->ingress_, option->port_, l7proto)))) {
-
+    const std::string& policy_name = option->pod_ip_;
+    std::string l7proto;
+    if (config_->proxylib_.get() != nullptr && option->policy_ &&
+	(option->policy_->useProxylib(option->ingress_, option->port_,
+				      option->ingress_ ? option->identity_ : option->destination_identity_,
+				      l7proto))) {
       go_parser_ = config_->proxylib_->NewInstance(conn, l7proto, option->ingress_, option->identity_,
 						   option->destination_identity_, conn.remoteAddress()->asString(),
 						   conn.localAddress()->asString(), policy_name);
       if (go_parser_.get() == nullptr) {
-	ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found", conn, config_->go_proto_);
+	ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found", conn, l7proto);
 	return Network::FilterStatus::StopIteration;
       }
     }

@@ -26,6 +26,7 @@ envoy_cc_library(
         "@envoy//include/envoy/singleton:manager_interface",
         "@envoy//source/common/router:config_utility_lib",
         "//cilium/api:npds_cc_proto",
+        "//cilium:accesslog_lib",
 	"//cilium:conntrack_lib",
 	"//cilium:grpc_subscription_lib",
     ],
@@ -42,7 +43,6 @@ envoy_cc_library(
         "@envoy//source/common/common:logger_lib",
         "//cilium:conntrack_lib",
         "//cilium:proxymap_lib",
-        "//cilium:network_policy_lib",
     ],
 )
 
@@ -71,20 +71,35 @@ envoy_cc_library(
     name = "l7policy_lib",
     visibility = ["//visibility:public"],
     srcs = [
-        "accesslog.cc",
         "l7policy.cc",
     ],
     hdrs = [
-        "accesslog.h",
         "l7policy.h",
     ],
     repository = "@envoy",
     deps = [
         "@envoy//include/envoy/config:subscription_interface",
-        "//cilium/api:accesslog_proto_cc_proto",
         "//cilium/api:l7policy_cc_proto",
+        "//cilium:accesslog_lib",
         "//cilium:network_policy_lib",
         "//cilium:socket_option_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "accesslog_lib",
+    visibility = ["//visibility:public"],
+    srcs = [
+        "accesslog.cc",
+    ],
+    hdrs = [
+        "accesslog.h",
+    ],
+    repository = "@envoy",
+    deps = [
+        "@envoy//source/exe:envoy_common_lib",
+        "//cilium:socket_option_lib",
+        "//cilium/api:accesslog_proto_cc_proto",
     ],
 )
 
@@ -204,6 +219,7 @@ envoy_cc_library(
         "@envoy//source/common/network:address_lib",
         "//cilium/api:network_filter_cc_proto",
         "//cilium:conntrack_lib",
+        "//cilium:network_policy_lib",
         "//cilium:proxylib_lib",
         "//cilium:proxymap_lib",
         "//cilium:socket_option_lib",

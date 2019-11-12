@@ -29,9 +29,7 @@ public:
   Config(const Json::Object& config, Server::Configuration::FactoryContext& context);
   virtual ~Config() {}
 
-  std::string go_proto_;
   Cilium::GoFilterSharedPtr proxylib_;
-  std::string policy_name_;
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;

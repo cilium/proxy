@@ -18,6 +18,8 @@
 namespace Envoy {
 namespace Cilium {
 
+class PolicyInstance;
+
 class NetworkPolicyMap : public Singleton::Instance,
                          public Envoy::Config::SubscriptionCallbacks,
                          public std::enable_shared_from_this<NetworkPolicyMap>,
@@ -45,208 +47,15 @@ public:
 
   void setPolicyNotifier(Cilium::CtMapSharedPtr& ct) { ctmap_ = ct; }
 
-  class PolicyInstance {
-  public:
-    PolicyInstance(uint64_t hash, const cilium::NetworkPolicy& proto)
-        : conntrack_map_name_(proto.conntrack_map_name()), hash_(hash), policy_proto_(proto),
-          ingress_(policy_proto_.ingress_per_port_policies()),
-          egress_(policy_proto_.egress_per_port_policies()) {}
-
-    std::string conntrack_map_name_;
-    uint64_t hash_;
-    const cilium::NetworkPolicy policy_proto_;
-
-  protected:
-    class HttpNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
-    public:
-      HttpNetworkPolicyRule(const cilium::HttpNetworkPolicyRule& rule) {
-	ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
-	for (const auto& header: rule.headers()) {
-	  headers_.emplace_back(std::make_unique<Envoy::Http::HeaderUtility::HeaderData>(header));
-	  const auto& header_data = *headers_.back().get();
-	  ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
-		    header_data.name_.get(),
-		    header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
-		    ? fmt::format("[{}-{})", header_data.range_.start(), header_data.range_.end())
-		    : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
-		    ? header_data.value_
-		    : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
-		    ? "<REGEX>" : "<UNKNOWN>");
-	}
-      }
-
-      bool Matches(const Envoy::Http::HeaderMap& headers) const {
-	// Empty set matches any headers.
-	return Envoy::Http::HeaderUtility::matchHeaders(headers, headers_);
-      }
-
-      std::vector<Envoy::Http::HeaderUtility::HeaderDataPtr> headers_; // Allowed if empty.
-    };
-    
-    class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
-    public:
-      PortNetworkPolicyRule(const cilium::PortNetworkPolicyRule& rules) {
-	for (const auto& remote: rules.remote_policies()) {
-	  ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {}", remote);
-	  allowed_remotes_.emplace(remote);
-	}
-	if (rules.has_http_rules()) {
-	  for (const auto& http_rule: rules.http_rules().http_rules()) {
-	    http_rules_.emplace_back(http_rule);
-	  }
-	}
-      }
-
-      bool Matches(uint64_t remote_id, const Envoy::Http::HeaderMap& headers) const {
-	// Remote ID must match if we have any.
-	if (allowed_remotes_.size() > 0) {
-	  auto search = allowed_remotes_.find(remote_id);
-	  if (search == allowed_remotes_.end()) {
-	    return false;
-	  }
-	}
-	if (http_rules_.size() > 0) {
-	  for (const auto& rule: http_rules_) {
-	    if (rule.Matches(headers)) {
-	      return true;
-	    }
-	  }
-	  return false;
-	}
-	// Empty set matches any payload
-	return true;
-      }
-
-      std::unordered_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
-      std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
-    };
-
-    class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
-    public:
-      PortNetworkPolicyRules(const google::protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
-	if (rules.size() == 0) {
-	    ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): No rules, will allow everything.");
-	}
-	for (const auto& it: rules) {
-	  if (it.has_http_rules()) {
-	    have_http_rules_ = true;
-	  }
-	  if (l7_proto_.length() == 0 && it.l7_proto().length() > 0) {
-	    l7_proto_ = it.l7_proto();
-	  }
-	  rules_.emplace_back(PortNetworkPolicyRule(it));
-	}
-      }
-
-      bool Matches(uint64_t remote_id, const Envoy::Http::HeaderMap& headers) const {
-	if (!have_http_rules_) {
-	  // If there are no L7 rules, host proxy will not create a proxy redirect at all,
-	  // whereby the decicion made by the bpf datapath is final. Emulate the same behavior
-	  // in the sidecar by allowing such traffic.
-	  // TODO: This will need to be revised when non-bpf datapaths are to be supported.
-	  return true;
-	}
-	// Empty set matches any payload from anyone
-	if (rules_.size() == 0) {
-	  return true;
-	}
-	for (const auto& rule: rules_) {
-	  if (rule.Matches(remote_id, headers)) {
-	    return true;
-	  }
-	}
-	return false;
-      }
-
-      bool useProxylib(std::string& l7_proto) const {
-	ENVOY_LOG(debug, "Cilium L7 PortNetworkPolicyRules::useProxylib(): returning {}", l7_proto_);
-	l7_proto = l7_proto_;
-	return l7_proto_.length() > 0;
-      }
-
-      std::vector<PortNetworkPolicyRule> rules_; // Allowed if empty.
-      bool have_http_rules_{};
-      std::string l7_proto_{};
-    };
-    
-    class PortNetworkPolicy : public Logger::Loggable<Logger::Id::config> {
-    public:
-      PortNetworkPolicy(const google::protobuf::RepeatedPtrField<cilium::PortNetworkPolicy>& rules) {
-	for (const auto& it: rules) {
-	  // Only TCP supported for HTTP
-	  if (it.protocol() == envoy::api::v2::core::SocketAddress::TCP) {
-	    // Port may be zero, which matches any port.
-	    ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): installing TCP policy for port {}", it.port());
-	    if (!rules_.emplace(it.port(), PortNetworkPolicyRules(it.rules())).second) {
-	      throw EnvoyException("PortNetworkPolicy: Duplicate port number");
-	    }
-	  } else {
-	    ENVOY_LOG(debug, "Cilium L7 PortNetworkPolicy(): NOT installing non-TCP policy");
-	  }
-	}
-      }
-
-      bool Matches(uint32_t port, uint64_t remote_id, const Envoy::Http::HeaderMap& headers) const {
-	bool found_port_rule = false;
-	auto it = rules_.find(port);
-	if (it != rules_.end()) {
-	  if (it->second.Matches(remote_id, headers)) {
-	    return true;
-	  }
-	  found_port_rule = true;
-	}
-	// Check for any rules that wildcard the port
-	it = rules_.find(0);
-	if (it != rules_.end()) {
-	  if (it->second.Matches(remote_id, headers)) {
-	    return true;
-	  }
-	  found_port_rule = true;
-	}
-
-	// No policy for the port was found. Cilium always creates a policy for redirects it
-	// creates, so the host proxy never gets here. Sidecar gets all the traffic, which we need
-	// to pass through since the bpf datapath already allowed it.
-        // TODO: Change back to false only when non-bpf datapath is supported?
-	return found_port_rule ? false : true;
-      }
-
-      bool useProxylib(uint32_t port, std::string& l7_proto) const {
-	auto it = rules_.find(port);
-	if (it != rules_.end()) {
-	  return it->second.useProxylib(l7_proto);
-	}
-	ENVOY_LOG(debug, "Cilium L7 PortNetworkPolicy::useProxylib(): returning false (no policy for port)", port);
-	return false;
-      }
-
-      std::unordered_map<uint32_t, PortNetworkPolicyRules> rules_;
-    };
-
-  public:
-    bool Allowed(bool ingress, uint32_t port, uint64_t remote_id,
-		 const Envoy::Http::HeaderMap& headers) const {
-      return ingress
-	? ingress_.Matches(port, remote_id, headers)
-	: egress_.Matches(port, remote_id, headers);
-    }
-
-    bool useProxylib(bool ingress, uint32_t port, std::string& l7_proto) const {
-      return ingress
-	? ingress_.useProxylib(port, l7_proto)
-	: egress_.useProxylib(port, l7_proto);
-    }
-
-  private:
-    const PortNetworkPolicy ingress_;
-    const PortNetworkPolicy egress_;
-  };
-
   struct ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject {
     std::map<std::string, std::shared_ptr<const PolicyInstance>> policies_;
   };
 
   const std::shared_ptr<const PolicyInstance>& GetPolicyInstance(const std::string& endpoint_policy_name) const {
+    if (tls_->get().get() == nullptr) {
+      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::GetPolicyInstance(): NULL TLS object!");
+      return null_instance_;
+    }
     const ThreadLocalPolicyMap& map = tls_->getTyped<ThreadLocalPolicyMap>();
     auto it = map.policies_.find(endpoint_policy_name);
     if (it == map.policies_.end()) {
@@ -255,63 +64,8 @@ public:
     return it->second;
   }
 
-  bool Allowed(const std::string& endpoint_policy_name, bool ingress, uint32_t port, uint64_t remote_id,
-	       const Envoy::Http::HeaderMap& headers) const {
-    ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::Allowed(): {} policy lookup for endpoint {}, port {}, remote_id: {}", ingress ? "Ingress" : "Egress", endpoint_policy_name, port, remote_id);
-    if (tls_->get().get() == nullptr) {
-      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::Allowed(): NULL TLS object!");
-      return false;
-    }
-    const auto& npmap = tls_->getTyped<ThreadLocalPolicyMap>().policies_;
-    auto it = npmap.find(endpoint_policy_name);
-    if (it == npmap.end()) {
-      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::Allowed(): No policy found for endpoint {}", endpoint_policy_name);
-      return false;
-    }
-    return it->second->Allowed(ingress, port, remote_id, headers);
-  }
-
-  bool useProxylib(const std::string& endpoint_policy_name, bool ingress, uint32_t port, std::string& l7_proto) const {
-    if (tls_->get().get() == nullptr) {
-      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::useProxylib(): NULL TLS object!");
-      return false;
-    }
-    const auto& npmap = tls_->getTyped<ThreadLocalPolicyMap>().policies_;
-    auto it = npmap.find(endpoint_policy_name);
-    if (it == npmap.end()) {
-      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::useProxylib(): No policy found for endpoint {}", endpoint_policy_name);
-      return false;
-    }
-    return it->second->useProxylib(ingress, port, l7_proto);
-  }
-
-  std::string conntrackName(const std::string& endpoint_policy_name) const {
-    if (tls_->get().get() == nullptr) {
-      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::conntrackName(): NULL TLS object!");
-      return "";
-    }
-    const auto& npmap = tls_->getTyped<ThreadLocalPolicyMap>().policies_;
-    auto it = npmap.find(endpoint_policy_name);
-    if (it == npmap.end()) {
-      ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::conntrackName(): No policy found for endpoint {}", endpoint_policy_name);
-      return "";
-    }
-    return it->second->conntrack_map_name_;
-  }
-
   bool exists(const std::string& endpoint_policy_name) const {
-    if (tls_->get().get() == nullptr) {
-      ENVOY_LOG(warn, "Cilium L7 NetworkPolicyMap::exists(): NULL TLS object!");
-      return false;
-    }
-    const auto& npmap = tls_->getTyped<ThreadLocalPolicyMap>().policies_;
-    auto it = npmap.find(endpoint_policy_name);
-    if (it == npmap.end()) {
-      ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::exists(): No policy found for endpoint {}", endpoint_policy_name);
-      return false;
-    }
-    ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::exists(): Policy found for endpoint {}", endpoint_policy_name);
-    return true;
+    return GetPolicyInstance(endpoint_policy_name).get() != nullptr;
   }
 
   // Config::SubscriptionCallbacks
@@ -339,6 +93,231 @@ private:
   static uint64_t instance_id_;
   std::string name_;
   Cilium::CtMapSharedPtr ctmap_;
+};
+
+class PolicyInstance {
+public:
+  PolicyInstance(uint64_t hash, const cilium::NetworkPolicy& proto)
+    : conntrack_map_name_(proto.conntrack_map_name()), hash_(hash), policy_proto_(proto),
+      ingress_(policy_proto_.ingress_per_port_policies()),
+      egress_(policy_proto_.egress_per_port_policies()) {}
+
+  std::string conntrack_map_name_;
+  uint64_t hash_;
+  const cilium::NetworkPolicy policy_proto_;
+
+protected:
+  class HttpNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
+public:
+    HttpNetworkPolicyRule(const cilium::HttpNetworkPolicyRule& rule) {
+      ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
+      for (const auto& header: rule.headers()) {
+	headers_.emplace_back(std::make_unique<Envoy::Http::HeaderUtility::HeaderData>(header));
+	const auto& header_data = *headers_.back();
+	ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
+		  header_data.name_.get(),
+		  header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
+		  ? fmt::format("[{}-{})", header_data.range_.start(), header_data.range_.end())
+		  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
+		  ? header_data.value_
+		  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
+		  ? "<REGEX>" : "<UNKNOWN>");
+      }
+    }
+
+    bool Matches(const Envoy::Http::HeaderMap& headers) const {
+      // Empty set matches any headers.
+      return Envoy::Http::HeaderUtility::matchHeaders(headers, headers_);
+    }
+
+    std::vector<Envoy::Http::HeaderUtility::HeaderDataPtr> headers_; // Allowed if empty.
+  };
+    
+  class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
+  public:
+    PortNetworkPolicyRule(const cilium::PortNetworkPolicyRule& rule)
+      : l7_proto_(rule.l7_proto()) {
+      for (const auto& remote: rule.remote_policies()) {
+	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {}", remote);
+	allowed_remotes_.emplace(remote);
+      }
+      if (rule.has_http_rules()) {
+	for (const auto& http_rule: rule.http_rules().http_rules()) {
+	  http_rules_.emplace_back(http_rule);
+	}
+      }
+    }
+
+    bool Matches(uint64_t remote_id) const {
+      // Remote ID must match if we have any.
+      if (allowed_remotes_.size() > 0) {
+	auto search = allowed_remotes_.find(remote_id);
+	if (search == allowed_remotes_.end()) {
+	  return false;
+	}
+      }
+      return true;
+    }
+
+    bool Matches(uint64_t remote_id, const Envoy::Http::HeaderMap& headers) const {
+      if (!Matches(remote_id)) {
+	return false;
+      }
+      if (http_rules_.size() > 0) {
+	for (const auto& rule: http_rules_) {
+	  if (rule.Matches(headers)) {
+	    return true;
+	  }
+	}
+	return false;
+      }
+      // Empty set matches any payload
+      return true;
+    }
+
+    bool useProxylib(std::string& l7_proto) const {
+      if (l7_proto_.length() > 0) {
+	ENVOY_LOG(debug, "Cilium L7 PortNetworkPolicyRules::useProxylib(): returning {}", l7_proto_);
+	l7_proto = l7_proto_;
+	return true;
+      }
+      return false;
+    }
+
+    std::unordered_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
+    std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
+    std::string l7_proto_{};
+  };
+
+  class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
+  public:
+    PortNetworkPolicyRules(const google::protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
+      if (rules.size() == 0) {
+	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): No rules, will allow everything.");
+      }
+      for (const auto& it: rules) {
+	if (it.has_http_rules()) {
+	  have_http_rules_ = true;
+	}
+	rules_.emplace_back(PortNetworkPolicyRule(it));
+      }
+    }
+
+    bool Matches(uint64_t remote_id, const Envoy::Http::HeaderMap& headers) const {
+      if (!have_http_rules_) {
+	// If there are no L7 rules, host proxy will not create a proxy redirect at all,
+	// whereby the decicion made by the bpf datapath is final. Emulate the same behavior
+	// in the sidecar by allowing such traffic.
+	// TODO: This will need to be revised when non-bpf datapaths are to be supported.
+	return true;
+      }
+      // Empty set matches any payload from anyone
+      if (rules_.size() == 0) {
+	return true;
+      }
+      for (const auto& rule: rules_) {
+	if (rule.Matches(remote_id, headers)) {
+	  return true;
+	}
+      }
+      return false;
+    }
+
+    const PortNetworkPolicyRule* findPortPolicy(uint64_t remote_id) const {
+      for (const auto& rule: rules_) {
+	if (rule.Matches(remote_id)) {
+	  return &rule;
+	}
+      }
+      return nullptr;
+    }
+
+    std::vector<PortNetworkPolicyRule> rules_; // Allowed if empty.
+    bool have_http_rules_{};
+  };
+    
+  class PortNetworkPolicy : public Logger::Loggable<Logger::Id::config> {
+  public:
+    PortNetworkPolicy(const google::protobuf::RepeatedPtrField<cilium::PortNetworkPolicy>& rules) {
+      for (const auto& it: rules) {
+	// Only TCP supported for HTTP
+	if (it.protocol() == envoy::api::v2::core::SocketAddress::TCP) {
+	  // Port may be zero, which matches any port.
+	  ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): installing TCP policy for port {}", it.port());
+	  if (!rules_.emplace(it.port(), PortNetworkPolicyRules(it.rules())).second) {
+	    throw EnvoyException("PortNetworkPolicy: Duplicate port number");
+	  }
+	} else {
+	  ENVOY_LOG(debug, "Cilium L7 PortNetworkPolicy(): NOT installing non-TCP policy");
+	}
+      }
+    }
+
+    bool Matches(uint32_t port, uint64_t remote_id, const Envoy::Http::HeaderMap& headers) const {
+      bool found_port_rule = false;
+      auto it = rules_.find(port);
+      if (it != rules_.end()) {
+	if (it->second.Matches(remote_id, headers)) {
+	  return true;
+	}
+	found_port_rule = true;
+      }
+      // Check for any rules that wildcard the port
+      // Note: Wildcard port makes no sense for an L7 policy, but the policy could be a L3/L4 policy as well.
+      it = rules_.find(0);
+      if (it != rules_.end()) {
+	if (it->second.Matches(remote_id, headers)) {
+	  return true;
+	}
+	found_port_rule = true;
+      }
+
+      // No policy for the port was found. Cilium always creates a policy for redirects it
+      // creates, so the host proxy never gets here. Sidecar gets all the traffic, which we need
+      // to pass through since the bpf datapath already allowed it.
+      return found_port_rule ? false : true;
+    }
+
+    const PortNetworkPolicyRule* findPortPolicy(uint32_t port, uint64_t remote_id) const {
+      auto it = rules_.find(port);
+      if (it != rules_.end()) {
+	return it->second.findPortPolicy(remote_id);
+      }
+      return nullptr;
+    }
+
+    std::unordered_map<uint32_t, PortNetworkPolicyRules> rules_;
+  };
+
+public:
+  bool Allowed(bool ingress, uint32_t port, uint64_t remote_id,
+	       const Envoy::Http::HeaderMap& headers) const {
+    return ingress
+      ? ingress_.Matches(port, remote_id, headers)
+      : egress_.Matches(port, remote_id, headers);
+  }
+
+  const PortNetworkPolicyRule* findPortPolicy(bool ingress, uint32_t port, uint64_t remote_id) const {
+    return ingress
+      ? ingress_.findPortPolicy(port, remote_id)
+      : egress_.findPortPolicy(port, remote_id);
+  }
+
+  bool useProxylib(bool ingress, uint32_t port, uint64_t remote_id, std::string& l7_proto) const {
+    const auto* port_policy = findPortPolicy(ingress, port, remote_id);
+    if (port_policy != nullptr) {
+      return port_policy->useProxylib(l7_proto);
+    }
+    return false;
+  }
+
+  std::string conntrackName() const {
+    return conntrack_map_name_;
+  }
+
+private:
+  const PortNetworkPolicy ingress_;
+  const PortNetworkPolicy egress_;
 };
 
 } // namespace Cilium
