@@ -24,7 +24,7 @@ CHECK_FORMAT ?= ./bazel-bin/check_format.py.runfiles/envoy/tools/check_format.py
 
 SHELL=/bin/bash -o pipefail
 BAZEL ?= $(QUIET) bazel
-BAZEL_FILTER ?= 2>&1 | grep -v -e "INFO: From .*:" -e "external/.*: warning: directory does not exist."
+BAZEL_FILTER ?=
 BAZEL_OPTS ?=
 BAZEL_TEST_OPTS ?= --jobs=1
 BAZEL_CACHE ?= ~/.cache/bazel
@@ -166,7 +166,7 @@ fix: $(CHECK_FORMAT) force-non-root
 
 # Run tests using the fastbuild by default.
 tests: force-non-root
-	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c fastbuild $(BAZEL_TEST_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c fastbuild //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c fastbuild $(BAZEL_TEST_OPTS) //:cilium_integration_test $(BAZEL_FILTER)
 
 debug-tests: force-non-root

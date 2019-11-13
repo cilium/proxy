@@ -14,7 +14,7 @@ ARG V
 # Please do not add any dependency updates before the 'make install' here,
 # as that will mess with caching for incremental builds!
 #
-RUN ./bazel/get_workspace_status
+RUN ./tools/get_workspace_status
 RUN make PKG_BUILD=1 V=$V DESTDIR=/tmp/install cilium-envoy install
 
 #
