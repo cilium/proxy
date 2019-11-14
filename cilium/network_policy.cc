@@ -89,8 +89,6 @@ protected:
 	::cilium::KeyValue *kv;
 	if (Envoy::Http::HeaderUtility::matchHeaders(headers, header_data)) {
 	  // Match action
-	  ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():HeaderMatches: match, {}: {}: Action {}",
-		    header_data.name_.get(), header_data.value_, header_data.match_action_);
 	  switch (header_data.match_action_) {
 	  case cilium::HeaderMatch::CONTINUE_ON_MATCH:
 	    continue;
@@ -105,8 +103,6 @@ protected:
 	  kv = log_entry.entry.mutable_http()->add_rejected_headers();
 	} else {
 	  // Mismatch action
-	  ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():HeaderMatches: no match, imposing header {}: {}: Action {}",
-		    header_data.name_.get(), header_data.value_, header_data.mismatch_action_);
 	  switch (header_data.mismatch_action_) {
 	  case cilium::HeaderMatch::FAIL_ON_MISMATCH:
 	  default:
@@ -208,7 +204,6 @@ protected:
 	for (int i=0; i < config.server_names_size(); i++) {
 	  server_names_.emplace_back(config.server_names(i));
 	}
-	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Server TLS context: {}", context_config.DebugString());
 	server_config_ = std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
             context_config, parent.transport_socket_factory_context_);
 	server_context_ = parent.transport_socket_factory_context_.sslContextManager().createSslServerContext(
@@ -240,7 +235,6 @@ protected:
 	  }
 	  context_config.set_sni(config.server_names(1));
 	}
-	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Client TLS context: {}", context_config.DebugString());
 	client_config_ = std::make_unique<Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
             context_config, parent.transport_socket_factory_context_);
 	client_context_ = parent.transport_socket_factory_context_.sslContextManager().createSslClientContext(
@@ -295,7 +289,7 @@ protected:
     // PortPolicy
     bool useProxylib(std::string& l7_proto) const override {
       if (l7_proto_.length() > 0) {
-	ENVOY_LOG(debug, "Cilium L7 PortNetworkPolicyRules::useProxylib(): returning {}", l7_proto_);
+	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules::useProxylib(): returning {}", l7_proto_);
 	l7_proto = l7_proto_;
 	return true;
       }
@@ -314,7 +308,7 @@ protected:
     std::unordered_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
     std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
     std::string l7_proto_{};
-    int have_header_matches_{false};
+    bool have_header_matches_{false};
   };
 
   class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
@@ -328,6 +322,9 @@ protected:
 	  have_http_rules_ = true;
 	}
 	rules_.emplace_back(parent, it);
+	if (rules_.back().have_header_matches_) {
+	  have_header_matches_ = true;
+	}
       }
     }
 
@@ -343,12 +340,17 @@ protected:
       if (rules_.size() == 0) {
 	return true;
       }
+      bool matched = false;
       for (const auto& rule: rules_) {
 	if (rule.Matches(remote_id, headers, log_entry)) {
-	  return true;
+	  matched = true;
+	  // Short-circuit on the first match if no rules have HeaderMatches
+	  if (!have_header_matches_) {
+	    break;
+	  }
 	}
       }
-      return false;
+      return matched;
     }
 
     const PortPolicy* findPortPolicy(uint64_t remote_id) const {
@@ -362,6 +364,7 @@ protected:
 
     std::vector<PortNetworkPolicyRule> rules_; // Allowed if empty.
     bool have_http_rules_{};
+    bool have_header_matches_{false};
   };
     
   class PortNetworkPolicy : public Logger::Loggable<Logger::Id::config> {
@@ -376,7 +379,7 @@ protected:
 	    throw EnvoyException("PortNetworkPolicy: Duplicate port number");
 	  }
 	} else {
-	  ENVOY_LOG(debug, "Cilium L7 PortNetworkPolicy(): NOT installing non-TCP policy");
+	  ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): NOT installing non-TCP policy");
 	}
       }
     }
@@ -464,7 +467,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
     transport_socket_factory_context_(context.getTransportSocketFactoryContext()) {
   instance_id_++;
   name_ = "cilium.policymap." + fmt::format("{}", instance_id_) + ".";
-  ENVOY_LOG(debug, "NetworkPolicyMap({}) created.", name_);  
+  ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);  
 
   tls_->set([&](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
       return std::make_shared<ThreadLocalPolicyMap>();
@@ -534,7 +537,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
     const auto& old_policy = GetPolicyInstanceImpl(config.name());
     if (old_policy && old_policy->hash_ == new_hash &&
 	Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_, config)) {
-      ENVOY_LOG(debug, "New policy is equal to old one, not updating.");
+      ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
       continue;
     }
 
@@ -560,7 +563,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
   }
 
   // pause the subscription until the worker threads are done. No throws after this!
-  ENVOY_LOG(debug, "Pausing NPDS subscription");
+  ENVOY_LOG(trace, "Pausing NPDS subscription");
   pause();
 
   // 'this' may be already deleted when the worker threads get to execute the updates.
@@ -574,14 +577,14 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
   tls_->runOnAllThreads([weak_this, to_be_added, to_be_deleted]() -> void {
       std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock();
       if (shared_this && shared_this->tls_->get().get() != nullptr) {
-	ENVOY_LOG(debug, "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting updates on the next thread");
+	ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting updates on the next thread");
 	auto& npmap = shared_this->tls_->getTyped<ThreadLocalPolicyMap>().policies_;
 	for (const auto& policy_name: *to_be_deleted) {
-	  ENVOY_LOG(debug, "Cilium deleting removed network policy for endpoint {}", policy_name);
+	  ENVOY_LOG(trace, "Cilium deleting removed network policy for endpoint {}", policy_name);
 	  npmap.erase(policy_name);
 	}
 	for (const auto& new_policy: *to_be_added) {
-	  ENVOY_LOG(debug, "Cilium updating network policy for endpoint {}", new_policy->policy_proto_.name());
+	  ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", new_policy->policy_proto_.name());
 	  npmap[new_policy->policy_proto_.name()] = new_policy;
 	}
       } else {
@@ -594,7 +597,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
       std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock();
       if (shared_this) {
 	// resume the subscription
-	ENVOY_LOG(debug, "Resuming NPDS subscription");
+	ENVOY_LOG(trace, "Resuming NPDS subscription");
 	shared_this->resume();
 	if (shared_this->ctmap_ && shared_this->tls_->get().get() != nullptr && cts_to_be_closed->size() > 0) {
 	  shared_this->ctmap_->closeMaps(cts_to_be_closed);
