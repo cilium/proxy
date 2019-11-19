@@ -567,16 +567,12 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
   pause();
 
   // 'this' may be already deleted when the worker threads get to execute the updates.
-  // Manage this by taking a weak_ptr on 'this' and then, when the worker thread gets
-  // to execute the posted lambda, try to convert the weak_ptr to a temporary shared_ptr.
-  // If that succeeds then this NetworkPolicyMap is still alive and the policy
-  // should be updated.
-  std::weak_ptr<NetworkPolicyMap> weak_this = shared_from_this();
+  // Manage this by taking a shared_ptr on 'this' for the duration of the posted lambda.
+  std::shared_ptr<NetworkPolicyMap> shared_this = shared_from_this();
 
   // Execute changes on all threads.
-  tls_->runOnAllThreads([weak_this, to_be_added, to_be_deleted]() -> void {
-      std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock();
-      if (shared_this && shared_this->tls_->get().get() != nullptr) {
+  tls_->runOnAllThreads([shared_this, to_be_added, to_be_deleted]() -> void {
+      if (shared_this->tls_->get().get() != nullptr) {
 	ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting updates on the next thread");
 	auto& npmap = shared_this->tls_->getTyped<ThreadLocalPolicyMap>().policies_;
 	for (const auto& policy_name: *to_be_deleted) {
@@ -592,16 +588,13 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
 	ENVOY_LOG(warn, "Skipping stale network policy update");
       }
     },
-    // delete old cts when all threads have updated their policies
-    [weak_this, cts_to_be_closed]() -> void {
-      std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock();
-      if (shared_this) {
-	// resume the subscription
-	ENVOY_LOG(trace, "Resuming NPDS subscription");
-	shared_this->resume();
-	if (shared_this->ctmap_ && shared_this->tls_->get().get() != nullptr && cts_to_be_closed->size() > 0) {
-	  shared_this->ctmap_->closeMaps(cts_to_be_closed);
-	}
+    // resume NPDS and delete old cts when all threads have updated their policies
+    [shared_this, cts_to_be_closed]() -> void {
+      // resume the subscription
+      ENVOY_LOG(trace, "Resuming NPDS subscription");
+      shared_this->resume();
+      if (shared_this->ctmap_ && shared_this->tls_->get().get() != nullptr && cts_to_be_closed->size() > 0) {
+	shared_this->ctmap_->closeMaps(cts_to_be_closed);
       }
     });
 }
