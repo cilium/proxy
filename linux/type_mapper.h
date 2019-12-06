@@ -13,7 +13,9 @@
 #define __s16 int16_t
 #define __s8 int8_t
 
+#if !defined(__aligned_u64)
 #define __aligned_u64 uint64_t
+#endif
 
 #define __be64 uint64_t
 #define __be32 uint32_t
