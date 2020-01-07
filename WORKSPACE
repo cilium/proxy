@@ -18,6 +18,7 @@ http_archive(
     sha256 = ENVOY_SHA256,
     strip_prefix = "envoy-" + ENVOY_SHA,
     patches = [
+        "@//patches:sni_support_fix.patch",
     ],
     patch_args = ["-p1"],
 )
