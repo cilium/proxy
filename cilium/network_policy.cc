@@ -526,7 +526,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
   auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
   for (const auto& resource: resources) {
     auto config = MessageUtil::anyConvert<cilium::NetworkPolicy>(resource);
-    ENVOY_LOG(debug, "Received Network Policy for endpoint {} in onConfigUpdate() version {}: {}", config.name(), version_info, config.DebugString());
+    ENVOY_LOG(debug, "Received Network Policy for endpoint {} in onConfigUpdate() version {}", config.name(), version_info);
     keeps.insert(config.name());
     ct_maps_to_keep.insert(config.conntrack_map_name());
 
