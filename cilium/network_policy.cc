@@ -318,9 +318,6 @@ protected:
 	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): No rules, will allow everything.");
       }
       for (const auto& it: rules) {
-	if (it.has_http_rules()) {
-	  have_http_rules_ = true;
-	}
 	rules_.emplace_back(parent, it);
 	if (rules_.back().have_header_matches_) {
 	  have_header_matches_ = true;
@@ -329,13 +326,6 @@ protected:
     }
 
     bool Matches(uint64_t remote_id, Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
-      if (!have_http_rules_) {
-	// If there are no L7 rules, host proxy will not create a proxy redirect at all,
-	// whereby the decicion made by the bpf datapath is final. Emulate the same behavior
-	// in the sidecar by allowing such traffic.
-	// TODO: This will need to be revised when non-bpf datapaths are to be supported.
-	return true;
-      }
       // Empty set matches any payload from anyone
       if (rules_.size() == 0) {
 	return true;
@@ -363,7 +353,6 @@ protected:
     }
 
     std::vector<PortNetworkPolicyRule> rules_; // Allowed if empty.
-    bool have_http_rules_{};
     bool have_header_matches_{false};
   };
     
