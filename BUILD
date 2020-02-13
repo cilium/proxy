@@ -12,20 +12,13 @@ exports_files(["linux/bpf_common.h", "linux/bpf.h", "linux/type_mapper.h",
 envoy_cc_binary(
     name = "cilium-envoy",
     repository = "@envoy",
+    visibility = ["//visibility:public"],
     deps = [
         # Cilium filters.
         "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
         "//cilium:l7policy_lib",
         "//cilium:tls_wrapper_lib",
-
-        # Istio filters.
-        # Cf. https://github.com/istio/proxy/blob/master/src/envoy/BUILD#L23
-        #"@istio_proxy//src/envoy/http/authn:filter_lib",
-        #"@istio_proxy//src/envoy/http/jwt_auth:http_filter_factory",
-        #"@istio_proxy//src/envoy/http/mixer:filter_lib",
-        #"@istio_proxy//src/envoy/tcp/mixer:filter_lib",
-        #"@istio_proxy//src/envoy/tcp/tcp_cluster_rewrite:config_lib",
 
         "@envoy//source/exe:envoy_main_entry_lib",
     ],
