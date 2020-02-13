@@ -50,7 +50,7 @@ endif
 
 # Fetch and install Bazel if needed
 install-bazel:
-	tools/install_bazel.sh `cat BAZEL_VERSION`
+	tools/install_bazel.sh `cat .bazelversion`
 
 ifdef KEEP_BAZEL_RUNNING
 shutdown-bazel:
