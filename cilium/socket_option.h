@@ -1,6 +1,6 @@
 #pragma once
 
-#include "envoy/api/v2/core/base.pb.h"
+#include "envoy/config/core/v3/base.pb.h"
 #include "envoy/network/listen_socket.h"
 #include "common/common/logger.h"
 
@@ -16,13 +16,13 @@ public:
     : identity_(identity), ingress_(ingress), src_address_(std::move(src_address)) {}
 
   absl::optional<Network::Socket::Option::Details>
-  getOptionDetails(const Network::Socket&, envoy::api::v2::core::SocketOption::SocketState) const override {
+  getOptionDetails(const Network::Socket&, envoy::config::core::v3::SocketOption::SocketState) const override {
   	return absl::nullopt;
   }
 
-  bool setOption(Network::Socket& socket, envoy::api::v2::core::SocketOption::SocketState state) const override {
+  bool setOption(Network::Socket& socket, envoy::config::core::v3::SocketOption::SocketState state) const override {
     // Only set the option once per socket
-    if (state != envoy::api::v2::core::SocketOption::STATE_PREBIND) {
+    if (state != envoy::config::core::v3::SocketOption::STATE_PREBIND) {
       ENVOY_LOG(trace, "Skipping setting socket ({}) option SO_MARK, state != STATE_PREBIND", socket.ioHandle().fd());
       return true;
     }

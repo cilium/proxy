@@ -1,0 +1,928 @@
+diff --git a/include/envoy/server/BUILD b/include/envoy/server/BUILD
+index e48700dee..750ee31d9 100644
+--- a/include/envoy/server/BUILD
++++ b/include/envoy/server/BUILD
+@@ -172,6 +172,7 @@ envoy_cc_library(
+         "//include/envoy/network:drain_decision_interface",
+         "//include/envoy/runtime:runtime_interface",
+         "//include/envoy/server:overload_manager_interface",
++        "//include/envoy/server:transport_socket_config_interface",
+         "//include/envoy/singleton:manager_interface",
+         "//include/envoy/thread_local:thread_local_interface",
+         "//include/envoy/tracing:http_tracer_interface",
+diff --git a/include/envoy/server/filter_config.h b/include/envoy/server/filter_config.h
+index 7d0789770..fcaf66a5b 100644
+--- a/include/envoy/server/filter_config.h
++++ b/include/envoy/server/filter_config.h
+@@ -17,6 +17,7 @@
+ #include "envoy/server/lifecycle_notifier.h"
+ #include "envoy/server/overload_manager.h"
+ #include "envoy/server/process_context.h"
++#include "envoy/server/transport_socket_config.h"
+ #include "envoy/singleton/manager.h"
+ #include "envoy/stats/scope.h"
+ #include "envoy/thread_local/thread_local.h"
+@@ -120,6 +121,11 @@ public:
+    */
+   virtual ServerFactoryContext& getServerFactoryContext() const PURE;
+ 
++  /**
++   * @return TransportSocketFactoryContext which lifetime is no shorter than the server.
++   */
++  virtual TransportSocketFactoryContext& getTransportSocketFactoryContext() const PURE;
++
+   /**
+    * @return AccessLogManager for use by the entire server.
+    */
+diff --git a/include/envoy/server/instance.h b/include/envoy/server/instance.h
+index 59e3a9a8b..88d1ae1b1 100644
+--- a/include/envoy/server/instance.h
++++ b/include/envoy/server/instance.h
+@@ -229,6 +229,11 @@ public:
+    * @return Configuration::ServerFactoryContext& factory context for filters.
+    */
+   virtual Configuration::ServerFactoryContext& serverFactoryContext() PURE;
++
++  /**
++   * @return Configuration::TransportSocketFactoryContext& factory context for transport sockets.
++   */
++  virtual Configuration::TransportSocketFactoryContext& transportSocketFactoryContext() PURE;
+ };
+ 
+ } // namespace Server
+diff --git a/include/envoy/server/transport_socket_config.h b/include/envoy/server/transport_socket_config.h
+index 781cc30e1..1dd0e4ab7 100644
+--- a/include/envoy/server/transport_socket_config.h
++++ b/include/envoy/server/transport_socket_config.h
+@@ -41,7 +41,7 @@ public:
+   /**
+    * @return Stats::Scope& the transport socket's stats scope.
+    */
+-  virtual Stats::Scope& statsScope() const PURE;
++  virtual Stats::Scope& scope() PURE;
+ 
+   /**
+    * Return the instance of secret manager.
+@@ -56,7 +56,7 @@ public:
+   /**
+    * @return information about the local environment the server is running in.
+    */
+-  virtual const LocalInfo::LocalInfo& localInfo() PURE;
++  virtual const LocalInfo::LocalInfo& localInfo() const PURE;
+ 
+   /**
+    * @return Event::Dispatcher& the main thread's dispatcher.
+@@ -73,12 +73,6 @@ public:
+    */
+   virtual Stats::Store& stats() PURE;
+ 
+-  /**
+-   * Pass an init manager to register dynamic secret provider.
+-   * @param init_manager instance of init manager.
+-   */
+-  virtual void setInitManager(Init::Manager& init_manager) PURE;
+-
+   /**
+    * @return a pointer pointing to the instance of an init manager, or nullptr
+    * if not set.
+diff --git a/source/common/upstream/cluster_factory_impl.h b/source/common/upstream/cluster_factory_impl.h
+index 6ae088454..63af89ead 100644
+--- a/source/common/upstream/cluster_factory_impl.h
++++ b/source/common/upstream/cluster_factory_impl.h
+@@ -146,11 +146,10 @@ private:
+   /**
+    * Create an instance of ClusterImplBase.
+    */
+-  virtual std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+-  createClusterImpl(const envoy::config::cluster::v3::Cluster& cluster,
+-                    ClusterFactoryContext& context,
+-                    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
+-                    Stats::ScopePtr&& stats_scope) PURE;
++  virtual std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
++      const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
++      Stats::ScopePtr&& stats_scope) PURE;
+   const std::string name_;
+ };
+ 
+@@ -171,11 +170,10 @@ protected:
+   ConfigurableClusterFactoryBase(const std::string& name) : ClusterFactoryImplBase(name) {}
+ 
+ private:
+-  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+-  createClusterImpl(const envoy::config::cluster::v3::Cluster& cluster,
+-                    ClusterFactoryContext& context,
+-                    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
+-                    Stats::ScopePtr&& stats_scope) override {
++  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
++      const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
++      Stats::ScopePtr&& stats_scope) override {
+     ProtobufTypes::MessagePtr config = createEmptyConfigProto();
+     Config::Utility::translateOpaqueConfig(
+         cluster.cluster_type().typed_config(), ProtobufWkt::Struct::default_instance(),
+@@ -189,7 +187,7 @@ private:
+   virtual std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterWithConfig(
+       const envoy::config::cluster::v3::Cluster& cluster, const ConfigProto& proto_config,
+       ClusterFactoryContext& context,
+-      Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+       Stats::ScopePtr&& stats_scope) PURE;
+ };
+ 
+diff --git a/source/common/upstream/eds.cc b/source/common/upstream/eds.cc
+index e8362e676..dfe6ac4d0 100644
+--- a/source/common/upstream/eds.cc
++++ b/source/common/upstream/eds.cc
+@@ -18,7 +18,7 @@ namespace Upstream {
+ 
+ EdsClusterImpl::EdsClusterImpl(
+     const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+-    Server::Configuration::TransportSocketFactoryContext& factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+     Stats::ScopePtr&& stats_scope, bool added_via_api)
+     : BaseDynamicClusterImpl(cluster, runtime, factory_context, std::move(stats_scope),
+                              added_via_api),
+@@ -292,7 +292,7 @@ void EdsClusterImpl::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReas
+ std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+ EdsClusterFactory::createClusterImpl(
+     const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
+-    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+     Stats::ScopePtr&& stats_scope) {
+   if (!cluster.has_eds_cluster_config()) {
+     throw EnvoyException("cannot create an EDS cluster without an EDS config");
+diff --git a/source/common/upstream/eds.h b/source/common/upstream/eds.h
+index 4a5ff1f57..79470a525 100644
+--- a/source/common/upstream/eds.h
++++ b/source/common/upstream/eds.h
+@@ -26,7 +26,7 @@ namespace Upstream {
+ class EdsClusterImpl : public BaseDynamicClusterImpl, Config::SubscriptionCallbacks {
+ public:
+   EdsClusterImpl(const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+-                 Server::Configuration::TransportSocketFactoryContext& factory_context,
++                 Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+                  Stats::ScopePtr&& stats_scope, bool added_via_api);
+ 
+   // Upstream::Cluster
+@@ -89,11 +89,10 @@ public:
+   EdsClusterFactory() : ClusterFactoryImplBase(Extensions::Clusters::ClusterTypes::get().Eds) {}
+ 
+ private:
+-  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+-  createClusterImpl(const envoy::config::cluster::v3::Cluster& cluster,
+-                    ClusterFactoryContext& context,
+-                    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
+-                    Stats::ScopePtr&& stats_scope) override;
++  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
++      const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
++      Stats::ScopePtr&& stats_scope) override;
+ };
+ 
+ } // namespace Upstream
+diff --git a/source/common/upstream/logical_dns_cluster.cc b/source/common/upstream/logical_dns_cluster.cc
+index df2df3cda..f74b4b2bf 100644
+--- a/source/common/upstream/logical_dns_cluster.cc
++++ b/source/common/upstream/logical_dns_cluster.cc
+@@ -45,7 +45,7 @@ convertPriority(const envoy::config::endpoint::v3::ClusterLoadAssignment& load_a
+ LogicalDnsCluster::LogicalDnsCluster(
+     const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+     Network::DnsResolverSharedPtr dns_resolver,
+-    Server::Configuration::TransportSocketFactoryContext& factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+     Stats::ScopePtr&& stats_scope, bool added_via_api)
+     : ClusterImplBase(cluster, runtime, factory_context, std::move(stats_scope), added_via_api),
+       dns_resolver_(dns_resolver),
+@@ -153,7 +153,7 @@ void LogicalDnsCluster::startResolve() {
+ std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+ LogicalDnsClusterFactory::createClusterImpl(
+     const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
+-    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+     Stats::ScopePtr&& stats_scope) {
+   auto selected_dns_resolver = selectDnsResolver(cluster, context);
+ 
+diff --git a/source/common/upstream/logical_dns_cluster.h b/source/common/upstream/logical_dns_cluster.h
+index 24002e178..c0503cd89 100644
+--- a/source/common/upstream/logical_dns_cluster.h
++++ b/source/common/upstream/logical_dns_cluster.h
+@@ -37,7 +37,7 @@ class LogicalDnsCluster : public ClusterImplBase {
+ public:
+   LogicalDnsCluster(const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+                     Network::DnsResolverSharedPtr dns_resolver,
+-                    Server::Configuration::TransportSocketFactoryContext& factory_context,
++                    Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+                     Stats::ScopePtr&& stats_scope, bool added_via_api);
+ 
+   ~LogicalDnsCluster() override;
+@@ -84,11 +84,10 @@ public:
+       : ClusterFactoryImplBase(Extensions::Clusters::ClusterTypes::get().LogicalDns) {}
+ 
+ private:
+-  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+-  createClusterImpl(const envoy::config::cluster::v3::Cluster& cluster,
+-                    ClusterFactoryContext& context,
+-                    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
+-                    Stats::ScopePtr&& stats_scope) override;
++  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
++      const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
++      Stats::ScopePtr&& stats_scope) override;
+ };
+ 
+ DECLARE_FACTORY(LogicalDnsClusterFactory);
+diff --git a/source/common/upstream/original_dst_cluster.cc b/source/common/upstream/original_dst_cluster.cc
+index 324834439..6ba47bc4d 100644
+--- a/source/common/upstream/original_dst_cluster.cc
++++ b/source/common/upstream/original_dst_cluster.cc
+@@ -165,7 +165,7 @@ Cluster::LoadBalancer::requestOverrideHost(LoadBalancerContext* context) {
+ }
+ 
+ Cluster::Cluster(const envoy::config::cluster::v3::Cluster& config, Runtime::Loader& runtime,
+-                 Server::Configuration::TransportSocketFactoryContext& factory_context,
++                 Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+                  Stats::ScopePtr&& stats_scope, bool added_via_api)
+     : ClusterImplBase(config, runtime, factory_context, std::move(stats_scope), added_via_api),
+       dispatcher_(factory_context.dispatcher()),
+@@ -254,7 +254,7 @@ void Cluster::cleanup() {
+ 
+ std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> ClusterFactory::createClusterImpl(
+     const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
+-    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+     Stats::ScopePtr&& stats_scope) {
+   if (cluster.lb_policy() !=
+           envoy::config::cluster::v3::Cluster::hidden_envoy_deprecated_ORIGINAL_DST_LB &&
+diff --git a/source/common/upstream/original_dst_cluster.h b/source/common/upstream/original_dst_cluster.h
+index d0acdf4ef..0962dbaae 100644
+--- a/source/common/upstream/original_dst_cluster.h
++++ b/source/common/upstream/original_dst_cluster.h
+@@ -31,7 +31,7 @@ namespace OriginalDst {
+ class Cluster : public ClusterImplBase {
+ public:
+   Cluster(const envoy::config::cluster::v3::Cluster& config, Runtime::Loader& runtime,
+-          Server::Configuration::TransportSocketFactoryContext& factory_context,
++          Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+           Stats::ScopePtr&& stats_scope, bool added_via_api);
+ 
+   // Upstream::Cluster
+@@ -153,11 +153,10 @@ public:
+       : ClusterFactoryImplBase(Extensions::Clusters::ClusterTypes::get().OriginalDst) {}
+ 
+ private:
+-  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+-  createClusterImpl(const envoy::config::cluster::v3::Cluster& cluster,
+-                    ClusterFactoryContext& context,
+-                    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
+-                    Stats::ScopePtr&& stats_scope) override;
++  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
++      const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
++      Stats::ScopePtr&& stats_scope) override;
+ };
+ 
+ } // namespace OriginalDst
+diff --git a/source/common/upstream/static_cluster.cc b/source/common/upstream/static_cluster.cc
+index efce805e0..d34dbeaa2 100644
+--- a/source/common/upstream/static_cluster.cc
++++ b/source/common/upstream/static_cluster.cc
+@@ -9,7 +9,7 @@ namespace Upstream {
+ 
+ StaticClusterImpl::StaticClusterImpl(
+     const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+-    Server::Configuration::TransportSocketFactoryContext& factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+     Stats::ScopePtr&& stats_scope, bool added_via_api)
+     : ClusterImplBase(cluster, runtime, factory_context, std::move(stats_scope), added_via_api),
+       priority_state_manager_(
+@@ -59,7 +59,7 @@ void StaticClusterImpl::startPreInit() {
+ std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+ StaticClusterFactory::createClusterImpl(
+     const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
+-    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+     Stats::ScopePtr&& stats_scope) {
+   return std::make_pair(
+       std::make_shared<StaticClusterImpl>(cluster, context.runtime(), socket_factory_context,
+diff --git a/source/common/upstream/static_cluster.h b/source/common/upstream/static_cluster.h
+index 0df0d7033..ed7a97b57 100644
+--- a/source/common/upstream/static_cluster.h
++++ b/source/common/upstream/static_cluster.h
+@@ -15,7 +15,7 @@ namespace Upstream {
+ class StaticClusterImpl : public ClusterImplBase {
+ public:
+   StaticClusterImpl(const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+-                    Server::Configuration::TransportSocketFactoryContext& factory_context,
++                    Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+                     Stats::ScopePtr&& stats_scope, bool added_via_api);
+ 
+   // Upstream::Cluster
+@@ -38,11 +38,10 @@ public:
+       : ClusterFactoryImplBase(Extensions::Clusters::ClusterTypes::get().Static) {}
+ 
+ private:
+-  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+-  createClusterImpl(const envoy::config::cluster::v3::Cluster& cluster,
+-                    ClusterFactoryContext& context,
+-                    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
+-                    Stats::ScopePtr&& stats_scope) override;
++  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
++      const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
++      Stats::ScopePtr&& stats_scope) override;
+ };
+ 
+ } // namespace Upstream
+diff --git a/source/common/upstream/strict_dns_cluster.cc b/source/common/upstream/strict_dns_cluster.cc
+index cc3142a87..c9f5a212a 100644
+--- a/source/common/upstream/strict_dns_cluster.cc
++++ b/source/common/upstream/strict_dns_cluster.cc
+@@ -11,7 +11,7 @@ namespace Upstream {
+ StrictDnsClusterImpl::StrictDnsClusterImpl(
+     const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+     Network::DnsResolverSharedPtr dns_resolver,
+-    Server::Configuration::TransportSocketFactoryContext& factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+     Stats::ScopePtr&& stats_scope, bool added_via_api)
+     : BaseDynamicClusterImpl(cluster, runtime, factory_context, std::move(stats_scope),
+                              added_via_api),
+@@ -172,7 +172,7 @@ void StrictDnsClusterImpl::ResolveTarget::startResolve() {
+ std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+ StrictDnsClusterFactory::createClusterImpl(
+     const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
+-    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+     Stats::ScopePtr&& stats_scope) {
+   auto selected_dns_resolver = selectDnsResolver(cluster, context);
+ 
+diff --git a/source/common/upstream/strict_dns_cluster.h b/source/common/upstream/strict_dns_cluster.h
+index 635402b28..4a23e8763 100644
+--- a/source/common/upstream/strict_dns_cluster.h
++++ b/source/common/upstream/strict_dns_cluster.h
+@@ -17,7 +17,7 @@ class StrictDnsClusterImpl : public BaseDynamicClusterImpl {
+ public:
+   StrictDnsClusterImpl(const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+                        Network::DnsResolverSharedPtr dns_resolver,
+-                       Server::Configuration::TransportSocketFactoryContext& factory_context,
++                       Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+                        Stats::ScopePtr&& stats_scope, bool added_via_api);
+ 
+   // Upstream::Cluster
+@@ -70,11 +70,10 @@ public:
+       : ClusterFactoryImplBase(Extensions::Clusters::ClusterTypes::get().StrictDns) {}
+ 
+ private:
+-  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+-  createClusterImpl(const envoy::config::cluster::v3::Cluster& cluster,
+-                    ClusterFactoryContext& context,
+-                    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
+-                    Stats::ScopePtr&& stats_scope) override;
++  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
++      const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
++      Stats::ScopePtr&& stats_scope) override;
+ };
+ 
+ } // namespace Upstream
+diff --git a/source/common/upstream/upstream_impl.cc b/source/common/upstream/upstream_impl.cc
+index 536447255..320045334 100644
+--- a/source/common/upstream/upstream_impl.cc
++++ b/source/common/upstream/upstream_impl.cc
+@@ -839,7 +839,7 @@ ClusterInfoImpl::upstreamHttpProtocol(absl::optional<Http::Protocol> downstream_
+ 
+ ClusterImplBase::ClusterImplBase(
+     const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+-    Server::Configuration::TransportSocketFactoryContext& factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+     Stats::ScopePtr&& stats_scope, bool added_via_api)
+     : init_manager_(fmt::format("Cluster {}", cluster.name())),
+       init_watcher_("ClusterImplBase", [this]() { onInitDone(); }), runtime_(runtime),
+diff --git a/source/common/upstream/upstream_impl.h b/source/common/upstream/upstream_impl.h
+index 848f0eef2..fb65fc79a 100644
+--- a/source/common/upstream/upstream_impl.h
++++ b/source/common/upstream/upstream_impl.h
+@@ -48,6 +48,8 @@
+ #include "common/upstream/resource_manager_impl.h"
+ #include "common/upstream/transport_socket_match_impl.h"
+ 
++#include "server/transport_socket_config_impl.h"
++
+ #include "absl/synchronization/mutex.h"
+ 
+ namespace Envoy {
+@@ -710,7 +712,7 @@ public:
+ 
+ protected:
+   ClusterImplBase(const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+-                  Server::Configuration::TransportSocketFactoryContext& factory_context,
++                  Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+                   Stats::ScopePtr&& stats_scope, bool added_via_api);
+ 
+   /**
+diff --git a/source/extensions/clusters/aggregate/cluster.cc b/source/extensions/clusters/aggregate/cluster.cc
+index 43a7e9b4e..5088c6a24 100644
+--- a/source/extensions/clusters/aggregate/cluster.cc
++++ b/source/extensions/clusters/aggregate/cluster.cc
+@@ -13,7 +13,7 @@ Cluster::Cluster(const envoy::config::cluster::v3::Cluster& cluster,
+                  const envoy::extensions::clusters::aggregate::v3::ClusterConfig& config,
+                  Upstream::ClusterManager& cluster_manager, Runtime::Loader& runtime,
+                  Runtime::RandomGenerator& random,
+-                 Server::Configuration::TransportSocketFactoryContext& factory_context,
++                 Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+                  Stats::ScopePtr&& stats_scope, ThreadLocal::SlotAllocator& tls, bool added_via_api)
+     : Upstream::ClusterImplBase(cluster, runtime, factory_context, std::move(stats_scope),
+                                 added_via_api),
+@@ -137,7 +137,7 @@ ClusterFactory::createClusterWithConfig(
+     const envoy::config::cluster::v3::Cluster& cluster,
+     const envoy::extensions::clusters::aggregate::v3::ClusterConfig& proto_config,
+     Upstream::ClusterFactoryContext& context,
+-    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+     Stats::ScopePtr&& stats_scope) {
+   auto new_cluster = std::make_shared<Cluster>(
+       cluster, proto_config, context.clusterManager(), context.runtime(), context.random(),
+diff --git a/source/extensions/clusters/aggregate/cluster.h b/source/extensions/clusters/aggregate/cluster.h
+index 297418609..550d89193 100644
+--- a/source/extensions/clusters/aggregate/cluster.h
++++ b/source/extensions/clusters/aggregate/cluster.h
+@@ -23,7 +23,7 @@ public:
+           const envoy::extensions::clusters::aggregate::v3::ClusterConfig& config,
+           Upstream::ClusterManager& cluster_manager, Runtime::Loader& runtime,
+           Runtime::RandomGenerator& random,
+-          Server::Configuration::TransportSocketFactoryContext& factory_context,
++          Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+           Stats::ScopePtr&& stats_scope, ThreadLocal::SlotAllocator& tls, bool added_via_api);
+ 
+   // Upstream::Cluster
+@@ -147,7 +147,7 @@ private:
+       const envoy::config::cluster::v3::Cluster& cluster,
+       const envoy::extensions::clusters::aggregate::v3::ClusterConfig& proto_config,
+       Upstream::ClusterFactoryContext& context,
+-      Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+       Stats::ScopePtr&& stats_scope) override;
+ };
+ 
+diff --git a/source/extensions/clusters/dynamic_forward_proxy/cluster.cc b/source/extensions/clusters/dynamic_forward_proxy/cluster.cc
+index dc05df414..5d68e1602 100644
+--- a/source/extensions/clusters/dynamic_forward_proxy/cluster.cc
++++ b/source/extensions/clusters/dynamic_forward_proxy/cluster.cc
+@@ -19,7 +19,7 @@ Cluster::Cluster(
+     Runtime::Loader& runtime,
+     Extensions::Common::DynamicForwardProxy::DnsCacheManagerFactory& cache_manager_factory,
+     const LocalInfo::LocalInfo& local_info,
+-    Server::Configuration::TransportSocketFactoryContext& factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+     Stats::ScopePtr&& stats_scope, bool added_via_api)
+     : Upstream::BaseDynamicClusterImpl(cluster, runtime, factory_context, std::move(stats_scope),
+                                        added_via_api),
+@@ -191,7 +191,7 @@ ClusterFactory::createClusterWithConfig(
+     const envoy::config::cluster::v3::Cluster& cluster,
+     const envoy::extensions::clusters::dynamic_forward_proxy::v3::ClusterConfig& proto_config,
+     Upstream::ClusterFactoryContext& context,
+-    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+     Stats::ScopePtr&& stats_scope) {
+   Extensions::Common::DynamicForwardProxy::DnsCacheManagerFactoryImpl cache_manager_factory(
+       context.singletonManager(), context.dispatcher(), context.tls(), context.stats());
+diff --git a/source/extensions/clusters/dynamic_forward_proxy/cluster.h b/source/extensions/clusters/dynamic_forward_proxy/cluster.h
+index 98d6db61d..7354c60de 100644
+--- a/source/extensions/clusters/dynamic_forward_proxy/cluster.h
++++ b/source/extensions/clusters/dynamic_forward_proxy/cluster.h
+@@ -24,7 +24,7 @@ public:
+           Runtime::Loader& runtime,
+           Extensions::Common::DynamicForwardProxy::DnsCacheManagerFactory& cache_manager_factory,
+           const LocalInfo::LocalInfo& local_info,
+-          Server::Configuration::TransportSocketFactoryContext& factory_context,
++          Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+           Stats::ScopePtr&& stats_scope, bool added_via_api);
+ 
+   // Upstream::Cluster
+@@ -128,7 +128,7 @@ private:
+       const envoy::config::cluster::v3::Cluster& cluster,
+       const envoy::extensions::clusters::dynamic_forward_proxy::v3::ClusterConfig& proto_config,
+       Upstream::ClusterFactoryContext& context,
+-      Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+       Stats::ScopePtr&& stats_scope) override;
+ };
+ 
+diff --git a/source/extensions/clusters/redis/redis_cluster.cc b/source/extensions/clusters/redis/redis_cluster.cc
+index b3bc126f1..2b042d2f2 100644
+--- a/source/extensions/clusters/redis/redis_cluster.cc
++++ b/source/extensions/clusters/redis/redis_cluster.cc
+@@ -23,7 +23,7 @@ RedisCluster::RedisCluster(
+     NetworkFilters::Common::Redis::Client::ClientFactory& redis_client_factory,
+     Upstream::ClusterManager& cluster_manager, Runtime::Loader& runtime, Api::Api& api,
+     Network::DnsResolverSharedPtr dns_resolver,
+-    Server::Configuration::TransportSocketFactoryContext& factory_context,
++    Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+     Stats::ScopePtr&& stats_scope, bool added_via_api,
+     ClusterSlotUpdateCallBackSharedPtr lb_factory)
+     : Upstream::BaseDynamicClusterImpl(cluster, runtime, factory_context, std::move(stats_scope),
+@@ -365,7 +365,7 @@ RedisClusterFactory::createClusterWithConfig(
+     const envoy::config::cluster::v3::Cluster& cluster,
+     const envoy::config::cluster::redis::RedisClusterConfig& proto_config,
+     Upstream::ClusterFactoryContext& context,
+-    Envoy::Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++    Envoy::Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+     Envoy::Stats::ScopePtr&& stats_scope) {
+   if (!cluster.has_cluster_type() ||
+       cluster.cluster_type().name() != Extensions::Clusters::ClusterTypes::get().Redis) {
+diff --git a/source/extensions/clusters/redis/redis_cluster.h b/source/extensions/clusters/redis/redis_cluster.h
+index 177ce066b..694bfa383 100644
+--- a/source/extensions/clusters/redis/redis_cluster.h
++++ b/source/extensions/clusters/redis/redis_cluster.h
+@@ -98,7 +98,7 @@ public:
+                NetworkFilters::Common::Redis::Client::ClientFactory& client_factory,
+                Upstream::ClusterManager& cluster_manager, Runtime::Loader& runtime, Api::Api& api,
+                Network::DnsResolverSharedPtr dns_resolver,
+-               Server::Configuration::TransportSocketFactoryContext& factory_context,
++               Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+                Stats::ScopePtr&& stats_scope, bool added_via_api,
+                ClusterSlotUpdateCallBackSharedPtr factory);
+ 
+@@ -294,7 +294,7 @@ private:
+       const envoy::config::cluster::v3::Cluster& cluster,
+       const envoy::config::cluster::redis::RedisClusterConfig& proto_config,
+       Upstream::ClusterFactoryContext& context,
+-      Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+       Stats::ScopePtr&& stats_scope) override;
+ };
+ } // namespace Redis
+diff --git a/source/extensions/transport_sockets/tls/config.cc b/source/extensions/transport_sockets/tls/config.cc
+index 29efd4cd7..655ac5724 100644
+--- a/source/extensions/transport_sockets/tls/config.cc
++++ b/source/extensions/transport_sockets/tls/config.cc
+@@ -21,8 +21,8 @@ Network::TransportSocketFactoryPtr UpstreamSslSocketFactory::createTransportSock
+           const envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext&>(
+           message, context.messageValidationVisitor()),
+       context);
+-  return std::make_unique<ClientSslSocketFactory>(
+-      std::move(client_config), context.sslContextManager(), context.statsScope());
++  return std::make_unique<ClientSslSocketFactory>(std::move(client_config),
++                                                  context.sslContextManager(), context.scope());
+ }
+ 
+ ProtobufTypes::MessagePtr UpstreamSslSocketFactory::createEmptyConfigProto() {
+@@ -41,7 +41,7 @@ Network::TransportSocketFactoryPtr DownstreamSslSocketFactory::createTransportSo
+           message, context.messageValidationVisitor()),
+       context);
+   return std::make_unique<ServerSslSocketFactory>(
+-      std::move(server_config), context.sslContextManager(), context.statsScope(), server_names);
++      std::move(server_config), context.sslContextManager(), context.scope(), server_names);
+ }
+ 
+ ProtobufTypes::MessagePtr DownstreamSslSocketFactory::createEmptyConfigProto() {
+diff --git a/source/server/config_validation/server.cc b/source/server/config_validation/server.cc
+index bc4a75149..68a69f6e7 100644
+--- a/source/server/config_validation/server.cc
++++ b/source/server/config_validation/server.cc
+@@ -50,7 +50,8 @@ ValidationInstance::ValidationInstance(
+       access_log_manager_(options.fileFlushIntervalMsec(), *api_, *dispatcher_, access_log_lock,
+                           store),
+       mutex_tracer_(nullptr), grpc_context_(stats_store_.symbolTable()),
+-      http_context_(stats_store_.symbolTable()), time_system_(time_system), server_context_(*this) {
++      http_context_(stats_store_.symbolTable()), time_system_(time_system),
++      server_contexts_(*this) {
+   try {
+     initialize(options, local_address, component_factory);
+   } catch (const EnvoyException& e) {
+diff --git a/source/server/config_validation/server.h b/source/server/config_validation/server.h
+index 0e5436821..0eb2d5344 100644
+--- a/source/server/config_validation/server.h
++++ b/source/server/config_validation/server.h
+@@ -109,7 +109,10 @@ public:
+   ProtobufMessage::ValidationContext& messageValidationContext() override {
+     return validation_context_;
+   }
+-  Configuration::ServerFactoryContext& serverFactoryContext() override { return server_context_; }
++  Configuration::ServerFactoryContext& serverFactoryContext() override { return server_contexts_; }
++  Configuration::TransportSocketFactoryContext& transportSocketFactoryContext() override {
++    return server_contexts_;
++  }
+ 
+   // Server::ListenerComponentFactory
+   LdsApiPtr createLdsApi(const envoy::config::core::v3::ConfigSource& lds_config) override {
+@@ -198,7 +201,7 @@ private:
+   Grpc::ContextImpl grpc_context_;
+   Http::ContextImpl http_context_;
+   Event::TimeSystem& time_system_;
+-  ServerFactoryContextImpl server_context_;
++  ServerFactoryContextImpl server_contexts_;
+ };
+ 
+ } // namespace Server
+diff --git a/source/server/filter_chain_manager_impl.cc b/source/server/filter_chain_manager_impl.cc
+index a84eb255f..aaf8d6696 100644
+--- a/source/server/filter_chain_manager_impl.cc
++++ b/source/server/filter_chain_manager_impl.cc
+@@ -124,6 +124,11 @@ FilterChainFactoryContextImpl::getServerFactoryContext() const {
+   return parent_context_.getServerFactoryContext();
+ }
+ 
++Configuration::TransportSocketFactoryContext&
++FilterChainFactoryContextImpl::getTransportSocketFactoryContext() const {
++  return parent_context_.getTransportSocketFactoryContext();
++}
++
+ Stats::Scope& FilterChainFactoryContextImpl::listenerScope() {
+   return parent_context_.listenerScope();
+ }
+@@ -613,6 +618,10 @@ OptProcessContextRef FactoryContextImpl::processContext() { return server_.proce
+ Configuration::ServerFactoryContext& FactoryContextImpl::getServerFactoryContext() const {
+   return server_.serverFactoryContext();
+ }
++Configuration::TransportSocketFactoryContext&
++FactoryContextImpl::getTransportSocketFactoryContext() const {
++  return server_.transportSocketFactoryContext();
++}
+ const envoy::config::core::v3::Metadata& FactoryContextImpl::listenerMetadata() const {
+   return config_.metadata();
+ }
+diff --git a/source/server/filter_chain_manager_impl.h b/source/server/filter_chain_manager_impl.h
+index dec926d3b..1422f381b 100644
+--- a/source/server/filter_chain_manager_impl.h
++++ b/source/server/filter_chain_manager_impl.h
+@@ -68,6 +68,7 @@ public:
+   ServerLifecycleNotifier& lifecycleNotifier() override;
+   OptProcessContextRef processContext() override;
+   Configuration::ServerFactoryContext& getServerFactoryContext() const override;
++  Configuration::TransportSocketFactoryContext& getTransportSocketFactoryContext() const override;
+   Stats::Scope& listenerScope() override;
+ 
+ private:
+@@ -106,6 +107,7 @@ public:
+   ServerLifecycleNotifier& lifecycleNotifier() override;
+   OptProcessContextRef processContext() override;
+   Configuration::ServerFactoryContext& getServerFactoryContext() const override;
++  Configuration::TransportSocketFactoryContext& getTransportSocketFactoryContext() const override;
+   const envoy::config::core::v3::Metadata& listenerMetadata() const override;
+   envoy::config::core::v3::TrafficDirection direction() const override;
+   Network::DrainDecision& drainDecision() override;
+diff --git a/source/server/listener_impl.cc b/source/server/listener_impl.cc
+index f89aef98b..44caa44a9 100644
+--- a/source/server/listener_impl.cc
++++ b/source/server/listener_impl.cc
+@@ -353,6 +353,10 @@ OptProcessContextRef ListenerImpl::processContext() { return parent_.server_.pro
+ Configuration::ServerFactoryContext& ListenerImpl::getServerFactoryContext() const {
+   return parent_.server_.serverFactoryContext();
+ }
++Configuration::TransportSocketFactoryContext&
++ListenerImpl::getTransportSocketFactoryContext() const {
++  return parent_.server_.transportSocketFactoryContext();
++}
+ 
+ bool ListenerImpl::createNetworkFilterChain(
+     Network::Connection& connection,
+diff --git a/source/server/listener_impl.h b/source/server/listener_impl.h
+index 446e7f732..119d532fe 100644
+--- a/source/server/listener_impl.h
++++ b/source/server/listener_impl.h
+@@ -178,6 +178,7 @@ public:
+   ServerLifecycleNotifier& lifecycleNotifier() override;
+   OptProcessContextRef processContext() override;
+   Configuration::ServerFactoryContext& getServerFactoryContext() const override;
++  Configuration::TransportSocketFactoryContext& getTransportSocketFactoryContext() const override;
+ 
+   void ensureSocketOptions() {
+     if (!listen_socket_options_) {
+diff --git a/source/server/server.cc b/source/server/server.cc
+index d4efe1552..e62a77816 100644
+--- a/source/server/server.cc
++++ b/source/server/server.cc
+@@ -74,7 +74,7 @@ InstanceImpl::InstanceImpl(
+                                                   : nullptr),
+       grpc_context_(store.symbolTable()), http_context_(store.symbolTable()),
+       process_context_(std::move(process_context)), main_thread_id_(std::this_thread::get_id()),
+-      server_context_(*this) {
++      server_contexts_(*this) {
+   try {
+     if (!options.logPath().empty()) {
+       try {
+diff --git a/source/server/server.h b/source/server/server.h
+index 039735604..960a6916d 100644
+--- a/source/server/server.h
++++ b/source/server/server.h
+@@ -15,6 +15,7 @@
+ #include "envoy/server/instance.h"
+ #include "envoy/server/process_context.h"
+ #include "envoy/server/tracer_config.h"
++#include "envoy/server/transport_socket_config.h"
+ #include "envoy/ssl/context_manager.h"
+ #include "envoy/stats/stats_macros.h"
+ #include "envoy/stats/timespan.h"
+@@ -144,11 +145,16 @@ private:
+   Event::SignalEventPtr sig_hup_;
+ };
+ 
+-class ServerFactoryContextImpl : public Configuration::ServerFactoryContext {
++// ServerFactoryContextImpl implements both ServerFactoryContext and
++// TransportSocketFactoryContext for convenience as these two contexts
++// share common member functions and member variables.
++class ServerFactoryContextImpl : public Configuration::ServerFactoryContext,
++                                 public Configuration::TransportSocketFactoryContext {
+ public:
+   explicit ServerFactoryContextImpl(Instance& server)
+       : server_(server), server_scope_(server_.stats().createScope("")) {}
+ 
++  // Configuration::ServerFactoryContext
+   Upstream::ClusterManager& clusterManager() override { return server_.clusterManager(); }
+   Event::Dispatcher& dispatcher() override { return server_.dispatcher(); }
+   const LocalInfo::LocalInfo& localInfo() const override { return server_.localInfo(); }
+@@ -161,6 +167,22 @@ public:
+   TimeSource& timeSource() override { return api().timeSource(); }
+   Api::Api& api() override { return server_.api(); }
+ 
++  // Configuration::TransportSocketFactoryContext
++  Ssl::ContextManager& sslContextManager() override { return server_.sslContextManager(); }
++  Secret::SecretManager& secretManager() override { return server_.secretManager(); }
++  Stats::Store& stats() override { return server_.stats(); }
++  Init::Manager* initManager() override { return &server_.initManager(); }
++  ProtobufMessage::ValidationVisitor& messageValidationVisitor() override {
++    // Server has two message validation visitors, one for static and
++    // other for dynamic configuration. Choose the dynamic validation
++    // visitor if server's init manager indicates that the server is
++    // in the Initialized state, as this state is engaged right after
++    // the static configuration (e.g., bootstrap) has been completed.
++    return initManager()->state() == Init::Manager::State::Initialized
++               ? server_.messageValidationContext().dynamicValidationVisitor()
++               : server_.messageValidationContext().staticValidationVisitor();
++  }
++
+ private:
+   Instance& server_;
+   Stats::ScopePtr server_scope_;
+@@ -224,7 +246,11 @@ public:
+   const LocalInfo::LocalInfo& localInfo() const override { return *local_info_; }
+   TimeSource& timeSource() override { return time_source_; }
+ 
+-  Configuration::ServerFactoryContext& serverFactoryContext() override { return server_context_; }
++  Configuration::ServerFactoryContext& serverFactoryContext() override { return server_contexts_; }
++
++  Configuration::TransportSocketFactoryContext& transportSocketFactoryContext() override {
++    return server_contexts_;
++  }
+ 
+   std::chrono::milliseconds statsFlushInterval() const override {
+     return config_.statsFlushInterval();
+@@ -318,7 +344,7 @@ private:
+   // whenever we have support for histogram merge across hot restarts.
+   Stats::TimespanPtr initialization_timer_;
+ 
+-  ServerFactoryContextImpl server_context_;
++  ServerFactoryContextImpl server_contexts_;
+ 
+   template <class T>
+   class LifecycleCallbackHandle : public ServerLifecycleNotifier::Handle, RaiiListElement<T> {
+diff --git a/source/server/transport_socket_config_impl.h b/source/server/transport_socket_config_impl.h
+index 374b36afc..9e5bb4639 100644
+--- a/source/server/transport_socket_config_impl.h
++++ b/source/server/transport_socket_config_impl.h
+@@ -23,19 +23,24 @@ public:
+         stats_(stats), singleton_manager_(singleton_manager), tls_(tls),
+         validation_visitor_(validation_visitor), api_(api) {}
+ 
++  /**
++   * Pass an init manager to register dynamic secret provider.
++   * @param init_manager instance of init manager.
++   */
++  void setInitManager(Init::Manager& init_manager) { init_manager_ = &init_manager; }
++
+   // TransportSocketFactoryContext
+   Server::Admin& admin() override { return admin_; }
+   Ssl::ContextManager& sslContextManager() override { return context_manager_; }
+-  Stats::Scope& statsScope() const override { return stats_scope_; }
++  Stats::Scope& scope() override { return stats_scope_; }
+   Secret::SecretManager& secretManager() override {
+     return cluster_manager_.clusterManagerFactory().secretManager();
+   }
+   Upstream::ClusterManager& clusterManager() override { return cluster_manager_; }
+-  const LocalInfo::LocalInfo& localInfo() override { return local_info_; }
++  const LocalInfo::LocalInfo& localInfo() const override { return local_info_; }
+   Event::Dispatcher& dispatcher() override { return dispatcher_; }
+   Envoy::Runtime::RandomGenerator& random() override { return random_; }
+   Stats::Store& stats() override { return stats_; }
+-  void setInitManager(Init::Manager& init_manager) override { init_manager_ = &init_manager; }
+   Init::Manager* initManager() override { return init_manager_; }
+   Singleton::Manager& singletonManager() override { return singleton_manager_; }
+   ThreadLocal::SlotAllocator& threadLocal() override { return tls_; }
+diff --git a/test/common/upstream/cluster_factory_impl_test.cc b/test/common/upstream/cluster_factory_impl_test.cc
+index 9c92f20f2..01e98b181 100644
+--- a/test/common/upstream/cluster_factory_impl_test.cc
++++ b/test/common/upstream/cluster_factory_impl_test.cc
+@@ -36,11 +36,10 @@ class TestStaticClusterFactory : public ClusterFactoryImplBase {
+ public:
+   TestStaticClusterFactory() : ClusterFactoryImplBase("envoy.clusters.test_static") {}
+ 
+-  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr>
+-  createClusterImpl(const envoy::config::cluster::v3::Cluster& cluster,
+-                    ClusterFactoryContext& context,
+-                    Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
+-                    Stats::ScopePtr&& stats_scope) override {
++  std::pair<ClusterImplBaseSharedPtr, ThreadAwareLoadBalancerPtr> createClusterImpl(
++      const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
++      Stats::ScopePtr&& stats_scope) override {
+     return std::make_pair(std::make_shared<CustomStaticCluster>(
+                               cluster, context.runtime(), socket_factory_context,
+                               std::move(stats_scope), context.addedViaApi(), 1, "127.0.0.1", 80),
+diff --git a/test/integration/clusters/custom_static_cluster.h b/test/integration/clusters/custom_static_cluster.h
+index 477134e36..23b1d573b 100644
+--- a/test/integration/clusters/custom_static_cluster.h
++++ b/test/integration/clusters/custom_static_cluster.h
+@@ -24,7 +24,7 @@ namespace Envoy {
+ class CustomStaticCluster : public Upstream::ClusterImplBase {
+ public:
+   CustomStaticCluster(const envoy::config::cluster::v3::Cluster& cluster, Runtime::Loader& runtime,
+-                      Server::Configuration::TransportSocketFactoryContext& factory_context,
++                      Server::Configuration::TransportSocketFactoryContextImpl& factory_context,
+                       Stats::ScopePtr&& stats_scope, bool added_via_api, uint32_t priority,
+                       std::string address, uint32_t port)
+       : ClusterImplBase(cluster, runtime, factory_context, std::move(stats_scope), added_via_api),
+@@ -89,7 +89,7 @@ private:
+       const envoy::config::cluster::v3::Cluster& cluster,
+       const test::integration::clusters::CustomStaticConfig& proto_config,
+       Upstream::ClusterFactoryContext& context,
+-      Server::Configuration::TransportSocketFactoryContext& socket_factory_context,
++      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
+       Stats::ScopePtr&& stats_scope) override {
+     auto new_cluster = std::make_shared<CustomStaticCluster>(
+         cluster, context.runtime(), socket_factory_context, std::move(stats_scope),
+diff --git a/test/mocks/server/mocks.cc b/test/mocks/server/mocks.cc
+index 5acea0c96..6081292b9 100644
+--- a/test/mocks/server/mocks.cc
++++ b/test/mocks/server/mocks.cc
+@@ -148,7 +148,9 @@ MockInstance::MockInstance()
+       singleton_manager_(new Singleton::ManagerImpl(Thread::threadFactoryForTest())),
+       grpc_context_(stats_store_.symbolTable()), http_context_(stats_store_.symbolTable()),
+       server_factory_context_(
+-          std::make_shared<NiceMock<Configuration::MockServerFactoryContext>>()) {
++          std::make_shared<NiceMock<Configuration::MockServerFactoryContext>>()),
++      transport_socket_factory_context_(
++          std::make_shared<NiceMock<Configuration::MockTransportSocketFactoryContext>>()) {
+   ON_CALL(*this, threadLocal()).WillByDefault(ReturnRef(thread_local_));
+   ON_CALL(*this, stats()).WillByDefault(ReturnRef(stats_store_));
+   ON_CALL(*this, grpcContext()).WillByDefault(ReturnRef(grpc_context_));
+@@ -174,6 +176,8 @@ MockInstance::MockInstance()
+   ON_CALL(*this, overloadManager()).WillByDefault(ReturnRef(overload_manager_));
+   ON_CALL(*this, messageValidationContext()).WillByDefault(ReturnRef(validation_context_));
+   ON_CALL(*this, serverFactoryContext()).WillByDefault(ReturnRef(*server_factory_context_));
++  ON_CALL(*this, transportSocketFactoryContext())
++      .WillByDefault(ReturnRef(*transport_socket_factory_context_));
+ }
+ 
+ MockInstance::~MockInstance() = default;
+diff --git a/test/mocks/server/mocks.h b/test/mocks/server/mocks.h
+index c505cc2ae..e3637f54f 100644
+--- a/test/mocks/server/mocks.h
++++ b/test/mocks/server/mocks.h
+@@ -59,7 +59,8 @@ namespace Server {
+ 
+ namespace Configuration {
+ class MockServerFactoryContext;
+-}
++class MockTransportSocketFactoryContext;
++} // namespace Configuration
+ 
+ class MockOptions : public Options {
+ public:
+@@ -406,6 +407,7 @@ public:
+   MOCK_CONST_METHOD0(statsFlushInterval, std::chrono::milliseconds());
+   MOCK_METHOD0(messageValidationContext, ProtobufMessage::ValidationContext&());
+   MOCK_METHOD0(serverFactoryContext, Configuration::ServerFactoryContext&());
++  MOCK_METHOD0(transportSocketFactoryContext, Configuration::TransportSocketFactoryContext&());
+ 
+   TimeSource& timeSource() override { return time_system_; }
+ 
+@@ -438,6 +440,8 @@ public:
+   testing::NiceMock<ProtobufMessage::MockValidationContext> validation_context_;
+   std::shared_ptr<testing::NiceMock<Configuration::MockServerFactoryContext>>
+       server_factory_context_;
++  std::shared_ptr<testing::NiceMock<Configuration::MockTransportSocketFactoryContext>>
++      transport_socket_factory_context_;
+ };
+ 
+ namespace Configuration {
+@@ -503,6 +507,7 @@ public:
+   ~MockFactoryContext() override;
+ 
+   MOCK_CONST_METHOD0(getServerFactoryContext, ServerFactoryContext&());
++  MOCK_CONST_METHOD0(getTransportSocketFactoryContext, TransportSocketFactoryContext&());
+   MOCK_METHOD0(accessLogManager, AccessLog::AccessLogManager&());
+   MOCK_METHOD0(clusterManager, Upstream::ClusterManager&());
+   MOCK_METHOD0(dispatcher, Event::Dispatcher&());
+@@ -561,9 +566,9 @@ public:
+ 
+   MOCK_METHOD0(admin, Server::Admin&());
+   MOCK_METHOD0(sslContextManager, Ssl::ContextManager&());
+-  MOCK_CONST_METHOD0(statsScope, Stats::Scope&());
++  MOCK_METHOD0(scope, Stats::Scope&());
+   MOCK_METHOD0(clusterManager, Upstream::ClusterManager&());
+-  MOCK_METHOD0(localInfo, const LocalInfo::LocalInfo&());
++  MOCK_CONST_METHOD0(localInfo, const LocalInfo::LocalInfo&());
+   MOCK_METHOD0(dispatcher, Event::Dispatcher&());
+   MOCK_METHOD0(random, Envoy::Runtime::RandomGenerator&());
+   MOCK_METHOD0(stats, Stats::Store&());

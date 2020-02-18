@@ -176,9 +176,9 @@ resources:
       http_rules:
         http_rules:
         - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
         - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
         - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
     - remote_policies: [ 2 ]
       http_rules:
@@ -191,9 +191,9 @@ resources:
       http_rules:
         http_rules:
         - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
         - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
         - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
     - remote_policies: [ 2 ]
       http_rules:
@@ -220,7 +220,7 @@ resources:
           - name: 'header1'
             value: 'value1'
             mismatch_action: REPLACE_ON_MISMATCH
-        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
           header_matches:
           - name: 'user-agent'
             value: 'CuRL'
@@ -233,7 +233,7 @@ resources:
           - name: 'header42'
             match_action: DELETE_ON_MATCH
             mismatch_action: CONTINUE_ON_MISMATCH
-        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
           header_matches:
           - name: 'header42'
             value: '42'
@@ -250,9 +250,9 @@ resources:
       http_rules:
         http_rules:
         - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
         - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
         - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
     - remote_policies: [ 2 ]
       http_rules:
@@ -398,7 +398,7 @@ public:
     return std::make_unique<::cilium::BpfMetadata>();
   }
 
-  std::string name() override { return "test_bpf_metadata"; }
+  std::string name() const override { return "test_bpf_metadata"; }
 };
 
 /**
@@ -417,13 +417,6 @@ class TestConfigFactory
     : public Server::Configuration::NamedHttpFilterConfigFactory {
 public:
   Http::FilterFactoryCb
-  createFilterFactory(const Json::Object&, const std::string &,
-                      Server::Configuration::FactoryContext&) override {
-    // json config not supported
-    return [](Http::FilterChainFactoryCallbacks &) mutable -> void {};
-  }
-
-  Http::FilterFactoryCb
   createFilterFactoryFromProto(const Protobuf::Message& proto_config, const std::string&,
                                Server::Configuration::FactoryContext& context) override {
     auto config = std::make_shared<Cilium::Config>(
@@ -438,7 +431,7 @@ public:
     return std::make_unique<::cilium::L7Policy>();
   }
 
-  std::string name() override { return "test_l7policy"; }
+  std::string name() const override { return "test_l7policy"; }
 };
 
 /**
@@ -471,9 +464,14 @@ static_resources:
     type: STATIC
     lb_policy: ROUND_ROBIN
     http2_protocol_options:
-    hosts:
-    - pipe:
-        path: /var/run/cilium/xds.sock
+    load_assignment:
+      cluster_name: xds-grpc-cilium
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: /var/run/cilium/xds.sock
   listeners:
     name: http
     address:
@@ -890,7 +888,7 @@ TEST_P(CiliumIntegrationTest, DuplicatePort) {
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', regex_match: '/only-2-allowed'} ]
+        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '/only-2-allowed' } } ]
 )EOF";
 
   // This would normally be allowed, but since the policy fails, everything will be rejected.
@@ -988,9 +986,14 @@ static_resources:
     type: STATIC
     lb_policy: ROUND_ROBIN
     http2_protocol_options:
-    hosts:
-    - pipe:
-        path: /var/run/cilium/xds.sock
+    load_assignment:
+      cluster_name: xds-grpc-cilium
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: /var/run/cilium/xds.sock
   listeners:
     name: listener_0
     address:
@@ -1277,9 +1280,14 @@ static_resources:
     type: STATIC
     lb_policy: ROUND_ROBIN
     http2_protocol_options:
-    hosts:
-    - pipe:
-        path: /var/run/cilium/xds.sock
+    load_assignment:
+      cluster_name: xds-grpc-cilium
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: /var/run/cilium/xds.sock
   listeners:
     name: listener_0
     address:
@@ -1488,9 +1496,14 @@ static_resources:
     type: STATIC
     lb_policy: ROUND_ROBIN
     http2_protocol_options:
-    hosts:
-    - pipe:
-        path: /var/run/cilium/xds.sock
+    load_assignment:
+      cluster_name: xds-grpc-cilium
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: /var/run/cilium/xds.sock
   listeners:
     name: listener_0
     address:
@@ -1791,9 +1804,14 @@ static_resources:
     type: STATIC
     lb_policy: ROUND_ROBIN
     http2_protocol_options:
-    hosts:
-    - pipe:
-        path: /var/run/cilium/xds.sock
+    load_assignment:
+      cluster_name: xds-grpc-cilium
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: /var/run/cilium/xds.sock
   listeners:
     name: listener_0
     address:
@@ -1830,13 +1848,13 @@ createClientSslTransportSocketFactory(Ssl::ContextManager& context_manager, Api:
         filename: "{{ test_rundir }}/test/config/integration/certs/cacert.pem"
 )EOF";
 
-  envoy::api::v2::auth::UpstreamTlsContext tls_context;
+  envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext tls_context;
   TestUtility::loadFromYaml(TestEnvironment::substitute(yaml_plain), tls_context);
 
   NiceMock<Server::Configuration::MockTransportSocketFactoryContext> mock_factory_ctx;
   ON_CALL(mock_factory_ctx, api()).WillByDefault(testing::ReturnRef(api));
   auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
-      tls_context, "", mock_factory_ctx);
+      tls_context, mock_factory_ctx);
   static auto* client_stats_store = new Stats::TestIsolatedStoreImpl();
   return Network::TransportSocketFactoryPtr{
       new Extensions::TransportSockets::Tls::ClientSslSocketFactory(std::move(cfg), context_manager,
@@ -1874,7 +1892,7 @@ public:
 
   // TODO(mattklein123): This logic is duplicated in various places. Cleanup in a follow up.
   Network::TransportSocketFactoryPtr createUpstreamSslContext() {
-    envoy::api::v2::auth::DownstreamTlsContext tls_context;
+    envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext tls_context;
     auto* common_tls_context = tls_context.mutable_common_tls_context();
     auto* tls_cert = common_tls_context->add_tls_certificates();
     tls_cert->mutable_certificate_chain()->set_filename(TestEnvironment::runfilesPath(
@@ -2244,9 +2262,14 @@ static_resources:
     type: STATIC
     lb_policy: ROUND_ROBIN
     http2_protocol_options:
-    hosts:
-    - pipe:
-        path: /var/run/cilium/xds.sock
+    load_assignment:
+      cluster_name: xds-grpc-cilium
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: /var/run/cilium/xds.sock
   listeners:
     name: listener_0
     address:
@@ -2395,9 +2418,14 @@ static_resources:
     type: STATIC
     lb_policy: ROUND_ROBIN
     http2_protocol_options:
-    hosts:
-    - pipe:
-        path: /var/run/cilium/xds.sock
+    load_assignment:
+      cluster_name: xds-grpc-cilium
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: /var/run/cilium/xds.sock
   listeners:
     name: http
     address:
@@ -2477,9 +2505,9 @@ resources:
       http_rules:
         http_rules:
         - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
         - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
         - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
       upstream_tls_context:
         trusted_ca: "-----BEGIN CERTIFICATE-----\nMIID7zCCAtegAwIBAgIUQygBeIE4nv9JGaDKixnhwkK5viEwDQYJKoZIhvcNAQEL\nBQAwfzELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcM\nDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBEx5ZnQxGTAXBgNVBAsMEEx5ZnQgRW5n\naW5lZXJpbmcxGTAXBgNVBAMMEFRlc3QgVXBzdHJlYW0gQ0EwHhcNMTkwNzA4MjE0\nNTU2WhcNMjEwNzA3MjE0NTU2WjB/MQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2Fs\naWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwETHlmdDEZ\nMBcGA1UECwwQTHlmdCBFbmdpbmVlcmluZzEZMBcGA1UEAwwQVGVzdCBVcHN0cmVh\nbSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMJ7AetbhOCUxB/A\nyYt+4rxyMVUFX9izqbOU9nuUxsB/avGhYpVjj5cNaLPdGX+c7g65Vz0yGDSskDGD\nukcSFqRSZ2E4/S4gKSIMEslBr2OX+Dqh0XmoAwl4IrtZefCE3inivJdzm0JwI7Yr\nk2qQqsTpJnsWkMSxXUQJYTJ56UFXTkKqF3jSReIQtFMV65T/2x2NLRJ8KuMS7Mbo\nBTBATRsUfbJJWCnzcp2LrKV5sZ/HsJLK/F74jdcvfJQMW49Lq1TZaB5NYSVyFEf6\ntiT43JOcvVkRPBgHDtaiDhWF2WTmPSEB6cHaRwGgBFwjQ1SvZR6f6xexocn44GZE\noSqWJN8CAwEAAaNjMGEwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYw\nHQYDVR0OBBYEFOLTMLryzNAcuxe3cKEhClkL7IduMB8GA1UdIwQYMBaAFOLTMLry\nzNAcuxe3cKEhClkL7IduMA0GCSqGSIb3DQEBCwUAA4IBAQBT88sT8RsoAk6PnnVs\nKWBoC75BnIZr8o1nxBK0zog6Ez4J32aVzEXPicgBg6hf6v77eqbbQ+O7Ayf+YQWj\nl9w9IiXRW1x94tKBrX44O85qTr/xtkfpmQWGKq5fBpdJnZp7lSfGfaG9gasPUNpG\ngfvF/vlYrrJoyvUOG6HQjZ7n7m6f8GEUymCtC68oJcLVL0xkvx/jcvGeJfI5U6yr\nz9nc1W7FcOhrFEetOIH2BwlIN5To3vPbN4zEzt9VPUHZ3m2899hUiMZJaanEexp7\nTZJJ12rHSIJ4MKwQQ5fEmioeluM0uY7EIR72VEsudA8bkXSkbDGs6Q49K9OX+nRB\n4P3c\n-----END CERTIFICATE-----\n"
@@ -2497,9 +2525,9 @@ resources:
       http_rules:
         http_rules:
         - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', regex_match: '.*public$' } ]
+        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
         - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', regex_match: '.*REGEX.*' } ]
+        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
         - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
     - remote_policies: [ 2 ]
       http_rules:
@@ -2545,7 +2573,7 @@ public:
 
   // TODO(mattklein123): This logic is duplicated in various places. Cleanup in a follow up.
   Network::TransportSocketFactoryPtr createUpstreamSslContext() {
-    envoy::api::v2::auth::DownstreamTlsContext tls_context;
+    envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext tls_context;
     auto* common_tls_context = tls_context.mutable_common_tls_context();
     auto* tls_cert = common_tls_context->add_tls_certificates();
     tls_cert->mutable_certificate_chain()->set_filename(TestEnvironment::runfilesPath(

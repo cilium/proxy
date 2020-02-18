@@ -75,12 +75,7 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "@envoy//source/exe:envoy_common_lib",
-        "@envoy//source/common/config:grpc_mux_lib",
-        "@envoy//source/common/config:grpc_mux_subscription_lib",
-        "@envoy//include/envoy/config:subscription_interface",
-        "@envoy//include/envoy/event:dispatcher_interface",
-        "@envoy//include/envoy/grpc:async_client_interface",
-        "@envoy_api//envoy/api/v2/core:pkg_cc_proto",
+        "@envoy//source/common/config:grpc_subscription_lib",
     ],
 )
 

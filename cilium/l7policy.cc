@@ -21,16 +21,6 @@ class ConfigFactory
     : public Server::Configuration::NamedHttpFilterConfigFactory {
 public:
   Http::FilterFactoryCb
-  createFilterFactory(const Json::Object& json, const std::string &,
-                      Server::Configuration::FactoryContext& context) override {
-    auto config = std::make_shared<Cilium::Config>(json, context);
-    return [config](
-               Http::FilterChainFactoryCallbacks& callbacks) mutable -> void {
-      callbacks.addStreamFilter(std::make_shared<Cilium::AccessFilter>(config));
-    };
-  }
-
-  Http::FilterFactoryCb
   createFilterFactoryFromProto(const Protobuf::Message& proto_config, const std::string&,
                                Server::Configuration::FactoryContext& context) override {
     auto config = std::make_shared<Cilium::Config>(
@@ -45,7 +35,7 @@ public:
     return std::make_unique<::cilium::L7Policy>();
   }
 
-  std::string name() override { return "cilium.l7policy"; }
+  std::string name() const override { return "cilium.l7policy"; }
 };
 
 /**
@@ -73,9 +63,6 @@ Config::Config(const std::string& access_log_path, const std::string& denied_403
     denied_403_body_.append("\r\n");
   }
 }
-
-Config::Config(const Json::Object &config, Server::Configuration::FactoryContext& context)
-    : Config(config.getString("access_log_path"), config.getString("denied_403_body"), context) {}
 
 Config::Config(const ::cilium::L7Policy &config, Server::Configuration::FactoryContext& context)
     : Config(config.access_log_path(), config.denied_403_body(), context) {

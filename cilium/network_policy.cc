@@ -22,8 +22,8 @@ public:
 
 protected:
   class HttpNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
-    static envoy::api::v2::route::HeaderMatcher matcher(const cilium::HeaderMatch& config) {
-      envoy::api::v2::route::HeaderMatcher match;
+    static envoy::config::route::v3::HeaderMatcher matcher(const cilium::HeaderMatch& config) {
+      envoy::config::route::v3::HeaderMatcher match;
       match.set_name(config.name());
       if (config.value().length() == 0) {
 	match.set_present_match(true);
@@ -45,7 +45,49 @@ protected:
   public:
     HttpNetworkPolicyRule(const cilium::HttpNetworkPolicyRule& rule) {
       ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
-      for (const auto& header: rule.headers()) {
+      for (const auto& header_v2: rule.headers()) {
+	// Convert HeaderMatcher v2 to v3 so that we can feed it to internal Envoy APIs.
+	envoy::config::route::v3::HeaderMatcher header;
+	header.set_name(header_v2.name());
+	header.set_invert_match(header_v2.invert_match());
+	switch (header_v2.header_match_specifier_case()) {
+	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kExactMatch:
+	  header.set_exact_match(header_v2.exact_match());
+	  break;
+	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kRegexMatch:
+	  header.set_hidden_envoy_deprecated_regex_match(header_v2.regex_match());
+	  break;
+	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kSafeRegexMatch: {
+	  auto regex_match = header.mutable_safe_regex_match();
+	  auto re2 = regex_match->mutable_google_re2();
+	  if (header_v2.safe_regex_match().has_google_re2()) {
+	    auto from = header_v2.safe_regex_match().google_re2();
+	    if (from.has_max_program_size()) {
+	      re2->mutable_max_program_size()->set_value(from.max_program_size().value());
+	    }
+	  }
+	  regex_match->set_regex(header_v2.safe_regex_match().regex());
+	  break;
+	}
+	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kRangeMatch: {
+	  auto range_match = header.mutable_range_match();
+	  range_match->set_start(header_v2.range_match().start());
+	  range_match->set_end(header_v2.range_match().end());
+	  break;
+	}
+	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kPresentMatch:
+	  header.set_present_match(header_v2.present_match());
+	  break;
+	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kPrefixMatch:
+	  header.set_prefix_match(header_v2.prefix_match());
+	  break;
+	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kSuffixMatch:
+	  header.set_suffix_match(header_v2.suffix_match());
+	  break;
+	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::HEADER_MATCH_SPECIFIER_NOT_SET:
+	  break;
+	}
+
 	headers_.emplace_back(std::make_unique<Envoy::Http::HeaderUtility::HeaderData>(header));
 	const auto& header_data = *headers_.back();
 	ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
@@ -179,7 +221,7 @@ protected:
       }
       if (rule.has_downstream_tls_context()) {
 	auto config = rule.downstream_tls_context();
-	envoy::api::v2::auth::DownstreamTlsContext context_config;
+	envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext context_config;
 	auto tls_context = context_config.mutable_common_tls_context();
 	if (config.trusted_ca() != "") {
 	  auto require_tls_certificate = context_config.mutable_require_client_certificate();
@@ -211,7 +253,7 @@ protected:
       }
       if (rule.has_upstream_tls_context()) {
 	auto config = rule.upstream_tls_context();
-	envoy::api::v2::auth::UpstreamTlsContext context_config;
+	envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext context_config;
 	auto tls_context = context_config.mutable_common_tls_context();
 	if (config.trusted_ca() != "") {
 	  auto validation_context = tls_context->mutable_validation_context();
@@ -468,7 +510,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   : NetworkPolicyMap(context) {
   ctmap_ = ct;
   scope_ = context.scope().createScope(name_);
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", "cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies",
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy",
 			    context.localInfo(), context.clusterManager(), context.dispatcher(), context.random(), *scope_, *this);
 }
 

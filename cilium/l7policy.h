@@ -38,7 +38,6 @@ class Config : public Logger::Loggable<Logger::Id::filter> {
 public:
   Config(const std::string& access_log_path, const std::string& denied_403_body,
 	 Server::Configuration::FactoryContext& context);
-  Config(const Json::Object &config, Server::Configuration::FactoryContext& context);
   Config(const ::cilium::L7Policy &config, Server::Configuration::FactoryContext& context);
   ~Config();
 

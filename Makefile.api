@@ -26,12 +26,13 @@ PROTO_DEPS = \
 	-I bazel-proxy/external/com_google_googleapis \
 	-I bazel-proxy/external/com_envoyproxy_protoc_gen_validate \
 	-I bazel-proxy/external/opencensus_proto \
-	-I bazel-proxy/external/prometheus_metrics_model
+	-I bazel-proxy/external/prometheus_metrics_model \
+	-I bazel-proxy/external/com_github_cncf_udpa
 
 GO_OUT = go
 
 # Skip draft Envoy APIs that do not compile.
-ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy \( -name *.proto -and -not -path *service/metrics/v2* -and -not -path */v3alpha/* \) -print))
+ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy \( -name *.proto \) -print))
 ENVOY_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(ENVOY_RAW_PROTOS))
 
 ENVOY_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(ENVOY_API_PROTOS))
@@ -55,6 +56,11 @@ RAW_GO_MAPPINGS += $(foreach proto,$(CILIUM_PROTO_SOURCES),$(proto)=github.com/c
 # Add mappings to vendored dependencies
 RAW_GO_MAPPINGS += gogoproto/gogo.proto=github.com/gogo/protobuf/gogoproto/
 RAW_GO_MAPPINGS += google/rpc/status.proto=google.golang.org/genproto/googleapis/rpc/status/
+RAW_GO_MAPPINGS += metrics.proto=github.com/prometheus/client_model/go/
+RAW_GO_MAPPINGS += udpa/annotations/migrate.proto=github.com/cncf/udpa/go/udpa/annotations/
+RAW_GO_MAPPINGS += udpa/annotations/sensitive.proto=github.com/cncf/udpa/go/udpa/annotations/
+RAW_GO_MAPPINGS += udpa/annotations/status.proto=github.com/cncf/udpa/go/udpa/annotations/
+RAW_GO_MAPPINGS += udpa/annotations/versioning.proto=github.com/cncf/udpa/go/udpa/annotations/
 
 # Add mapping separators and remove the trailing slash
 # but first create "/ " and ",M"
@@ -63,7 +69,7 @@ file_sep +=
 map_sep := ,M
 GO_MAPPINGS := $(patsubst %/,%,$(map_sep)$(subst $(file_sep),$(map_sep),$(RAW_GO_MAPPINGS)))
 
-all: $(ENVOY_API_PROTO_PATH) $(ENVOY_GO_TARGETS) $(CILIUM_GO_TARGETS)
+all: $(ENVOY_API_PROTO_PATH) $(ENVOY_GO_TARGETS) $(CILIUM_GO_TARGETS) godeps
 
 $(ENVOY_GO_TARGETS): $(ENVOY_PROTO_SOURCES) Makefile.api
 	$(QUIET)set -e; \
@@ -78,5 +84,11 @@ $(CILIUM_GO_TARGETS): $(CILIUM_PROTO_SOURCES) Makefile.api
 		$(ECHO_GEN) envoy/$$path; \
 		PATH=$(PATH):$(BIN_PATH) $(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
 	done
+
+godeps:
+	GO111MODULE=on go get github.com/census-instrumentation/opencensus-proto@be218fb6bd674af7519b1850cdf8410d8cbd48e8
+	GO111MODULE=on go get github.com/envoyproxy/protoc-gen-validate@973ea075fe989fd7878619845d1e532e5bfe7115
+	GO111MODULE=on go get github.com/prometheus/client_model@99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c
+	GO111MODULE=on go get github.com/cncf/udpa/go@edbea6a78f6d1ba34edc69c53a396b1d88d59651
 
 .PHONY: all

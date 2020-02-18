@@ -316,7 +316,7 @@ type HostHealthStatus struct {
 	PendingActiveHc bool `protobuf:"varint,6,opt,name=pending_active_hc,json=pendingActiveHc,proto3" json:"pending_active_hc,omitempty"`
 	// Health status as reported by EDS. Note: only HEALTHY and UNHEALTHY are currently supported
 	// here.
-	// TODO(mrice32): pipe through remaining EDS health status possibilities.
+	// [#comment:TODO(mrice32): pipe through remaining EDS health status possibilities.]
 	EdsHealthStatus      core.HealthStatus `protobuf:"varint,3,opt,name=eds_health_status,json=edsHealthStatus,proto3,enum=envoy.api.v2.core.HealthStatus" json:"eds_health_status,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
 	XXX_unrecognized     []byte            `json:"-"`

@@ -1,8 +1,0 @@
-[[constraint]]
-  name = "github.com/envoyproxy/protoc-gen-validate"
-  revision = "2feaabb13a5d697b80fcb938c0ce37b24c9381ee"
-
-[prune]
-  go-tests = true
-  unused-packages = true
-  non-go = true

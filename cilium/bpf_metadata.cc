@@ -39,7 +39,7 @@ public:
     return std::make_unique<::cilium::BpfMetadata>();
   }
 
-  std::string name() override { return "cilium.bpf_metadata"; }
+  std::string name() const override { return "cilium.bpf_metadata"; }
 };
 
 /**

@@ -143,7 +143,7 @@ PolicyHostMap::PolicyHostMap(const LocalInfo::LocalInfo& local_info, Upstream::C
 			     Stats::Scope &scope, ThreadLocal::SlotAllocator& tls)
   : PolicyHostMap(tls) {
   scope_ = scope.createScope(name_);
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", "cilium.NetworkPolicyHostsDiscoveryService.StreamNetworkPolicyHosts", local_info, cm, dispatcher, random, *scope_, *this);
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", local_info, cm, dispatcher, random, *scope_, *this);
 }
 
 void PolicyHostMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) {

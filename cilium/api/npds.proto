@@ -8,12 +8,15 @@ import "envoy/api/v2/route/route.proto";
 
 import "google/api/annotations.proto";
 
+import "envoy/annotations/resource.proto";
 import "validate/validate.proto";
 
 // [#protodoc-title: Network policy management and NPDS]
 
 // Each resource name is a network policy identifier.
 service NetworkPolicyDiscoveryService {
+  option (envoy.annotations.resource).type = "cilium.NetworkPolicy";
+
   rpc StreamNetworkPolicies(stream envoy.api.v2.DiscoveryRequest)
       returns (stream envoy.api.v2.DiscoveryResponse) {
   }

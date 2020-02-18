@@ -33,18 +33,11 @@ public:
     };
   }
 
-  Network::FilterFactoryCb
-  createFilterFactory(const Json::Object& json_config, FactoryContext& context) override {
-    auto config = std::make_shared<Filter::CiliumL3::Config>(json_config, context);
-    return [config](Network::FilterManager &filter_manager) mutable -> void {
-      filter_manager.addFilter(std::make_shared<Filter::CiliumL3::Instance>(config));
-    };
-  }
   ProtobufTypes::MessagePtr createEmptyConfigProto() override {
     return std::make_unique<::cilium::NetworkFilter>();
   }
 
-  std::string name() override { return "cilium.network"; }
+  std::string name() const override { return "cilium.network"; }
 };
 
 /**
@@ -68,8 +61,6 @@ Config::Config(const ::cilium::NetworkFilter& config, Server::Configuration::Fac
   }
 }
   
-Config::Config(const Json::Object&, Server::Configuration::FactoryContext&) {} // Dummy, not used.
-
 Network::FilterStatus Instance::onNewConnection() {
   ENVOY_LOG(debug, "Cilium Network: onNewConnection");
   auto& conn = callbacks_->connection();

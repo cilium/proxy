@@ -122,7 +122,7 @@ Network::TransportSocketFactoryPtr UpstreamTlsWrapperFactory::createTransportSoc
 }
 
 ProtobufTypes::MessagePtr UpstreamTlsWrapperFactory::createEmptyConfigProto() {
-  return std::make_unique<envoy::api::v2::auth::UpstreamTlsContext>();
+  return std::make_unique<envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext>();
 }
 
 REGISTER_FACTORY(UpstreamTlsWrapperFactory,
@@ -135,7 +135,7 @@ Network::TransportSocketFactoryPtr DownstreamTlsWrapperFactory::createTransportS
 }
 
 ProtobufTypes::MessagePtr DownstreamTlsWrapperFactory::createEmptyConfigProto() {
-  return std::make_unique<envoy::api::v2::auth::DownstreamTlsContext>();
+  return std::make_unique<envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext>();
 }
 
 REGISTER_FACTORY(DownstreamTlsWrapperFactory,
