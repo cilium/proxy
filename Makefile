@@ -40,6 +40,14 @@ DOCKER=$(QUIET)docker
 
 BAZEL_BUILD_OPTS ?= --jobs=3
 
+SLASH = -
+ARCH=$(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
+IMAGE_ARCH = $(SLASH)$(ARCH)
+DOCKERFILE_ARCH =
+ifeq ($(ARCH),arm64)
+	DOCKERFILE_ARCH=.arm64
+endif
+
 # Dockerfile builds require special options
 ifdef PKG_BUILD
 BAZEL_BUILD_OPTS += --local_resources 4096,2.0,1.0
@@ -68,14 +76,58 @@ else
 	SOURCE_VERSION = $(shell cat SOURCE_VERSION)
 endif
 
-docker-image-builder: Dockerfile.builder clean
-	$(DOCKER) build -f $< -t "quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)" .
+#Build Envoy image builder
+docker-image-builder: Dockerfile.builder$(DOCKERFILE_ARCH) clean
+	$(DOCKER) build -f $< -t "quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)$(IMAGE_ARCH)" .
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy-builder:latest$(IMAGE_ARCH)"
+ifeq ($(ARCH),amd64)
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)"
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)" \
+		"quay.io/cilium/cilium-envoy-builder:latest"
+endif
 
-docker-image-envoy: Dockerfile clean
+#Build Envoy image
+docker-image-envoy: Dockerfile$(DOCKERFILE_ARCH) clean
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)" .
+	$(DOCKER) build -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+	          -f Dockerfile$(DOCKERFILE_ARCH) .
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy:latest$(IMAGE_ARCH)"
+ifeq ($(ARCH),amd64)
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)"
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy:latest"
+endif
 	$(QUIET)echo "Push like this when ready:"
+	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)"
+ifeq ($(ARCH),amd64)
 	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)"
+	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:latest"
+endif
+
+DOCKER_IMAGE_TAG=$(SOURCE_VERSION)
+#Push multi-arch support with fat-manifest:
+
+envoy-builder-manifest:
+	./push_manifest.sh cilium-envoy-builder $(DOCKER_IMAGE_TAG)
+	./push_manifest.sh cilium-envoy-builder latest
+
+docker-envoy-manifest:
+	./push_manifest.sh cilium-envoy $(DOCKER_IMAGE_TAG)
+	./push_manifest.sh cilium-envoy latest
+
+#Push multi-arch support with images uploaded:
+envoy-builder-image-manifest:
+	./push_manifest.sh -i cilium-envoy-builder $(DOCKER_IMAGE_TAG)
+	./push_manifest.sh -i cilium-envoy-builder latest
+
+docker-envoy-image-manifest:
+	./push_manifest.sh -i cilium-envoy $(DOCKER_IMAGE_TAG)
+	./push_manifest.sh -i cilium-envoy latest
+
 
 debug: envoy-debug
 

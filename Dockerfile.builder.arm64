@@ -1,0 +1,91 @@
+FROM ubuntu:18.04 as bazel-builder
+LABEL maintainer="maintainer@cilium.io"
+
+RUN mkdir -p /go/src/github.com/cilium/cilium/envoy
+WORKDIR /go/src/github.com/cilium/cilium/envoy
+COPY . ./
+
+#
+# Install Bazel
+#
+
+RUN apt-get update && apt-get install -y unzip zip curl
+
+
+RUN export BAZEL_VERSION=`cat BAZEL_VERSION` && echo $BAZEL_VERSION && \
+     curl -sfL https://github.com/Tick-Tocker/bazel-arm64/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-aarch64 \
+               -o /usr/bin/bazel  && \
+         chmod +x /usr/bin/bazel
+
+#
+# Builder dependencies. This takes a long time to build from scratch!
+# Also note that if build fails due to C++ internal error or similar,
+# it is possible that the image build needs more RAM than available by
+# default on non-Linux docker installs.
+#
+#
+
+FROM ubuntu:18.04 as builder
+LABEL maintainer="maintainer@cilium.io"
+
+COPY --from=bazel-builder /usr/bin/bazel /usr/bin/bazel
+
+#
+# Additional Envoy Build dependencies
+#
+RUN apt-get update \
+    && apt-get install -y curl build-essential automake clang cmake git \
+    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+                build-essential \
+		automake \
+		cmake \
+		g++ \
+		git \
+		libtool \
+		make \
+		ninja-build \
+		python3 \
+		wget \
+		zip \
+                unzip \
+                openjdk-11-jdk \
+	&& apt-get clean \
+	&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+#
+# Install Go
+#
+ENV GOROOT /usr/local/go
+ENV GOPATH /go
+ENV PATH "$GOROOT/bin:$GOPATH/bin:$PATH"
+ENV GO_VERSION 1.13.4
+
+RUN curl -sfL https://dl.google.com/go/go${GO_VERSION}.linux-arm64.tar.gz | tar -xzC /usr/local && \
+        go get -d -u github.com/gordonklaus/ineffassign && \
+        cd /go/src/github.com/gordonklaus/ineffassign && \
+        git checkout -b 1003c8bd00dc2869cb5ca5282e6ce33834fed514 1003c8bd00dc2869cb5ca5282e6ce33834fed514 && \
+        go install && \
+        go get -d github.com/cilium/go-bindata/... && \
+        cd /go/src/github.com/cilium/go-bindata && \
+        git checkout -b e950ad39c6092155a6d89f04c90b1c46d8c97d49 e950ad39c6092155a6d89f04c90b1c46d8c97d49 && \
+        go install github.com/cilium/go-bindata/go-bindata
+
+RUN mkdir -p /go/src/github.com/cilium/cilium/envoy
+WORKDIR /go/src/github.com/cilium/cilium/envoy
+COPY . ./
+
+#
+# Install Bazel
+#
+
+COPY --from=bazel-builder /usr/bin/bazel /usr/bin/bazel
+
+#
+# Build and keep the cache
+#
+
+RUN make BAZEL_BUILD_OPTS=--jobs=1 PKG_BUILD=1 cilium-envoy && rm ./bazel-bin/cilium-envoy
+#
+# Absolutely nothing after making envoy deps!
+#
