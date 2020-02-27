@@ -1,0 +1,374 @@
+From cf1195c069cd423b0bd16ec593e4833f51775e1a Mon Sep 17 00:00:00 2001
+From: Yangmin Zhu <ymzhu@google.com>
+Date: Wed, 19 Feb 2020 20:05:25 -0800
+Subject: [1.12 7/7] buffer: Force copy when appending small slices to
+ OwnedImpl buffer to avoid fragmentation (#117) (#127)
+
+Change OwnedImpl::move to force a copy instead of taking ownership of slices in cases where the offered slices are below kCopyThreshold
+
+Risk Level: medium, changes to buffer behavior
+Testing: Unit Tests
+Docs Changes: N/A
+Release Notes: N/A
+
+Signed-off-by: Antonio Vicente <avd@google.com>
+Signed-off-by: Yangmin Zhu <ymzhu@google.com>
+---
+ docs/root/intro/version_history.rst           |  1 +
+ source/common/buffer/buffer_impl.cc           | 41 +++++++--
+ source/common/buffer/buffer_impl.h            | 21 +++++
+ test/common/buffer/owned_impl_test.cc         | 88 ++++++++++++++-----
+ .../buffer/zero_copy_input_stream_test.cc     | 10 ++-
+ test/common/http/http1/codec_impl_test.cc     |  9 +-
+ 6 files changed, 139 insertions(+), 31 deletions(-)
+
+diff --git a/docs/root/intro/version_history.rst b/docs/root/intro/version_history.rst
+index ddb2a69b8..a5468bb0d 100644
+--- a/docs/root/intro/version_history.rst
++++ b/docs/root/intro/version_history.rst
+@@ -3,6 +3,7 @@ Version history
+ 
+ 1.12.3 (Pending)
+ ==========================
++* buffer: force copy when appending small slices to OwnedImpl buffer to avoid fragmentation.
+ * listeners: fixed issue where :ref:`TLS inspector listener filter <config_listener_filters_tls_inspector>` could have been bypassed by a client using only TLS 1.3.
+ * sds: fixed the SDS vulnerability that TLS validation context (e.g., subject alt name or hash) cannot be effectively validated in some cases.
+ * http: added HTTP/1.1 flood protection. Can be temporarily disabled using the runtime feature `envoy.reloadable_features.http1_flood_protection`.
+diff --git a/source/common/buffer/buffer_impl.cc b/source/common/buffer/buffer_impl.cc
+index fee0fa890..bc7c6fbff 100644
+--- a/source/common/buffer/buffer_impl.cc
++++ b/source/common/buffer/buffer_impl.cc
+@@ -10,8 +10,15 @@
+ 
+ namespace Envoy {
+ namespace Buffer {
+-
+-void OwnedImpl::add(const void* data, uint64_t size) {
++namespace {
++// This size has been determined to be optimal from running the
++// //test/integration:http_benchmark benchmark tests.
++// TODO(yanavlasov): This may not be optimal for all hardware configurations or traffic patterns and
++// may need to be configurable in the future.
++constexpr uint64_t CopyThreshold = 512;
++} // namespace
++
++void OwnedImpl::addImpl(const void* data, uint64_t size) {
+   if (old_impl_) {
+     evbuffer_add(buffer_.get(), data, size);
+   } else {
+@@ -30,6 +37,8 @@ void OwnedImpl::add(const void* data, uint64_t size) {
+   }
+ }
+ 
++void OwnedImpl::add(const void* data, uint64_t size) { addImpl(data, size); }
++
+ void OwnedImpl::addBufferFragment(BufferFragment& fragment) {
+   if (old_impl_) {
+     evbuffer_add_reference(
+@@ -309,6 +318,26 @@ void* OwnedImpl::linearize(uint32_t size) {
+   }
+ }
+ 
++void OwnedImpl::coalesceOrAddSlice(SlicePtr&& other_slice) {
++  const uint64_t slice_size = other_slice->dataSize();
++  // The `other_slice` content can be coalesced into the existing slice IFF:
++  // 1. The `other_slice` can be coalesced. Objects of type UnownedSlice can not be coalesced. See
++  //    comment in the UnownedSlice class definition;
++  // 2. There are existing slices;
++  // 3. The `other_slice` content length is under the CopyThreshold;
++  // 4. There is enough unused space in the existing slice to accommodate the `other_slice` content.
++  if (other_slice->canCoalesce() && !slices_.empty() && slice_size < CopyThreshold &&
++      slices_.back()->reservableSize() >= slice_size) {
++    // Copy content of the `other_slice`. The `move` methods which call this method effectively
++    // drain the source buffer.
++    addImpl(other_slice->data(), slice_size);
++  } else {
++    // Take ownership of the slice.
++    slices_.emplace_back(std::move(other_slice));
++    length_ += slice_size;
++  }
++}
++
+ void OwnedImpl::move(Instance& rhs) {
+   ASSERT(&rhs != this);
+   ASSERT(isSameBufferImpl(rhs));
+@@ -328,10 +357,9 @@ void OwnedImpl::move(Instance& rhs) {
+     OwnedImpl& other = static_cast<OwnedImpl&>(rhs);
+     while (!other.slices_.empty()) {
+       const uint64_t slice_size = other.slices_.front()->dataSize();
+-      slices_.emplace_back(std::move(other.slices_.front()));
+-      other.slices_.pop_front();
+-      length_ += slice_size;
++      coalesceOrAddSlice(std::move(other.slices_.front()));
+       other.length_ -= slice_size;
++      other.slices_.pop_front();
+     }
+     other.postProcess();
+   }
+@@ -361,9 +389,8 @@ void OwnedImpl::move(Instance& rhs, uint64_t length) {
+         other.slices_.front()->drain(copy_size);
+         other.length_ -= copy_size;
+       } else {
+-        slices_.emplace_back(std::move(other.slices_.front()));
++        coalesceOrAddSlice(std::move(other.slices_.front()));
+         other.slices_.pop_front();
+-        length_ += slice_size;
+         other.length_ -= slice_size;
+       }
+       length -= copy_size;
+diff --git a/source/common/buffer/buffer_impl.h b/source/common/buffer/buffer_impl.h
+index 36715ed42..77d5f58f7 100644
+--- a/source/common/buffer/buffer_impl.h
++++ b/source/common/buffer/buffer_impl.h
+@@ -188,6 +188,11 @@ public:
+     return SliceRepresentation{dataSize(), reservableSize(), capacity_};
+   }
+ 
++  /**
++   * @return true if content in this Slice can be coalesced into another Slice.
++   */
++  virtual bool canCoalesce() const { return true; }
++
+ protected:
+   Slice(uint64_t data, uint64_t reservable, uint64_t capacity)
+       : data_(data), reservable_(reservable), capacity_(capacity) {}
+@@ -415,6 +420,13 @@ public:
+ 
+   ~UnownedSlice() override { fragment_.done(); }
+ 
++  /**
++   * BufferFragment objects encapsulated by UnownedSlice are used to track when response content
++   * is written into transport connection. As a result these slices can not be coalesced when moved
++   * between buffers.
++   */
++  bool canCoalesce() const override { return false; }
++
+ private:
+   BufferFragment& fragment_;
+ };
+@@ -570,6 +582,15 @@ private:
+    */
+   bool isSameBufferImpl(const Instance& rhs) const;
+ 
++  void addImpl(const void* data, uint64_t size);
++
++  /**
++   * Moves contents of the `other_slice` by either taking its ownership or coalescing it
++   * into an existing slice.
++   * NOTE: the caller is responsible for draining the buffer that contains the `other_slice`.
++   */
++  void coalesceOrAddSlice(SlicePtr&& other_slice);
++
+   /** Whether to use the old evbuffer implementation when constructing new OwnedImpl objects. */
+   static bool use_old_impl_;
+ 
+diff --git a/test/common/buffer/owned_impl_test.cc b/test/common/buffer/owned_impl_test.cc
+index 3400e6334..6e744a9e4 100644
+--- a/test/common/buffer/owned_impl_test.cc
++++ b/test/common/buffer/owned_impl_test.cc
+@@ -65,20 +65,20 @@ TEST_P(OwnedImplTest, AddBufferFragmentNoCleanup) {
+ }
+ 
+ TEST_P(OwnedImplTest, AddBufferFragmentWithCleanup) {
+-  char input[] = "hello world";
+-  BufferFragmentImpl frag(input, 11, [this](const void*, size_t, const BufferFragmentImpl*) {
+-    release_callback_called_ = true;
+-  });
++  std::string input(2048, 'a');
++  BufferFragmentImpl frag(
++      input.c_str(), input.size(),
++      [this](const void*, size_t, const BufferFragmentImpl*) { release_callback_called_ = true; });
+   Buffer::OwnedImpl buffer;
+   verifyImplementation(buffer);
+   buffer.addBufferFragment(frag);
+-  EXPECT_EQ(11, buffer.length());
++  EXPECT_EQ(2048, buffer.length());
+ 
+-  buffer.drain(5);
+-  EXPECT_EQ(6, buffer.length());
++  buffer.drain(2000);
++  EXPECT_EQ(48, buffer.length());
+   EXPECT_FALSE(release_callback_called_);
+ 
+-  buffer.drain(6);
++  buffer.drain(48);
+   EXPECT_EQ(0, buffer.length());
+   EXPECT_TRUE(release_callback_called_);
+ }
+@@ -102,12 +102,12 @@ TEST_P(OwnedImplTest, AddEmptyFragment) {
+ }
+ 
+ TEST_P(OwnedImplTest, AddBufferFragmentDynamicAllocation) {
+-  char input_stack[] = "hello world";
+-  char* input = new char[11];
+-  std::copy(input_stack, input_stack + 11, input);
++  std::string input_str(2048, 'a');
++  char* input = new char[2048];
++  std::copy(input_str.c_str(), input_str.c_str() + 11, input);
+ 
+   BufferFragmentImpl* frag = new BufferFragmentImpl(
+-      input, 11, [this](const void* data, size_t, const BufferFragmentImpl* frag) {
++      input, 2048, [this](const void* data, size_t, const BufferFragmentImpl* frag) {
+         release_callback_called_ = true;
+         delete[] static_cast<const char*>(data);
+         delete frag;
+@@ -116,9 +116,9 @@ TEST_P(OwnedImplTest, AddBufferFragmentDynamicAllocation) {
+   Buffer::OwnedImpl buffer;
+   verifyImplementation(buffer);
+   buffer.addBufferFragment(*frag);
+-  EXPECT_EQ(11, buffer.length());
++  EXPECT_EQ(2048, buffer.length());
+ 
+-  buffer.drain(5);
++  buffer.drain(2042);
+   EXPECT_EQ(6, buffer.length());
+   EXPECT_FALSE(release_callback_called_);
+ 
+@@ -128,10 +128,10 @@ TEST_P(OwnedImplTest, AddBufferFragmentDynamicAllocation) {
+ }
+ 
+ TEST_P(OwnedImplTest, AddOwnedBufferFragmentWithCleanup) {
+-  char input[] = "hello world";
+-  const size_t expected_length = sizeof(input) - 1;
++  std::string input(2048, 'a');
++  const size_t expected_length = input.size();
+   auto frag = OwnedBufferFragmentImpl::create(
+-      {input, expected_length},
++      {input.c_str(), expected_length},
+       [this](const OwnedBufferFragmentImpl*) { release_callback_called_ = true; });
+   Buffer::OwnedImpl buffer;
+   verifyImplementation(buffer);
+@@ -150,10 +150,10 @@ TEST_P(OwnedImplTest, AddOwnedBufferFragmentWithCleanup) {
+ 
+ // Verify that OwnedBufferFragment work correctly when input buffer is allocated on the heap.
+ TEST_P(OwnedImplTest, AddOwnedBufferFragmentDynamicAllocation) {
+-  char input_stack[] = "hello world";
+-  const size_t expected_length = sizeof(input_stack) - 1;
++  std::string input_str(2048, 'a');
++  const size_t expected_length = input_str.size();
+   char* input = new char[expected_length];
+-  std::copy(input_stack, input_stack + expected_length, input);
++  std::copy(input_str.c_str(), input_str.c_str() + expected_length, input);
+ 
+   auto* frag = OwnedBufferFragmentImpl::create({input, expected_length},
+                                                [this, input](const OwnedBufferFragmentImpl* frag) {
+@@ -730,6 +730,54 @@ TEST(OverflowDetectingUInt64, Arithmetic) {
+   EXPECT_DEATH(length += 1, "overflow");
+ }
+ 
++void TestBufferMove(uint64_t buffer1_length, uint64_t buffer2_length,
++                    uint64_t expected_slice_count) {
++  Buffer::OwnedImpl buffer1;
++  buffer1.add(std::string(buffer1_length, 'a'));
++  EXPECT_EQ(1, buffer1.getRawSlices(nullptr, 0));
++
++  Buffer::OwnedImpl buffer2;
++  buffer2.add(std::string(buffer2_length, 'b'));
++  EXPECT_EQ(1, buffer2.getRawSlices(nullptr, 0));
++
++  buffer1.move(buffer2);
++  EXPECT_EQ(expected_slice_count, buffer1.getRawSlices(nullptr, 0));
++  EXPECT_EQ(buffer1_length + buffer2_length, buffer1.length());
++  // Make sure `buffer2` was drained.
++  EXPECT_EQ(0, buffer2.length());
++}
++
++// Slice size large enough to prevent slice content from being coalesced into an existing slice
++constexpr uint64_t kLargeSliceSize = 2048;
++
++TEST(OwnedImplTest, MoveBuffersWithLargeSlices) {
++  // Large slices should not be coalesced together
++  TestBufferMove(kLargeSliceSize, kLargeSliceSize, 2);
++}
++
++TEST(OwnedImplTest, MoveBuffersWithSmallSlices) {
++  // Small slices should be coalesced together
++  TestBufferMove(1, 1, 1);
++}
++
++TEST(OwnedImplTest, MoveSmallSliceIntoLargeSlice) {
++  // Small slices should be coalesced with a large one
++  TestBufferMove(kLargeSliceSize, 1, 1);
++}
++
++TEST(OwnedImplTest, MoveLargeSliceIntoSmallSlice) {
++  // Large slice should NOT be coalesced into the small one
++  TestBufferMove(1, kLargeSliceSize, 2);
++}
++
++TEST(OwnedImplTest, MoveSmallSliceIntoNotEnoughFreeSpace) {
++  // Small slice will not be coalesced if a previous slice does not have enough free space
++  // Slice buffer sizes are allocated in 4Kb increments
++  // Make first slice have 127 of free space (it is actually less as there is small overhead of the
++  // OwnedSlice object) And second slice 128 bytes
++  TestBufferMove(4096 - 127, 128, 2);
++}
++
+ } // namespace
+ } // namespace Buffer
+ } // namespace Envoy
+diff --git a/test/common/buffer/zero_copy_input_stream_test.cc b/test/common/buffer/zero_copy_input_stream_test.cc
+index bd747ed20..055f1050b 100644
+--- a/test/common/buffer/zero_copy_input_stream_test.cc
++++ b/test/common/buffer/zero_copy_input_stream_test.cc
+@@ -3,6 +3,7 @@
+ 
+ #include "test/common/buffer/utility.h"
+ 
++#include "gmock/gmock.h"
+ #include "gtest/gtest.h"
+ 
+ namespace Envoy {
+@@ -39,7 +40,9 @@ TEST_P(ZeroCopyInputStreamTest, Next) {
+ }
+ 
+ TEST_P(ZeroCopyInputStreamTest, TwoSlices) {
+-  Buffer::OwnedImpl buffer("efgh");
++  // Make content larger than 512 bytes so it would not be coalesced when
++  // moved into the stream_ buffer.
++  Buffer::OwnedImpl buffer(std::string(1024, 'A'));
+   verifyImplementation(buffer);
+ 
+   stream_.move(buffer);
+@@ -48,8 +51,9 @@ TEST_P(ZeroCopyInputStreamTest, TwoSlices) {
+   EXPECT_EQ(4, size_);
+   EXPECT_EQ(0, memcmp(slice_data_.data(), data_, size_));
+   EXPECT_TRUE(stream_.Next(&data_, &size_));
+-  EXPECT_EQ(4, size_);
+-  EXPECT_EQ(0, memcmp("efgh", data_, size_));
++  EXPECT_EQ(1024, size_);
++  EXPECT_THAT(absl::string_view(static_cast<const char*>(data_), size_),
++              testing::Each(testing::AllOf('A')));
+ }
+ 
+ TEST_P(ZeroCopyInputStreamTest, BackUp) {
+diff --git a/test/common/http/http1/codec_impl_test.cc b/test/common/http/http1/codec_impl_test.cc
+index 7f5a404cd..78e7b0acf 100644
+--- a/test/common/http/http1/codec_impl_test.cc
++++ b/test/common/http/http1/codec_impl_test.cc
+@@ -24,6 +24,7 @@
+ using testing::_;
+ using testing::InSequence;
+ using testing::Invoke;
++using testing::InvokeWithoutArgs;
+ using testing::NiceMock;
+ using testing::Return;
+ using testing::ReturnRef;
+@@ -840,7 +841,13 @@ TEST_F(Http1ServerConnectionImplTest, ChunkedResponse) {
+   EXPECT_EQ(0U, buffer.length());
+ 
+   std::string output;
+-  ON_CALL(connection_, write(_, _)).WillByDefault(AddBufferToString(&output));
++  ON_CALL(connection_, write(_, _)).WillByDefault(Invoke([&output](Buffer::Instance& data, bool) {
++    // Verify that individual writes into the codec's output buffer were coalesced into a single
++    // slice
++    ASSERT_EQ(1, data.getRawSlices(nullptr, 0));
++    output.append(data.toString());
++    data.drain(data.length());
++  }));
+ 
+   TestHeaderMapImpl headers{{":status", "200"}};
+   response_encoder->encodeHeaders(headers, false);
+-- 
+2.21.1 (Apple Git-122.3)
+

@@ -1,0 +1,463 @@
+From 117252535139406f3a996cad22648b276de24fc8 Mon Sep 17 00:00:00 2001
+From: Jianfei Hu <jianfeih@google.com>
+Date: Tue, 18 Feb 2020 19:37:17 -0800
+Subject: [1.12 5/7] http: adding response flood protection (#113) (#125)
+
+This is similar to the http2 frame protection, but rather than try to
+guard
+[header block || last body bytes || last chunk in chunk encoding ||
+trailer block]
+depending on end stream, which just gets messy, I opted to just add an
+empty reference counted fragment after the body was serialized, which
+appears to work just as well with a small theoretical overhead.  If
+folks think the complexity is warranted I can of course do that instead.
+
+Risk Level: Medium
+Testing: new unit tests, integration test
+Docs Changes: stats documented
+Release Notes: added
+
+Signed-off-by: Alyssa Wilk <alyssar@chromium.org>
+Signed-off-by: Lizan Zhou <lizan@tetrate.io>
+Signed-off-by: Jianfei Hu <jianfeih@google.com>
+---
+ .../http/http_conn_man/stats.rst              |  1 +
+ docs/root/intro/version_history.rst           |  1 +
+ source/common/http/http1/codec_impl.cc        | 64 ++++++++++++--
+ source/common/http/http1/codec_impl.h         | 33 +++++--
+ source/common/runtime/runtime_features.cc     |  1 +
+ source/common/runtime/runtime_impl.cc         |  2 +-
+ test/common/http/http1/codec_impl_test.cc     | 86 +++++++++++++++++++
+ test/integration/integration_admin_test.cc    |  3 +-
+ test/integration/integration_test.cc          | 49 +++++++++++
+ 9 files changed, 227 insertions(+), 13 deletions(-)
+
+diff --git a/docs/root/configuration/http/http_conn_man/stats.rst b/docs/root/configuration/http/http_conn_man/stats.rst
+index 3a0d6060b..6d46fb937 100644
+--- a/docs/root/configuration/http/http_conn_man/stats.rst
++++ b/docs/root/configuration/http/http_conn_man/stats.rst
+@@ -111,6 +111,7 @@ All http1 statistics are rooted at *http1.*
+    :widths: 1, 1, 2
+ 
+    metadata_not_supported_error, Counter, Total number of metadata dropped during HTTP/1 encoding
++   response_flood, Counter, Total number of connections closed due to response flooding
+ 
+ Http2 codec statistics
+ ~~~~~~~~~~~~~~~~~~~~~~
+diff --git a/docs/root/intro/version_history.rst b/docs/root/intro/version_history.rst
+index ebe1413a1..ddb2a69b8 100644
+--- a/docs/root/intro/version_history.rst
++++ b/docs/root/intro/version_history.rst
+@@ -5,6 +5,7 @@ Version history
+ ==========================
+ * listeners: fixed issue where :ref:`TLS inspector listener filter <config_listener_filters_tls_inspector>` could have been bypassed by a client using only TLS 1.3.
+ * sds: fixed the SDS vulnerability that TLS validation context (e.g., subject alt name or hash) cannot be effectively validated in some cases.
++* http: added HTTP/1.1 flood protection. Can be temporarily disabled using the runtime feature `envoy.reloadable_features.http1_flood_protection`.
+ 
+ 1.12.2 (December 10, 2019)
+ ==========================
+diff --git a/source/common/http/http1/codec_impl.cc b/source/common/http/http1/codec_impl.cc
+index 81b986898..ef6ece438 100644
+--- a/source/common/http/http1/codec_impl.cc
++++ b/source/common/http/http1/codec_impl.cc
+@@ -198,17 +198,49 @@ void StreamEncoderImpl::endEncode() {
+     connection_.buffer().add(LAST_CHUNK);
+   }
+ 
+-  connection_.flushOutput();
++  connection_.flushOutput(true);
+   connection_.onEncodeComplete();
+ }
+ 
+-void ConnectionImpl::flushOutput() {
++void ServerConnectionImpl::maybeAddSentinelBufferFragment(Buffer::WatermarkBuffer& output_buffer) {
++  if (!flood_protection_) {
++    return;
++  }
++  // It's messy and complicated to try to tag the final write of an HTTP response for response
++  // tracking for flood protection. Instead, write an empty buffer fragment after the response,
++  // to allow for tracking.
++  // When the response is written out, the fragment will be deleted and the counter will be updated
++  // by ServerConnectionImpl::releaseOutboundResponse()
++  auto fragment =
++      Buffer::OwnedBufferFragmentImpl::create(absl::string_view("", 0), response_buffer_releasor_);
++  output_buffer.addBufferFragment(*fragment.release());
++  ASSERT(outbound_responses_ < max_outbound_responses_);
++  outbound_responses_++;
++}
++
++void ServerConnectionImpl::doFloodProtectionChecks() const {
++  if (!flood_protection_) {
++    return;
++  }
++  // Before sending another response, make sure it won't exceed flood protection thresholds.
++  if (outbound_responses_ >= max_outbound_responses_) {
++    ENVOY_CONN_LOG(trace, "error sending response: Too many pending responses queued", connection_);
++    stats_.response_flood_.inc();
++    throw FrameFloodException("Too many responses queued.");
++  }
++}
++
++void ConnectionImpl::flushOutput(bool end_encode) {
+   if (reserved_current_) {
+     reserved_iovec_.len_ = reserved_current_ - static_cast<char*>(reserved_iovec_.mem_);
+     output_buffer_.commit(&reserved_iovec_, 1);
+     reserved_current_ = nullptr;
+   }
+-
++  if (end_encode) {
++    // If this is an HTTP response in ServerConnectionImpl, track outbound responses for flood
++    // protection
++    maybeAddSentinelBufferFragment(output_buffer_);
++  }
+   connection().write(output_buffer_, false);
+   ASSERT(0UL == output_buffer_.length());
+ }
+@@ -260,6 +292,9 @@ static const char RESPONSE_PREFIX[] = "HTTP/1.1 ";
+ static const char HTTP_10_RESPONSE_PREFIX[] = "HTTP/1.0 ";
+ 
+ void ResponseStreamEncoderImpl::encodeHeaders(const HeaderMap& headers, bool end_stream) {
++  // Do flood checks before attempting to write any responses.
++  flood_checks_();
++
+   started_response_ = true;
+   uint64_t numeric_status = Utility::getResponseStatus(headers);
+ 
+@@ -581,7 +616,18 @@ ServerConnectionImpl::ServerConnectionImpl(Network::Connection& connection, Stat
+                                            const uint32_t max_request_headers_count)
+     : ConnectionImpl(connection, stats, HTTP_REQUEST, max_request_headers_kb,
+                      max_request_headers_count, formatter(settings)),
+-      callbacks_(callbacks), codec_settings_(settings) {}
++      callbacks_(callbacks), codec_settings_(settings),
++      response_buffer_releasor_([this](const Buffer::OwnedBufferFragmentImpl* fragment) {
++        releaseOutboundResponse(fragment);
++      }),
++      // Pipelining is generally not well supported on the internet and has a series of dangerous
++      // overflow bugs. As such we are disabling it for now, and removing this temporary override if
++      // no one objects. If you use this integer to restore prior behavior, contact the
++      // maintainer team as it will otherwise be removed entirely soon.
++      max_outbound_responses_(
++          Runtime::getInteger("envoy.do_not_use_going_away_max_http2_outbound_responses", 2)),
++      flood_protection_(
++          Runtime::runtimeFeatureEnabled("envoy.reloadable_features.http1_flood_protection")) {}
+ 
+ void ServerConnectionImpl::onEncodeComplete() {
+   ASSERT(active_request_);
+@@ -681,7 +727,8 @@ int ServerConnectionImpl::onHeadersComplete(HeaderMapImplPtr&& headers) {
+ void ServerConnectionImpl::onMessageBegin() {
+   if (!resetStreamCalled()) {
+     ASSERT(!active_request_);
+-    active_request_ = std::make_unique<ActiveRequest>(*this, header_key_formatter_.get());
++    active_request_ =
++        std::make_unique<ActiveRequest>(*this, header_key_formatter_.get(), flood_checks_);
+     active_request_->request_decoder_ = &callbacks_.newStream(active_request_->response_encoder_);
+   }
+ }
+@@ -752,6 +799,13 @@ void ServerConnectionImpl::onBelowLowWatermark() {
+   }
+ }
+ 
++void ServerConnectionImpl::releaseOutboundResponse(
++    const Buffer::OwnedBufferFragmentImpl* fragment) {
++  ASSERT(outbound_responses_ >= 1);
++  --outbound_responses_;
++  delete fragment;
++}
++
+ ClientConnectionImpl::ClientConnectionImpl(Network::Connection& connection, Stats::Scope& stats,
+                                            ConnectionCallbacks&, const Http1Settings& settings,
+                                            const uint32_t max_response_headers_count)
+diff --git a/source/common/http/http1/codec_impl.h b/source/common/http/http1/codec_impl.h
+index 8b00bdc63..714f54ca7 100644
+--- a/source/common/http/http1/codec_impl.h
++++ b/source/common/http/http1/codec_impl.h
+@@ -27,7 +27,9 @@ namespace Http1 {
+ /**
+  * All stats for the HTTP/1 codec. @see stats_macros.h
+  */
+-#define ALL_HTTP1_CODEC_STATS(COUNTER) COUNTER(metadata_not_supported_error)
++#define ALL_HTTP1_CODEC_STATS(COUNTER)                                                             \
++  COUNTER(metadata_not_supported_error)                                                            \
++  COUNTER(response_flood)
+ 
+ /**
+  * Wrapper struct for the HTTP/1 codec stats. @see stats_macros.h
+@@ -108,8 +110,11 @@ private:
+  */
+ class ResponseStreamEncoderImpl : public StreamEncoderImpl {
+ public:
+-  ResponseStreamEncoderImpl(ConnectionImpl& connection, HeaderKeyFormatter* header_key_formatter)
+-      : StreamEncoderImpl(connection, header_key_formatter) {}
++  using FloodChecks = std::function<void()>;
++
++  ResponseStreamEncoderImpl(ConnectionImpl& connection, HeaderKeyFormatter* header_key_formatter,
++                            FloodChecks& flood_checks)
++      : StreamEncoderImpl(connection, header_key_formatter), flood_checks_(flood_checks) {}
+ 
+   bool startedResponse() { return started_response_; }
+ 
+@@ -117,6 +122,7 @@ public:
+   void encodeHeaders(const HeaderMap& headers, bool end_stream) override;
+ 
+ private:
++  FloodChecks& flood_checks_;
+   bool started_response_{};
+ };
+ 
+@@ -166,7 +172,7 @@ public:
+   /**
+    * Flush all pending output from encoding.
+    */
+-  void flushOutput();
++  void flushOutput(bool end_encode = false);
+ 
+   void addCharToBuffer(char c);
+   void addIntToBuffer(uint64_t i);
+@@ -189,6 +195,7 @@ public:
+   virtual bool supports_http_10() { return false; }
+ 
+   bool maybeDirectDispatch(Buffer::Instance& data);
++  virtual void maybeAddSentinelBufferFragment(Buffer::WatermarkBuffer&) {}
+ 
+   CodecStats& stats() { return stats_; }
+ 
+@@ -316,6 +323,7 @@ private:
+  */
+ class ServerConnectionImpl : public ServerConnection, public ConnectionImpl {
+ public:
++  using FloodChecks = std::function<void()>;
+   ServerConnectionImpl(Network::Connection& connection, Stats::Scope& stats,
+                        ServerConnectionCallbacks& callbacks, Http1Settings settings,
+                        uint32_t max_request_headers_kb, const uint32_t max_request_headers_count);
+@@ -327,8 +335,9 @@ private:
+    * An active HTTP/1.1 request.
+    */
+   struct ActiveRequest {
+-    ActiveRequest(ConnectionImpl& connection, HeaderKeyFormatter* header_key_formatter)
+-        : response_encoder_(connection, header_key_formatter) {}
++    ActiveRequest(ConnectionImpl& connection, HeaderKeyFormatter* header_key_formatter,
++                  FloodChecks& flood_checks)
++        : response_encoder_(connection, header_key_formatter, flood_checks) {}
+ 
+     HeaderString request_url_;
+     StreamDecoder* request_decoder_{};
+@@ -359,9 +368,21 @@ private:
+   void onAboveHighWatermark() override;
+   void onBelowLowWatermark() override;
+ 
++  void releaseOutboundResponse(const Buffer::OwnedBufferFragmentImpl* fragment);
++  void maybeAddSentinelBufferFragment(Buffer::WatermarkBuffer& output_buffer) override;
++  void doFloodProtectionChecks() const;
++
+   ServerConnectionCallbacks& callbacks_;
++  std::function<void()> flood_checks_{[&]() { this->doFloodProtectionChecks(); }};
+   std::unique_ptr<ActiveRequest> active_request_;
+   Http1Settings codec_settings_;
++  const Buffer::OwnedBufferFragmentImpl::Releasor response_buffer_releasor_;
++  uint32_t outbound_responses_{};
++  // This defaults to 2, which functionally disables pipelining. If any users
++  // of Envoy wish to enable pipelining (which is dangerous and ill supported)
++  // we could make this configurable.
++  uint32_t max_outbound_responses_{};
++  bool flood_protection_{};
+ };
+ 
+ /**
+diff --git a/source/common/runtime/runtime_features.cc b/source/common/runtime/runtime_features.cc
+index f08acfbb9..a3822558a 100644
+--- a/source/common/runtime/runtime_features.cc
++++ b/source/common/runtime/runtime_features.cc
+@@ -24,6 +24,7 @@ namespace Runtime {
+ // problem of the bugs being found after the old code path has been removed.
+ constexpr const char* runtime_features[] = {
+     // Enabled
++    "envoy.reloadable_features.http1_flood_protection",
+     "envoy.reloadable_features.test_feature_true",
+     "envoy.reloadable_features.buffer_filter_populate_content_length",
+     "envoy.reloadable_features.trusted_forwarded_proto",
+diff --git a/source/common/runtime/runtime_impl.cc b/source/common/runtime/runtime_impl.cc
+index 9da583bdb..c863bc62d 100644
+--- a/source/common/runtime/runtime_impl.cc
++++ b/source/common/runtime/runtime_impl.cc
+@@ -37,7 +37,7 @@ bool runtimeFeatureEnabled(absl::string_view feature) {
+ }
+ 
+ uint64_t getInteger(absl::string_view feature, uint64_t default_value) {
+-  ASSERT(absl::StartsWith(feature, "envoy.reloadable_features"));
++  ASSERT(absl::StartsWith(feature, "envoy."));
+   if (Runtime::LoaderSingleton::getExisting()) {
+     return Runtime::LoaderSingleton::getExisting()->threadsafeSnapshot()->getInteger(
+         std::string(feature), default_value);
+diff --git a/test/common/http/http1/codec_impl_test.cc b/test/common/http/http1/codec_impl_test.cc
+index cc77c9370..7f5a404cd 100644
+--- a/test/common/http/http1/codec_impl_test.cc
++++ b/test/common/http/http1/codec_impl_test.cc
+@@ -427,6 +427,92 @@ TEST_F(Http1ServerConnectionImplTest, BadRequestStartedStream) {
+   EXPECT_EQ("HTTP/1.1 400 Bad Request\r\ncontent-length: 0\r\nconnection: close\r\n\r\n", output);
+ }
+ 
++TEST_F(Http1ServerConnectionImplTest, FloodProtection) {
++  initialize();
++
++  NiceMock<Http::MockStreamDecoder> decoder;
++  Buffer::OwnedImpl local_buffer;
++  // Read a request and send a response, without draining the response from the
++  // connection buffer. The first two should not cause problems.
++  for (int i = 0; i < 2; ++i) {
++    Http::StreamEncoder* response_encoder = nullptr;
++    EXPECT_CALL(callbacks_, newStream(_, _))
++        .WillOnce(Invoke([&](Http::StreamEncoder& encoder, bool) -> Http::StreamDecoder& {
++          response_encoder = &encoder;
++          return decoder;
++        }));
++
++    Buffer::OwnedImpl buffer("GET / HTTP/1.1\r\n\r\n");
++    codec_->dispatch(buffer);
++    EXPECT_EQ(0U, buffer.length());
++
++    // In most tests the write output is serialized to a buffer here it is
++    // ignored to build up queued "end connection" sentinels.
++    EXPECT_CALL(connection_, write(_, _))
++        .Times(1)
++        .WillOnce(Invoke([&](Buffer::Instance& data, bool) -> void {
++          // Move the response out of data while preserving the buffer fragment sentinels.
++          local_buffer.move(data);
++        }));
++
++    TestHeaderMapImpl headers{{":status", "200"}};
++    response_encoder->encodeHeaders(headers, true);
++  }
++
++  // Trying to shove a third response in the queue should trigger flood protection.
++  {
++    Http::StreamEncoder* response_encoder = nullptr;
++    EXPECT_CALL(callbacks_, newStream(_, _))
++        .WillOnce(Invoke([&](Http::StreamEncoder& encoder, bool) -> Http::StreamDecoder& {
++          response_encoder = &encoder;
++          return decoder;
++        }));
++
++    Buffer::OwnedImpl buffer("GET / HTTP/1.1\r\n\r\n");
++    codec_->dispatch(buffer);
++
++    TestHeaderMapImpl headers{{":status", "200"}};
++    EXPECT_THROW_WITH_MESSAGE(response_encoder->encodeHeaders(headers, true), FrameFloodException,
++                              "Too many responses queued.");
++    EXPECT_EQ(1, store_.counter("http1.response_flood").value());
++  }
++}
++
++TEST_F(Http1ServerConnectionImplTest, FloodProtectionOff) {
++  TestScopedRuntime scoped_runtime;
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"envoy.reloadable_features.http1_flood_protection", "false"}});
++  initialize();
++
++  NiceMock<Http::MockStreamDecoder> decoder;
++  Buffer::OwnedImpl local_buffer;
++  // With flood protection off, many responses can be queued up.
++  for (int i = 0; i < 4; ++i) {
++    Http::StreamEncoder* response_encoder = nullptr;
++    EXPECT_CALL(callbacks_, newStream(_, _))
++        .WillOnce(Invoke([&](Http::StreamEncoder& encoder, bool) -> Http::StreamDecoder& {
++          response_encoder = &encoder;
++          return decoder;
++        }));
++
++    Buffer::OwnedImpl buffer("GET / HTTP/1.1\r\n\r\n");
++    codec_->dispatch(buffer);
++    EXPECT_EQ(0U, buffer.length());
++
++    // In most tests the write output is serialized to a buffer here it is
++    // ignored to build up queued "end connection" sentinels.
++    EXPECT_CALL(connection_, write(_, _))
++        .Times(1)
++        .WillOnce(Invoke([&](Buffer::Instance& data, bool) -> void {
++          // Move the response out of data while preserving the buffer fragment sentinels.
++          local_buffer.move(data);
++        }));
++
++    TestHeaderMapImpl headers{{":status", "200"}};
++    response_encoder->encodeHeaders(headers, true);
++  }
++}
++
+ TEST_F(Http1ServerConnectionImplTest, HostHeaderTranslation) {
+   initialize();
+ 
+diff --git a/test/integration/integration_admin_test.cc b/test/integration/integration_admin_test.cc
+index 3d97a081d..bb590a860 100644
+--- a/test/integration/integration_admin_test.cc
++++ b/test/integration/integration_admin_test.cc
+@@ -261,8 +261,9 @@ TEST_P(IntegrationAdminTest, Admin) {
+   case Http::CodecClient::Type::HTTP1:
+     EXPECT_EQ("   Count Lookup\n"
+               "       1 http1.metadata_not_supported_error\n"
++              "       1 http1.response_flood\n"
+               "\n"
+-              "total: 1\n",
++              "total: 2\n",
+               response->body());
+     break;
+   case Http::CodecClient::Type::HTTP2:
+diff --git a/test/integration/integration_test.cc b/test/integration/integration_test.cc
+index 5dbb8ce7b..91f38de55 100644
+--- a/test/integration/integration_test.cc
++++ b/test/integration/integration_test.cc
+@@ -959,4 +959,53 @@ TEST_P(UpstreamEndpointIntegrationTest, TestUpstreamEndpointAddress) {
+                Network::Test::getLoopbackAddressString(GetParam()).c_str());
+ }
+ 
++// Send continuous pipelined requests while not reading responses, to check
++// HTTP/1.1 response flood protection.
++TEST_P(IntegrationTest, TestFlood) {
++  initialize();
++
++  // Set up a raw connection to easily send requests without reading responses.
++  Network::ClientConnectionPtr raw_connection = makeClientConnection(lookupPort("http"));
++  raw_connection->connect();
++
++  // Read disable so responses will queue up.
++  uint32_t bytes_to_send = 0;
++  raw_connection->readDisable(true);
++  // Track locally queued bytes, to make sure the outbound client queue doesn't back up.
++  raw_connection->addBytesSentCallback([&](uint64_t bytes) { bytes_to_send -= bytes; });
++
++  // Keep sending requests until flood protection kicks in and kills the connection.
++  while (raw_connection->state() == Network::Connection::State::Open) {
++    // These requests are missing the host header, so will provoke an internally generated error
++    // response from Envoy.
++    Buffer::OwnedImpl buffer("GET / HTTP/1.1\r\n\r\nGET / HTTP/1.1\r\n\r\nGET / HTTP/1.1\r\n\r\n");
++    bytes_to_send += buffer.length();
++    raw_connection->write(buffer, false);
++    // Loop until all bytes are sent.
++    while (bytes_to_send > 0 && raw_connection->state() == Network::Connection::State::Open) {
++      raw_connection->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
++    }
++  }
++
++  // Verify the connection was closed due to flood protection.
++  EXPECT_EQ(1, test_server_->counter("http1.response_flood")->value());
++}
++
++// Make sure flood protection doesn't kick in with many requests sent serially.
++TEST_P(IntegrationTest, TestManyBadRequests) {
++  initialize();
++
++  codec_client_ = makeHttpConnection(lookupPort("http"));
++  Http::TestHeaderMapImpl bad_request{
++      {":method", "GET"}, {":path", "/test/long/url"}, {":scheme", "http"}};
++
++  for (int i = 0; i < 1; ++i) {
++    IntegrationStreamDecoderPtr response = codec_client_->makeHeaderOnlyRequest(bad_request);
++    response->waitForEndStream();
++    ASSERT_TRUE(response->complete());
++    EXPECT_THAT(response->headers(), HttpStatusIs("400"));
++  }
++  EXPECT_EQ(0, test_server_->counter("http1.response_flood")->value());
++}
++
+ } // namespace Envoy
+-- 
+2.21.1 (Apple Git-122.3)
+
