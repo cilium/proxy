@@ -88,13 +88,15 @@ envoy-default: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 # Allow root build for release
-$(CILIUM_ENVOY_BIN) $(CILIUM_ENVOY_RELEASE_BIN): force
+$(CILIUM_ENVOY_BIN): force
 	@$(ECHO_BAZEL)
 	-rm -f bazel-out/k8-opt/bin/_objs/cilium-envoy/external/envoy/source/common/common/version_linkstamp.o
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:cilium-envoy $(BAZEL_FILTER)
+
+$(CILIUM_ENVOY_RELEASE_BIN): $(CILIUM_ENVOY_BIN)
 	$(STRIP) -o $(CILIUM_ENVOY_RELEASE_BIN) $(CILIUM_ENVOY_BIN)
 
-Dockerfile.%: Dockerfile.%.in
+Dockerfile.%: Dockerfile.%.in Makefile
 	-sed "s/@ISTIO_VERSION@/$(ISTIO_VERSION)/" <$< >$@
 
 docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
