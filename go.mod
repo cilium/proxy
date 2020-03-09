@@ -11,10 +11,8 @@ require (
 	github.com/lyft/protoc-gen-star v0.4.14 // indirect
 	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
 	github.com/spf13/afero v1.2.2 // indirect
-	golang.org/x/net v0.0.0-20190514140710-3ec191127204 // indirect
+	golang.org/x/net v0.0.0-20190813141303-74dc4d7220e7 // indirect
 	golang.org/x/sys v0.0.0-20190516110030-61b9204099cb // indirect
-	golang.org/x/text v0.3.2 // indirect
 	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
 	google.golang.org/grpc v1.25.1
-	istio.io/gogo-genproto v0.0.0-20190731221249-06e20ada0df2 // indirect
 )
