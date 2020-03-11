@@ -1,5 +1,5 @@
 diff --git a/source/common/upstream/BUILD b/source/common/upstream/BUILD
-index 31dfdec94..03cff715e 100644
+index 31dfdec940..03cff715ed 100644
 --- a/source/common/upstream/BUILD
 +++ b/source/common/upstream/BUILD
 @@ -265,6 +265,7 @@ envoy_cc_library(
@@ -11,7 +11,7 @@ index 31dfdec94..03cff715e 100644
          "//source/extensions/clusters:well_known_names",
          "@envoy_api//envoy/config/cluster/v3:pkg_cc_proto",
 diff --git a/source/common/upstream/original_dst_cluster.cc b/source/common/upstream/original_dst_cluster.cc
-index 69b0e3b7f..6bbeb1827 100644
+index 69b0e3b7f2..6bbeb18279 100644
 --- a/source/common/upstream/original_dst_cluster.cc
 +++ b/source/common/upstream/original_dst_cluster.cc
 @@ -13,14 +13,25 @@
@@ -232,7 +232,7 @@ index 69b0e3b7f..6bbeb1827 100644
  } // namespace Upstream
  } // namespace Envoy
 diff --git a/source/common/upstream/original_dst_cluster.h b/source/common/upstream/original_dst_cluster.h
-index 148111cd0..d0acdf4ef 100644
+index 148111cd0e..d0acdf4efa 100644
 --- a/source/common/upstream/original_dst_cluster.h
 +++ b/source/common/upstream/original_dst_cluster.h
 @@ -20,31 +20,60 @@
@@ -384,7 +384,7 @@ index 148111cd0..d0acdf4ef 100644
  } // namespace Upstream
  } // namespace Envoy
 diff --git a/test/common/upstream/BUILD b/test/common/upstream/BUILD
-index c53b8368e..b558158a0 100644
+index c53b8368e9..b558158a05 100644
 --- a/test/common/upstream/BUILD
 +++ b/test/common/upstream/BUILD
 @@ -235,6 +235,7 @@ envoy_cc_test(
@@ -412,7 +412,7 @@ index c53b8368e..b558158a0 100644
          "@envoy_api//envoy/config/cluster/v3:pkg_cc_proto",
      ],
 diff --git a/test/common/upstream/original_dst_cluster_test.cc b/test/common/upstream/original_dst_cluster_test.cc
-index 558f70bde..9c2d95c5b 100644
+index 558f70bdee..9c2d95c5b9 100644
 --- a/test/common/upstream/original_dst_cluster_test.cc
 +++ b/test/common/upstream/original_dst_cluster_test.cc
 @@ -24,6 +24,7 @@

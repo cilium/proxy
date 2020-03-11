@@ -7,17 +7,50 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_SHA = "b67c14052c49890a7e3afe614d50979c346c024b"
-ENVOY_SHA256 = "95d6217c4c600a2a779f3c1910c85b968c41eeedd8b04d6122ce06d458990751"
+ENVOY_PROJECT = "istio"
+ENVOY_REPO = "envoy"
+ENVOY_SHA = "759e9e1c4743787206eb52d1737d55c03fd1eed1"
+ENVOY_SHA256 = "28caee7e3b1f6511d67b5b3e75ec0f7f78d83f6c117b14bd40e9c5cb8358591e"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+# Dependencies for Istio filters.
+# Cf. https://github.com/istio/proxy.
+# Version 1.5.0
+ISTIO_PROXY_SHA = "73f240a29bece92a8882a36893ccce07b4a54664"
+ISTIO_PROXY_SHA256 = "05338080faea6fae195f0446357bdb73a3b81f241c9988384259f67dd3ca8720"
+
+http_archive(
+    name = "istio_proxy",
+    url = "https://github.com/istio/proxy/archive/" + ISTIO_PROXY_SHA + ".tar.gz",
+    sha256 = ISTIO_PROXY_SHA256,
+    strip_prefix = "proxy-" + ISTIO_PROXY_SHA,
+    patches = [
+    ],
+    patch_args = ["-p1"],
+)
+
+load(
+    "@istio_proxy//:repositories.bzl",
+    "docker_dependencies",
+    "googletest_repositories",
+    "mixerapi_dependencies",
+)
+googletest_repositories()
+mixerapi_dependencies()
+
+bind(
+    name = "boringssl_crypto",
+    actual = "//external:ssl",
+)
+
 http_archive(
     name = "envoy",
-    url = "https://github.com/envoyproxy/envoy/archive/" + ENVOY_SHA + ".tar.gz",
     sha256 = ENVOY_SHA256,
-    strip_prefix = "envoy-" + ENVOY_SHA,
+    strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
+    url = "https://github.com/" + ENVOY_PROJECT + "/" + ENVOY_REPO + "/archive/" + ENVOY_SHA + ".tar.gz",
     patches = [
+        "@//patches:wasm-undefined-result.patch",
         "@//patches:original-dst-add-sni.patch",
         "@//patches:test-enable-half-close.patch",
         "@//patches:add-getTransportSocketFactoryContext.patch",
@@ -45,3 +78,45 @@ envoy_dependencies()
 
 load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
 envoy_dependency_imports()
+
+load("@rules_antlr//antlr:deps.bzl", "antlr_dependencies")
+antlr_dependencies(471)
+
+# Docker dependencies
+
+docker_dependencies()
+
+load(
+    "@io_bazel_rules_docker//repositories:repositories.bzl",
+    container_repositories = "repositories",
+)
+
+container_repositories()
+
+load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
+
+container_deps()
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_pull",
+)
+
+container_pull(
+    name = "distroless_cc",
+    # Latest as of 10/21/2019. To update, remove this line, re-build, and copy the suggested digest.
+    digest = "sha256:86f16733f25964c40dcd34edf14339ddbb2287af2f7c9dfad88f0366723c00d7",
+    registry = "gcr.io",
+    repository = "distroless/cc",
+)
+
+container_pull(
+    name = "bionic",
+    # Latest as of 10/21/2019. To update, remove this line, re-build, and copy the suggested digest.
+    digest = "sha256:3e83eca7870ee14a03b8026660e71ba761e6919b6982fb920d10254688a363d4",
+    registry = "index.docker.io",
+    repository = "library/ubuntu",
+    tag = "bionic",
+)
+
+# End of docker dependencies
