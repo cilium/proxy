@@ -35,7 +35,7 @@ BUILDIFIER ?= buildifier
 STRIP ?= $(QUIET) strip
 
 # istio_proxy builds require a version number to be set below
-ISTIO_VERSION =
+ISTIO_VERSION = 1.5.1
 
 DOCKER=$(QUIET)docker
 
