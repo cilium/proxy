@@ -1,5 +1,5 @@
 diff --git a/test/integration/fake_upstream.cc b/test/integration/fake_upstream.cc
-index 1a2b7c680..7e5402b8c 100644
+index 1a2b7c6807..7e5402b8cb 100644
 --- a/test/integration/fake_upstream.cc
 +++ b/test/integration/fake_upstream.cc
 @@ -401,9 +401,10 @@ FakeUpstream::FakeUpstream(uint32_t port, FakeHttpConnection::Type type,
@@ -49,7 +49,7 @@ index 1a2b7c680..7e5402b8c 100644
    return AssertionSuccess();
  }
 diff --git a/test/integration/fake_upstream.h b/test/integration/fake_upstream.h
-index 2bcd5b40c..004a24b07 100644
+index 2bcd5b40ca..004a24b074 100644
 --- a/test/integration/fake_upstream.h
 +++ b/test/integration/fake_upstream.h
 @@ -399,7 +399,7 @@ protected:
