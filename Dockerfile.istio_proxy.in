@@ -4,7 +4,7 @@ ARG BASE_VERSION=1.5-dev.3
 #
 # Pre-built cilium-envoy image
 #
-ARG CILIUM_ENVOY_SHA=5fd04721d8db90e1d5f3ad1ac8ba4f6ac91e623a
+ARG CILIUM_ENVOY_SHA=fb9d193191d1dddcd50f8bb8041d6a5b4add482c
 FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 
 #
