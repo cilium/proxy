@@ -51,6 +51,8 @@ RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
 # $ patch -o envoy_bootstrap_tmpl.json < envoy_bootstrap_v2.patch
 COPY envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
 
+# TODO: /var/lib/istio/envoy/gcp_envoy_bootstrap_tmpl.json not yet adapted for Cilium
+
 RUN chown -R istio-proxy /var/lib/istio
 
 ENTRYPOINT ["/usr/local/bin/pilot-agent"]
