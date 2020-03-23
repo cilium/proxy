@@ -1,9 +1,26 @@
 #
 # Pre-built cilium-envoy image
 #
-FROM quay.io/cilium/cilium-envoy:31c2f4142955d63d7360ecd0715e6ca88ac9fa4e as cilium-envoy
+ARG CILIUM_ENVOY_SHA=31c2f4142955d63d7360ecd0715e6ca88ac9fa4e
+FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 
-FROM istio/proxytproxy:@ISTIO_VERSION@
+#
+# Pre-built Istio image (non-TPROXY)
+#
+FROM istio/proxyv2:@ISTIO_VERSION@
+
+#
+# Please keep in sync with cilium/istio/pilot/docker/Dockerfile.proxyv2:
+#
+
+# Environment variable indicating the exact proxy sha - for debugging or version-specific configs
+ARG CILIUM_ENVOY_SHA
+ENV ISTIO_META_ISTIO_PROXY_SHA ${CILIUM_ENVOY_SHA}
+# Environment variable indicating the exact build, for debugging
+ENV ISTIO_META_ISTIO_VERSION @ISTIO_VERSION@
+
+# This sidecar will use TPROXY for interception
+ENV ISTIO_META_INTERCEPTION_MODE TPROXY
 
 # Replace Istio's Envoy binary with Cilium's.
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
