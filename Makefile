@@ -105,12 +105,6 @@ docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push cilium/istio_proxy:$(ISTIO_VERSION)"
 
-docker-istio-proxy-debug: Dockerfile.istio_proxy_debug envoy_bootstrap_tmpl.json
-	@$(ECHO_GEN) docker-istio-proxy-debug
-	$(DOCKER) build -f $< -t cilium/istio_proxy_debug:$(ISTIO_VERSION) .
-	$(QUIET)echo "Push like this when ready:"
-	$(QUIET)echo "docker push cilium/istio_proxy_debug:$(ISTIO_VERSION)"
-
 envoy-debug: force-non-root
 	@$(ECHO_BAZEL)
 	-rm -f bazel-out/k8-dbg/bin/_objs/envoy/external/envoy/source/common/common/version_linkstamp.o
@@ -144,8 +138,7 @@ bazel-restore: $(BAZEL_ARCHIVE)
 clean-bins: force
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
 	-$(QUIET) rm -f $(ENVOY_BINS) \
-		Dockerfile.istio_proxy \
-		Dockerfile.istio_proxy_debug
+		Dockerfile.istio_proxy
 
 clean: force clean-bins
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))

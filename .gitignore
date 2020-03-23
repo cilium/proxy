@@ -14,9 +14,9 @@ man/
 
 # Bazel symlinks
 bazel-*
+
 cilium-envoy
 Dockerfile.istio_proxy
-Dockerfile.istio_proxy_debug
 
 # Emacs backup files
 *~
