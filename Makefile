@@ -34,7 +34,8 @@ CLANG_FORMAT ?= clang-format
 BUILDIFIER ?= buildifier
 STRIP ?= $(QUIET) strip
 
-ISTIO_VERSION = 1.2.2
+# istio_proxy builds require a version number to be set below
+ISTIO_VERSION =
 
 DOCKER=$(QUIET)docker
 
