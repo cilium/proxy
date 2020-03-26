@@ -13,6 +13,22 @@ FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 FROM istio/proxyv2:@ISTIO_VERSION@ as istio
 
 #
+# Updated istio-iptables
+#
+FROM gcr.io/istio-testing/build-tools:release-1.5-2020-02-14T14-00-07 as istio-builder
+ENV BUILD_WITH_CONTAINER 0
+ENV IN_BUILD_CONTAINER 0
+ENV TARGET_OS linux
+ENV TARGET_ARCH amd64
+ENV BUILD_ALL false
+ENV TARGET_OUT /work/out/linux_amd64
+ENV TARGET_OUT_LINUX /work/out/linux_amd64
+USER 0:1337
+WORKDIR /work
+RUN git clone https://github.com/cilium/istio.git && cd istio && git checkout inject-cilium-filters-1.5.1 && make build-linux
+RUN pwd && ls
+
+#
 # Please keep in sync with cilium/istio/pilot/docker/Dockerfile.proxyv2:
 #
 
@@ -39,7 +55,7 @@ USER 0:1337
 COPY --from=istio /etc/istio /etc/istio
 COPY --from=istio /var/lib/istio /var/lib/istio
 COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/pilot-agent
-COPY --from=istio /usr/local/bin/istio-iptables /usr/local/bin/istio-iptables
+COPY --from=istio-builder /work/out/linux_amd64/istio-iptables /usr/local/bin/istio-iptables
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
 RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
 
