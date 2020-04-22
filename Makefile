@@ -33,13 +33,17 @@ CLANG ?= clang
 CLANG_FORMAT ?= clang-format
 BUILDIFIER ?= buildifier
 STRIP ?= $(QUIET) strip
-
-# istio_proxy builds require a version number to be set below
-ISTIO_VERSION =
+ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -d = -f2)
 
 DOCKER=$(QUIET)docker
 
 BAZEL_BUILD_OPTS ?= --jobs=3
+
+SLASH = -
+ARCH=$(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
+IMAGE_ARCH = $(SLASH)$(ARCH)
+
+DOCKERFILE_ARCH = .multi_arch
 
 # Dockerfile builds require special options
 ifdef PKG_BUILD
@@ -78,6 +82,58 @@ docker-image-envoy: Dockerfile clean
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)"
 
+#Build multi-arch Envoy image builder
+docker-image-builder-multiarch: Dockerfile.builder$(DOCKERFILE_ARCH) clean
+	$(DOCKER) build -f $< -t "quay.io/cilium/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" --build-arg ARCH=$(ARCH) .
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy-builder-dev:latest$(IMAGE_ARCH)"
+ifeq ($(ARCH),amd64)
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy-builder-dev:$(SOURCE_VERSION)"
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy-builder-dev:$(SOURCE_VERSION)" \
+		"quay.io/cilium/cilium-envoy-builder-dev:latest"
+endif
+
+#Build multi-arch Envoy image
+docker-image-envoy-multiarch: Dockerfile$(DOCKERFILE_ARCH) clean
+	@$(ECHO_GEN) docker-image-envoy
+	$(DOCKER) build -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+	          -f Dockerfile$(DOCKERFILE_ARCH) .
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy:latest$(IMAGE_ARCH)"
+ifeq ($(ARCH),amd64)
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)"
+	$(DOCKER) tag "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"quay.io/cilium/cilium-envoy:latest"
+endif
+	$(QUIET)echo "Push like this when ready:"
+	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)"
+ifeq ($(ARCH),amd64)
+	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)"
+	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:latest"
+endif
+
+DOCKER_IMAGE_TAG=$(SOURCE_VERSION)
+#Push multi-arch support with fat-manifest:
+
+envoy-builder-manifest:
+	tools/push_manifest.sh cilium-envoy-builder $(DOCKER_IMAGE_TAG)
+	tools/push_manifest.sh cilium-envoy-builder latest
+
+docker-envoy-manifest:
+	tools/push_manifest.sh cilium-envoy $(DOCKER_IMAGE_TAG)
+	tools/push_manifest.sh cilium-envoy latest
+
+#Push multi-arch support with images uploaded:
+envoy-builder-image-manifest:
+	tools/push_manifest.sh -i cilium-envoy-builder $(DOCKER_IMAGE_TAG)
+	tools/push_manifest.sh -i cilium-envoy-builder latest
+
+docker-envoy-image-manifest:
+	tools/push_manifest.sh -i cilium-envoy $(DOCKER_IMAGE_TAG)
+	tools/push_manifest.sh -i cilium-envoy latest
+
 debug: envoy-debug
 
 api: force-non-root Makefile.api
@@ -96,9 +152,6 @@ $(CILIUM_ENVOY_BIN): force
 
 $(CILIUM_ENVOY_RELEASE_BIN): $(CILIUM_ENVOY_BIN)
 	$(STRIP) -o $(CILIUM_ENVOY_RELEASE_BIN) $(CILIUM_ENVOY_BIN)
-
-Dockerfile.%: Dockerfile.%.in Makefile
-	-sed "s/@ISTIO_VERSION@/$(ISTIO_VERSION)/" <$< >$@
 
 docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
 	@$(ECHO_GEN) docker-istio-proxy
@@ -138,8 +191,7 @@ bazel-restore: $(BAZEL_ARCHIVE)
 # Remove the binaries to get fresh version SHA
 clean-bins: force
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
-	-$(QUIET) rm -f $(ENVOY_BINS) \
-		Dockerfile.istio_proxy
+	-$(QUIET) rm -f $(ENVOY_BINS)
 
 clean: force clean-bins
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
@@ -174,7 +226,6 @@ debug-tests: force-non-root
 	shutdown-bazel \
 	bazel-restore \
 	docker-istio-proxy \
-	docker-istio-proxy-debug \
 	force \
 	force-non-root \
 	force-root
