@@ -20,7 +20,7 @@ envoy_cc_binary(
         "//cilium:l7policy_lib",
         "//cilium:tls_wrapper_lib",
 
-        # Cf. https://github.com/istio/proxy/blob/1.5.0/src/envoy/BUILD#L28-L40
+        # Cf. https://github.com/istio/proxy/blob/1.5.2/src/envoy/BUILD#L28-L40
         "@istio_proxy//extensions/access_log_policy:access_log_policy_lib",
         "@istio_proxy//extensions/metadata_exchange:metadata_exchange_lib",
         "@istio_proxy//extensions/stackdriver:stackdriver_plugin",
