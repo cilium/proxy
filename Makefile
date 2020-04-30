@@ -33,9 +33,7 @@ CLANG ?= clang
 CLANG_FORMAT ?= clang-format
 BUILDIFIER ?= buildifier
 STRIP ?= $(QUIET) strip
-
-# istio_proxy builds require a version number to be set below
-ISTIO_VERSION =
+ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -d = -f2)
 
 DOCKER=$(QUIET)docker
 
@@ -97,9 +95,6 @@ $(CILIUM_ENVOY_BIN): force
 $(CILIUM_ENVOY_RELEASE_BIN): $(CILIUM_ENVOY_BIN)
 	$(STRIP) -o $(CILIUM_ENVOY_RELEASE_BIN) $(CILIUM_ENVOY_BIN)
 
-Dockerfile.%: Dockerfile.%.in Makefile
-	-sed "s/@ISTIO_VERSION@/$(ISTIO_VERSION)/" <$< >$@
-
 docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
 	@$(ECHO_GEN) docker-istio-proxy
 	$(DOCKER) build -f $< -t cilium/istio_proxy:$(ISTIO_VERSION) .
@@ -138,8 +133,7 @@ bazel-restore: $(BAZEL_ARCHIVE)
 # Remove the binaries to get fresh version SHA
 clean-bins: force
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
-	-$(QUIET) rm -f $(ENVOY_BINS) \
-		Dockerfile.istio_proxy
+	-$(QUIET) rm -f $(ENVOY_BINS)
 
 clean: force clean-bins
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
@@ -174,7 +168,6 @@ debug-tests: force-non-root
 	shutdown-bazel \
 	bazel-restore \
 	docker-istio-proxy \
-	docker-istio-proxy-debug \
 	force \
 	force-non-root \
 	force-root

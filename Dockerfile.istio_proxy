@@ -1,16 +1,18 @@
+# Release of upstream Istio this is based on
+ARG ISTIO_VERSION=1.X.Y
+
 # Version is the base image version from the TLD Makefile (cilium/istio/Makefile.core.mk)
 ARG BASE_VERSION=1.5-dev.3
 
-#
-# Pre-built cilium-envoy image
-#
+# Pre-built cilium-envoy image from updated Istio deps
 ARG CILIUM_ENVOY_SHA=5fd04721d8db90e1d5f3ad1ac8ba4f6ac91e623a
+
 FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 
 #
 # Pre-built Istio image (non-TPROXY)
 #
-FROM istio/proxyv2:@ISTIO_VERSION@ as istio
+FROM istio/proxyv2:${ISTIO_VERSION} as istio
 
 #
 # Please keep in sync with cilium/istio/pilot/docker/Dockerfile.proxyv2:
@@ -23,7 +25,8 @@ FROM docker.io/istio/base:${BASE_VERSION} as default
 ARG CILIUM_ENVOY_SHA
 ENV ISTIO_META_ISTIO_PROXY_SHA ${CILIUM_ENVOY_SHA}
 # Environment variable indicating the exact build, for debugging
-ENV ISTIO_META_ISTIO_VERSION @ISTIO_VERSION@
+ARG ISTIO_VERSION
+ENV ISTIO_META_ISTIO_VERSION ${ISTIO_VERSION}
 
 # This sidecar will use TPROXY for interception
 ENV ISTIO_META_INTERCEPTION_MODE TPROXY
