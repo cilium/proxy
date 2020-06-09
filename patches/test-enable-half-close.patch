@@ -16,7 +16,7 @@ index 1a2b7c680..7e5402b8c 100644
              localAddress()->ip()->port(), Network::Test::addressVersionAsString(version));
  }
 @@ -493,7 +494,9 @@ AssertionResult FakeUpstream::waitForHttpConnection(Event::Dispatcher& client_di
-                                                       max_request_headers_count);
+         max_request_headers_count, headers_with_underscores_action);
    }
    VERIFY_ASSERTION(connection->initialize());
 -  VERIFY_ASSERTION(connection->readDisable(false));
@@ -27,7 +27,7 @@ index 1a2b7c680..7e5402b8c 100644
  }
  
 @@ -524,7 +527,9 @@ FakeUpstream::waitForHttpConnection(Event::Dispatcher& client_dispatcher,
-             Http::DEFAULT_MAX_HEADERS_COUNT);
+             Http::DEFAULT_MAX_HEADERS_COUNT, envoy::config::core::v3::HttpProtocolOptions::ALLOW);
          lock.release();
          VERIFY_ASSERTION(connection->initialize());
 -        VERIFY_ASSERTION(connection->readDisable(false));
