@@ -237,6 +237,20 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     src_address = nullptr;
   }
 
+  // Add metadata for policy based listener filter chain matching.
+  // This requires the TLS inspector to be run before us.
+  std::string l7proto;
+  if (policy->useProxylib(is_ingress_, orig_dport, is_ingress_ ? source_identity : destination_identity, l7proto)) {
+    const auto& old_protocols = socket.requestedApplicationProtocols();
+    std::vector<absl::string_view> protocols;
+    for (const auto& old_protocol : old_protocols) {
+      protocols.emplace_back(old_protocol);
+    }
+    protocols.emplace_back(l7proto);
+    socket.setRequestedApplicationProtocols(protocols);
+    ENVOY_LOG(info, "cilium.bpf_metadata: setRequestedApplicationProtocols(..., {})", l7proto);
+  }
+
   // Pass the metadata to an Envoy socket option we can retrieve
   // later in other Cilium filters.
   socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, source_identity, destination_identity,

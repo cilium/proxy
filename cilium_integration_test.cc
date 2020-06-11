@@ -300,17 +300,33 @@ public:
     // This must be the full domain name
     socket.setRequestedServerName("localhost");
 
+    std::string pod_ip;
+    uint64_t source_identity;
+    uint64_t destination_identity;
     if (is_ingress_) {
-      std::string pod_ip = original_dst_address->ip()->addressAsString();
+      source_identity = 1;
+      destination_identity = 173;
+      pod_ip = original_dst_address->ip()->addressAsString();
       ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
-      auto policy = npmap_->GetPolicyInstance(pod_ip);
-      socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, 1, 173, true, 80, 10000, std::move(pod_ip), nullptr));
     } else {
-      std::string pod_ip = socket.localAddress()->ip()->addressAsString();
+      source_identity = 173;
+      destination_identity = hosts_->resolve(socket.localAddress()->ip());
+      pod_ip = socket.localAddress()->ip()->addressAsString();
       ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
-      auto policy = npmap_->GetPolicyInstance(pod_ip);
-      socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, 173, hosts_->resolve(socket.localAddress()->ip()), false, 80, 10001, std::move(pod_ip), nullptr));
     }
+    auto policy = npmap_->GetPolicyInstance(pod_ip);
+
+    // Set metadata for policy based listener filter chain matching
+    // Note: tls_inspector may overwrite this value, if it executes after us!
+    std::string l7proto;
+    if (policy && policy->useProxylib(is_ingress_, 80, is_ingress_ ? source_identity : destination_identity, l7proto)) {
+      std::vector<absl::string_view> protocols;
+      protocols.emplace_back(l7proto);
+      socket.setRequestedApplicationProtocols(protocols);
+      ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
+    }
+
+    socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, source_identity, destination_identity, is_ingress_, 80, is_ingress_ ? 10000 : 10001, std::move(pod_ip), nullptr));
 
     return true;
   }
