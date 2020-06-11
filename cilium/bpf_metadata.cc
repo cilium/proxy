@@ -178,6 +178,12 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   }
 
   const auto& policy = npmap_->GetPolicyInstance(pod_ip);
+  if (policy == nullptr) {
+    ENVOY_LOG(warn,
+	      "cilium.bpf_metadata ({}): No policy found for {}",
+	      is_ingress_ ? "ingress" : "egress", pod_ip);
+    return false;
+  }
 
   // Resolve the source security ID, if not already resolved
   if (source_identity == 0) {
