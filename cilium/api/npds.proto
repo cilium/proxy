@@ -3,8 +3,8 @@ syntax = "proto3";
 package cilium;
 
 import "envoy/api/v2/core/address.proto";
-import "envoy/api/v2/discovery.proto";
 import "envoy/api/v2/route/route.proto";
+import "envoy/service/discovery/v3/discovery.proto";
 
 import "google/api/annotations.proto";
 
@@ -17,11 +17,11 @@ import "validate/validate.proto";
 service NetworkPolicyDiscoveryService {
   option (envoy.annotations.resource).type = "cilium.NetworkPolicy";
 
-  rpc StreamNetworkPolicies(stream envoy.api.v2.DiscoveryRequest)
-      returns (stream envoy.api.v2.DiscoveryResponse) {
+  rpc StreamNetworkPolicies(stream envoy.service.discovery.v3.DiscoveryRequest)
+      returns (stream envoy.service.discovery.v3.DiscoveryResponse) {
   }
 
-  rpc FetchNetworkPolicies(envoy.api.v2.DiscoveryRequest) returns (envoy.api.v2.DiscoveryResponse) {
+  rpc FetchNetworkPolicies(envoy.service.discovery.v3.DiscoveryRequest) returns (envoy.service.discovery.v3.DiscoveryResponse) {
     option (google.api.http) = {
       post: "/v2/discovery:network_policies"
       body: "*"
