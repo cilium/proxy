@@ -2,24 +2,22 @@ syntax = "proto3";
 
 package cilium;
 
-import "envoy/api/v2/discovery.proto";
+import "envoy/service/discovery/v3/discovery.proto";
 
 import "google/api/annotations.proto";
 
 import "envoy/annotations/resource.proto";
 import "validate/validate.proto";
 
-// [#protodoc-title: Network policy host management and NPIDDS]
-
 // Each resource name is a network policy identifier in decimal, e.g. `123`.
 service NetworkPolicyHostsDiscoveryService {
   option (envoy.annotations.resource).type = "cilium.NetworkPolicyHosts";
 
-  rpc StreamNetworkPolicyHosts(stream envoy.api.v2.DiscoveryRequest)
-      returns (stream envoy.api.v2.DiscoveryResponse) {
+  rpc StreamNetworkPolicyHosts(stream envoy.service.discovery.v3.DiscoveryRequest)
+      returns (stream envoy.service.discovery.v3.DiscoveryResponse) {
   }
 
-  rpc FetchNetworkPolicyHosts(envoy.api.v2.DiscoveryRequest) returns (envoy.api.v2.DiscoveryResponse) {
+  rpc FetchNetworkPolicyHosts(envoy.service.discovery.v3.DiscoveryRequest) returns (envoy.service.discovery.v3.DiscoveryResponse) {
     option (google.api.http) = {
       post: "/v2/discovery:network_policy_hosts"
       body: "*"
