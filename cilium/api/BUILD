@@ -40,8 +40,8 @@ api_cc_py_proto_library(
     deps = [
         "@envoy_api//envoy/annotations:pkg",
         "@envoy_api//envoy/service/discovery/v3:pkg",
-        "@envoy_api//envoy/api/v2/core:pkg",
-        "@envoy_api//envoy/api/v2/route:pkg",
+        "@envoy_api//envoy/config/core/v3:pkg",
+        "@envoy_api//envoy/config/route/v3:pkg",
     ],
 )
 

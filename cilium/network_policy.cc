@@ -45,49 +45,7 @@ protected:
   public:
     HttpNetworkPolicyRule(const cilium::HttpNetworkPolicyRule& rule) {
       ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
-      for (const auto& header_v2: rule.headers()) {
-	// Convert HeaderMatcher v2 to v3 so that we can feed it to internal Envoy APIs.
-	envoy::config::route::v3::HeaderMatcher header;
-	header.set_name(header_v2.name());
-	header.set_invert_match(header_v2.invert_match());
-	switch (header_v2.header_match_specifier_case()) {
-	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kExactMatch:
-	  header.set_exact_match(header_v2.exact_match());
-	  break;
-	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kRegexMatch:
-	  header.set_hidden_envoy_deprecated_regex_match(header_v2.regex_match());
-	  break;
-	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kSafeRegexMatch: {
-	  auto regex_match = header.mutable_safe_regex_match();
-	  auto re2 = regex_match->mutable_google_re2();
-	  if (header_v2.safe_regex_match().has_google_re2()) {
-	    auto from = header_v2.safe_regex_match().google_re2();
-	    if (from.has_max_program_size()) {
-	      re2->mutable_max_program_size()->set_value(from.max_program_size().value());
-	    }
-	  }
-	  regex_match->set_regex(header_v2.safe_regex_match().regex());
-	  break;
-	}
-	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kRangeMatch: {
-	  auto range_match = header.mutable_range_match();
-	  range_match->set_start(header_v2.range_match().start());
-	  range_match->set_end(header_v2.range_match().end());
-	  break;
-	}
-	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kPresentMatch:
-	  header.set_present_match(header_v2.present_match());
-	  break;
-	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kPrefixMatch:
-	  header.set_prefix_match(header_v2.prefix_match());
-	  break;
-	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::kSuffixMatch:
-	  header.set_suffix_match(header_v2.suffix_match());
-	  break;
-	case envoy::api::v2::route::HeaderMatcher::HeaderMatchSpecifierCase::HEADER_MATCH_SPECIFIER_NOT_SET:
-	  break;
-	}
-
+      for (const auto& header: rule.headers()) {
 	headers_.emplace_back(std::make_unique<Envoy::Http::HeaderUtility::HeaderData>(header));
 	const auto& header_data = *headers_.back();
 	ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
@@ -403,7 +361,7 @@ protected:
     PortNetworkPolicy(const NetworkPolicyMap& parent, const google::protobuf::RepeatedPtrField<cilium::PortNetworkPolicy>& rules) {
       for (const auto& it: rules) {
 	// Only TCP supported for HTTP
-	if (it.protocol() == envoy::api::v2::core::SocketAddress::TCP) {
+	if (it.protocol() == envoy::config::core::v3::SocketAddress::TCP) {
 	  // Port may be zero, which matches any port.
 	  ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): installing TCP policy for port {}", it.port());
 	  if (!rules_.emplace(it.port(), PortNetworkPolicyRules(parent, it.rules())).second) {
