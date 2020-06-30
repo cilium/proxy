@@ -1,0 +1,328 @@
+From a7b48887b92c96dfa87dc0b7f679ae8eb2f4d80f Mon Sep 17 00:00:00 2001
+From: John Plevyak <jplevyak@gmail.com>
+Date: Sun, 14 Jun 2020 11:54:04 -0700
+Subject: [PATCH 4/7] [http1] Include request URL in request header size
+ computation, and reject partial headers that exceed configured limits (#145)
+
+Improve the robustness of HTTP1 request and response header size checks by including the request URL in the request header size, and add missing header size check when parsing header field names. The missing header field name size check can result in excessive buffering up to a hard-coded 32MB limit until timeout. The missing request URL size check can result in Envoy attempting to route match and proxy HTTP/1.1 requests with URLs up to a hard-coded 32MB limit, which could result in excess memory usage or performance problems in regex route matches.
+
+Signed-off-by: Antonio Vicente <avd@google.com>
+Signed-off-by: John Plevyak <jplevyak@gmail.com>
+Signed-off-by: Tony Allen <tony@allen.gg>
+---
+ source/common/http/http1/codec_impl.cc        | 37 ++++++++---
+ source/common/http/http1/codec_impl.h         | 17 +++++
+ test/common/http/http1/codec_impl_test.cc     | 64 ++++++++++++++++---
+ test/integration/http_integration.cc          | 38 +++++++++++
+ test/integration/http_integration.h           |  1 +
+ test/integration/protocol_integration_test.cc | 10 +++
+ 6 files changed, 150 insertions(+), 17 deletions(-)
+
+diff --git a/source/common/http/http1/codec_impl.cc b/source/common/http/http1/codec_impl.cc
+index 233721cb8666..32bcb70db812 100644
+--- a/source/common/http/http1/codec_impl.cc
++++ b/source/common/http/http1/codec_impl.cc
+@@ -479,6 +479,22 @@ void ConnectionImpl::completeLastHeader() {
+   ASSERT(current_header_value_.empty());
+ }
+ 
++uint32_t ConnectionImpl::getHeadersSize() {
++  return current_header_field_.size() + current_header_value_.size() +
++         (current_header_map_ ? current_header_map_->byteSize() : 0);
++}
++
++void ConnectionImpl::checkMaxHeadersSize() {
++  const uint32_t total = getHeadersSize();
++  if (total > (max_headers_kb_ * 1024)) {
++    const absl::string_view header_type =
++        processing_trailers_ ? Http1HeaderTypes::get().Trailers : Http1HeaderTypes::get().Headers;
++    error_code_ = Http::Code::RequestHeaderFieldsTooLarge;
++    sendProtocolError(Http1ResponseCodeDetails::get().HeadersTooLarge);
++    throw CodecProtocolException(absl::StrCat(header_type, " size exceeds limit"));
++  }
++}
++
+ bool ConnectionImpl::maybeDirectDispatch(Buffer::Instance& data) {
+   if (!handling_upgrade_) {
+     // Only direct dispatch for Upgrade requests.
+@@ -555,6 +571,8 @@ void ConnectionImpl::onHeaderField(const char* data, size_t length) {
+   }
+ 
+   current_header_field_.append(data, length);
++
++  checkMaxHeadersSize();
+ }
+ 
+ void ConnectionImpl::onHeaderValue(const char* data, size_t length) {
+@@ -588,15 +606,7 @@ void ConnectionImpl::onHeaderValue(const char* data, size_t length) {
+   header_parsing_state_ = HeaderParsingState::Value;
+   current_header_value_.append(header_value.data(), header_value.length());
+ 
+-  const uint32_t total =
+-      current_header_field_.size() + current_header_value_.size() + current_header_map_->byteSize();
+-  if (total > (max_headers_kb_ * 1024)) {
+-    const absl::string_view header_type =
+-        processing_trailers_ ? Http1HeaderTypes::get().Trailers : Http1HeaderTypes::get().Headers;
+-    error_code_ = Http::Code::RequestHeaderFieldsTooLarge;
+-    sendProtocolError(Http1ResponseCodeDetails::get().HeadersTooLarge);
+-    throw CodecProtocolException(absl::StrCat(header_type, " size exceeds limit"));
+-  }
++  checkMaxHeadersSize();
+ }
+ 
+ int ConnectionImpl::onHeadersCompleteBase() {
+@@ -729,6 +739,13 @@ ServerConnectionImpl::ServerConnectionImpl(
+           Runtime::runtimeFeatureEnabled("envoy.reloadable_features.http1_flood_protection")),
+       headers_with_underscores_action_(headers_with_underscores_action) {}
+ 
++uint32_t ServerConnectionImpl::getHeadersSize() {
++  // Add in the the size of the request URL if processing request headers.
++  const uint32_t url_size =
++      (!processing_trailers_ && active_request_) ? active_request_->request_url_.size() : 0;
++  return url_size + ConnectionImpl::getHeadersSize();
++}
++
+ void ServerConnectionImpl::onEncodeComplete() {
+   ASSERT(active_request_);
+   if (active_request_->remote_complete_) {
+@@ -846,6 +863,8 @@ void ServerConnectionImpl::onMessageBegin() {
+ void ServerConnectionImpl::onUrl(const char* data, size_t length) {
+   if (active_request_) {
+     active_request_->request_url_.append(data, length);
++
++    checkMaxHeadersSize();
+   }
+ }
+ 
+diff --git a/source/common/http/http1/codec_impl.h b/source/common/http/http1/codec_impl.h
+index a089f8e02fd3..4a1b3ffa27e7 100644
+--- a/source/common/http/http1/codec_impl.h
++++ b/source/common/http/http1/codec_impl.h
+@@ -217,6 +217,20 @@ protected:
+ 
+   bool resetStreamCalled() { return reset_stream_called_; }
+ 
++  /**
++   * Get memory used to represent HTTP headers or trailers currently being parsed.
++   * Computed by adding the partial header field and value that is currently being parsed and the
++   * estimated header size for previous header lines provided by HeaderMap::byteSize().
++   */
++  virtual uint32_t getHeadersSize();
++
++  /**
++   * Called from onUrl, onHeaderField and onHeaderValue to verify that the headers do not exceed the
++   * configured max header size limit. Throws a  CodecProtocolException if headers exceed the size
++   * limit.
++   */
++  void checkMaxHeadersSize();
++
+   Network::Connection& connection_;
+   CodecStats stats_;
+   http_parser parser_;
+@@ -378,6 +392,9 @@ private:
+     ResponseStreamEncoderImpl response_encoder_;
+     bool remote_complete_{};
+   };
++  // ConnectionImpl
++  // Add the size of the request_url to the reported header size when processing request headers.
++  uint32_t getHeadersSize() override;
+ 
+   /**
+    * Manipulate the request's first line, parsing the url and converting to a relative path if
+diff --git a/test/common/http/http1/codec_impl_test.cc b/test/common/http/http1/codec_impl_test.cc
+index d83be0dad040..8ea74a0337a3 100644
+--- a/test/common/http/http1/codec_impl_test.cc
++++ b/test/common/http/http1/codec_impl_test.cc
+@@ -208,7 +208,7 @@ void Http1ServerConnectionImplTest::testTrailersExceedLimit(std::string trailer_
+                            "4\r\n"
+                            "body\r\n0\r\n");
+   codec_->dispatch(buffer);
+-  buffer = Buffer::OwnedImpl(trailer_string + "\r\n\r\n");
++  buffer = Buffer::OwnedImpl(trailer_string);
+   if (enable_trailers) {
+     EXPECT_THROW_WITH_MESSAGE(codec_->dispatch(buffer), EnvoyException,
+                               "trailers size exceeds limit");
+@@ -1781,26 +1781,58 @@ TEST_F(Http1ClientConnectionImplTest, HighwatermarkMultipleResponses) {
+ 
+ TEST_F(Http1ServerConnectionImplTest, LargeTrailersRejected) {
+   // Default limit of 60 KiB
+-  std::string long_string = "big: " + std::string(60 * 1024, 'q') + "\r\n";
++  std::string long_string = "big: " + std::string(60 * 1024, 'q') + "\r\n\r\n\r\n";
++  testTrailersExceedLimit(long_string, true);
++}
++
++TEST_F(Http1ServerConnectionImplTest, LargeTrailerFieldRejected) {
++  // Construct partial headers with a long field name that exceeds the default limit of 60KiB.
++  std::string long_string = "bigfield" + std::string(60 * 1024, 'q');
+   testTrailersExceedLimit(long_string, true);
+ }
+ 
+ // Tests that the default limit for the number of request headers is 100.
+ TEST_F(Http1ServerConnectionImplTest, ManyTrailersRejected) {
+   // Send a request with 101 headers.
+-  testTrailersExceedLimit(createHeaderFragment(101), true);
++  testTrailersExceedLimit(createHeaderFragment(101) + "\r\n\r\n", true);
+ }
+ 
+ TEST_F(Http1ServerConnectionImplTest, LargeTrailersRejectedIgnored) {
+   // Default limit of 60 KiB
+-  std::string long_string = "big: " + std::string(60 * 1024, 'q') + "\r\n";
++  std::string long_string = "big: " + std::string(60 * 1024, 'q') + "\r\n\r\n\r\n";
++  testTrailersExceedLimit(long_string, false);
++}
++
++TEST_F(Http1ServerConnectionImplTest, LargeTrailerFieldRejectedIgnored) {
++  // Default limit of 60 KiB
++  std::string long_string = "bigfield" + std::string(60 * 1024, 'q') + ": value\r\n\r\n\r\n";
+   testTrailersExceedLimit(long_string, false);
+ }
+ 
+ // Tests that the default limit for the number of request headers is 100.
+ TEST_F(Http1ServerConnectionImplTest, ManyTrailersIgnored) {
+   // Send a request with 101 headers.
+-  testTrailersExceedLimit(createHeaderFragment(101), false);
++  testTrailersExceedLimit(createHeaderFragment(101) + "\r\n\r\n", false);
++}
++
++TEST_F(Http1ServerConnectionImplTest, LargeRequestUrlRejected) {
++  initialize();
++
++  std::string exception_reason;
++  NiceMock<MockStreamDecoder> decoder;
++  Http::StreamEncoder* response_encoder = nullptr;
++  EXPECT_CALL(callbacks_, newStream(_, _))
++      .WillOnce(Invoke([&](StreamEncoder& encoder, bool) -> StreamDecoder& {
++        response_encoder = &encoder;
++        return decoder;
++      }));
++
++  // Default limit of 60 KiB
++  std::string long_url = "/" + std::string(60 * 1024, 'q');
++  Buffer::OwnedImpl buffer("GET " + long_url + " HTTP/1.1\r\n");
++
++  EXPECT_THROW_WITH_MESSAGE(codec_->dispatch(buffer), EnvoyException, "headers size exceeds limit");
++  EXPECT_EQ("http1.headers_too_large", response_encoder->getStream().responseDetails());
+ }
+ 
+ TEST_F(Http1ServerConnectionImplTest, LargeRequestHeadersRejected) {
+@@ -1886,8 +1918,24 @@ TEST_F(Http1ServerConnectionImplTest, ManyRequestHeadersAccepted) {
+   testRequestHeadersAccepted(createHeaderFragment(150));
+ }
+ 
+-// Tests that response headers of 80 kB fails.
+-TEST_F(Http1ClientConnectionImplTest, LargeResponseHeadersRejected) {
++// Tests that incomplete response headers of 80 kB header value fails.
++TEST_F(Http1ClientConnectionImplTest, ResponseHeadersWithLargeValueRejected) {
++  initialize();
++
++  NiceMock<MockStreamDecoder> response_decoder;
++  Http::StreamEncoder& request_encoder = codec_->newStream(response_decoder);
++  TestHeaderMapImpl headers{{":method", "GET"}, {":path", "/"}, {":authority", "host"}};
++  request_encoder.encodeHeaders(headers, true);
++
++  Buffer::OwnedImpl buffer("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n");
++  codec_->dispatch(buffer);
++  std::string long_header = "big: " + std::string(80 * 1024, 'q');
++  buffer = Buffer::OwnedImpl(long_header);
++  EXPECT_THROW_WITH_MESSAGE(codec_->dispatch(buffer), EnvoyException, "headers size exceeds limit");
++}
++
++// Tests that incomplete response headers with a 80 kB header field fails.
++TEST_F(Http1ClientConnectionImplTest, ResponseHeadersWithLargeFieldRejected) {
+   initialize();
+ 
+   NiceMock<Http::MockStreamDecoder> response_decoder;
+@@ -1897,7 +1945,7 @@ TEST_F(Http1ClientConnectionImplTest, LargeResponseHeadersRejected) {
+ 
+   Buffer::OwnedImpl buffer("HTTP/1.1 200 OK\r\nContent-Length: 0\r\n");
+   codec_->dispatch(buffer);
+-  std::string long_header = "big: " + std::string(80 * 1024, 'q') + "\r\n";
++  std::string long_header = "bigfield" + std::string(80 * 1024, 'q');
+   buffer = Buffer::OwnedImpl(long_header);
+   EXPECT_THROW_WITH_MESSAGE(codec_->dispatch(buffer), EnvoyException, "headers size exceeds limit");
+ }
+diff --git a/test/integration/http_integration.cc b/test/integration/http_integration.cc
+index b827486643a3..04d161a4f409 100644
+--- a/test/integration/http_integration.cc
++++ b/test/integration/http_integration.cc
+@@ -913,6 +913,44 @@ void HttpIntegrationTest::testTwoRequests(bool network_backup) {
+   EXPECT_EQ(1024U, response->body().size());
+ }
+ 
++void HttpIntegrationTest::testLargeRequestUrl(uint32_t url_size, uint32_t max_headers_size) {
++  // `size` parameter dictates the size of each header that will be added to the request and `count`
++  // parameter is the number of headers to be added. The actual request byte size will exceed `size`
++  // due to the keys and other headers. The actual request header count will exceed `count` by four
++  // due to default headers.
++
++  config_helper_.addConfigModifier(
++      [&](envoy::extensions::filters::network::http_connection_manager::v3::HttpConnectionManager&
++              hcm) -> void { hcm.mutable_max_request_headers_kb()->set_value(max_headers_size); });
++  max_request_headers_kb_ = max_headers_size;
++
++  Http::TestHeaderMapImpl big_headers{{":method", "GET"},
++                                      {":path", "/" + std::string(url_size * 1024, 'a')},
++                                      {":scheme", "http"},
++                                      {":authority", "host"}};
++
++  initialize();
++  codec_client_ = makeHttpConnection(lookupPort("http"));
++  if (url_size >= max_headers_size) {
++    // header size includes keys too, so expect rejection when equal
++    auto encoder_decoder = codec_client_->startRequest(big_headers);
++    auto response = std::move(encoder_decoder.second);
++
++    if (downstream_protocol_ == Http::CodecClient::Type::HTTP1) {
++      codec_client_->waitForDisconnect();
++      EXPECT_TRUE(response->complete());
++      EXPECT_EQ("431", response->headers().Status()->value().getStringView());
++    } else {
++      response->waitForReset();
++      codec_client_->close();
++    }
++  } else {
++    auto response = sendRequestAndWaitForResponse(big_headers, 0, default_response_headers_, 0);
++    EXPECT_TRUE(response->complete());
++    EXPECT_EQ("200", response->headers().Status()->value().getStringView());
++  }
++}
++
+ void HttpIntegrationTest::testLargeRequestHeaders(uint32_t size, uint32_t count, uint32_t max_size,
+                                                   uint32_t max_count) {
+   // `size` parameter dictates the size of each header that will be added to the request and `count`
+diff --git a/test/integration/http_integration.h b/test/integration/http_integration.h
+index 16fe8192d5f9..72cdaea0a7f6 100644
+--- a/test/integration/http_integration.h
++++ b/test/integration/http_integration.h
+@@ -196,6 +196,7 @@ protected:
+   void testTwoRequests(bool force_network_backup = false);
+   void testLargeHeaders(Http::TestHeaderMapImpl request_headers,
+                         Http::TestHeaderMapImpl request_trailers, uint32_t size, uint32_t max_size);
++  void testLargeRequestUrl(uint32_t url_size, uint32_t max_headers_size);
+   void testLargeRequestHeaders(uint32_t size, uint32_t count, uint32_t max_size = 60,
+                                uint32_t max_count = 100);
+   void testLargeRequestTrailers(uint32_t size, uint32_t max_size = 60);
+diff --git a/test/integration/protocol_integration_test.cc b/test/integration/protocol_integration_test.cc
+index e9045002d4f5..e0d69f3774bc 100644
+--- a/test/integration/protocol_integration_test.cc
++++ b/test/integration/protocol_integration_test.cc
+@@ -1015,6 +1015,16 @@ name: decode-headers-only
+   EXPECT_EQ(0, upstream_request_->body().length());
+ }
+ 
++TEST_P(DownstreamProtocolIntegrationTest, LargeRequestUrlRejected) {
++  // Send one 95 kB URL with limit 60 kB headers.
++  testLargeRequestUrl(95, 60);
++}
++
++TEST_P(DownstreamProtocolIntegrationTest, LargeRequestUrlAccepted) {
++  // Send one 95 kB URL with limit 96 kB headers.
++  testLargeRequestUrl(95, 96);
++}
++
+ TEST_P(DownstreamProtocolIntegrationTest, LargeRequestHeadersRejected) {
+   // Send one 95 kB header with limit 60 kB and 100 headers.
+   testLargeRequestHeaders(95, 1, 60, 100);
+-- 
+2.26.2
+

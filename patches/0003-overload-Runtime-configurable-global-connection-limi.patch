@@ -1,0 +1,646 @@
+From 7e28feb5a4a68a3833becbd6103f27c3b13ee95c Mon Sep 17 00:00:00 2001
+From: Dmitri Dolguikh <ddolguik@redhat.com>
+Date: Sun, 14 Jun 2020 11:53:27 -0700
+Subject: [PATCH 3/7] overload: Runtime configurable global connection limits
+ (#147)
+
+This patch adds support for global accepted connection limits. May be configured simultaneously with per-listener connection limits and enforced separately. If the global limit is unconfigured, Envoy will emit a warning during start-up.
+
+Global downstream connection count tracking (across all listeners and threads) is performed by the network listener implementation upon acceptance of a socket. The mapping of active socket objects to the actual accepted downstream sockets is assumed to remain bijective. Given that characteristic, the connection counts are tied to the lifetime of the objects.
+
+Signed-off-by: Tony Allen <tony@allen.gg>
+Signed-off-by: Dmitri Dolguikh <ddolguik@redhat.com>
+---
+ .../configuration/best_practices/edge.rst     |   5 +-
+ docs/root/configuration/listeners/stats.rst   |   1 +
+ .../overload_manager/overload_manager.rst     |  24 ++++
+ .../faq/configuration/resource_limits.rst     |  16 ++-
+ docs/root/intro/version_history.rst           |   1 +
+ include/envoy/network/listener.h              |   5 +
+ source/common/network/BUILD                   |   1 +
+ source/common/network/listen_socket_impl.cc   |   2 +
+ source/common/network/listen_socket_impl.h    |  16 ++-
+ source/common/network/listener_impl.cc        |  31 +++++
+ source/common/network/listener_impl.h         |   9 ++
+ source/server/connection_handler_impl.h       |   4 +-
+ source/server/server.cc                       |  10 ++
+ test/common/network/BUILD                     |   4 +-
+ test/common/network/dns_impl_test.cc          |   2 +
+ test/common/network/listener_impl_test.cc     |  67 ++++++++++
+ test/integration/cx_limit_integration_test.cc | 126 ++++++++++++------
+ test/mocks/network/mocks.h                    |   3 +-
+ 18 files changed, 274 insertions(+), 53 deletions(-)
+
+diff --git a/docs/root/configuration/best_practices/edge.rst b/docs/root/configuration/best_practices/edge.rst
+index ec5c3d5ae707..a3bb274bbb40 100644
+--- a/docs/root/configuration/best_practices/edge.rst
++++ b/docs/root/configuration/best_practices/edge.rst
+@@ -24,7 +24,8 @@ HTTP proxies should additionally configure:
+ * :ref:`HTTP/2 initial stream window size limit <envoy_api_field_core.Http2ProtocolOptions.initial_stream_window_size>` to 64 KiB,
+ * :ref:`HTTP/2 initial connection window size limit <envoy_api_field_core.Http2ProtocolOptions.initial_connection_window_size>` to 1 MiB.
+ * :ref:`headers_with_underscores_action setting <envoy_api_field_core.HttpProtocolOptions.headers_with_underscores_action>` to REJECT_REQUEST, to protect upstream services that treat '_' and '-' as interchangeable.
+-* :ref:`Connection limits. <config_listeners_runtime>`
++* :ref:`Listener connection limits. <config_listeners_runtime>`
++* :ref:`Global downstream connection limits <config_overload_manager>`.
+ 
+ The following is a YAML example of the above recommendation.
+ 
+@@ -121,3 +122,5 @@ The following is a YAML example of the above recommendation.
+               listener:
+                 example_listener_name:
+                   connection_limit: 10000
++          overload:
++            global_downstream_max_connections: 50000
+diff --git a/docs/root/configuration/listeners/stats.rst b/docs/root/configuration/listeners/stats.rst
+index fabfbbf6aa10..0f1109f4beba 100644
+--- a/docs/root/configuration/listeners/stats.rst
++++ b/docs/root/configuration/listeners/stats.rst
+@@ -19,6 +19,7 @@ Every listener has a statistics tree rooted at *listener.<address>.* with the fo
+    downstream_cx_overflow, Counter, Total connections rejected due to enforcement of listener connection limit
+    downstream_pre_cx_timeout, Counter, Sockets that timed out during listener filter processing
+    downstream_pre_cx_active, Gauge, Sockets currently undergoing listener filter processing
++   global_cx_overflow, Counter, Total connections rejected due to enforecement of the global connection limit
+    no_filter_chain_match, Counter, Total connections that didn't match any filter chain
+    ssl.connection_error, Counter, Total TLS connection errors not including failed certificate verifications
+    ssl.handshake, Counter, Total successful TLS connection handshakes
+diff --git a/docs/root/configuration/operations/overload_manager/overload_manager.rst b/docs/root/configuration/operations/overload_manager/overload_manager.rst
+index c1eb8fc7a96a..e992078d35f5 100644
+--- a/docs/root/configuration/operations/overload_manager/overload_manager.rst
++++ b/docs/root/configuration/operations/overload_manager/overload_manager.rst
+@@ -54,6 +54,30 @@ The following overload actions are supported:
+   envoy.overload_actions.stop_accepting_connections, Envoy will stop accepting new network connections on its configured listeners
+   envoy.overload_actions.shrink_heap, Envoy will periodically try to shrink the heap by releasing free memory to the system
+ 
++Limiting Active Connections
++---------------------------
++
++Currently, the only supported way to limit the total number of active connections allowed across all
++listeners is via specifying an integer through the runtime key
++``overload.global_downstream_max_connections``. The connection limit is recommended to be less than
++half of the system's file descriptor limit, to account for upstream connections, files, and other
++usage of file descriptors.
++If the value is unspecified, there is no global limit on the number of active downstream connections
++and Envoy will emit a warning indicating this at startup. To disable the warning without setting a
++limit on the number of active downstream connections, the runtime value may be set to a very large
++limit (~2e9).
++
++If it is desired to only limit the number of downstream connections for a particular listener,
++per-listener limits can be set via the :ref:`listener configuration <config_listeners>`.
++
++One may simultaneously specify both per-listener and global downstream connection limits and the
++conditions will be enforced independently. For instance, if it is known that a particular listener
++should have a smaller number of open connections than others, one may specify a smaller connection
++limit for that specific listener and allow the global limit to enforce resource utilization among
++all listeners.
++
++An example configuration can be found in the :ref:`edge best practices document <best_practices_edge>`.
++
+ Statistics
+ ----------
+ 
+diff --git a/docs/root/faq/configuration/resource_limits.rst b/docs/root/faq/configuration/resource_limits.rst
+index c20c64929b10..214096486eb6 100644
+--- a/docs/root/faq/configuration/resource_limits.rst
++++ b/docs/root/faq/configuration/resource_limits.rst
+@@ -3,12 +3,16 @@
+ How does Envoy prevent file descriptor exhaustion?
+ ==================================================
+ 
+-:ref:`Per-listener connection limits <config_listeners_runtime>` may be configured as an upper bound on
+-the number of active connections a particular listener will accept. The listener may accept more
+-connections than the configured value on the order of the number of worker threads. On Unix-based
+-systems, it is recommended to keep the sum of all connection limits less than half of the system's
+-file descriptor limit to account for upstream connections, files, and other usage of file
+-descriptors.
++:ref:`Per-listener connection limits <config_listeners_runtime>` may be configured as an upper bound
++on the number of active connections a particular listener will accept. The listener may accept more
++connections than the configured value on the order of the number of worker threads.
++
++In addition, one may configure a :ref:`global limit <config_overload_manager>` on the number of
++connections that will apply across all listeners.
++
++On Unix-based systems, it is recommended to keep the sum of all connection limits less than half of
++the system's file descriptor limit to account for upstream connections, files, and other usage of
++file descriptors.
+ 
+ .. note::
+ 
+diff --git a/docs/root/intro/version_history.rst b/docs/root/intro/version_history.rst
+index cf2f6300dbda..9d93deab6907 100644
+--- a/docs/root/intro/version_history.rst
++++ b/docs/root/intro/version_history.rst
+@@ -4,6 +4,7 @@ Version history
+ 1.13.3 (Pending)
+ ================
+ * listener: add runtime support for `per-listener limits <config_listeners_runtime>` on active/accepted connections.
++* overload management: add runtime support for :ref:`global limits <config_overload_manager>` on active/accepted connections.
+ 
+ 1.13.2 (June 8, 2020)
+ =====================
+diff --git a/include/envoy/network/listener.h b/include/envoy/network/listener.h
+index cb887780fed1..2e390e1d2672 100644
+--- a/include/envoy/network/listener.h
++++ b/include/envoy/network/listener.h
+@@ -162,6 +162,11 @@ public:
+    * @param socket supplies the socket that is moved into the callee.
+    */
+   virtual void onAccept(ConnectionSocketPtr&& socket) PURE;
++
++  /**
++   * Called when a new connection is rejected.
++   */
++  virtual void onReject() PURE;
+ };
+ 
+ /**
+diff --git a/source/common/network/BUILD b/source/common/network/BUILD
+index fd5e72edf6ae..fd79ea38a81e 100644
+--- a/source/common/network/BUILD
++++ b/source/common/network/BUILD
+@@ -201,6 +201,7 @@ envoy_cc_library(
+         "//include/envoy/event:dispatcher_interface",
+         "//include/envoy/event:file_event_interface",
+         "//include/envoy/network:listener_interface",
++        "//include/envoy/runtime:runtime_interface",
+         "//include/envoy/stats:stats_interface",
+         "//include/envoy/stats:stats_macros",
+         "//source/common/buffer:buffer_lib",
+diff --git a/source/common/network/listen_socket_impl.cc b/source/common/network/listen_socket_impl.cc
+index 9621868d1f08..6720629ba6d3 100644
+--- a/source/common/network/listen_socket_impl.cc
++++ b/source/common/network/listen_socket_impl.cc
+@@ -73,5 +73,7 @@ UdsListenSocket::UdsListenSocket(IoHandlePtr&& io_handle,
+                                  const Address::InstanceConstSharedPtr& address)
+     : ListenSocketImpl(std::move(io_handle), address) {}
+ 
++std::atomic<uint64_t> AcceptedSocketImpl::global_accepted_socket_count_;
++
+ } // namespace Network
+ } // namespace Envoy
+diff --git a/source/common/network/listen_socket_impl.h b/source/common/network/listen_socket_impl.h
+index 519960522c82..d523f8b1ff4c 100644
+--- a/source/common/network/listen_socket_impl.h
++++ b/source/common/network/listen_socket_impl.h
+@@ -169,7 +169,21 @@ class AcceptedSocketImpl : public ConnectionSocketImpl {
+ public:
+   AcceptedSocketImpl(IoHandlePtr&& io_handle, const Address::InstanceConstSharedPtr& local_address,
+                      const Address::InstanceConstSharedPtr& remote_address)
+-      : ConnectionSocketImpl(std::move(io_handle), local_address, remote_address) {}
++      : ConnectionSocketImpl(std::move(io_handle), local_address, remote_address) {
++    ++global_accepted_socket_count_;
++  }
++
++  ~AcceptedSocketImpl() override {
++    ASSERT(global_accepted_socket_count_.load() > 0);
++    --global_accepted_socket_count_;
++  }
++
++  // TODO (tonya11en): Global connection count tracking is temporarily performed via a static
++  // variable until the logic is moved into the overload manager.
++  static uint64_t acceptedSocketCount() { return global_accepted_socket_count_.load(); }
++
++private:
++  static std::atomic<uint64_t> global_accepted_socket_count_;
+ };
+ 
+ // ConnectionSocket used with client connections.
+diff --git a/source/common/network/listener_impl.cc b/source/common/network/listener_impl.cc
+index 57136ba557dc..14d6aae01b30 100644
+--- a/source/common/network/listener_impl.cc
++++ b/source/common/network/listener_impl.cc
+@@ -17,6 +17,30 @@
+ namespace Envoy {
+ namespace Network {
+ 
++const std::string ListenerImpl::GlobalMaxCxRuntimeKey =
++    "overload.global_downstream_max_connections";
++
++bool ListenerImpl::rejectCxOverGlobalLimit() {
++  // Enforce the global connection limit if necessary, immediately closing the accepted connection.
++  Runtime::Loader* runtime = Runtime::LoaderSingleton::getExisting();
++
++  if (runtime == nullptr) {
++    // The runtime singleton won't exist in most unit tests that do not need global downstream limit
++    // enforcement. Therefore, there is no need to enforce limits if the singleton doesn't exist.
++    // TODO(tonya11en): Revisit this once runtime is made globally available.
++    return false;
++  }
++
++  // If the connection limit is not set, don't limit the connections, but still track them.
++  // TODO(tonya11en): In integration tests, threadsafeSnapshot is necessary since the FakeUpstreams
++  // use a listener and do not run in a worker thread. In practice, this code path will always be
++  // run on a worker thread, but to prevent failed assertions in test environments, threadsafe
++  // snapshots must be used. This must be revisited.
++  const uint64_t global_cx_limit = runtime->threadsafeSnapshot()->getInteger(
++      GlobalMaxCxRuntimeKey, std::numeric_limits<uint64_t>::max());
++  return AcceptedSocketImpl::acceptedSocketCount() >= global_cx_limit;
++}
++
+ void ListenerImpl::listenCallback(evconnlistener*, evutil_socket_t fd, sockaddr* remote_addr,
+                                   int remote_addr_len, void* arg) {
+   ListenerImpl* listener = static_cast<ListenerImpl*>(arg);
+@@ -24,6 +48,13 @@ void ListenerImpl::listenCallback(evconnlistener*, evutil_socket_t fd, sockaddr*
+   // Create the IoSocketHandleImpl for the fd here.
+   IoHandlePtr io_handle = std::make_unique<IoSocketHandleImpl>(fd);
+ 
++  if (rejectCxOverGlobalLimit()) {
++    // The global connection limit has been reached.
++    io_handle->close();
++    listener->cb_.onReject();
++    return;
++  }
++
+   // Get the local address from the new socket if the listener is listening on IP ANY
+   // (e.g., 0.0.0.0 for IPv4) (local_address_ is nullptr in this case).
+   const Address::InstanceConstSharedPtr& local_address =
+diff --git a/source/common/network/listener_impl.h b/source/common/network/listener_impl.h
+index 953d82723b8f..0c99c248dc93 100644
+--- a/source/common/network/listener_impl.h
++++ b/source/common/network/listener_impl.h
+@@ -1,5 +1,8 @@
+ #pragma once
+ 
++#include "envoy/runtime/runtime.h"
++
++#include "absl/strings/string_view.h"
+ #include "base_listener_impl.h"
+ 
+ namespace Envoy {
+@@ -17,6 +20,8 @@ public:
+   void disable() override;
+   void enable() override;
+ 
++  static const std::string GlobalMaxCxRuntimeKey;
++
+ protected:
+   void setupServerSocket(Event::DispatcherImpl& dispatcher, Socket& socket);
+ 
+@@ -27,6 +32,10 @@ private:
+                              int remote_addr_len, void* arg);
+   static void errorCallback(evconnlistener* listener, void* context);
+ 
++  // Returns true if global connection limit has been reached and the accepted socket should be
++  // rejected/closed. If the accepted socket is to be admitted, false is returned.
++  static bool rejectCxOverGlobalLimit();
++
+   Event::Libevent::ListenerPtr listener_;
+ };
+ 
+diff --git a/source/server/connection_handler_impl.h b/source/server/connection_handler_impl.h
+index 66c65d67958a..407734fc48fc 100644
+--- a/source/server/connection_handler_impl.h
++++ b/source/server/connection_handler_impl.h
+@@ -27,8 +27,9 @@ namespace Server {
+ 
+ #define ALL_LISTENER_STATS(COUNTER, GAUGE, HISTOGRAM)                                              \
+   COUNTER(downstream_cx_destroy)                                                                   \
+-  COUNTER(downstream_cx_total)                                                                     \
+   COUNTER(downstream_cx_overflow)                                                                  \
++  COUNTER(downstream_cx_total)                                                                     \
++  COUNTER(downstream_global_cx_overflow)                                                           \
+   COUNTER(downstream_pre_cx_timeout)                                                               \
+   COUNTER(no_filter_chain_match)                                                                   \
+   GAUGE(downstream_cx_active, Accumulate)                                                          \
+@@ -124,6 +125,7 @@ private:
+ 
+     // Network::ListenerCallbacks
+     void onAccept(Network::ConnectionSocketPtr&& socket) override;
++    void onReject() override { stats_.downstream_global_cx_overflow_.inc(); }
+ 
+     // ActiveListenerImplBase
+     Network::Listener* listener() override { return listener_.get(); }
+diff --git a/source/server/server.cc b/source/server/server.cc
+index d4efe1552434..443b98b0f202 100644
+--- a/source/server/server.cc
++++ b/source/server/server.cc
+@@ -30,6 +30,7 @@
+ #include "common/local_info/local_info_impl.h"
+ #include "common/memory/stats.h"
+ #include "common/network/address_impl.h"
++#include "common/network/listener_impl.h"
+ #include "common/protobuf/utility.h"
+ #include "common/router/rds_impl.h"
+ #include "common/runtime/runtime_impl.h"
+@@ -436,6 +437,15 @@ void InstanceImpl::initialize(const Options& options,
+   // GuardDog (deadlock detection) object and thread setup before workers are
+   // started and before our own run() loop runs.
+   guard_dog_ = std::make_unique<Server::GuardDogImpl>(stats_store_, config_, *api_);
++
++  // If there is no global limit to the number of active connections, warn on startup.
++  // TODO (tonya11en): Move this functionality into the overload manager.
++  if (runtime().snapshot().get(Network::ListenerImpl::GlobalMaxCxRuntimeKey) == EMPTY_STRING) {
++    ENVOY_LOG(warn,
++              "there is no configured limit to the number of allowed active connections. Set a "
++              "limit via the runtime key {}",
++              Network::ListenerImpl::GlobalMaxCxRuntimeKey);
++  }
+ }
+ 
+ void InstanceImpl::startWorkers() {
+diff --git a/test/common/network/BUILD b/test/common/network/BUILD
+index 16186b79e3b3..f17b82b972f7 100644
+--- a/test/common/network/BUILD
++++ b/test/common/network/BUILD
+@@ -24,6 +24,7 @@ envoy_cc_test_library(
+         "//test/test_common:environment_lib",
+         "//test/test_common:network_utility_lib",
+         "//test/test_common:simulated_time_system_lib",
++        "//test/test_common:test_runtime_lib",
+         "//test/test_common:utility_lib",
+     ],
+ )
+@@ -128,11 +129,11 @@ envoy_cc_test(
+         "//test/mocks/buffer:buffer_mocks",
+         "//test/mocks/network:network_mocks",
+         "//test/mocks/ratelimit:ratelimit_mocks",
+-        "//test/mocks/runtime:runtime_mocks",
+         "//test/mocks/server:server_mocks",
+         "//test/mocks/tracing:tracing_mocks",
+         "//test/mocks/upstream:host_mocks",
+         "//test/mocks/upstream:upstream_mocks",
++        "//test/test_common:test_runtime_lib",
+         "//test/test_common:utility_lib",
+         "@envoy_api//envoy/extensions/filters/network/ratelimit/v3:pkg_cc_proto",
+         "@envoy_api//envoy/extensions/filters/network/tcp_proxy/v3:pkg_cc_proto",
+@@ -177,6 +178,7 @@ envoy_cc_test(
+         "//source/common/stats:stats_lib",
+         "//test/common/network:listener_impl_test_base_lib",
+         "//test/mocks/network:network_mocks",
++        "//test/mocks/runtime:runtime_mocks",
+         "//test/mocks/server:server_mocks",
+         "//test/test_common:environment_lib",
+         "//test/test_common:network_utility_lib",
+diff --git a/test/common/network/dns_impl_test.cc b/test/common/network/dns_impl_test.cc
+index cdce5f1b9437..92c6cb756505 100644
+--- a/test/common/network/dns_impl_test.cc
++++ b/test/common/network/dns_impl_test.cc
+@@ -267,6 +267,8 @@ public:
+     queries_.emplace_back(query);
+   }
+ 
++  void onReject() override { NOT_IMPLEMENTED_GCOVR_EXCL_LINE; }
++
+   void addHosts(const std::string& hostname, const IpList& ip, const RecordType& type) {
+     if (type == RecordType::A) {
+       hosts_a_[hostname] = ip;
+diff --git a/test/common/network/listener_impl_test.cc b/test/common/network/listener_impl_test.cc
+index a105e0806b26..2d91acfd3639 100644
+--- a/test/common/network/listener_impl_test.cc
++++ b/test/common/network/listener_impl_test.cc
+@@ -9,6 +9,7 @@
+ #include "test/mocks/server/mocks.h"
+ #include "test/test_common/environment.h"
+ #include "test/test_common/network_utility.h"
++#include "test/test_common/test_runtime.h"
+ #include "test/test_common/utility.h"
+ 
+ #include "gmock/gmock.h"
+@@ -136,6 +137,72 @@ TEST_P(ListenerImplTest, UseActualDst) {
+   dispatcher_->run(Event::Dispatcher::RunType::Block);
+ }
+ 
++TEST_P(ListenerImplTest, GlobalConnectionLimitEnforcement) {
++  // Required to manipulate runtime values when there is no test server.
++  TestScopedRuntime scoped_runtime;
++
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"overload.global_downstream_max_connections", "2"}});
++  auto socket = std::make_shared<Network::TcpListenSocket>(
++      Network::Test::getCanonicalLoopbackAddress(version_), nullptr, true);
++  Network::MockListenerCallbacks listener_callbacks;
++  Network::MockConnectionHandler connection_handler;
++  Network::ListenerPtr listener = dispatcher_->createListener(socket, listener_callbacks, true);
++
++  std::vector<Network::ClientConnectionPtr> client_connections;
++  std::vector<Network::ConnectionPtr> server_connections;
++  StreamInfo::StreamInfoImpl stream_info(dispatcher_->timeSource());
++  EXPECT_CALL(listener_callbacks, onAccept_(_))
++      .WillRepeatedly(Invoke([&](Network::ConnectionSocketPtr& accepted_socket) -> void {
++        server_connections.emplace_back(dispatcher_->createServerConnection(
++            std::move(accepted_socket), Network::Test::createRawBufferSocket()));
++        dispatcher_->exit();
++      }));
++
++  auto initiate_connections = [&](const int count) {
++    for (int i = 0; i < count; ++i) {
++      client_connections.emplace_back(dispatcher_->createClientConnection(
++          socket->localAddress(), Network::Address::InstanceConstSharedPtr(),
++          Network::Test::createRawBufferSocket(), nullptr));
++      client_connections.back()->connect();
++    }
++  };
++
++  initiate_connections(5);
++  EXPECT_CALL(listener_callbacks, onReject()).Times(3);
++  dispatcher_->run(Event::Dispatcher::RunType::Block);
++
++  // We expect any server-side connections that get created to populate 'server_connections'.
++  EXPECT_EQ(2, server_connections.size());
++
++  // Let's increase the allowed connections and try sending more connections.
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"overload.global_downstream_max_connections", "3"}});
++  initiate_connections(5);
++  EXPECT_CALL(listener_callbacks, onReject()).Times(4);
++  dispatcher_->run(Event::Dispatcher::RunType::Block);
++
++  EXPECT_EQ(3, server_connections.size());
++
++  // Clear the limit and verify there's no longer a limit.
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"overload.global_downstream_max_connections", ""}});
++  initiate_connections(10);
++  dispatcher_->run(Event::Dispatcher::RunType::Block);
++
++  EXPECT_EQ(13, server_connections.size());
++
++  for (const auto& conn : client_connections) {
++    conn->close(ConnectionCloseType::NoFlush);
++  }
++  for (const auto& conn : server_connections) {
++    conn->close(ConnectionCloseType::NoFlush);
++  }
++
++  Runtime::LoaderSingleton::getExisting()->mergeValues(
++      {{"overload.global_downstream_max_connections", ""}});
++}
++
+ TEST_P(ListenerImplTest, WildcardListenerUseActualDst) {
+   auto socket =
+       std::make_shared<TcpListenSocket>(Network::Test::getAnyAddress(version_), nullptr, true);
+diff --git a/test/integration/cx_limit_integration_test.cc b/test/integration/cx_limit_integration_test.cc
+index 53cded44784d..3c16b1d73d31 100644
+--- a/test/integration/cx_limit_integration_test.cc
++++ b/test/integration/cx_limit_integration_test.cc
+@@ -31,64 +31,82 @@ public:
+                                       std::to_string(num_conns));
+   }
+ 
++  void setGlobalLimit(std::string&& num_conns) {
++    config_helper_.addRuntimeOverride("overload.global_downstream_max_connections", num_conns);
++  }
++
+   void initialize() override { BaseIntegrationTest::initialize(); }
+-};
+ 
+-INSTANTIATE_TEST_SUITE_P(IpVersions, ConnectionLimitIntegrationTest,
+-                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+-                         TestUtility::ipTestParamsToString);
++  // Assumes a limit of 2 connections.
++  void doTest(std::function<void()> init_func, std::string&& check_stat) {
++    init_func();
+ 
+-TEST_P(ConnectionLimitIntegrationTest, TestListenerLimit) {
+-  setListenerLimit(2);
+-  initialize();
++    std::vector<IntegrationTcpClientPtr> tcp_clients;
++    std::vector<FakeRawConnectionPtr> raw_conns;
+ 
+-  std::vector<IntegrationTcpClientPtr> tcp_clients;
+-  std::vector<FakeRawConnectionPtr> raw_conns;
++    tcp_clients.emplace_back(makeTcpConnection(lookupPort("listener_0")));
++    raw_conns.emplace_back();
++    ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(raw_conns.back()));
++    ASSERT_TRUE(tcp_clients.back()->connected());
+ 
+-  tcp_clients.emplace_back(makeTcpConnection(lookupPort("listener_0")));
+-  raw_conns.emplace_back();
+-  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(raw_conns.back()));
+-  ASSERT_TRUE(tcp_clients.back()->connected());
++    tcp_clients.emplace_back(makeTcpConnection(lookupPort("listener_0")));
++    raw_conns.emplace_back();
++    ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(raw_conns.back()));
++    ASSERT_TRUE(tcp_clients.back()->connected());
+ 
+-  tcp_clients.emplace_back(makeTcpConnection(lookupPort("listener_0")));
+-  raw_conns.emplace_back();
+-  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(raw_conns.back()));
+-  ASSERT_TRUE(tcp_clients.back()->connected());
++    tcp_clients.emplace_back(makeTcpConnection(lookupPort("listener_0")));
++    raw_conns.emplace_back();
++    ASSERT_FALSE(fake_upstreams_[0]->waitForRawConnection(raw_conns.back()));
++    tcp_clients.back()->waitForDisconnect();
+ 
+-  tcp_clients.emplace_back(makeTcpConnection(lookupPort("listener_0")));
+-  raw_conns.emplace_back();
+-  ASSERT_FALSE(fake_upstreams_[0]->waitForRawConnection(raw_conns.back()));
+-  tcp_clients.back()->waitForDisconnect();
++    // Get rid of the client that failed to connect.
++    tcp_clients.back()->close();
++    tcp_clients.pop_back();
+ 
+-  // Get rid of the client that failed to connect.
+-  tcp_clients.back()->close();
+-  tcp_clients.pop_back();
++    // Close the first connection that was successful so that we can open a new successful
++    // connection.
++    tcp_clients.front()->close();
++    ASSERT_TRUE(raw_conns.front()->close());
++    ASSERT_TRUE(raw_conns.front()->waitForDisconnect());
+ 
+-  // Close the first connection that was successful so that we can open a new successful connection.
+-  tcp_clients.front()->close();
+-  ASSERT_TRUE(raw_conns.front()->close());
+-  ASSERT_TRUE(raw_conns.front()->waitForDisconnect());
++    tcp_clients.emplace_back(makeTcpConnection(lookupPort("listener_0")));
++    raw_conns.emplace_back();
++    ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(raw_conns.back()));
++    ASSERT_TRUE(tcp_clients.back()->connected());
+ 
+-  tcp_clients.emplace_back(makeTcpConnection(lookupPort("listener_0")));
+-  raw_conns.emplace_back();
+-  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(raw_conns.back()));
+-  ASSERT_TRUE(tcp_clients.back()->connected());
++    const bool isV4 = (version_ == Network::Address::IpVersion::v4);
++    auto local_address = isV4 ? Network::Utility::getCanonicalIpv4LoopbackAddress()
++                              : Network::Utility::getIpv6LoopbackAddress();
+ 
+-  const bool isV4 = (version_ == Network::Address::IpVersion::v4);
+-  auto local_address = isV4 ? Network::Utility::getCanonicalIpv4LoopbackAddress()
+-                            : Network::Utility::getIpv6LoopbackAddress();
++    const std::string counter_prefix = (isV4 ? "listener.127.0.0.1_0." : "listener.[__1]_0.");
+ 
+-  const std::string counter_name = isV4 ? ("listener.127.0.0.1_0.downstream_cx_overflow")
+-                                        : ("listener.[__1]_0.downstream_cx_overflow");
++    test_server_->waitForCounterEq(counter_prefix + check_stat, 1);
+ 
+-  test_server_->waitForCounterEq(counter_name, 1);
++    for (auto& tcp_client : tcp_clients) {
++      tcp_client->close();
++    }
+ 
+-  for (auto& tcp_client : tcp_clients) {
+-    tcp_client->close();
++    tcp_clients.clear();
++    raw_conns.clear();
+   }
++};
++
++INSTANTIATE_TEST_SUITE_P(IpVersions, ConnectionLimitIntegrationTest,
++                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
++                         TestUtility::ipTestParamsToString);
+ 
+-  tcp_clients.clear();
+-  raw_conns.clear();
++TEST_P(ConnectionLimitIntegrationTest, TestListenerLimit) {
++  std::function<void()> init_func = [this]() {
++    setListenerLimit(2);
++    initialize();
++  };
++
++  doTest(init_func, "downstream_cx_overflow");
++}
++
++TEST_P(ConnectionLimitIntegrationTest, TestEmptyGlobalCxRuntimeLimit) {
++  const std::string log_line = "no configured limit to the number of allowed active connections.";
++  EXPECT_LOG_CONTAINS("warn", log_line, { initialize(); });
+ }
+ 
+ TEST_P(ConnectionLimitIntegrationTest, TestEmptyListenerRuntimeLimit) {
+@@ -102,5 +120,29 @@ TEST_P(ConnectionLimitIntegrationTest, TestEmptyListenerRuntimeLimit) {
+   });
+ }
+ 
++TEST_P(ConnectionLimitIntegrationTest, TestGlobalLimit) {
++  std::function<void()> init_func = [this]() {
++    // Includes twice the number of connections expected because the tracking is performed via a
++    // static variable and the fake upstream has a listener. This causes upstream connections to the
++    // fake upstream to also be tracked as part of the global downstream connection tracking.
++    setGlobalLimit("4");
++    initialize();
++  };
++
++  doTest(init_func, "downstream_global_cx_overflow");
++}
++
++TEST_P(ConnectionLimitIntegrationTest, TestBothLimits) {
++  std::function<void()> init_func = [this]() {
++    // Setting the listener limit to a much higher value and making sure the right stat gets
++    // incremented when both limits are set.
++    setGlobalLimit("4");
++    setListenerLimit(100);
++    initialize();
++  };
++
++  doTest(init_func, "downstream_global_cx_overflow");
++}
++
+ } // namespace
+ } // namespace Envoy
+diff --git a/test/mocks/network/mocks.h b/test/mocks/network/mocks.h
+index 39a3bcc28870..bcdb1ed14225 100644
+--- a/test/mocks/network/mocks.h
++++ b/test/mocks/network/mocks.h
+@@ -129,7 +129,8 @@ public:
+ 
+   void onAccept(ConnectionSocketPtr&& socket) override { onAccept_(socket); }
+ 
+-  MOCK_METHOD1(onAccept_, void(ConnectionSocketPtr& socket));
++  MOCK_METHOD(void, onAccept_, (ConnectionSocketPtr & socket));
++  MOCK_METHOD(void, onReject, ());
+ };
+ 
+ class MockUdpListenerCallbacks : public UdpListenerCallbacks {
+-- 
+2.26.2
+
