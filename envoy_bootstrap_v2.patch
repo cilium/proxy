@@ -1,10 +1,10 @@
-*** envoy_bootstrap_v2.json	2018-11-06 23:34:03.000000000 -0800
---- envoy_bootstrap_tmpl.json	2018-11-06 23:39:25.000000000 -0800
+*** envoy_bootstrap_v2.json	2020-03-26 14:04:16.000000000 -0700
+--- envoy_bootstrap_tmpl.json	2020-04-30 09:46:04.000000000 -0700
 ***************
-*** 87,92 ****
---- 87,106 ----
-          ]
+*** 260,265 ****
+--- 260,279 ----
         },
+        {{- end }}
         {
 +         "name": "xds-grpc-cilium",
 +         "type": "STATIC",
@@ -22,4 +22,4 @@
 +       {
           "name": "xds-grpc",
           "type": "STRICT_DNS",
-          "connect_timeout": "{{ .connect_timeout }}",
+          "dns_refresh_rate": "{{ .dns_refresh_rate }}",
