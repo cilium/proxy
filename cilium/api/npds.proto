@@ -2,8 +2,8 @@ syntax = "proto3";
 
 package cilium;
 
-import "envoy/api/v2/core/address.proto";
-import "envoy/api/v2/route/route.proto";
+import "envoy/config/core/v3/address.proto";
+import "envoy/config/route/v3/route_components.proto";
 import "envoy/service/discovery/v3/discovery.proto";
 
 import "google/api/annotations.proto";
@@ -23,7 +23,7 @@ service NetworkPolicyDiscoveryService {
 
   rpc FetchNetworkPolicies(envoy.service.discovery.v3.DiscoveryRequest) returns (envoy.service.discovery.v3.DiscoveryResponse) {
     option (google.api.http) = {
-      post: "/v2/discovery:network_policies"
+      post: "/v3/discovery:network_policies"
       body: "*"
     };
   }
@@ -71,7 +71,7 @@ message PortNetworkPolicy {
 
   // The flows' L4 transport protocol.
   // Required.
-  envoy.api.v2.core.SocketAddress.Protocol protocol = 2;
+  envoy.config.core.v3.SocketAddress.Protocol protocol = 2;
 
   // The network policy rules to be enforced on the flows to the port.
   // Optional. A flow is matched by this predicate if either the set of
@@ -180,7 +180,7 @@ message HttpNetworkPolicyRule {
   // * *:authority*: Also maps to the HTTP 1.1 *Host* header.
   //
   // Optional. If empty, matches any HTTP request.
-  repeated envoy.api.v2.route.HeaderMatcher headers = 1;
+  repeated envoy.config.route.v3.HeaderMatcher headers = 1;
 
   // header_matches is a set of HTTP header name and value pairs that
   // will be matched against the request headers, if all the other match requirements
