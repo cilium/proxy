@@ -5,6 +5,7 @@
 #include <string>
 #include <unordered_set>
 
+#include "common/common/matchers.h"
 #include "common/config/utility.h"
 #include "common/protobuf/protobuf.h"
 
@@ -169,6 +170,28 @@ protected:
     std::vector<HeaderMatch> header_matches_;
   };
 
+  class L7NetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
+  public:
+    L7NetworkPolicyRule(const cilium::L7NetworkPolicyRule& rule) {
+      for (const auto& matcher: rule.metadata_rule()) {
+	ENVOY_LOG(debug, "Cilium L7NetworkPolicyRule() metadata_rule: {}", matcher.DebugString());
+	metadata_matchers_.emplace_back(matcher);
+      }
+    }
+
+    bool allowed(const envoy::config::core::v3::Metadata& metadata) const {
+      // All matchers must be satisfied for the rule to match
+      for (const auto& metadata_matcher: metadata_matchers_) {
+	if (!metadata_matcher.match(metadata)) {
+	  return false;
+	}
+      }
+      return true;
+    }
+  private:
+    std::vector<Envoy::Matchers::MetadataMatcher> metadata_matchers_;
+  };
+
   class PortNetworkPolicyRule : public PortPolicy, public Logger::Loggable<Logger::Id::config> {
   public:
     PortNetworkPolicyRule(const NetworkPolicyMap& parent, const cilium::PortNetworkPolicyRule& rule)
@@ -248,6 +271,11 @@ protected:
 	  http_rules_.emplace_back(http_rule);
 	}
       }
+      if (l7_proto_.length() > 0 && rule.has_l7_rules()) {
+	for (const auto& l7_rule: rule.l7_rules().l7_rules()) {
+	  l7_rules_.emplace_back(l7_rule);
+	}
+      }
     }
 
     bool Matches(uint64_t remote_id) const {
@@ -295,6 +323,20 @@ protected:
       }
       return false;
     }
+
+    // Envoy Metadata matcher
+    bool allowed(const envoy::config::core::v3::Metadata& metadata) const override {
+      if (l7_rules_.size() > 0) {
+	for (const auto& rule: l7_rules_) {
+	  if (rule.allowed(metadata)) {
+	    return true;
+	  }
+	}
+	return false;
+      }
+      return true;
+    }
+
     Ssl::ContextSharedPtr getServerTlsContext() const override { return server_context_; }
     Ssl::ContextSharedPtr getClientTlsContext() const override { return client_context_; }
 
@@ -308,8 +350,10 @@ protected:
     std::unordered_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
     std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
     std::string l7_proto_{};
+    std::vector<L7NetworkPolicyRule> l7_rules_;
     bool have_header_matches_{false};
   };
+  using PortNetworkPolicyRuleConstSharedPtr = std::shared_ptr<const PortNetworkPolicyRule>;
 
   class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
   public:
@@ -318,8 +362,8 @@ protected:
 	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): No rules, will allow everything.");
       }
       for (const auto& it: rules) {
-	rules_.emplace_back(parent, it);
-	if (rules_.back().have_header_matches_) {
+	rules_.emplace_back(std::make_shared<PortNetworkPolicyRule>(parent, it));
+	if (rules_.back()->have_header_matches_) {
 	  have_header_matches_ = true;
 	}
       }
@@ -332,7 +376,7 @@ protected:
       }
       bool matched = false;
       for (const auto& rule: rules_) {
-	if (rule.Matches(remote_id, headers, log_entry)) {
+	if (rule->Matches(remote_id, headers, log_entry)) {
 	  matched = true;
 	  // Short-circuit on the first match if no rules have HeaderMatches
 	  if (!have_header_matches_) {
@@ -343,16 +387,16 @@ protected:
       return matched;
     }
 
-    const PortPolicy* findPortPolicy(uint64_t remote_id) const {
+    const PortPolicyConstSharedPtr findPortPolicy(uint64_t remote_id) const {
       for (const auto& rule: rules_) {
-	if (rule.Matches(remote_id)) {
-	  return &rule;
+	if (rule->Matches(remote_id)) {
+	  return rule;
 	}
       }
       return nullptr;
     }
 
-    std::vector<PortNetworkPolicyRule> rules_; // Allowed if empty.
+    std::vector<PortNetworkPolicyRuleConstSharedPtr> rules_; // Allowed if empty.
     bool have_header_matches_{false};
   };
     
@@ -398,7 +442,7 @@ protected:
       return found_port_rule ? false : true;
     }
 
-    const PortPolicy* findPortPolicy(uint32_t port, uint64_t remote_id) const {
+    const PortPolicyConstSharedPtr findPortPolicy(uint32_t port, uint64_t remote_id) const {
       auto it = rules_.find(port);
       if (it != rules_.end()) {
 	return it->second.findPortPolicy(remote_id);
@@ -417,14 +461,14 @@ public:
       : egress_.Matches(port, remote_id, headers, log_entry);
   }
 
-  const PortPolicy* findPortPolicy(bool ingress, uint32_t port, uint64_t remote_id) const override {
+  const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint32_t port, uint64_t remote_id) const override {
     return ingress
       ? ingress_.findPortPolicy(port, remote_id)
       : egress_.findPortPolicy(port, remote_id);
   }
 
   bool useProxylib(bool ingress, uint32_t port, uint64_t remote_id, std::string& l7_proto) const override {
-    const auto* port_policy = findPortPolicy(ingress, port, remote_id);
+    const auto& port_policy = findPortPolicy(ingress, port, remote_id);
     if (port_policy != nullptr) {
       return port_policy->useProxylib(l7_proto);
     }

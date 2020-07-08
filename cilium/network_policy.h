@@ -8,10 +8,11 @@
 #include "common/http/header_utility.h"
 #include "common/protobuf/message_validator_impl.h"
 #include "envoy/config/subscription.h"
-#include "envoy/singleton/instance.h"
-#include "envoy/thread_local/thread_local.h"
 #include "envoy/http/header_map.h"
 #include "envoy/server/filter_config.h"
+#include "envoy/singleton/instance.h"
+#include "envoy/thread_local/thread_local.h"
+#include "envoy/type/matcher/v3/metadata.pb.h"
 #include "server/transport_socket_config_impl.h"
 
 #include "extensions/transport_sockets/tls/context_config_impl.h"
@@ -28,10 +29,14 @@ public:
   virtual ~PortPolicy() = default;
 
   virtual bool useProxylib(std::string& l7_proto) const PURE;
+
+  virtual bool allowed(const envoy::config::core::v3::Metadata& metadata) const PURE;
+  
   virtual Ssl::ContextSharedPtr getServerTlsContext() const PURE;
   virtual Ssl::ContextSharedPtr getClientTlsContext() const PURE;
 };
-    
+using PortPolicyConstSharedPtr = std::shared_ptr<const PortPolicy>;
+
 class PolicyInstance {
 public:
   virtual ~PolicyInstance() = default;
@@ -40,9 +45,11 @@ public:
 		       Envoy::Http::RequestHeaderMap& headers,
 		       Cilium::AccessLog::Entry& log_entry) const PURE;
 
-  virtual const PortPolicy* findPortPolicy(bool ingress, uint32_t port,
-					   uint64_t remote_id) const PURE;
+  virtual const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint32_t port,
+							uint64_t remote_id) const PURE;
 
+  // Returns true if the policy specifies l7 protocol for the connection, and
+  // returns the l7 protocol string in 'l7_proto'
   virtual bool useProxylib(bool ingress, uint32_t port, uint64_t remote_id,
 			   std::string& l7_proto) const PURE;
 

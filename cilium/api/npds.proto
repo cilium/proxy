@@ -5,6 +5,7 @@ package cilium;
 import "envoy/config/core/v3/address.proto";
 import "envoy/config/route/v3/route_components.proto";
 import "envoy/service/discovery/v3/discovery.proto";
+import "envoy/type/matcher/v3/metadata.proto";
 
 import "google/api/annotations.proto";
 
@@ -132,7 +133,7 @@ message PortNetworkPolicyRule {
     // Only to be used for l7 protocols for which a specific oneof
     // is not defined
     L7NetworkPolicyRules l7_rules = 102;
- }
+  }
 }
 
 // A set of network policy rules that match HTTP requests.
@@ -236,6 +237,12 @@ message L7NetworkPolicyRules {
 // If all the predicates of a rule match a request, the request is allowed. Otherwise, it is
 // denied.
 message L7NetworkPolicyRule {
-  // Optional. If empty, matches any request.
+  // Generic rule for Go extensions.
+  // Optional. If empty, matches any request. Not allowed if 'metadata_rule' is present.
   map<string, string> rule = 1;
+
+  // Generic rule for Envoy metadata enforcement. All matchers must match for the rule to
+  // allow the request/connection.
+  // Optional. If empty, matches any request. Not allowed if 'rule' is present.
+  repeated envoy.type.matcher.v3.MetadataMatcher metadata_rule = 2;
 }

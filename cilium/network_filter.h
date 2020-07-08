@@ -10,6 +10,7 @@
 
 #include "cilium/api/network_filter.pb.h"
 #include "cilium/conntrack.h"
+#include "cilium/network_policy.h"
 #include "cilium/proxylib.h"
 #include "cilium/proxymap.h"
 
@@ -62,7 +63,8 @@ private:
   Network::ReadFilterCallbacks* callbacks_ = nullptr;
   Cilium::ProxyMapSharedPtr maps_{};
   uint16_t proxy_port_ = 0;
-  Cilium::GoFilter::InstancePtr go_parser_;
+  Cilium::GoFilter::InstancePtr go_parser_{};
+  Cilium::PortPolicyConstSharedPtr port_policy_{};
 };
 
 } // namespace CiliumL3

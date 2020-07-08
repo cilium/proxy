@@ -996,6 +996,21 @@ func (m *L7NetworkPolicyRule) Validate() error {
 
 	// no validation rules for Rule
 
+	for idx, item := range m.GetMetadataRule() {
+		_, _ = idx, item
+
+		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return L7NetworkPolicyRuleValidationError{
+					field:  fmt.Sprintf("MetadataRule[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
 	return nil
 }
 

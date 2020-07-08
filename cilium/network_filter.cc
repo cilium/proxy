@@ -10,7 +10,6 @@
 
 #include "cilium/api/network_filter.pb.validate.h"
 #include "cilium/network_filter.h"
-#include "cilium/network_policy.h"
 #include "cilium/socket_option.h"
 
 namespace Envoy {
@@ -78,16 +77,17 @@ Network::FilterStatus Instance::onNewConnection() {
 
     const std::string& policy_name = option->pod_ip_;
     std::string l7proto;
-    if (config_->proxylib_.get() != nullptr && option->policy_ &&
-	(option->policy_->useProxylib(option->ingress_, option->port_,
-				      option->ingress_ ? option->identity_ : option->destination_identity_,
-				      l7proto))) {
-      go_parser_ = config_->proxylib_->NewInstance(conn, l7proto, option->ingress_, option->identity_,
-						   option->destination_identity_, conn.remoteAddress()->asString(),
-						   conn.localAddress()->asString(), policy_name);
-      if (go_parser_.get() == nullptr) {
-	ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found", conn, l7proto);
-	return Network::FilterStatus::StopIteration;
+    if (option->policy_) {
+      port_policy_ = option->policy_->findPortPolicy(option->ingress_, option->port_,
+						     option->ingress_ ? option->identity_ : option->destination_identity_);
+      if (config_->proxylib_.get() != nullptr && port_policy_ != nullptr && port_policy_->useProxylib(l7proto)) {
+	go_parser_ = config_->proxylib_->NewInstance(conn, l7proto, option->ingress_, option->identity_,
+						     option->destination_identity_, conn.remoteAddress()->asString(),
+						     conn.localAddress()->asString(), policy_name);
+	if (go_parser_.get() == nullptr) {
+	  ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found", conn, l7proto);
+	  return Network::FilterStatus::StopIteration;
+	}
       }
     }
   } else {
@@ -98,18 +98,19 @@ Network::FilterStatus Instance::onNewConnection() {
 }
 
 Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) {
+  auto& conn = callbacks_->connection();
   if (go_parser_) {
     FilterResult res = go_parser_->OnIO(false, data, end_stream); // 'false' marks original direction data
-    ENVOY_CONN_LOG(trace, "Cilium Network::onData: \'GoFilter::OnIO\' returned {}", callbacks_->connection(), res);
+    ENVOY_CONN_LOG(trace, "Cilium Network::onData: \'GoFilter::OnIO\' returned {}", conn, res);
 
     if (res != FILTER_OK) {
       // Drop the connection due to an error
       go_parser_->Close();
+      conn.close(Network::ConnectionCloseType::NoFlush);
       return Network::FilterStatus::StopIteration;
     }
 
     if (go_parser_->WantReplyInject()) {
-      auto& conn = callbacks_->connection();
       ENVOY_CONN_LOG(trace, "Cilium Network::onData: calling write() on an empty buffer", conn);
 
       // We have no idea when, if ever new data will be received on the
@@ -121,6 +122,13 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     }
 
     go_parser_->SetOrigEndStream(end_stream);
+  }
+
+  if (port_policy_ != nullptr) {
+    if (!port_policy_->allowed(conn.streamInfo().dynamicMetadata())) {
+      conn.close(Network::ConnectionCloseType::NoFlush);
+      return Network::FilterStatus::StopIteration;
+    }
   }
 
   return Network::FilterStatus::Continue;

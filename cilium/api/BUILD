@@ -42,6 +42,7 @@ api_cc_py_proto_library(
         "@envoy_api//envoy/service/discovery/v3:pkg",
         "@envoy_api//envoy/config/core/v3:pkg",
         "@envoy_api//envoy/config/route/v3:pkg",
+        "@envoy_api//envoy/type/matcher/v3:pkg",
     ],
 )
 
