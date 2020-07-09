@@ -76,14 +76,14 @@ protected:
       }
     }
 
-    bool Matches(const Envoy::Http::HeaderMap& headers) const {
+    bool Matches(const Envoy::Http::RequestHeaderMap& headers) const {
       // Empty set matches any headers.
       return Envoy::Http::HeaderUtility::matchHeaders(headers, headers_);
     }
 
     // Should only be called after 'Matches' returns 'true'.
     // Returns 'true' if matching can continue
-    bool HeaderMatches(Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
+    bool HeaderMatches(Envoy::Http::RequestHeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
       bool accepted = true;
       for (const auto& header_data : header_matches_) {
 	::cilium::KeyValue *kv;
@@ -130,9 +130,9 @@ protected:
 		const Envoy::Http::HeaderString* value_;
 	      } ctx = {
 		header_data.name_.get(),
-		res == Envoy::Http::HeaderMap::Lookup::Found ? &entry->value() : nullptr
+		res == Envoy::Http::RequestHeaderMap::Lookup::Found ? &entry->value() : nullptr
 	      };
-	      if (res == Envoy::Http::HeaderMap::Lookup::NotSupported) {
+	      if (res == Envoy::Http::RequestHeaderMap::Lookup::NotSupported) {
 		// non-supported header, find by iteration
 		headers.iterate([](const Envoy::Http::HeaderEntry& entry, void* ctx_) {
 				  auto* ctx = static_cast<Ctx*>(ctx_);
@@ -261,7 +261,7 @@ protected:
       return true;
     }
 
-    bool Matches(uint64_t remote_id, Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
+    bool Matches(uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
       if (!Matches(remote_id)) {
 	return false;
       }
@@ -325,7 +325,7 @@ protected:
       }
     }
 
-    bool Matches(uint64_t remote_id, Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
+    bool Matches(uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
       // Empty set matches any payload from anyone
       if (rules_.size() == 0) {
 	return true;
@@ -373,7 +373,7 @@ protected:
       }
     }
 
-    bool Matches(uint32_t port, uint64_t remote_id, Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
+    bool Matches(uint32_t port, uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const {
       bool found_port_rule = false;
       auto it = rules_.find(port);
       if (it != rules_.end()) {
@@ -411,7 +411,7 @@ protected:
 
 public:
   bool Allowed(bool ingress, uint32_t port, uint64_t remote_id,
-	       Envoy::Http::HeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const override {
+	       Envoy::Http::RequestHeaderMap& headers, Cilium::AccessLog::Entry& log_entry) const override {
     return ingress
       ? ingress_.Matches(port, remote_id, headers, log_entry)
       : egress_.Matches(port, remote_id, headers, log_entry);

@@ -26,12 +26,13 @@ namespace Configuration {
 class BpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
 public:
   // NamedListenerFilterConfigFactory
-  Network::ListenerFilterFactoryCb
-  createFilterFactoryFromProto(const Protobuf::Message& proto_config,
-			       Configuration::ListenerFactoryContext& context) override {
+  Network::ListenerFilterFactoryCb createListenerFilterFactoryFromProto(
+    const Protobuf::Message& proto_config,
+    const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
+    Configuration::ListenerFactoryContext& context) override {
     auto config = std::make_shared<Filter::BpfMetadata::Config>(MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(proto_config, context.messageValidationVisitor()), context);
-    return [config](Network::ListenerFilterManager &filter_manager) mutable -> void {
-      filter_manager.addAcceptFilter(std::make_unique<Filter::BpfMetadata::Instance>(config));
+    return [listener_filter_matcher, config](Network::ListenerFilterManager &filter_manager) mutable -> void {
+      filter_manager.addAcceptFilter(listener_filter_matcher, std::make_unique<Filter::BpfMetadata::Instance>(config));
     };
   }
 

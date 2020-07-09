@@ -37,7 +37,7 @@ public:
   virtual ~PolicyInstance() = default;
 
   virtual bool Allowed(bool ingress, uint32_t port, uint64_t remote_id,
-		       Envoy::Http::HeaderMap& headers,
+		       Envoy::Http::RequestHeaderMap& headers,
 		       Cilium::AccessLog::Entry& log_entry) const PURE;
 
   virtual const PortPolicy* findPortPolicy(bool ingress, uint32_t port,

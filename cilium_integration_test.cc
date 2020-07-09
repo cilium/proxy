@@ -375,8 +375,9 @@ class TestBpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
 public:
   // NamedListenerFilterConfigFactory
   Network::ListenerFilterFactoryCb
-  createFilterFactoryFromProto(const Protobuf::Message& proto_config,
-			       ListenerFactoryContext &context) override {
+  createListenerFilterFactoryFromProto(const Protobuf::Message& proto_config,
+				       const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
+				       ListenerFactoryContext &context) override {
     // Create the file-based policy map before the filter is created, so that the singleton
     // is set before the gRPC subscription is attempted.
     hostmap = createHostMap(host_map_config, context);
@@ -387,9 +388,10 @@ public:
     auto config = std::make_shared<Filter::BpfMetadata::TestConfig>(
         MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(proto_config, context.messageValidationVisitor()), context);
 
-    return [config](
+    return [listener_filter_matcher, config](
                Network::ListenerFilterManager &filter_manager) mutable -> void {
       filter_manager.addAcceptFilter(
+          listener_filter_matcher,
           std::make_unique<Filter::BpfMetadata::TestInstance>(config));
     };
   }
@@ -541,7 +543,7 @@ public:
     }
   }
 
-  void Denied(Http::TestHeaderMapImpl&& headers) {
+  void Denied(Http::TestRequestHeaderMapImpl&& headers) {
     policy_config = TestEnvironment::substitute(HEADER_ACTION_POLICY, GetParam());
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
@@ -553,7 +555,7 @@ public:
     EXPECT_EQ(403, status);
   }
 
-  void Accepted(Http::TestHeaderMapImpl&& headers) {
+  void Accepted(Http::TestRequestHeaderMapImpl&& headers) {
     policy_config = TestEnvironment::substitute(HEADER_ACTION_POLICY, GetParam());
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
@@ -892,7 +894,7 @@ TEST_P(CiliumIntegrationTest, DuplicatePort) {
 )EOF";
 
   // This would normally be allowed, but since the policy fails, everything will be rejected.
-  Http::TestHeaderMapImpl headers =
+  Http::TestRequestHeaderMapImpl headers =
     {{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}};
   initialize();
   codec_client_ = makeHttpConnection(lookupPort("http"));
@@ -1730,7 +1732,7 @@ protected:
 };
 
 TEST_F(CiliumTest, AccessLog) {
-  Http::TestHeaderMapImpl headers{
+  Http::TestRequestHeaderMapImpl headers{
     {":method", "GET"},
       {":path", "/"},
 	{":authority", "host"},
@@ -2589,7 +2591,7 @@ public:
         std::move(cfg), context_manager_, *upstream_stats_store, std::vector<std::string>{});
   }
 
-  void Denied(Http::TestHeaderMapImpl&& headers) {
+  void Denied(Http::TestRequestHeaderMapImpl&& headers) {
     policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
     initialize();
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
@@ -2600,7 +2602,7 @@ public:
     EXPECT_EQ(403, status);
   }
 
-  void Failed(Http::TestHeaderMapImpl&& headers) {
+  void Failed(Http::TestRequestHeaderMapImpl&& headers) {
     policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
     allow_unexpected_disconnects_ = true;
     initialize();
@@ -2612,7 +2614,7 @@ public:
     EXPECT_EQ(503, status);
   }
 
-  void Accepted(Http::TestHeaderMapImpl&& headers) {
+  void Accepted(Http::TestRequestHeaderMapImpl&& headers) {
     policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
     initialize();
     auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);

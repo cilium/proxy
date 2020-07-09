@@ -65,7 +65,7 @@ CONST_STRING_VIEW(xForwardedProtoSV, "x-forwarded-proto");
 
 void AccessLog::Entry::InitFromRequest(
     std::string policy_name, bool ingress, const Network::Connection *conn,
-    const Http::HeaderMap &headers, const StreamInfo::StreamInfo &info) {
+    const Http::RequestHeaderMap& headers, const StreamInfo::StreamInfo &info) {
   auto time = info.startTime();
   entry.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
                           time.time_since_epoch())
@@ -117,7 +117,7 @@ void AccessLog::Entry::InitFromRequest(
 
   // request headers
   headers.iterate(
-      [](const Http::HeaderEntry &header, void *entry_) -> Http::HeaderMap::Iterate {
+      [](const Http::HeaderEntry& header, void *entry_) -> Http::HeaderMap::Iterate {
         const absl::string_view key = header.key().getStringView();
         const absl::string_view value = header.value().getStringView();
         auto entry = static_cast<::cilium::HttpLogEntry *>(entry_);
@@ -147,7 +147,7 @@ void AccessLog::Entry::InitFromRequest(
 }
 
 void AccessLog::Entry::UpdateFromResponse(
-    const Http::HeaderMap &headers, TimeSource& time_source) {
+    const Http::ResponseHeaderMap& headers, TimeSource& time_source) {
   auto time = time_source.systemTime();
   entry.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
                           time.time_since_epoch())

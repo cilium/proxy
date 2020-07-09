@@ -9,8 +9,8 @@ workspace(name = "cilium")
 #
 ENVOY_PROJECT = "envoyproxy"
 ENVOY_REPO = "envoy"
-ENVOY_SHA = "57b5aee9f73972cdc5b4782b31c12db68ebc9391"
-ENVOY_SHA256 = "1360a9ac94b9ff47944b4be53a671180fc616cd9b597143262630451bb44213b"
+ENVOY_SHA = "923c4111bb48405ac96ef050c4f59ebbad3d7761"
+ENVOY_SHA256 = "cb31aa7b63e2fb2349e51880f75fae718873f9b1fd06b6b44bf5cadc70172ac1"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -22,7 +22,6 @@ http_archive(
     patches = [
         "@//patches:original-dst-add-sni.patch",
         "@//patches:test-enable-half-close.patch",
-        "@//patches:add-getTransportSocketFactoryContext.patch",
     ],
     patch_args = ["-p1"],
 )

@@ -88,7 +88,7 @@ void Config::Log(AccessLog::Entry &entry, ::cilium::EntryType type) {
 
 void AccessFilter::onDestroy() {}
 
-Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, bool) {
+Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
   headers.remove(Http::Headers::get().EnvoyOriginalDstHost);
   const auto& conn = callbacks_->connection();
   bool allowed = false;
@@ -129,7 +129,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::HeaderMap& headers, 
   return Http::FilterHeadersStatus::Continue;
 }
 
-Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::HeaderMap &headers,
+Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& headers,
                                                       bool) {
   log_entry_.UpdateFromResponse(headers, config_->time_source_);
   config_->Log(log_entry_, denied_ ? ::cilium::EntryType::Denied

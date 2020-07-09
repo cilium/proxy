@@ -5,7 +5,7 @@
 #include "common/buffer/buffer_impl.h"
 #include "common/common/assert.h"
 #include "common/common/fmt.h"
-#include "common/common/stack_array.h"
+#include "absl/container/fixed_array.h"
 
 #include "cilium/proxylib.h"
 
@@ -34,7 +34,7 @@ GoFilter::GoFilter(const std::string& go_module,
   } else {
     // Convert params to KeyValue pairs
     auto num = params.size();
-    STACK_ARRAY(values, GoStringPair, num);
+    absl::FixedArray<GoStringPair> values(num);
 
     int i = 0;
     for (const auto& pair: params) {
@@ -42,7 +42,7 @@ GoFilter::GoFilter(const std::string& go_module,
       values[i++].value = GoString(pair.second);
     }
 
-    go_module_id_ = go_open_module(GoKeyValueSlice(&values[0], num), ENVOY_LOG_CHECK_LEVEL(debug));
+    go_module_id_ = go_open_module(GoKeyValueSlice(values.data(), num), ENVOY_LOG_CHECK_LEVEL(debug));
     if (go_module_id_ == 0) {
       throw EnvoyException(fmt::format("cilium.network: \'{}::OpenModule()\' rejected parameters",
 				       go_module));
@@ -207,12 +207,10 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
 
   do {
     ops.reset();
-    uint64_t num_slices = input.getRawSlices(nullptr, 0);
-    STACK_ARRAY(raw_slices, Buffer::RawSlice, num_slices);
-    input.getRawSlices(raw_slices.begin(), num_slices);
+    Buffer::RawSliceVector raw_slices = input.getRawSlices();
 
     int64_t total_length = 0;
-    STACK_ARRAY(buffer_slices, GoSlice<uint8_t>, num_slices);
+    absl::FixedArray<GoSlice<uint8_t>> buffer_slices(raw_slices.size());
     uint64_t non_empty_slices = 0;
     for (const Buffer::RawSlice& raw_slice : raw_slices) {
       if (raw_slice.len_ > 0) {
