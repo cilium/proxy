@@ -45,9 +45,7 @@ IMAGE_ARCH = $(SLASH)$(ARCH)
 
 DOCKERFILE_ARCH = .multi_arch
 
-# Dockerfile builds require special options
 ifdef PKG_BUILD
-BAZEL_BUILD_OPTS += --local_resources 4096,2.0,1.0
 all: precheck install-bazel clean-bins $(CILIUM_ENVOY_RELEASE_BIN) shutdown-bazel
 else
 all: precheck install-bazel clean-bins envoy-default api shutdown-bazel
@@ -78,7 +76,7 @@ docker-image-builder: Dockerfile.builder clean
 
 docker-image-envoy: Dockerfile clean
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)" .
+	$(DOCKER) build --build-arg BAZEL_BUILD_OPTS=$(BAZEL_BUILD_OPTS) -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)" .
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)"
 
