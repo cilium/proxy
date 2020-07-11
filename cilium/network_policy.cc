@@ -172,32 +172,39 @@ protected:
 
   class L7NetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
   public:
-    L7NetworkPolicyRule(const cilium::L7NetworkPolicyRule& rule) {
+    L7NetworkPolicyRule(const cilium::L7NetworkPolicyRule& rule) : name_(rule.name()) {
       for (const auto& matcher: rule.metadata_rule()) {
 	ENVOY_LOG(debug, "Cilium L7NetworkPolicyRule() metadata_rule: {}", matcher.DebugString());
 	metadata_matchers_.emplace_back(matcher);
+	matchers_.emplace_back(matcher);
       }
     }
 
-    bool allowed(const envoy::config::core::v3::Metadata& metadata) const {
+    bool matches(const envoy::config::core::v3::Metadata& metadata) const {
       // All matchers must be satisfied for the rule to match
+      int i = 0;
       for (const auto& metadata_matcher: metadata_matchers_) {
+	ENVOY_LOG(trace, "L7NetworkPolicyRule::matches(): checking rule {} against metadata {}",
+		  matchers_[i].DebugString(), metadata.DebugString());
 	if (!metadata_matcher.match(metadata)) {
 	  return false;
 	}
       }
       return true;
     }
+    
+    std::string name_;
   private:
     std::vector<Envoy::Matchers::MetadataMatcher> metadata_matchers_;
+    std::vector<envoy::type::matcher::v3::MetadataMatcher> matchers_;
   };
 
   class PortNetworkPolicyRule : public PortPolicy, public Logger::Loggable<Logger::Id::config> {
   public:
     PortNetworkPolicyRule(const NetworkPolicyMap& parent, const cilium::PortNetworkPolicyRule& rule)
-      : l7_proto_(rule.l7_proto()) {
+      : name_(rule.name()), l7_proto_(rule.l7_proto()) {
       for (const auto& remote: rule.remote_policies()) {
-	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {}", remote);
+	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule {}", remote, name_);
 	allowed_remotes_.emplace(remote);
       }
       if (rule.has_downstream_tls_context()) {
@@ -219,10 +226,10 @@ protected:
 	    auto private_key = tls_certificate->mutable_private_key();
 	    private_key->set_inline_string(config.private_key());
 	  } else {
-	    throw EnvoyException("PortNetworkPolicyRule: TLS context has no private key");
+	    throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: TLS context has no private key in rule ", name_));
 	  }
 	} else {
-	  throw EnvoyException("PortNetworkPolicyRule: TLS context has no certificate chain");
+	  throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: TLS context has no certificate chain in rule ", name_));
 	}
 	for (int i=0; i < config.server_names_size(); i++) {
 	  server_names_.emplace_back(config.server_names(i));
@@ -241,7 +248,7 @@ protected:
 	  auto trusted_ca = validation_context->mutable_trusted_ca();
 	  trusted_ca->set_inline_string(config.trusted_ca());
 	} else {
-	  throw EnvoyException("PortNetworkPolicyRule: Upstream TLS context has no trusted CA: {}");
+	  throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: Upstream TLS context has no trusted CA in rule ", name_));
 	}
 	if (config.certificate_chain() != "") {
 	  auto tls_certificate = tls_context->add_tls_certificates();
@@ -254,7 +261,7 @@ protected:
 	}
 	if (config.server_names_size() > 0) {
 	  if (config.server_names_size() > 1) {
-	    throw EnvoyException("PortNetworkPolicyRule: Upstream TLS context has more than one server name");
+	    throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: Upstream TLS context has more than one server name in rule ", name_));
 	  }
 	  context_config.set_sni(config.server_names(1));
 	}
@@ -272,8 +279,12 @@ protected:
 	}
       }
       if (l7_proto_.length() > 0 && rule.has_l7_rules()) {
-	for (const auto& l7_rule: rule.l7_rules().l7_rules()) {
-	  l7_rules_.emplace_back(l7_rule);
+	const auto& ruleset = rule.l7_rules();
+	for (const auto& l7_rule: ruleset.l7_deny_rules()) {
+	  l7_deny_rules_.emplace_back(l7_rule);
+	}
+	for (const auto& l7_rule: ruleset.l7_allow_rules()) {
+	  l7_allow_rules_.emplace_back(l7_rule);
 	}
       }
     }
@@ -326,15 +337,24 @@ protected:
 
     // Envoy Metadata matcher
     bool allowed(const envoy::config::core::v3::Metadata& metadata) const override {
-      if (l7_rules_.size() > 0) {
-	for (const auto& rule: l7_rules_) {
-	  if (rule.allowed(metadata)) {
+      for (const auto& rule: l7_deny_rules_) {
+	if (rule.matches(metadata)) {
+	  ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules::allowed(): DENY due to a matching deny rule {}", rule.name_);
+	  return false; // request is denied if any deny rule matches
+	}
+      }
+      if (l7_allow_rules_.size() > 0) {
+	for (const auto& rule: l7_allow_rules_) {
+	  if (rule.matches(metadata)) {
+	    ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules::allowed(): ALLOW due to a matching allow rule {}", rule.name_);
 	    return true;
 	  }
 	}
+	ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules::allowed(): DENY due to all {} allow rules mismatching", l7_allow_rules_.size());
 	return false;
       }
-      return true;
+      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules::allowed(): default ALLOW due to no allow rules");
+      return true; // allowed by default
     }
 
     Ssl::ContextSharedPtr getServerTlsContext() const override { return server_context_; }
@@ -347,11 +367,13 @@ protected:
     Ssl::ClientContextConfigPtr client_config_;
     Ssl::ClientContextSharedPtr client_context_;
 
+    std::string name_;
     std::unordered_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
     std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
-    std::string l7_proto_{};
-    std::vector<L7NetworkPolicyRule> l7_rules_;
     bool have_header_matches_{false};
+    std::string l7_proto_{};
+    std::vector<L7NetworkPolicyRule> l7_allow_rules_;
+    std::vector<L7NetworkPolicyRule> l7_deny_rules_;
   };
   using PortNetworkPolicyRuleConstSharedPtr = std::shared_ptr<const PortNetworkPolicyRule>;
 

@@ -99,6 +99,9 @@ message TLSContext {
 // If all the predicates of a rule match a flow, the flow is matched by the
 // rule.
 message PortNetworkPolicyRule {
+  // Optional name for the rule, can be used in logging and error messages.
+  string name = 5;
+
   // The set of identifiers of policies of remote hosts.
   // A flow is matched by this predicate if the identifier of the policy
   // applied on the flow's remote host is contained in this set.
@@ -227,16 +230,27 @@ message KafkaNetworkPolicyRule {
 
 // A set of network policy rules that match generic L7 requests.
 message L7NetworkPolicyRules {
-  // The set of generic key-value pair policy rules.
-  // A request is matched if any of these rules matches the request.
-  // Required and may not be empty.
-  repeated L7NetworkPolicyRule l7_rules = 1 [(validate.rules).repeated.min_items = 1];
+  // The set of allowing l7 policy rules.
+  // A request is allowed if any of these rules matches the request,
+  // and the request does not match any of the deny rules.
+  // Optional. If missing or empty then all requests are allowed, unless
+  // denied by a deny rule.
+  repeated L7NetworkPolicyRule l7_allow_rules = 1;
+
+  // The set of denying l7 policy rules.
+  // A request is denied if any of these rules matches the request.
+  // A request that is not denied may be allowed by 'l7_allow_rules'.
+  // Optional.
+  repeated L7NetworkPolicyRule l7_deny_rules = 2;
 }
 
 // A generic L7 policy rule, as a conjunction of predicates on l7 requests.
 // If all the predicates of a rule match a request, the request is allowed. Otherwise, it is
 // denied.
 message L7NetworkPolicyRule {
+  // Optional rule name, can be used in logging and error messages.
+  string name = 3;
+
   // Generic rule for Go extensions.
   // Optional. If empty, matches any request. Not allowed if 'metadata_rule' is present.
   map<string, string> rule = 1;
