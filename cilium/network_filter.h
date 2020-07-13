@@ -8,6 +8,7 @@
 #include "common/buffer/buffer_impl.h"
 #include "common/common/logger.h"
 
+#include "cilium/accesslog.h"
 #include "cilium/api/network_filter.pb.h"
 #include "cilium/conntrack.h"
 #include "cilium/network_policy.h"
@@ -28,9 +29,14 @@ class Config : Logger::Loggable<Logger::Id::config> {
 public:
   Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext& context);
   Config(const Json::Object& config, Server::Configuration::FactoryContext& context);
-  virtual ~Config() {}
+  virtual ~Config();
+
+  void Log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
 
   Cilium::GoFilterSharedPtr proxylib_;
+  TimeSource& time_source_;
+private:
+  Cilium::AccessLog *access_log_;
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;
@@ -62,9 +68,11 @@ private:
   const ConfigSharedPtr config_;
   Network::ReadFilterCallbacks* callbacks_ = nullptr;
   Cilium::ProxyMapSharedPtr maps_{};
+  std::string l7proto_{};
   uint16_t proxy_port_ = 0;
   Cilium::GoFilter::InstancePtr go_parser_{};
   Cilium::PortPolicyConstSharedPtr port_policy_{};
+  Cilium::AccessLog::Entry log_entry_{};
 };
 
 } // namespace CiliumL3

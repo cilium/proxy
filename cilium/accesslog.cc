@@ -63,11 +63,83 @@ CONST_STRING_VIEW(methodSV, ":method");
 CONST_STRING_VIEW(authoritySV, ":authority");
 CONST_STRING_VIEW(xForwardedProtoSV, "x-forwarded-proto");
 
+void AccessLog::Entry::InitFromConnection(const std::string& policy_name, bool ingress, const Network::Connection& conn) {
+  entry_.set_policy_name(policy_name);
+
+  const auto& options_ = conn.socketOptions();
+  if (options_) {
+    const Cilium::SocketOption* option = nullptr;
+    for (const auto& option_: *options_) {
+      option = dynamic_cast<const Cilium::SocketOption*>(option_.get());
+      if (option) {
+	entry_.set_source_security_id(option->identity_);
+	entry_.set_destination_security_id(option->destination_identity_);
+	break;
+      }
+    }
+    if (!option) {
+      ENVOY_CONN_LOG(warn, "accesslog: Cilium Socket Option not found", conn);
+    }
+  }
+  auto source_address = conn.remoteAddress();
+  if (source_address != nullptr) {
+    entry_.set_source_address(source_address->asString());
+  }
+  auto destination_address = conn.localAddress();
+  if (destination_address != nullptr) {
+    entry_.set_destination_address(destination_address->asString());
+  }
+
+  entry_.set_is_ingress(ingress);
+}
+
+bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto, const ProtobufWkt::Struct& metadata, TimeSource& time_source) {
+  bool changed = false;
+
+  auto time = time_source.systemTime();
+  entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                          time.time_since_epoch())
+                          .count());
+
+  auto l7entry = entry_.mutable_generic_l7();
+  if (l7entry->proto() != l7proto) {
+    l7entry->set_proto(l7proto);
+    changed = true;
+  }
+  // remove non-existing fields, update existing values
+  auto* old_fields = l7entry->mutable_fields();
+  const auto& new_fields = metadata.fields();
+  for (const auto& pair: *old_fields) {
+    const auto it = new_fields.find(pair.first);
+    if (it == new_fields.cend()) {
+      old_fields->erase(pair.first);
+      changed = true;
+    } else {
+      auto new_value = MessageUtil::getJsonStringFromMessage(it->second, false, true);
+      if (new_value != pair.second) {
+	(*old_fields)[pair.first] = new_value;
+	changed = true;
+      }
+    }
+  }
+  // Insert new values
+  for (const auto& pair : new_fields) {
+    auto it = old_fields->find(pair.first);
+    if (it == old_fields->cend()) {
+      (*old_fields)[pair.first] = MessageUtil::getJsonStringFromMessage(pair.second, false, true);
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 void AccessLog::Entry::InitFromRequest(
-    std::string policy_name, bool ingress, const Network::Connection *conn,
+    const std::string& policy_name, bool ingress, const Network::Connection *conn,
     const Http::RequestHeaderMap& headers, const StreamInfo::StreamInfo &info) {
+  InitFromConnection(policy_name, ingress, *conn);
+
   auto time = info.startTime();
-  entry.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
+  entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
                           time.time_since_epoch())
                           .count());
 
@@ -84,43 +156,15 @@ void AccessLog::Entry::InitFromRequest(
     proto = ::cilium::HttpProtocol::HTTP2;
     break;
   }
-  ::cilium::HttpLogEntry* http_entry = entry.mutable_http();
+  ::cilium::HttpLogEntry* http_entry = entry_.mutable_http();
   http_entry->set_http_protocol(proto);
-
-  entry.set_policy_name(policy_name);
-
-  if (conn) {
-    const auto& options_ = conn->socketOptions();
-    if (options_) {
-      const Cilium::SocketOption* option = nullptr;
-      for (const auto& option_: *options_) {
-	option = dynamic_cast<const Cilium::SocketOption*>(option_.get());
-	if (option) {
-	  entry.set_source_security_id(option->identity_);
-	  entry.set_destination_security_id(option->destination_identity_);
-	  break;
-	}
-      }
-      if (!option) {
-	ENVOY_CONN_LOG(warn, "accesslog: Cilium Socket Option not found", *conn);
-      }
-    }
-    auto source_address = conn->remoteAddress();
-    if (source_address != nullptr) {
-      entry.set_source_address(source_address->asString());
-    }
-    auto destination_address = conn->localAddress();
-    if (destination_address != nullptr) {
-      entry.set_destination_address(destination_address->asString());
-    }
-  }
 
   // request headers
   headers.iterate(
-      [](const Http::HeaderEntry& header, void *entry_) -> Http::HeaderMap::Iterate {
+      [](const Http::HeaderEntry& header, void *entry__) -> Http::HeaderMap::Iterate {
         const absl::string_view key = header.key().getStringView();
         const absl::string_view value = header.value().getStringView();
-        auto entry = static_cast<::cilium::HttpLogEntry *>(entry_);
+        auto entry = static_cast<::cilium::HttpLogEntry *>(entry__);
 
         if (key == pathSV) {
           entry->set_path(value.data(), value.size());
@@ -142,18 +186,16 @@ void AccessLog::Entry::InitFromRequest(
         return Http::HeaderMap::Iterate::Continue;
       },
       http_entry);
-
-  entry.set_is_ingress(ingress);
 }
 
 void AccessLog::Entry::UpdateFromResponse(
     const Http::ResponseHeaderMap& headers, TimeSource& time_source) {
   auto time = time_source.systemTime();
-  entry.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
+  entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
                           time.time_since_epoch())
                           .count());
 
-  ::cilium::HttpLogEntry* http_entry = entry.mutable_http();
+  ::cilium::HttpLogEntry* http_entry = entry_.mutable_http();
   const Http::HeaderEntry *status_entry = headers.Status();
   if (status_entry) {
     uint64_t status;
@@ -163,9 +205,9 @@ void AccessLog::Entry::UpdateFromResponse(
   }
 }
 
-void AccessLog::Log(AccessLog::Entry &entry_,
+void AccessLog::Log(AccessLog::Entry &entry__,
                     ::cilium::EntryType entry_type) {
-  ::cilium::LogEntry &entry = entry_.entry;
+  ::cilium::LogEntry &entry = entry__.entry_;
 
   entry.set_entry_type(entry_type);
 

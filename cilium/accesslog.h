@@ -24,11 +24,14 @@ public:
   // wrapper for protobuf
   class Entry {
   public:
-    void InitFromRequest(std::string policy_name, bool ingress, const Network::Connection *,
-                         const Http::RequestHeaderMap&, const StreamInfo::StreamInfo &);
+    void InitFromRequest(const std::string& policy_name, bool ingress, const Network::Connection*,
+                         const Http::RequestHeaderMap&, const StreamInfo::StreamInfo&);
     void UpdateFromResponse(const Http::ResponseHeaderMap&, TimeSource&);
 
-    ::cilium::LogEntry entry{};
+    void InitFromConnection(const std::string& policy_name, bool ingress, const Network::Connection&);
+    bool UpdateFromMetadata(const std::string& l7proto, const ProtobufWkt::Struct& metadata, TimeSource& time_source);
+
+    ::cilium::LogEntry entry_{};
   };
   void Log(Entry &entry, ::cilium::EntryType);
 

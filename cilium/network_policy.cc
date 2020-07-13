@@ -101,21 +101,21 @@ protected:
 	    headers.remove(header_data.name_);
 	    break;
 	  }
-	  kv = log_entry.entry.mutable_http()->add_rejected_headers();
+	  kv = log_entry.entry_.mutable_http()->add_rejected_headers();
 	} else {
 	  // Mismatch action
 	  switch (header_data.mismatch_action_) {
 	  case cilium::HeaderMatch::FAIL_ON_MISMATCH:
 	  default:
-	    kv = log_entry.entry.mutable_http()->add_missing_headers();
+	    kv = log_entry.entry_.mutable_http()->add_missing_headers();
 	    accepted = false;
 	    break;
 	  case cilium::HeaderMatch::CONTINUE_ON_MISMATCH:
-	    kv = log_entry.entry.mutable_http()->add_missing_headers();
+	    kv = log_entry.entry_.mutable_http()->add_missing_headers();
 	    continue;
 	  case cilium::HeaderMatch::ADD_ON_MISMATCH:
 	    headers.addReferenceKey(header_data.name_, header_data.value_);
-	    kv = log_entry.entry.mutable_http()->add_missing_headers();
+	    kv = log_entry.entry_.mutable_http()->add_missing_headers();
 	    break;
 	  case cilium::HeaderMatch::DELETE_ON_MISMATCH:
 	    if (header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present) {
@@ -149,14 +149,14 @@ protected:
 	      }
 	      // Remove the header with an incorrect value
 	      headers.remove(header_data.name_);
-	      kv = log_entry.entry.mutable_http()->add_rejected_headers();
+	      kv = log_entry.entry_.mutable_http()->add_rejected_headers();
 	      kv->set_key(ctx.name_);
 	      kv->set_value(ctx.value_->getStringView().data(), ctx.value_->getStringView().size());
 	    }
 	    continue;
 	  case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
 	    headers.setReferenceKey(header_data.name_, header_data.value_);
-	    kv = log_entry.entry.mutable_http()->add_missing_headers();
+	    kv = log_entry.entry_.mutable_http()->add_missing_headers();
 	    break;
 	  }
 	}

@@ -51,7 +51,15 @@ static Registry::RegisterFactory<CiliumNetworkConfigFactory, NamedNetworkFilterC
 namespace Filter {
 namespace CiliumL3 {
 
-Config::Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext&) {
+Config::Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext& context)
+  : time_source_(context.timeSource()), access_log_(nullptr) {
+  const auto& access_log_path = config.access_log_path();
+  if (access_log_path.length()) {
+    access_log_ = Cilium::AccessLog::Open(access_log_path);
+    if (!access_log_) {
+      ENVOY_LOG(warn, "Cilium filter can not open access log socket {}", access_log_path);
+    }
+  }
   if (config.proxylib().length() > 0) {
     proxylib_ = std::make_shared<Cilium::GoFilter>(config.proxylib(), config.proxylib_params());
   }
@@ -59,7 +67,19 @@ Config::Config(const ::cilium::NetworkFilter& config, Server::Configuration::Fac
     throw EnvoyException(fmt::format("network: 'policy_name' and 'go_proto' are no longer supported: \'{}\'", config.DebugString()));
   }
 }
-  
+
+Config::~Config() {
+  if (access_log_) {
+    access_log_->Close();
+  }
+}
+
+void Config::Log(Cilium::AccessLog::Entry &entry, ::cilium::EntryType type) {
+  if (access_log_) {
+    access_log_->Log(entry, type);
+  }
+}
+
 Network::FilterStatus Instance::onNewConnection() {
   ENVOY_LOG(debug, "Cilium Network: onNewConnection");
   auto& conn = callbacks_->connection();
@@ -76,17 +96,21 @@ Network::FilterStatus Instance::onNewConnection() {
     }
 
     const std::string& policy_name = option->pod_ip_;
-    std::string l7proto;
     if (option->policy_) {
       port_policy_ = option->policy_->findPortPolicy(option->ingress_, option->port_,
 						     option->ingress_ ? option->identity_ : option->destination_identity_);
-      if (config_->proxylib_.get() != nullptr && port_policy_ != nullptr && port_policy_->useProxylib(l7proto)) {
-	go_parser_ = config_->proxylib_->NewInstance(conn, l7proto, option->ingress_, option->identity_,
-						     option->destination_identity_, conn.remoteAddress()->asString(),
-						     conn.localAddress()->asString(), policy_name);
-	if (go_parser_.get() == nullptr) {
-	  ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found", conn, l7proto);
-	  return Network::FilterStatus::StopIteration;
+      // populate l7proto_ if available
+      if (port_policy_ != nullptr && port_policy_->useProxylib(l7proto_)) {
+	if (config_->proxylib_.get() != nullptr) {
+	  go_parser_ = config_->proxylib_->NewInstance(conn, l7proto_, option->ingress_, option->identity_,
+						       option->destination_identity_, conn.remoteAddress()->asString(),
+						       conn.localAddress()->asString(), policy_name);
+	  if (go_parser_.get() == nullptr) {
+	    ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found", conn, l7proto_);
+	    return Network::FilterStatus::StopIteration;
+	  }
+	} else {
+	  log_entry_.InitFromConnection(policy_name, option->ingress_, conn);
 	}
       }
     }
@@ -122,12 +146,19 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     }
 
     go_parser_->SetOrigEndStream(end_stream);
-  }
+  } else if (port_policy_ != nullptr && !l7proto_.empty()) {
+    const auto& metadata = conn.streamInfo().dynamicMetadata();
+    bool changed = log_entry_.UpdateFromMetadata(l7proto_, metadata.filter_metadata().at(l7proto_), config_->time_source_);
 
-  if (port_policy_ != nullptr) {
-    if (!port_policy_->allowed(conn.streamInfo().dynamicMetadata())) {
+    if (!port_policy_->allowed(metadata)) {
       conn.close(Network::ConnectionCloseType::NoFlush);
+      config_->Log(log_entry_, ::cilium::EntryType::Denied);
       return Network::FilterStatus::StopIteration;
+    } else {
+      // accesslog only if metadata has changed
+      if (changed) {
+	config_->Log(log_entry_, ::cilium::EntryType::Request);
+      }
     }
   }
 

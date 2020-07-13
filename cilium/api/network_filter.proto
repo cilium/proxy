@@ -10,8 +10,11 @@ message NetworkFilter {
   map<string, string> proxylib_params = 2;
 
   // L7 protocol identifier
-  string l7_proto = 3;
+  string l7_proto = 3; // Deprecated
 
   // Name of the policy to be enforced
-  string policy_name = 4;
+  string policy_name = 4; // Deprecated
+
+  // Path to the unix domain socket for the cilium access log.
+  string access_log_path = 5;
 }
