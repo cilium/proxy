@@ -88,6 +88,7 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
   // Hard-coded Cilium gRPC cluster
   // Note: No rate-limit settings are used, consider if needed.
   envoy::config::core::v3::ApiConfigSource api_config_source{};
+  api_config_source.set_set_node_on_first_message_only(true);
   api_config_source.set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
   api_config_source.add_grpc_services()->mutable_envoy_grpc()->set_cluster_name("xds-grpc-cilium"); 
 
