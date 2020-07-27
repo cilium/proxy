@@ -44,6 +44,28 @@ message HttpLogEntry {
   repeated KeyValue rejected_headers = 9;
 }
 
+message KafkaLogEntry {
+  // correlation_id is a user-supplied integer value that will be passed
+  // back with the response
+  int32 correlation_id = 1;
+
+  // error_code is the Kafka error code being returned
+  // Ref. https://kafka.apache.org/protocol#protocol_error_codes
+  int32 error_code = 2;
+
+  // api_version of the Kafka api used
+  // Ref. https://kafka.apache.org/protocol#protocol_compatibility
+  int32 api_version = 3;
+
+  // api_key for Kafka message
+  // Reference: https://kafka.apache.org/protocol#protocol_api_keys
+  int32 api_key = 4;
+
+  // Topics of the request
+  // Optional, as not all messages have topics (ex. LeaveGroup, Heartbeat)
+  repeated string topics = 5;
+}
+
 message L7LogEntry {
   string proto = 1;
   map<string, string> fields = 2;
@@ -77,9 +99,9 @@ message LogEntry {
 
   oneof l7 {
     HttpLogEntry http = 100;
+    KafkaLogEntry kafka = 101;
     L7LogEntry generic_l7 = 102;
   }
-  reserved "kafka"; reserved 101;
 
   //
   // Deprecated HTTP fields. Use the http field above instead.
