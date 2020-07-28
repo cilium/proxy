@@ -207,25 +207,26 @@ message KafkaNetworkPolicyRules {
 // If all the predicates of a rule match a Kafka request, the request is allowed. Otherwise, it is
 // denied.
 message KafkaNetworkPolicyRule {
-  // The Kafka request's API key.
-  // If <0, all Kafka requests are matched by this predicate.
-  int32 api_key = 1;
-
   // The Kafka request's API version.
-  // If <0, all Kafka requests are matched by this predicate.
-  int32 api_version = 2;
+  // If < 0, all Kafka requests are matched by this predicate.
+  int32 api_version = 1;
 
-  // The Kafka request's topic.
-  // Optional. If not specified, all Kafka requests are matched by this predicate.
-  // If specified, this predicates only matches requests that contain this topic, and never
-  // matches requests that don't contain any topic.
-  string topic = 3 [(validate.rules).string = {max_len: 255, pattern: "^[a-zA-Z0-9._-]*$"}];
+  // Set of allowed API keys in the Kafka request.
+  // If none, all Kafka requests are matched by this predicate.
+  repeated int32 api_keys = 2;
 
   // The Kafka request's client ID.
   // Optional. If not specified, all Kafka requests are matched by this predicate.
   // If specified, this predicates only matches requests that contain this client ID, and never
   // matches requests that don't contain any client ID.
-  string client_id = 4 [(validate.rules).string.pattern = "^[a-zA-Z0-9._-]*$"];
+  string client_id = 3 [(validate.rules).string.pattern = "^[a-zA-Z0-9._-]*$"];
+
+  // The Kafka request's topic.
+  // Optional. If not specified, this rule will not consider the Kafka request's topics.
+  // If specified, this predicates only matches requests that contain this topic, and never
+  // matches requests that don't contain any topic. However, messages that can not contain
+  // a topic will also me matched.
+  string topic = 4 [(validate.rules).string = {max_len: 255, pattern: "^[a-zA-Z0-9._-]*$"}];
 }
 
 // A set of network policy rules that match generic L7 requests.

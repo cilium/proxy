@@ -811,9 +811,14 @@ func (m *KafkaNetworkPolicyRule) Validate() error {
 		return nil
 	}
 
-	// no validation rules for ApiKey
-
 	// no validation rules for ApiVersion
+
+	if !_KafkaNetworkPolicyRule_ClientId_Pattern.MatchString(m.GetClientId()) {
+		return KafkaNetworkPolicyRuleValidationError{
+			field:  "ClientId",
+			reason: "value does not match regex pattern \"^[a-zA-Z0-9._-]*$\"",
+		}
+	}
 
 	if utf8.RuneCountInString(m.GetTopic()) > 255 {
 		return KafkaNetworkPolicyRuleValidationError{
@@ -825,13 +830,6 @@ func (m *KafkaNetworkPolicyRule) Validate() error {
 	if !_KafkaNetworkPolicyRule_Topic_Pattern.MatchString(m.GetTopic()) {
 		return KafkaNetworkPolicyRuleValidationError{
 			field:  "Topic",
-			reason: "value does not match regex pattern \"^[a-zA-Z0-9._-]*$\"",
-		}
-	}
-
-	if !_KafkaNetworkPolicyRule_ClientId_Pattern.MatchString(m.GetClientId()) {
-		return KafkaNetworkPolicyRuleValidationError{
-			field:  "ClientId",
 			reason: "value does not match regex pattern \"^[a-zA-Z0-9._-]*$\"",
 		}
 	}
@@ -895,9 +893,9 @@ var _ interface {
 	ErrorName() string
 } = KafkaNetworkPolicyRuleValidationError{}
 
-var _KafkaNetworkPolicyRule_Topic_Pattern = regexp.MustCompile("^[a-zA-Z0-9._-]*$")
-
 var _KafkaNetworkPolicyRule_ClientId_Pattern = regexp.MustCompile("^[a-zA-Z0-9._-]*$")
+
+var _KafkaNetworkPolicyRule_Topic_Pattern = regexp.MustCompile("^[a-zA-Z0-9._-]*$")
 
 // Validate checks the field values on L7NetworkPolicyRules with the rules
 // defined in the proto definition for this message. If any rules are
