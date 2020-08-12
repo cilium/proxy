@@ -1,8 +1,8 @@
 # Release of upstream Istio this is based on
-ARG ISTIO_VERSION=1.5.7
+ARG ISTIO_VERSION=1.5.9
 
 # Version is the base image version from the TLD Makefile (cilium/istio/Makefile.core.mk)
-ARG BASE_VERSION=1.5-dev.6
+ARG BASE_VERSION=1.5-dev.8
 
 # Pre-built cilium-envoy image from updated Istio deps
 ARG CILIUM_ENVOY_SHA=4bb0fe642c89934b4746f198a9d0015223b458d1
@@ -50,7 +50,7 @@ RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
 # the "xds-grpc-cilium" cluster used by the Cilium filters to connect to Cilium
 # agent via a Unix domain socket.
 # This file is adapted from Istio's API v2 bootstrap:
-# $ wget https://raw.githubusercontent.com/istio/istio/1.5.7/tools/packaging/common/envoy_bootstrap_v2.json
+# $ wget https://raw.githubusercontent.com/istio/istio/1.5.9/tools/packaging/common/envoy_bootstrap_v2.json
 # $ patch -o envoy_bootstrap_tmpl.json < envoy_bootstrap_v2.patch
 COPY envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
 

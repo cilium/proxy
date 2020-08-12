@@ -9,16 +9,16 @@ workspace(name = "cilium")
 #
 ENVOY_PROJECT = "istio"
 ENVOY_REPO = "envoy"
-ENVOY_SHA = "f62504cb94e5af3069322f71cf8302eaffa9d05a"
-ENVOY_SHA256 = "b834b7625b49c38add22317ceec47e1d14d5fdd404897e97008004d65a066b09"
+ENVOY_SHA = "bc117b4449ab2b63f4631d712ae51328f39c931e"
+ENVOY_SHA256 = "688bcf6cc0ff404e419716312bde57a585a3fd15f50602585d2c8e17f30140b7"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 # Dependencies for Istio filters.
 # Cf. https://github.com/istio/proxy.
-# Version 1.5.7
-ISTIO_PROXY_SHA = "fb8723af8b0ffa67a3967f984bdb3a16b28ddd73"
-ISTIO_PROXY_SHA256 = "aac39db9f5afa3daa2e2ff3d58709aa18b4f8844e256125349172606bd4f510f"
+# Version 1.5.9
+ISTIO_PROXY_SHA = "5a93703db9baee125294bb50c9541a1a11d526b4"
+ISTIO_PROXY_SHA256 = "9fede9698dfc17f959a7461874215258b4338daa136dd7069e19ded99e65f178"
 
 http_archive(
     name = "istio_proxy",
