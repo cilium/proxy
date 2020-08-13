@@ -44,11 +44,33 @@ envoy_cc_library(
     ],
 )
 
+envoy_cc_library(
+    name = "istio_deps_lib",
+    repository = "@envoy",
+    visibility = ["//visibility:public"],
+    deps = [
+        # Cf. https://github.com/istio/proxy/blob/1.10.6/src/envoy/BUILD#L28-L39
+        "@istio_proxy//extensions/access_log_policy:access_log_policy_lib",
+        "@istio_proxy//extensions/attributegen:attributegen_plugin",
+        "@istio_proxy//extensions/metadata_exchange:metadata_exchange_lib",
+        "@istio_proxy//extensions/stackdriver:stackdriver_plugin",
+        "@istio_proxy//extensions/stats:stats_plugin",
+        "@istio_proxy//src/envoy/extensions/wasm:wasm_lib",
+        "@istio_proxy//src/envoy/http/alpn:config_lib",
+        "@istio_proxy//src/envoy/http/authn:filter_lib",
+        "@istio_proxy//src/envoy/tcp/forward_downstream_sni:config_lib",
+        "@istio_proxy//src/envoy/tcp/metadata_exchange:config_lib",
+        "@istio_proxy//src/envoy/tcp/sni_verifier:config_lib",
+        "@istio_proxy//src/envoy/tcp/tcp_cluster_rewrite:config_lib",
+    ],
+)
+
 envoy_cc_binary(
     name = "cilium-envoy-deps",
     repository = "@envoy",
     visibility = ["//visibility:public"],
     deps = [
+        ":istio_deps_lib",
         "@envoy//source/exe:envoy_main_entry_lib",
         ":envoy_deps_lib",
     ],
@@ -64,6 +86,8 @@ envoy_cc_binary(
         "//cilium:network_filter_lib",
         "//cilium:l7policy_lib",
         "//cilium:tls_wrapper_lib",
+
+        ":istio_deps_lib",
         "@envoy//source/exe:envoy_main_entry_lib",
     ],
 )
