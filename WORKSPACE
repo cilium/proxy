@@ -7,15 +7,47 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_PROJECT = "envoyproxy"
+ENVOY_PROJECT = "istio"
 
 ENVOY_REPO = "envoy"
 
-ENVOY_SHA = "e98e41a8e168af7acae8079fc0cd68155f699aa3"
+ENVOY_SHA = "81b7bb3eb044842e6caaf02a46d01a50a83743f4"
 
-ENVOY_SHA256 = "715273c8d21208e3cb8503aed82527e7027e4d7cc3ba24c5c3ea75f239ddf0a2"
+ENVOY_SHA256 = "759b1fbb62d61fddca13d468e7356b5633377ae1fe9c8559dc8639f3df68d126"
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
+
+# Dependencies for Istio filters.
+# Cf. https://github.com/istio/proxy.
+# Version 1.8.2
+ISTIO_PROXY_SHA = "dbb980e5e222c3fe3c4bb5a299a962ea2f44150e"
+ISTIO_PROXY_SHA256 = "5472f0bfb3a1d826e0ffc46d803a6943e67282a1d45ac94f808d9e0da069cf20"
+
+http_archive(
+    name = "istio_proxy",
+    url = "https://github.com/istio/proxy/archive/" + ISTIO_PROXY_SHA + ".tar.gz",
+    sha256 = ISTIO_PROXY_SHA256,
+    strip_prefix = "proxy-" + ISTIO_PROXY_SHA,
+    patches = [
+    ],
+    patch_args = ["-p1"],
+)
+
+load(
+    "@istio_proxy//bazel:repositories.bzl",
+    "docker_dependencies",
+    "googletest_repositories",
+    "istioapi_dependencies",
+)
+
+googletest_repositories()
+
+istioapi_dependencies()
+
+bind(
+    name = "boringssl_crypto",
+    actual = "//external:ssl",
+)
 
 http_archive(
     name = "envoy",
@@ -67,3 +99,65 @@ envoy_dependency_imports()
 register_toolchains(
     "//bazel/toolchains:gcc_aarch64_cross_toolchain",
 )
+
+# Bazel @rules_pkg
+
+http_archive(
+    name = "rules_pkg",
+    sha256 = "aeca78988341a2ee1ba097641056d168320ecc51372ef7ff8e64b139516a4937",
+    urls = [
+        "https://github.com/bazelbuild/rules_pkg/releases/download/0.2.6/rules_pkg-0.2.6.tar.gz",
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/0.2.6/rules_pkg-0.2.6.tar.gz",
+    ],
+)
+
+load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
+
+rules_pkg_dependencies()
+
+# Docker dependencies
+
+docker_dependencies()
+
+load(
+    "@io_bazel_rules_docker//repositories:repositories.bzl",
+    container_repositories = "repositories",
+)
+
+container_repositories()
+
+load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
+
+container_deps()
+
+load("@io_bazel_rules_docker//repositories:pip_repositories.bzl", "pip_deps")
+
+pip_deps()
+
+load(
+    "@io_bazel_rules_docker//container:container.bzl",
+    "container_pull",
+)
+
+container_pull(
+    name = "distroless_cc",
+    # Latest as of 10/21/2019. To update, remove this line, re-build, and copy the suggested digest.
+    digest = "sha256:86f16733f25964c40dcd34edf14339ddbb2287af2f7c9dfad88f0366723c00d7",
+    registry = "gcr.io",
+    repository = "distroless/cc",
+)
+
+container_pull(
+    name = "bionic",
+    # Latest as of 10/21/2019. To update, remove this line, re-build, and copy the suggested digest.
+    digest = "sha256:3e83eca7870ee14a03b8026660e71ba761e6919b6982fb920d10254688a363d4",
+    registry = "index.docker.io",
+    repository = "library/ubuntu",
+    tag = "bionic",
+)
+
+# End of docker dependencies
+
+load("@istio_proxy//bazel:wasm.bzl", "wasm_dependencies")
+
+wasm_dependencies()
