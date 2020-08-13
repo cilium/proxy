@@ -1,11 +1,11 @@
 # Release of upstream Istio this is based on
-ARG ISTIO_VERSION=1.X.Y
+ARG ISTIO_VERSION=1.10.3
 
 # Version is the base image version from the TLD Makefile (cilium/istio/Makefile.core.mk)
-ARG BASE_VERSION=1.5-dev.3
+ARG BASE_VERSION=1.10-dev.7
 
 # Pre-built cilium-envoy image from updated Istio deps
-ARG CILIUM_ENVOY_SHA=5fd04721d8db90e1d5f3ad1ac8ba4f6ac91e623a
+ARG CILIUM_ENVOY_SHA=<fill-in-after-build>
 
 FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 
@@ -42,16 +42,16 @@ USER 0:1337
 COPY --from=istio /etc/istio /etc/istio
 COPY --from=istio /var/lib/istio /var/lib/istio
 COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/pilot-agent
-COPY --from=istio /usr/local/bin/istio-iptables /usr/local/bin/istio-iptables
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
 RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
+RUN chgrp 1337 /usr/bin/curl && chmod 2755 /usr/bin/curl
 
-# Override the Envoy bootstrap to configure Envoy to use API v2 and to define
+# Override the Envoy bootstrap to configure Envoy to use API v3 and to define
 # the "xds-grpc-cilium" cluster used by the Cilium filters to connect to Cilium
 # agent via a Unix domain socket.
-# This file is adapted from Istio's API v2 bootstrap:
-# $ wget https://raw.githubusercontent.com/istio/istio/1.2.2/tools/packaging/common/envoy_bootstrap_v2.json
-# $ patch -o envoy_bootstrap_tmpl.json < envoy_bootstrap_v2.patch
+# This file is adapted from Istio's API v3 bootstrap:
+# $ wget https://raw.githubusercontent.com/istio/istio/1.10.3/tools/packaging/common/envoy_bootstrap.json
+# $ patch -o envoy_bootstrap_tmpl.json < envoy_bootstrap.patch
 COPY envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
 
 # TODO: /var/lib/istio/envoy/gcp_envoy_bootstrap_tmpl.json not yet adapted for Cilium
