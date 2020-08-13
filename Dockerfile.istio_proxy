@@ -1,11 +1,11 @@
 # Release of upstream Istio this is based on
-ARG ISTIO_VERSION=1.X.Y
+ARG ISTIO_VERSION=1.7.6
 
 # Version is the base image version from the TLD Makefile (cilium/istio/Makefile.core.mk)
-ARG BASE_VERSION=1.5-dev.3
+ARG BASE_VERSION=1.7-dev.10
 
 # Pre-built cilium-envoy image from updated Istio deps
-ARG CILIUM_ENVOY_SHA=5fd04721d8db90e1d5f3ad1ac8ba4f6ac91e623a
+ARG CILIUM_ENVOY_SHA=b46908a8ec8c1bafcb041deb37766f45028ee8be
 
 FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 
@@ -15,7 +15,21 @@ FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 FROM istio/proxyv2:${ISTIO_VERSION} as istio
 
 #
-# Please keep in sync with cilium/istio/pilot/docker/Dockerfile.proxyv2:
+# Updated pilot-agent
+#
+FROM gcr.io/istio-testing/build-tools:release-1.7-2020-11-25T22-57-38 as istio-builder
+ENV BUILD_WITH_CONTAINER 0
+ENV IN_BUILD_CONTAINER 0
+ENV TARGET_OS linux
+ENV TARGET_ARCH amd64
+ENV BUILD_ALL false
+ENV TARGET_OUT /work/out/linux_amd64
+ENV TARGET_OUT_LINUX /work/out/linux_amd64
+WORKDIR /work
+RUN git clone --depth 1 --branch inject-cilium-filters-1.7.6 --no-tags https://github.com/cilium/istio.git && cd istio && make build-linux
+
+#
+# Please keep the rest in sync with cilium/istio/pilot/docker/Dockerfile.proxyv2:
 #
 
 # The following section is used as base image if BASE_DISTRIBUTION=default
@@ -41,17 +55,17 @@ USER 0:1337
 
 COPY --from=istio /etc/istio /etc/istio
 COPY --from=istio /var/lib/istio /var/lib/istio
-COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/pilot-agent
-COPY --from=istio /usr/local/bin/istio-iptables /usr/local/bin/istio-iptables
+COPY --from=istio-builder /work/out/linux_amd64/pilot-agent /usr/local/bin/pilot-agent
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
 RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
+RUN chgrp 1337 /usr/bin/curl && chmod 2755 /usr/bin/curl
 
-# Override the Envoy bootstrap to configure Envoy to use API v2 and to define
+# Override the Envoy bootstrap to configure Envoy to use API v3 and to define
 # the "xds-grpc-cilium" cluster used by the Cilium filters to connect to Cilium
 # agent via a Unix domain socket.
-# This file is adapted from Istio's API v2 bootstrap:
-# $ wget https://raw.githubusercontent.com/istio/istio/1.2.2/tools/packaging/common/envoy_bootstrap_v2.json
-# $ patch -o envoy_bootstrap_tmpl.json < envoy_bootstrap_v2.patch
+# This file is adapted from Istio's API v3 bootstrap:
+# $ wget https://raw.githubusercontent.com/istio/istio/1.7.6/tools/packaging/common/envoy_bootstrap.json
+# $ patch -o envoy_bootstrap_tmpl.json < envoy_bootstrap.patch
 COPY envoy_bootstrap_tmpl.json /var/lib/istio/envoy/envoy_bootstrap_tmpl.json
 
 # TODO: /var/lib/istio/envoy/gcp_envoy_bootstrap_tmpl.json not yet adapted for Cilium

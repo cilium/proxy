@@ -37,7 +37,7 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
-// Bootstrap :ref:`configuration overview <config_overview_bootstrap>`.
+// Bootstrap :ref:`configuration overview <config_overview_v2_bootstrap>`.
 // [#next-free-field: 21]
 type Bootstrap struct {
 	state         protoimpl.MessageState
