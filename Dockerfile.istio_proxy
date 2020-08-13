@@ -5,7 +5,7 @@ ARG ISTIO_VERSION=1.6.8
 ARG BASE_VERSION=1.6-dev.6
 
 # Pre-built cilium-envoy image from updated Istio deps
-ARG CILIUM_ENVOY_SHA=b46908a8ec8c1bafcb041deb37766f45028ee8be
+ARG CILIUM_ENVOY_SHA=fef6a70be61fcc89d55e11ad6212424a14226a7c@sha256:ffce9d2b98df85fd4151a88195a84f6bd50292d8c44a0d677f45be0fb907f7f5
 
 FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 
@@ -42,7 +42,6 @@ USER 0:1337
 COPY --from=istio /etc/istio /etc/istio
 COPY --from=istio /var/lib/istio /var/lib/istio
 COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/pilot-agent
-COPY --from=istio /usr/local/bin/istio-iptables /usr/local/bin/istio-iptables
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
 RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
 
