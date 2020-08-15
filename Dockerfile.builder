@@ -1,3 +1,4 @@
+# syntax = docker/dockerfile:experimental
 #
 # Builder dependencies. This takes a long time to build from scratch!
 # Also note that if build fails due to C++ internal error or similar,
@@ -16,6 +17,8 @@ FROM quay.io/cilium/cilium-builder:2020-04-16@sha256:2bb6316f5edeaf917eaccdd8143
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /go/src/github.com/cilium/cilium/envoy
 COPY . ./
+ARG V
+ARG BAZEL_BUILD_OPTS
 
 #
 # Additional Envoy Build dependencies
@@ -51,7 +54,7 @@ RUN export BAZEL_VERSION=`cat .bazelversion` \
 #
 # Build and keep the cache
 #
-RUN make BAZEL_BUILD_OPTS="--jobs=4 --sandbox_debug --verbose_failures" PKG_BUILD=1 ./bazel-bin/cilium-envoy && rm ./bazel-bin/cilium-envoy
+RUN --mount=type=cache,target=/root/.cache/bazel BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS:---jobs=4} PKG_BUILD=1  V=$V DESTDIR=/tmp/install make ./bazel-bin/cilium-envoy && rm ./bazel-bin/cilium-envoy
 
 #
 # Absolutely nothing after making envoy deps!

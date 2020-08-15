@@ -35,7 +35,7 @@ BUILDIFIER ?= buildifier
 STRIP ?= $(QUIET) strip
 ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -d = -f2)
 
-DOCKER=$(QUIET)docker
+DOCKER=$(QUIET)DOCKER_BUILDKIT=1 docker
 
 BAZEL_BUILD_OPTS ?= --jobs=3
 
