@@ -65,23 +65,36 @@ shutdown-bazel:
 	$(BAZEL) shutdown
 endif
 
-SOURCE_VERSION =
+SOURCE_VERSION :=
 
 # Use git only if in a Git repo
 ifneq ($(wildcard $(dir $(lastword $(MAKEFILE_LIST)))/.git),)
-	SOURCE_VERSION = $(shell git rev-parse HEAD)
+	SOURCE_VERSION := $(shell git rev-parse HEAD)
 else
-	SOURCE_VERSION = $(shell cat SOURCE_VERSION)
+	SOURCE_VERSION := $(shell cat SOURCE_VERSION)
+endif
+
+DOCKER_IMAGE_TAG:=$(SOURCE_VERSION)
+DOCKER_ARCH_TAG:=$(DOCKER_IMAGE_TAG)$(IMAGE_ARCH)
+DOCKER_BUILD_OPTS ?=
+ifdef DOCKER_BUILDX
+DOCKER=$(QUIET)DOCKER_BUILDKIT=1 docker buildx
+DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
+ifneq ($(DOCKER_BUILDER),default)
+	DOCKER_BUILD_OPTS += --push --platform=linux/arm64,linux/amd64
+	DOCKER_ARCH_TAG:=$(SOURCE_VERSION)
+endif
+$(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
 endif
 
 docker-image-builder: Dockerfile.builder clean
-	$(DOCKER) build -f $< -t "quay.io/cilium/cilium-envoy-builder:$(SOURCE_VERSION)" .
+	$(DOCKER) build -f $< -t "quay.io/cilium/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
 
 docker-image-envoy: Dockerfile clean
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build --build-arg BAZEL_BUILD_OPTS=$(BAZEL_BUILD_OPTS) -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)-$(ARCH)" .
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t "quay.io/cilium/cilium-envoy:$(DOCKER_ARCH_TAG)" .
 	$(QUIET)echo "Push like this when ready:"
-	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)-$(ARCH)"
+	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(DOCKER_ARCH_TAG)"
 
 #Build multi-arch Envoy image builder
 docker-image-builder-multiarch: Dockerfile.builder$(DOCKERFILE_ARCH) clean
@@ -115,7 +128,6 @@ ifeq ($(ARCH),amd64)
 	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:latest"
 endif
 
-DOCKER_IMAGE_TAG=$(SOURCE_VERSION)
 #Push multi-arch support with fat-manifest:
 
 envoy-builder-manifest:
