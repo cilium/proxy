@@ -167,14 +167,27 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     dip = socket.localAddress()->ip();
   }
 
+  // Sidecars may get incorrect "ingress" config, override.
+  bool is_ingress = is_ingress_;
+  
   std::string pod_ip, other_ip;
-  if (is_ingress_) {
+  if (is_ingress) {
     pod_ip = dip->addressAsString();
     other_ip = sip->addressAsString();
-    ENVOY_LOG_MISC(debug, "INGRESS POD IP: {}, source IP: {}", pod_ip, other_ip);
   } else {
     pod_ip = sip->addressAsString();
     other_ip = dip->addressAsString();
+  }
+
+  if (npmap_->is_sidecar_ && npmap_->local_ip_str_ == other_ip) {
+    is_ingress = !is_ingress;
+    other_ip = pod_ip;
+    pod_ip = npmap_->local_ip_str_;
+  }
+
+  if (is_ingress) {
+    ENVOY_LOG_MISC(debug, "INGRESS POD IP: {}, source IP: {}", pod_ip, other_ip);
+  } else {
     ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {}", pod_ip, other_ip);
   }
 
@@ -182,7 +195,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   if (policy == nullptr) {
     ENVOY_LOG(warn,
 	      "cilium.bpf_metadata ({}): No policy found for {}",
-	      is_ingress_ ? "ingress" : "egress", pod_ip);
+	      is_ingress ? "ingress" : "egress", pod_ip);
     return false;
   }
 
@@ -192,7 +205,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       // Cilium >= 1.6 provides the conntrack name in the policy
       auto ct_name = policy->conntrackName();
       if (ct_name.length() > 0) {
-	source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
+	source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress);
       }
     }
     if (source_identity == 0) {
@@ -209,13 +222,13 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 	source_identity = Cilium::ID::WORLD;
 	ENVOY_LOG(trace,
 		  "cilium.bpf_metadata ({}): Source identity defaults to WORLD",
-		  is_ingress_ ? "ingress" : "egress");
+		  is_ingress ? "ingress" : "egress");
       }
     }
   }
 
   // Resolve the destination security ID for egress
-  if (!is_ingress_) {
+  if (!is_ingress) {
     if (ipcache_ != nullptr) {
       destination_identity = ipcache_->resolve(dip);
     } else if (hosts_ != nullptr) {
@@ -240,7 +253,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Add metadata for policy based listener filter chain matching.
   // This requires the TLS inspector to be run before us.
   std::string l7proto;
-  if (policy->useProxylib(is_ingress_, orig_dport, is_ingress_ ? source_identity : destination_identity, l7proto)) {
+  if (policy->useProxylib(is_ingress, orig_dport, is_ingress ? source_identity : destination_identity, l7proto)) {
     const auto& old_protocols = socket.requestedApplicationProtocols();
     std::vector<absl::string_view> protocols;
     for (const auto& old_protocol : old_protocols) {
@@ -254,7 +267,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Pass the metadata to an Envoy socket option we can retrieve
   // later in other Cilium filters.
   socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, source_identity, destination_identity,
-      is_ingress_, orig_dport, proxy_port, std::move(pod_ip), src_address));
+      is_ingress, orig_dport, proxy_port, std::move(pod_ip), src_address));
   return true;
 }
 
