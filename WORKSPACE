@@ -22,6 +22,7 @@ http_archive(
     patches = [
         "@//patches:original-dst-add-sni.patch",
         "@//patches:test-enable-half-close.patch",
+        "@//patches:cross-aarch64.patch",
     ],
     patch_args = ["-p1"],
 )
@@ -46,3 +47,7 @@ envoy_dependencies()
 
 load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
 envoy_dependency_imports()
+
+register_toolchains(
+    "//bazel/toolchains:gcc_aarch64_cross_toolchain",
+)
