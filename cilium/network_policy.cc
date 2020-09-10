@@ -124,16 +124,16 @@ protected:
 	    }
 	    {
 	      // otherwise need to find out if the header existed or not
-	      const Envoy::Http::HeaderEntry* entry;
-	      auto res = headers.lookup(header_data.name_, &entry);
+	      // const Envoy::Http::HeaderEntry* entry;
+	      auto entry = headers.getExisting(header_data.name_, &entry);
 	      struct Ctx {
 		const std::string& name_;
 		const Envoy::Http::HeaderString* value_;
 	      } ctx = {
 		header_data.name_.get(),
-		res == Envoy::Http::RequestHeaderMap::Lookup::Found ? &entry->value() : nullptr
+		entry != nullptr ? &entry->value() : nullptr
 	      };
-	      if (res == Envoy::Http::RequestHeaderMap::Lookup::NotSupported) {
+	      if (entry == nullptr) {
 		// non-supported header, find by iteration
 		headers.iterate([](const Envoy::Http::HeaderEntry& entry, void* ctx_) {
 				  auto* ctx = static_cast<Ctx*>(ctx_);
@@ -518,8 +518,10 @@ struct ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject {
 // Common base constructor
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
-  : tls_(context.threadLocal().allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
-    transport_socket_factory_context_(context.getTransportSocketFactoryContext()) {
+	: Envoy::Config::SubscriptionBase<cilium::L7Policy>(
+		envoy::config::core::v3::ApiVersion::V3, validation_visitor_, "name"),
+	  tls_(context.threadLocal().allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
+	  transport_socket_factory_context_(context.getTransportSocketFactoryContext()) {
   instance_id_++;
   name_ = "cilium.policymap." + fmt::format("{}", instance_id_) + ".";
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);  
@@ -535,7 +537,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   ctmap_ = ct;
   scope_ = context.scope().createScope(name_);
   subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy",
-			    context.localInfo(), context.clusterManager(), context.dispatcher(), context.random(), *scope_, *this);
+			    context.localInfo(), context.clusterManager(), context.dispatcher(), context.random(), resource_decoder_, *scope_, *this);
 }
 
 static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{nullptr};
@@ -585,7 +587,7 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
     keeps.insert(config.name());
     ct_maps_to_keep.insert(config.conntrack_map_name());
 
-    MessageUtil::validate(config, validation_visitor_);
+    // MessageUtil::validate(config, validation_visitor_);
 
     // First find the old config to figure out if an update is needed.
     const uint64_t new_hash = MessageUtil::hash(config);

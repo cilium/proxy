@@ -7,6 +7,7 @@
 #include "envoy/event/dispatcher.h"
 
 #include "common/common/logger.h"
+#include "common/config/subscription_base.h"
 #include "common/network/utility.h"
 #include "common/protobuf/message_validator_impl.h"
 #include "envoy/config/subscription.h"
@@ -14,6 +15,7 @@
 #include "envoy/thread_local/thread_local.h"
 
 #include "cilium/api/nphds.pb.h"
+#include "cilium/bpf_metadata.h"
 
 #include "absl/numeric/int128.h"
 
@@ -46,8 +48,10 @@ template <typename I> I masked(I addr, unsigned int plen) {
 enum ID : uint64_t { UNKNOWN = 0, WORLD = 2 };
 
 class PolicyHostMap : public Singleton::Instance,
-                      public Config::SubscriptionCallbacks,
+                      // public Config::SubscriptionCallbacks,
                       public std::enable_shared_from_this<PolicyHostMap>,
+		      // protected Envoy::Config::SubscriptionBase<cilium::NetworkPolicyHosts>,
+		      protected Envoy::Config::SubscriptionBase<cilium::BpfMetadata>,
                       public Logger::Loggable<Logger::Id::config> {
 public:
   PolicyHostMap(const LocalInfo::LocalInfo& local_info,
@@ -166,8 +170,8 @@ public:
   }
 
   // Config::SubscriptionCallbacks
-  void onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) override;
-  void onConfigUpdate(const Protobuf::RepeatedPtrField<envoy::service::discovery::v3::Resource>& added_resources,
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources, const std::string& version_info) override;
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
 		      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
 		      const std::string& system_version_info) override {
     // NOT IMPLEMENTED YET.
@@ -176,9 +180,6 @@ public:
     UNREFERENCED_PARAMETER(system_version_info);
   }
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason, const EnvoyException* e) override;
-  std::string resourceName(const ProtobufWkt::Any& resource) override {
-    return fmt::format("{}", MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource).policy());
-  }
 
 private:
   ThreadLocal::SlotPtr tls_;

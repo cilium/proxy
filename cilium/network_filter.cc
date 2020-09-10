@@ -8,9 +8,9 @@
 #include "common/common/assert.h"
 #include "common/common/fmt.h"
 
-#include "cilium/api/network_filter.pb.validate.h"
 #include "cilium/network_filter.h"
 #include "cilium/socket_option.h"
+#include "cilium/api/network_filter.pb.validate.h"
 
 namespace Envoy {
 namespace Server {

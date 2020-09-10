@@ -3,6 +3,7 @@ syntax = "proto3";
 package cilium;
 
 import "google/protobuf/wrappers.proto";
+import "validate/validate.proto";
 
 message L7Policy {
   // Path to the unix domain socket for the cilium access log.

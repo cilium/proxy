@@ -17,7 +17,7 @@ envoy_cc_binary(
         # Cilium filters.
         "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
-        "//cilium:l7policy_lib",
+        "//cilium:network_policy_lib",
         "//cilium:tls_wrapper_lib",
 
         "@envoy//source/exe:envoy_main_entry_lib",
@@ -36,7 +36,7 @@ envoy_cc_test(
     deps = [
         "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
-        "//cilium:l7policy_lib",
+        "//cilium:network_policy_lib",
         "//cilium:tls_wrapper_lib",
         "@envoy//test/integration:http_integration_lib",
         #"@envoy//source/extensions/transport_sockets/tls:context_config_lib",

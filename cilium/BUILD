@@ -28,9 +28,11 @@ envoy_cc_library(
 envoy_cc_library(
     name = "network_policy_lib",
     srcs = [
+        "l7policy.cc",
 	"network_policy.cc",
     ],	    	
     hdrs = [
+        "l7policy.h",
         "network_policy.h",
     ],
     repository = "@envoy",
@@ -42,6 +44,7 @@ envoy_cc_library(
         "@envoy//include/envoy/config:subscription_interface",
         "@envoy//include/envoy/singleton:manager_interface",
         "@envoy//source/common/router:config_utility_lib",
+        "//cilium/api:l7policy_cc_proto",
         "//cilium/api:npds_cc_proto",
         "//cilium:accesslog_lib",
 	"//cilium:conntrack_lib",
@@ -79,24 +82,24 @@ envoy_cc_library(
     ],
 )
 
-envoy_cc_library(
-    name = "l7policy_lib",
-    visibility = ["//visibility:public"],
-    srcs = [
-        "l7policy.cc",
-    ],
-    hdrs = [
-        "l7policy.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        "@envoy//include/envoy/config:subscription_interface",
-        "//cilium/api:l7policy_cc_proto",
-        "//cilium:accesslog_lib",
-        "//cilium:network_policy_lib",
-        "//cilium:socket_option_lib",
-    ],
-)
+# envoy_cc_library(
+#     name = "l7policy_lib",
+#     visibility = ["//visibility:public"],
+#     srcs = [
+#         "l7policy.cc",
+#     ],
+#     hdrs = [
+#         "l7policy.h",
+#     ],
+#     repository = "@envoy",
+#     deps = [
+#         "@envoy//include/envoy/config:subscription_interface",
+#         "//cilium/api:l7policy_cc_proto",
+#         "//cilium:accesslog_lib",
+#         "//cilium:network_policy_lib",
+#         "//cilium:socket_option_lib",
+#     ],
+# )
 
 envoy_cc_library(
     name = "accesslog_lib",

@@ -5,6 +5,7 @@
 #include "envoy/event/dispatcher.h"
 
 #include "common/common/logger.h"
+#include "common/config/subscription_base.h"
 #include "common/http/header_utility.h"
 #include "common/protobuf/message_validator_impl.h"
 #include "envoy/config/subscription.h"
@@ -20,6 +21,7 @@
 #include "cilium/api/npds.pb.h"
 #include "cilium/accesslog.h"
 #include "cilium/conntrack.h"
+#include "cilium/l7policy.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -59,8 +61,10 @@ public:
 class PolicyInstanceImpl;
 
 class NetworkPolicyMap : public Singleton::Instance,
-                         public Envoy::Config::SubscriptionCallbacks,
+                         // public Envoy::Config::SubscriptionCallbacks,
                          public std::enable_shared_from_this<NetworkPolicyMap>,
+			 // protected Envoy::Config::SubscriptionBase<cilium::NetworkPolicy>,
+			 protected Envoy::Config::SubscriptionBase<cilium::L7Policy>,
                          public Logger::Loggable<Logger::Id::config> {
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context);
@@ -88,9 +92,9 @@ public:
   }
 
   // Config::SubscriptionCallbacks
-  void onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources,
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
 		      const std::string& version_info) override;
-  void onConfigUpdate(const Protobuf::RepeatedPtrField<envoy::service::discovery::v3::Resource>& added_resources,
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
 		      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
 		      const std::string& system_version_info) override {
     // NOT IMPLEMENTED YET.
@@ -99,9 +103,6 @@ public:
     UNREFERENCED_PARAMETER(system_version_info);
   }
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason, const EnvoyException* e) override;
-  std::string resourceName(const ProtobufWkt::Any& resource) override {
-    return MessageUtil::anyConvert<cilium::NetworkPolicy>(resource).name();
-  }
 
 private:
   const std::shared_ptr<const PolicyInstanceImpl>& GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;

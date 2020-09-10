@@ -6,12 +6,12 @@
 
 #include "common/common/logger.h"
 
-#include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/conntrack.h"
 #include "cilium/host_map.h"
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
 #include "cilium/proxymap.h"
+#include "cilium/api/bpf_metadata.pb.h"
 
 namespace Envoy {
 namespace Filter {
