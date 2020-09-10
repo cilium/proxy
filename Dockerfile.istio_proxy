@@ -5,7 +5,7 @@ ARG ISTIO_VERSION=1.6.8
 ARG BASE_VERSION=1.6-dev.6
 
 # Pre-built cilium-envoy image from updated Istio deps
-ARG CILIUM_ENVOY_SHA=611268241ef1422389dd4fd13ce854e09cc73f7e@sha256:2a70dcb46b29d92e185f18185c98076ef9d3c9b3fb28ca2b57071f7ffc0b7bbf
+ARG CILIUM_ENVOY_SHA=e293006cefeaae9c100c83a74b337c9cee913efc@sha256:a41d7f525ec71a973c197b22edcda639ca51d8b1bd884829a9989751b7106d29
 
 FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 
@@ -13,6 +13,21 @@ FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 # Pre-built Istio image (non-TPROXY)
 #
 FROM istio/proxyv2:${ISTIO_VERSION} as istio
+
+#
+# Updated pilot-agent
+#
+FROM gcr.io/istio-testing/build-tools:release-1.6-2020-05-08T22-06-04 as istio-builder
+ENV BUILD_WITH_CONTAINER 0
+ENV IN_BUILD_CONTAINER 0
+ENV TARGET_OS linux
+ENV TARGET_ARCH amd64
+ENV BUILD_ALL false
+ENV TARGET_OUT /work/out/linux_amd64
+ENV TARGET_OUT_LINUX /work/out/linux_amd64
+USER 0:1337
+WORKDIR /work
+RUN git clone https://github.com/cilium/istio.git && cd istio/./. && git checkout inject-cilium-filters-1.6.8 && make build-linux
 
 #
 # Please keep in sync with cilium/istio/pilot/docker/Dockerfile.proxyv2:
@@ -41,7 +56,7 @@ USER 0:1337
 
 COPY --from=istio /etc/istio /etc/istio
 COPY --from=istio /var/lib/istio /var/lib/istio
-COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/pilot-agent
+COPY --from=istio-builder /work/out/linux_amd64/pilot-agent /usr/local/bin/pilot-agent
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
 RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
 
