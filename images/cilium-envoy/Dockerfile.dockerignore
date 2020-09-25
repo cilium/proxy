@@ -16,3 +16,4 @@
 !/proxylib/
 !/tools/
 !/.git/
+!/images/cilium-envoy/empty

@@ -1,0 +1,266 @@
+name: Images
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - master
+      - v[0-9]+.[0-9]+
+      - multi-platform-image
+    tags:
+      - v[0-9]+.[0-9]+.[0-9]+
+      - v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+
+
+jobs:
+  lint:
+    if: github.repository == 'cilium/proxy'
+    name: Lint image build logic
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v1
+      - uses: docker://docker.io/cilium/image-maker:bc81755ec8f6c5afcb10a416cef73f99a35fee2c
+        name: Run make lint
+        with:
+          entrypoint: make
+          args: -C images lint
+  build-and-push:
+    timeout-minutes: 360
+    if: (github.repository == 'cilium/proxy' && github.event_name != 'pull_request')
+    name: Build and push all images
+    runs-on: ubuntu-18.04
+    needs: lint
+    steps:
+      - name: Reclaim disk space for Bazel
+        run: |
+          set -x
+
+          df -h
+          # sudo du -h -d 1 / || true
+          # sudo du -h -d 1 /usr || true
+          # sudo du -h -d 1 /usr/lib || true
+          # sudo du -h -d 1 /usr/bin || true
+          # sudo du -h -d 1 /usr/share || true
+          # sudo du -h -d 1 /opt || true
+
+          dpkg -l
+
+          dpkg -l | grep '^ii' | awk '{ print $2 }' > /tmp/packages
+
+          remove_packages=(
+            ant
+            aria2
+            azure-cli
+            brotli
+            btrfs-progs
+            btrfs-tools
+            build-essential
+            buildah
+            byobu
+            ca-certificates-java
+            cifs-utils
+            crda
+            dosfstools
+            eject
+            esl-erlang
+            ftp
+            geoip-database
+            google-chrome-stable
+            google-cloud-sdk
+            heroku
+            iw
+            java-common
+            kubectl
+            libc++-dev
+            libc-dev
+            logrotate
+            lshw
+            lsof
+            ltrace
+            lvm2
+            lxcfs
+            lxd
+            lynx
+            mercurial
+            mssql-tools
+            netplan.io
+            nplan
+            ntfs-3g
+            nuget
+            open-iscsi
+            open-vm-tools
+            p7zip
+            packages-microsoft-prod
+            parallel
+            parted
+            pastebinit
+            patchelf
+            patchelf
+            pciutils
+            podman
+            podman-plugins
+            popularity-contest
+            powershell
+            publicsuffix
+            rpm
+            rpm-common
+            rpm2cpio
+            rsync
+            samba-common
+            samba-common-bin
+            sbt
+            shellcheck
+            skopeo
+            slirp4netns
+            snapd
+            squashfs-tools
+            strace
+            subversion
+            tcpdump
+            tex-common
+            texinfo
+            tmux
+            usbutils
+            varlink
+            wireless-regdb
+            xfsprogs
+            xorriso
+            xtrans-dev
+            xvfb
+            yarn
+            zstd
+            zsync
+          )
+
+          remove_matching=(
+            '^adoptopenjdk-'
+            '^aspnetcore'
+            '^cabal-'
+            '^clang'
+            '^cpp'
+            '^dotnet'
+            '^emacs'
+            '^firebird'
+            '^firefox'
+            '^g++'
+            '^gcc'
+            '^gfortran'
+            '^ghc'
+            '^imagemagick'
+            '^libmono'
+            '^lld'
+            '^llvm'
+            '^mongodb'
+            '^mysql'
+            '^php'
+            '^postgresql'
+            '^r-'
+            '^ruby-'
+            '^tcl'
+            '^tk'
+            '^vim'
+            '^zulu-'
+          )
+
+          sudo apt-get remove --quiet --yes "${remove_packages[@]}" || echo "ERROR: failed to remove packages: ${remove_packages[@]}"
+
+          for i in "${remove_matching[@]}" ; do
+          grep "${i}" /tmp/packages | xargs sudo apt-get remove --quiet --yes || echo "ERROR: failed to remove packages matching: ${i}"
+          done
+
+
+          dpkg -l | grep "^rc" | awk '{print $2}' | xargs sudo dpkg --purge || true
+
+          sudo apt-get clean
+          sudo apt-get autoremove
+
+          # print remaining packages for inspection
+          dpkg -l
+
+          remove_dirs=(
+            /opt/AGPM
+            /opt/az
+            /opt/cabal
+            /opt/ghc
+            /opt/google
+            /opt/hhvm
+            /opt/hostedtoolcache
+            /opt/microsoft
+            /opt/mssql-tools
+            /usr/local
+            /usr/share/az_*
+            /usr/share/dotnet
+            /usr/share/rust
+            /usr/share/swift
+          )
+
+          sudo rm -rf "${remove_dirs[@]}"
+
+          df -h /
+
+          docker container prune -f
+
+          docker volume prune -f
+          docker system prune -f
+
+          # print all images for inspection
+          docker image ls
+
+          for i in ubuntu:14.04 node:12-alpine node:10 node:10-alpine node:12 node:12-alpine buildpack-deps:stretch buildpack-deps:buster debian:8 debian:9 jekyll/builder:latest ; do
+            docker image rm -f "${i}" || true
+          done
+
+          docker image prune -f
+
+          df -h /
+          # sudo du -h -d 1 / || true
+          # sudo du -h -d 1 /usr || true
+          # sudo du -h -d 1 /usr/lib || true
+          # sudo du -h -d 1 /usr/bin || true
+          # sudo du -h -d 1 /usr/share || true
+          # sudo du -h -d 1 /opt || true
+
+      - name: Add swap
+        run: |
+          set -x
+
+          file="/var/lib/swap"
+
+          sudo fallocate -l 10G "${file}"
+          sudo chmod 600 "${file}"
+          sudo mkswap "${file}"
+          sudo swapon "${file}"
+
+          sudo swapon -s
+          free -m
+          df -h
+
+      - uses: actions/checkout@v1
+      - uses: docker://docker.io/cilium/image-maker:bc81755ec8f6c5afcb10a416cef73f99a35fee2c
+        name: Register binfmt from multi-platform builds
+        with:
+          entrypoint: docker
+          args: run --privileged linuxkit/binfmt:5d33e7346e79f9c13a73c6952669e47a53b063d4
+      - uses: docker://docker.io/cilium/image-maker:bc81755ec8f6c5afcb10a416cef73f99a35fee2c
+        name: Run make lint
+        with:
+          entrypoint: make
+          args: -C images lint
+      - uses: docker://docker.io/cilium/image-maker:bc81755ec8f6c5afcb10a416cef73f99a35fee2c
+        name: Run make cilium-envoy-image
+        env:
+          DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+          DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+          QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+          QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          PRUNE_DISK_CACHE: "true"
+        with:
+          entrypoint: make
+          args: -C images cilium-envoy-image PUSH=true
+      - name: Post-mortem
+        if: ${{ failure() }}
+        run: |
+          set -x
+          df -h
+          free -m
+          dmesg
+
