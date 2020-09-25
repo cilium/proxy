@@ -30,3 +30,4 @@ external
 
 # Clang config is platform-specific
 clang.bazelrc
+images/.buildx_builder
