@@ -1,0 +1,35 @@
+From 6375f2ab49400f3f9f0a92740f514a017ffec3b0 Mon Sep 17 00:00:00 2001
+From: Piotr Sikora <piotrsikora@google.com>
+Date: Mon, 20 Jul 2020 02:17:12 -0700
+Subject: [PATCH 1/4] docs: kick-off 1.14.5 release. (#12165)
+
+Signed-off-by: Piotr Sikora <piotrsikora@google.com>
+---
+ VERSION                             | 2 +-
+ docs/root/intro/version_history.rst | 3 +++
+ 2 files changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/VERSION b/VERSION
+index 4e00d0ac0..8479ca743 100644
+--- a/VERSION
++++ b/VERSION
+@@ -1 +1 @@
+-1.14.4
++1.14.5-dev
+diff --git a/docs/root/intro/version_history.rst b/docs/root/intro/version_history.rst
+index f5e79c547..981a95e51 100644
+--- a/docs/root/intro/version_history.rst
++++ b/docs/root/intro/version_history.rst
+@@ -1,6 +1,9 @@
+ Version history
+ ---------------
+ 
++1.14.5 (Pending)
++================
++
+ 1.14.4 (July 7, 2020)
+ =====================
+ * tls: fixed a bug where wilcard matching for "\*.foo.com" also matched domains of the form "a.b.foo.com". This behavior can be temporarily reverted by setting runtime feature `envoy.reloadable_features.fix_wildcard_matching` to false.
+-- 
+2.28.0.526.ge36021eeef-goog
+

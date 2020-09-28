@@ -1,0 +1,309 @@
+From c423b043d4b1662a23c5a5db9471b9ec29a10f26 Mon Sep 17 00:00:00 2001
+From: Piotr Sikora <piotrsikora@google.com>
+Date: Mon, 20 Jul 2020 13:37:21 -0700
+Subject: [PATCH 2/4] tls: update BoringSSL-FIPS to 20190808. (#12169)
+
+Signed-off-by: Piotr Sikora <piotrsikora@google.com>
+---
+ api/envoy/api/v2/auth/cert.proto              |   4 +--
+ .../transport_sockets/tls/v3/cert.proto       |   4 +--
+ .../transport_sockets/tls/v4alpha/cert.proto  |   4 +--
+ bazel/external/boringssl_fips.genrule_cmd     |  31 +++++++++---------
+ bazel/external/boringssl_fips.patch           |  18 ++++++++++
+ bazel/repositories.bzl                        |   1 +
+ bazel/repository_locations.bzl                |   6 ++--
+ .../root/intro/arch_overview/security/ssl.rst |   6 ++--
+ .../envoy/api/v2/auth/cert.proto              | Bin 20686 -> 20597 bytes
+ .../transport_sockets/tls/v3/cert.proto       | Bin 22219 -> 22130 bytes
+ .../transport_sockets/tls/v4alpha/cert.proto  | Bin 22587 -> 22498 bytes
+ .../tls/context_config_impl.cc                |   7 +---
+ .../transport_sockets/tls/ssl_socket_test.cc  |  10 +-----
+ 13 files changed, 49 insertions(+), 42 deletions(-)
+ create mode 100644 bazel/external/boringssl_fips.patch
+
+diff --git a/api/envoy/api/v2/auth/cert.proto b/api/envoy/api/v2/auth/cert.proto
+index a1642318e..a4820b18f 100644
+--- a/api/envoy/api/v2/auth/cert.proto
++++ b/api/envoy/api/v2/auth/cert.proto
+@@ -47,8 +47,8 @@ message TlsParameters {
+   // servers.
+   TlsProtocol tls_minimum_protocol_version = 1 [(validate.rules).enum = {defined_only: true}];
+ 
+-  // Maximum TLS protocol version. By default, it's ``TLSv1_3`` for servers in non-FIPS builds, and
+-  // ``TLSv1_2`` for clients and for servers using :ref:`BoringSSL FIPS <arch_overview_ssl_fips>`.
++  // Maximum TLS protocol version. By default, it's ``TLSv1_2`` for clients and ``TLSv1_3`` for
++  // servers.
+   TlsProtocol tls_maximum_protocol_version = 2 [(validate.rules).enum = {defined_only: true}];
+ 
+   // If specified, the TLS listener will only support the specified `cipher list
+diff --git a/api/envoy/extensions/transport_sockets/tls/v3/cert.proto b/api/envoy/extensions/transport_sockets/tls/v3/cert.proto
+index ea4bc1475..c1370f1fa 100644
+--- a/api/envoy/extensions/transport_sockets/tls/v3/cert.proto
++++ b/api/envoy/extensions/transport_sockets/tls/v3/cert.proto
+@@ -47,8 +47,8 @@ message TlsParameters {
+   // servers.
+   TlsProtocol tls_minimum_protocol_version = 1 [(validate.rules).enum = {defined_only: true}];
+ 
+-  // Maximum TLS protocol version. By default, it's ``TLSv1_3`` for servers in non-FIPS builds, and
+-  // ``TLSv1_2`` for clients and for servers using :ref:`BoringSSL FIPS <arch_overview_ssl_fips>`.
++  // Maximum TLS protocol version. By default, it's ``TLSv1_2`` for clients and ``TLSv1_3`` for
++  // servers.
+   TlsProtocol tls_maximum_protocol_version = 2 [(validate.rules).enum = {defined_only: true}];
+ 
+   // If specified, the TLS listener will only support the specified `cipher list
+diff --git a/api/envoy/extensions/transport_sockets/tls/v4alpha/cert.proto b/api/envoy/extensions/transport_sockets/tls/v4alpha/cert.proto
+index febb6d665..9c4fc0216 100644
+--- a/api/envoy/extensions/transport_sockets/tls/v4alpha/cert.proto
++++ b/api/envoy/extensions/transport_sockets/tls/v4alpha/cert.proto
+@@ -48,8 +48,8 @@ message TlsParameters {
+   // servers.
+   TlsProtocol tls_minimum_protocol_version = 1 [(validate.rules).enum = {defined_only: true}];
+ 
+-  // Maximum TLS protocol version. By default, it's ``TLSv1_3`` for servers in non-FIPS builds, and
+-  // ``TLSv1_2`` for clients and for servers using :ref:`BoringSSL FIPS <arch_overview_ssl_fips>`.
++  // Maximum TLS protocol version. By default, it's ``TLSv1_2`` for clients and ``TLSv1_3`` for
++  // servers.
+   TlsProtocol tls_maximum_protocol_version = 2 [(validate.rules).enum = {defined_only: true}];
+ 
+   // If specified, the TLS listener will only support the specified `cipher list
+diff --git a/bazel/external/boringssl_fips.genrule_cmd b/bazel/external/boringssl_fips.genrule_cmd
+index cff25f0f0..25455c91e 100644
+--- a/bazel/external/boringssl_fips.genrule_cmd
++++ b/bazel/external/boringssl_fips.genrule_cmd
+@@ -2,8 +2,8 @@
+ 
+ set -e
+ 
+-# BoringSSL build as described in the Security Policy for BoringCrypto module (2018-10-25):
+-# https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3318.pdf
++# BoringSSL build as described in the Security Policy for BoringCrypto module (2020-07-02):
++# https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3678.pdf
+ 
+ # This works only on Linux-x86_64.
+ if [[ `uname` != "Linux" || `uname -m` != "x86_64" ]]; then
+@@ -16,16 +16,16 @@ ROOT=$$(dirname $(rootpath boringssl/BUILDING.md))/..
+ pushd $$ROOT
+ 
+ # Build tools requirements:
+-# - Clang compiler version 6.0.1 (https://releases.llvm.org/download.html)
+-# - Go programming language version 1.10.3 (https://golang.org/dl/)
+-# - Ninja build system version 1.8.2 (https://github.com/ninja-build/ninja/releases)
++# - Clang compiler version 7.0.1 (https://releases.llvm.org/download.html)
++# - Go programming language version 1.12.7 (https://golang.org/dl/)
++# - Ninja build system version 1.9.0 (https://github.com/ninja-build/ninja/releases)
+ 
+ # Override $$PATH for build tools, to avoid picking up anything else.
+ export PATH="$$(dirname `which cmake`):/usr/bin:/bin"
+ 
+-# Clang 6.0.1
+-VERSION=6.0.1
+-SHA256=7ea204ecd78c39154d72dfc0d4a79f7cce1b2264da2551bb2eef10e266d54d91
++# Clang 7.0.1
++VERSION=7.0.1
++SHA256=02ad925add5b2b934d64c3dd5cbd1b2002258059f7d962993ba7f16524c3089c
+ PLATFORM="x86_64-linux-gnu-ubuntu-16.04"
+ 
+ curl -sLO https://releases.llvm.org/"$$VERSION"/clang+llvm-"$$VERSION"-"$$PLATFORM".tar.xz \
+@@ -41,26 +41,27 @@ if [[ `clang --version | head -1 | awk '{print $$3}'` != "$$VERSION" ]]; then
+   exit 1
+ fi
+ 
+-# Go 1.10.3
+-VERSION=1.10.3
+-SHA256=fa1b0e45d3b647c252f51f5e1204aba049cde4af177ef9f2181f43004f901035
++# Go 1.12.7
++VERSION=1.12.7
++SHA256=66d83bfb5a9ede000e33c6579a91a29e6b101829ad41fffb5c5bb6c900e109d9
+ PLATFORM="linux-amd64"
+ 
+ curl -sLO https://dl.google.com/go/go"$$VERSION"."$$PLATFORM".tar.gz \
+   && echo "$$SHA256" go"$$VERSION"."$$PLATFORM".tar.gz | sha256sum --check
+ tar xf go"$$VERSION"."$$PLATFORM".tar.gz
+ 
++export GOPATH="$$PWD/gopath"
+ export GOROOT="$$PWD/go"
+-export PATH="$$GOROOT/bin:$$PATH"
++export PATH="$$GOPATH/bin:$$GOROOT/bin:$$PATH"
+ 
+ if [[ `go version | awk '{print $$3}'` != "go$$VERSION" ]]; then
+   echo "ERROR: Go version doesn't match."
+   exit 1
+ fi
+ 
+-# Ninja 1.8.2
+-VERSION=1.8.2
+-SHA256=d2fea9ff33b3ef353161ed906f260d565ca55b8ca0568fa07b1d2cab90a84a07
++# Ninja 1.9.0
++VERSION=1.9.0
++SHA256=1b1235f2b0b4df55ac6d80bbe681ea3639c9d2c505c7ff2159a3daf63d196305
+ PLATFORM="linux"
+ 
+ curl -sLO https://github.com/ninja-build/ninja/releases/download/v"$$VERSION"/ninja-"$$PLATFORM".zip \
+diff --git a/bazel/external/boringssl_fips.patch b/bazel/external/boringssl_fips.patch
+new file mode 100644
+index 000000000..37247dc2f
+--- /dev/null
++++ b/bazel/external/boringssl_fips.patch
+@@ -0,0 +1,18 @@
++# Fix FIPS build (from BoringSSL commit 4ca15d5dcbe6e8051a4654df7c971ea8307abfe0).
++#
++# The modulewrapper is not a part of the FIPS module, so it can be patched without
++# concern about breaking the FIPS validation.
++--- boringssl/util/fipstools/acvp/modulewrapper/modulewrapper.cc
+++++ boringssl/util/fipstools/acvp/modulewrapper/modulewrapper.cc
++@@ -12,9 +12,11 @@
++  * OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
++  * CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
++ 
+++#include <string>
++ #include <vector>
++ 
++ #include <assert.h>
+++#include <errno.h>
++ #include <string.h>
++ #include <sys/uio.h>
++ #include <unistd.h>
+diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl
+index 415455e58..ef048fb32 100644
+--- a/bazel/repositories.bzl
++++ b/bazel/repositories.bzl
+@@ -192,6 +192,7 @@ def _boringssl_fips():
+         sha256 = location["sha256"],
+         genrule_cmd_file = "@envoy//bazel/external:boringssl_fips.genrule_cmd",
+         build_file = "@envoy//bazel/external:boringssl_fips.BUILD",
++        patches = ["@envoy//bazel/external:boringssl_fips.patch"],
+     )
+ 
+ def _com_github_circonus_labs_libcircllhist():
+diff --git a/bazel/repository_locations.bzl b/bazel/repository_locations.bzl
+index 3f24f410b..9a97decee 100644
+--- a/bazel/repository_locations.bzl
++++ b/bazel/repository_locations.bzl
+@@ -38,9 +38,9 @@ REPOSITORY_LOCATIONS = dict(
+         urls = ["https://github.com/google/boringssl/archive/1c2769383f027befac5b75b6cedd25daf3bf4dcf.tar.gz"],
+     ),
+     boringssl_fips = dict(
+-        sha256 = "b12ad676ee533824f698741bd127f6fbc82c46344398a6d78d25e62c6c418c73",
+-        # fips-20180730
+-        urls = ["https://commondatastorage.googleapis.com/chromium-boringssl-docs/fips/boringssl-66005f41fbc3529ffe8d007708756720529da20d.tar.xz"],
++        sha256 = "3b5fdf23274d4179c2077b5e8fa625d9debd7a390aac1d165b7e47234f648bb8",
++        # fips-20190808
++        urls = ["https://commondatastorage.googleapis.com/chromium-boringssl-fips/boringssl-ae223d6138807a13006342edfeef32e813246b39.tar.xz"],
+     ),
+     com_google_absl = dict(
+         sha256 = "2693730730247afb0e7cb2d41664ac2af3ad75c79944efd266be40ba944179b9",
+diff --git a/docs/root/intro/arch_overview/security/ssl.rst b/docs/root/intro/arch_overview/security/ssl.rst
+index ebcb2e8f6..140ea0901 100644
+--- a/docs/root/intro/arch_overview/security/ssl.rst
++++ b/docs/root/intro/arch_overview/security/ssl.rst
+@@ -42,7 +42,7 @@ FIPS 140-2
+ BoringSSL can be built in a
+ `FIPS-compliant mode <https://boringssl.googlesource.com/boringssl/+/master/crypto/fipsmodule/FIPS.md>`_,
+ following the build instructions from the `Security Policy for BoringCrypto module
+-<https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3318.pdf>`_,
++<https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3678.pdf>`_,
+ using ``--define boringssl=fips`` Bazel option. Currently, this option is only available on Linux-x86_64.
+ 
+ The correctness of the FIPS build can be verified by checking the presence of ``BoringSSL-FIPS``
+@@ -53,11 +53,11 @@ it's not sufficient by itself, and depending on the context, additional steps mi
+ The extra requirements may include using only approved algorithms and/or using only private keys
+ generated by a module operating in FIPS-approved mode. For more information, please refer to the
+ `Security Policy for BoringCrypto module
+-<https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3318.pdf>`_
++<https://csrc.nist.gov/CSRC/media/projects/cryptographic-module-validation-program/documents/security-policies/140sp3678.pdf>`_
+ and/or an `accredited CMVP laboratory <https://csrc.nist.gov/projects/testing-laboratories>`_.
+ 
+ Please note that the FIPS-compliant build is based on an older version of BoringSSL than
+-the non-FIPS build, and it predates the final version of TLS 1.3.
++the non-FIPS build, and it doesn't support the most recent QUIC APIs.
+ 
+ .. _arch_overview_ssl_enabling_verification:
+ 
+diff --git a/generated_api_shadow/envoy/api/v2/auth/cert.proto b/generated_api_shadow/envoy/api/v2/auth/cert.proto
+index a1642318e04388e00be7ed9d3047b1043b771fc9..a4820b18fc0c9519c8e834841138ec389e79470e 100644
+GIT binary patch
+delta 24
+gcmX@Nkn!sR#tkv7llxd?7>y^dX3^OEi}i{Z0De*l#{d8T
+
+delta 102
+zcmeymfbrZy#tkv7!Nv&*3TgR83dN~KWvNBQ3YmEddHH#|Zk_?b3Q47zIVr_D3W<3s
+qTnY;M`U(jNAwI!nhVe#FP02Z#sd**EAO%Q<Ob*~N+uXzY(hC4Mt0T(*
+
+diff --git a/generated_api_shadow/envoy/extensions/transport_sockets/tls/v3/cert.proto b/generated_api_shadow/envoy/extensions/transport_sockets/tls/v3/cert.proto
+index 4121297ec1c33d5fc806fb7e43f5a139c43edf0a..e8d7cecea80526300a8062aa882d251e64484264 100644
+GIT binary patch
+delta 32
+ocmX@TmhsaX#tjo$Cm&-K;Y>&f@d++7j5nVAfJI}oKHHoC0NV=;IRF3v
+
+delta 78
+zcmeyghVk@T#tjo$b&L}d6w>mG6pB-e%2JDp6*BV_^78X^-8=(=6_QFbb5e?R6cY1N
+axD*uh^(XIQk>x@to?Ojow)r6I#sC0g&l}eO
+
+diff --git a/generated_api_shadow/envoy/extensions/transport_sockets/tls/v4alpha/cert.proto b/generated_api_shadow/envoy/extensions/transport_sockets/tls/v4alpha/cert.proto
+index febb6d665240bc501a99406b0bf4e1a63197b614..9c4fc021613c4ec4effecdef02166c833c6ae2c3 100644
+GIT binary patch
+delta 24
+gcmdnJf$`CL#tk=FCv&sPFd9$RVAa@M&UPda0C;@}tpET3
+
+delta 64
+zcmaE~o^kgE#tk=F1&tFD6w>mG6pB-e%2JDp6*4CW@(6Pz=B02cDCp}?zQ8KWg^-?n
+Mmd9)}C)>?H0Qb!ntN;K2
+
+diff --git a/source/extensions/transport_sockets/tls/context_config_impl.cc b/source/extensions/transport_sockets/tls/context_config_impl.cc
+index 793adc759..6f20081ee 100644
+--- a/source/extensions/transport_sockets/tls/context_config_impl.cc
++++ b/source/extensions/transport_sockets/tls/context_config_impl.cc
+@@ -353,12 +353,7 @@ ClientContextConfigImpl::ClientContextConfigImpl(
+ }
+ 
+ const unsigned ServerContextConfigImpl::DEFAULT_MIN_VERSION = TLS1_VERSION;
+-const unsigned ServerContextConfigImpl::DEFAULT_MAX_VERSION =
+-#ifndef BORINGSSL_FIPS
+-    TLS1_3_VERSION;
+-#else // BoringSSL FIPS
+-    TLS1_2_VERSION;
+-#endif
++const unsigned ServerContextConfigImpl::DEFAULT_MAX_VERSION = TLS1_3_VERSION;
+ 
+ const std::string ServerContextConfigImpl::DEFAULT_CIPHER_SUITES =
+ #ifndef BORINGSSL_FIPS
+diff --git a/test/extensions/transport_sockets/tls/ssl_socket_test.cc b/test/extensions/transport_sockets/tls/ssl_socket_test.cc
+index 7009310a5..0ac4c6259 100644
+--- a/test/extensions/transport_sockets/tls/ssl_socket_test.cc
++++ b/test/extensions/transport_sockets/tls/ssl_socket_test.cc
+@@ -3639,7 +3639,7 @@ TEST_P(SslSocketTest, ProtocolVersions) {
+   client_params->clear_tls_minimum_protocol_version();
+   client_params->clear_tls_maximum_protocol_version();
+ 
+-  // Connection using TLSv1.3 (client) and defaults (server) succeeds (non-FIPS) or fails (FIPS).
++  // Connection using TLSv1.3 (client) and defaults (server) succeeds.
+   client_params->set_tls_minimum_protocol_version(
+       envoy::extensions::transport_sockets::tls::v3::TlsParameters::TLSv1_3);
+   client_params->set_tls_maximum_protocol_version(
+@@ -3649,11 +3649,7 @@ TEST_P(SslSocketTest, ProtocolVersions) {
+   TestUtilOptionsV2 error_test_options(listener, client, false, GetParam());
+   error_test_options.setExpectedServerStats("ssl.connection_error")
+       .setExpectedTransportFailureReasonContains("TLSV1_ALERT_PROTOCOL_VERSION");
+-#ifndef BORINGSSL_FIPS
+   testUtilV2(tls_v1_3_test_options);
+-#else // BoringSSL FIPS
+-  testUtilV2(error_test_options);
+-#endif
+   client_params->clear_tls_minimum_protocol_version();
+   client_params->clear_tls_maximum_protocol_version();
+ 
+@@ -3662,11 +3658,7 @@ TEST_P(SslSocketTest, ProtocolVersions) {
+       envoy::extensions::transport_sockets::tls::v3::TlsParameters::TLSv1_0);
+   client_params->set_tls_maximum_protocol_version(
+       envoy::extensions::transport_sockets::tls::v3::TlsParameters::TLSv1_3);
+-#ifndef BORINGSSL_FIPS
+   testUtilV2(tls_v1_3_test_options);
+-#else // BoringSSL FIPS
+-  testUtilV2(tls_v1_2_test_options);
+-#endif
+   client_params->clear_tls_minimum_protocol_version();
+   client_params->clear_tls_maximum_protocol_version();
+ 
+-- 
+2.28.0.526.ge36021eeef-goog
+

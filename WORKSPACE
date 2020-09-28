@@ -20,6 +20,10 @@ http_archive(
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
     url = "https://github.com/" + ENVOY_PROJECT + "/" + ENVOY_REPO + "/archive/" + ENVOY_SHA + ".tar.gz",
     patches = [
+        "@//patches:0001-docs-kick-off-1.14.5-release.-12165.patch",
+        "@//patches:0002-tls-update-BoringSSL-FIPS-to-20190808.-12169.patch",
+        "@//patches:0003-http1-Preserve-LWS-from-the-middle-of-HTTP1-header-v.patch",
+        "@//patches:0004-1.14-http-header-map-security-fixes-for-duplicate-he.patch",
         "@//patches:original-dst-add-sni.patch",
         "@//patches:test-enable-half-close.patch",
         "@//patches:cross-aarch64.patch",
