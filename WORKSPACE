@@ -23,6 +23,7 @@ http_archive(
         "@//patches:original-dst-add-sni.patch",
         "@//patches:test-enable-half-close.patch",
         "@//patches:cross-aarch64.patch",
+        "@//patches:envoy-arm64.patch",
     ],
     patch_args = ["-p1"],
 )
