@@ -18,7 +18,7 @@ Istio.
 
     mkdir -p ${GOPATH}/src/istio.io
     cd ${GOPATH}/src/istio.io
-    git clone git@github.com:cilium/istio.git
+    git clone https://github.com/cilium/istio.git
     cd istio
     git checkout inject-cilium-filters-1.5.9
     docker build -t cilium/istio_pilot:1.5.9 .
@@ -28,7 +28,7 @@ Istio.
 
     mkdir -p ${GOPATH}/src/github.com/cilium
     cd ${GOPATH}/src/github.com/cilium
-    git clone git@github.com:cilium/proxy.git
+    git clone https://github.com/cilium/proxy.git
     cd proxy
     git checkout istio-1.5.9
     make docker-istio-proxy
