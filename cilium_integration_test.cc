@@ -2138,7 +2138,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyLargeWrite) {
       test_server_->counter("tcp.tcp_stats.downstream_flow_control_resumed_reading_total")->value();
   EXPECT_EQ(downstream_pauses, downstream_resumes);
 }
-
+#ifndef __aarch64__
 // Test that a downstream flush works correctly (all data is flushed)
 TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyDownstreamFlush) {
   // Use a very large size to make sure it is larger than the kernel socket read buffer.
@@ -2252,7 +2252,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlushEnvoyExit) {
 
   // Success criteria is that no ASSERTs fire and there are no leaks.
 }
-
+#endif
 //
 // Cilium filters with TCP proxy & Upstream TLS
 //
