@@ -41,12 +41,10 @@ RUN apt-get update \
 #
 # Install Bazel
 #
-RUN export BAZEL_VERSION=`cat .bazelversion` \
-	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh -o bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
-	&& chmod +x bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
-	&& ./bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh \
-	&& mv /usr/local/bin/bazel /usr/bin \
-	&& rm bazel-${BAZEL_VERSION}-installer-linux-x86_64.sh
+RUN export BAZEL_VERSION=$(cat .bazelversion) \
+	&& ARCH=$(uname -m) && [ "$ARCH" != "aarch64" ] || ARCH="arm64" \
+	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
+	&& chmod +x /usr/bin/bazel
 
 #
 # Build and keep the cache
