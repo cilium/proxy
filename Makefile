@@ -26,7 +26,7 @@ SHELL=/bin/bash -o pipefail
 BAZEL ?= $(QUIET) bazel
 BAZEL_FILTER ?=
 BAZEL_OPTS ?=
-BAZEL_TEST_OPTS ?= --jobs=1
+BAZEL_TEST_OPTS ?= --jobs=1 --test_timeout=2000
 BAZEL_CACHE ?= ~/.cache/bazel
 BAZEL_ARCHIVE ?= ~/bazel-cache.tar.bz2
 CLANG ?= clang
