@@ -4,40 +4,41 @@
 # it is possible that the image build needs more RAM than available by
 # default on non-Linux docker installs.
 #
-# Using cilium-builder as the base to ensure libc etc. are in sync.
-#
-# cilium-builder:2020-04-16 is the last one before it was changed from
-# Ubuntu 18.04 to 20.04. Building with 20.04 will result in a
+# Using Ubuntu 18.04 as base, as building with 20.04 will result in a
 # cilium-envoy binary that fails to run on 18.04 due to the glibc
 # being 2.27, while 2.28 and/or 2.29 is required. This will also
 # affect Istio sidecar compatibility, so we should keep the builder at
 # Ubuntu 18.04 for now.
-FROM quay.io/cilium/cilium-builder:2020-04-16@sha256:2bb6316f5edeaf917eaccdd81438b83e8a6e671926e11d26c1f028cef7880bbe as builder
+FROM docker.io/library/ubuntu:18.04
 LABEL maintainer="maintainer@cilium.io"
-WORKDIR /go/src/github.com/cilium/cilium/envoy
-COPY . ./
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+      # Envoy Build dependencies
+      autoconf \
+      automake \
+      cmake \
+      coreutils \
+      curl \
+      g++ \
+      gcc \
+      git \
+      libc6-dev \
+      libtool \
+      make \
+      ninja-build \
+      python \
+      python3 \
+      unzip \
+      virtualenv \
+      wget \
+      zip && \
+    apt-get purge --auto-remove && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-#
-# Additional Envoy Build dependencies
-#
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y --no-install-recommends \
-	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-		automake \
-		cmake \
-		g++ \
-		git \
-		libtool \
-		make \
-		ninja-build \
-		python \
-		python3 \
-		wget \
-		zip \
-		unzip \
-	&& apt-get clean \
-	&& rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-
+WORKDIR /cilium/proxy
+COPY .bazelversion ./
 #
 # Install Bazel
 #
@@ -49,7 +50,8 @@ RUN export BAZEL_VERSION=$(cat .bazelversion) \
 #
 # Build and keep the cache
 #
-RUN make BAZEL_BUILD_OPTS=--jobs=6 PKG_BUILD=1 ./bazel-bin/cilium-envoy && rm ./bazel-bin/cilium-envoy
+COPY . ./
+RUN make BAZEL_BUILD_OPTS=--jobs=8 PKG_BUILD=1 ./bazel-bin/cilium-envoy && rm ./bazel-bin/cilium-envoy
 
 #
 # Absolutely nothing after making envoy deps!
