@@ -79,9 +79,9 @@ docker-image-builder: Dockerfile.builder clean
 
 docker-image-envoy: Dockerfile clean
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build --build-arg BAZEL_BUILD_OPTS=$(BAZEL_BUILD_OPTS) -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)" .
+	$(DOCKER) build --build-arg BAZEL_BUILD_OPTS=$(BAZEL_BUILD_OPTS) -t "quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)-$(ARCH)" .
 	$(QUIET)echo "Push like this when ready:"
-	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)"
+	$(QUIET)echo "docker push quay.io/cilium/cilium-envoy:$(SOURCE_VERSION)-$(ARCH)"
 
 #Build multi-arch Envoy image builder
 docker-image-builder-multiarch: Dockerfile.builder$(DOCKERFILE_ARCH) clean
