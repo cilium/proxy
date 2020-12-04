@@ -84,7 +84,7 @@ public:
   const std::shared_ptr<const PolicyInstance> GetPolicyInstance(const std::string& endpoint_policy_name) const;
 
   bool exists(const std::string& endpoint_policy_name) const {
-    return GetPolicyInstance(endpoint_policy_name).get() != nullptr;
+    return GetPolicyInstanceImpl(endpoint_policy_name).get() != nullptr;
   }
 
   // Config::SubscriptionCallbacks
@@ -118,6 +118,8 @@ private:
   Cilium::CtMapSharedPtr ctmap_;
 public:
   Server::Configuration::TransportSocketFactoryContext& transport_socket_factory_context_;
+  const std::string local_ip_str_;
+  const bool is_sidecar_;
 };
 
 } // namespace Cilium

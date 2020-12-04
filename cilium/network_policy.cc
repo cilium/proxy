@@ -519,10 +519,15 @@ struct ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject {
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
   : tls_(context.threadLocal().allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
-    transport_socket_factory_context_(context.getTransportSocketFactoryContext()) {
+    transport_socket_factory_context_(context.getTransportSocketFactoryContext()),
+    local_ip_str_(context.localInfo().address()->ip()->addressAsString()),
+    is_sidecar_(context.localInfo().nodeName().rfind("sidecar~" , 0) == 0) {
   instance_id_++;
-  name_ = "cilium.policymap." + fmt::format("{}", instance_id_) + ".";
-  ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);  
+  name_ = "cilium.policymap." + local_ip_str_ + fmt::format(".{}.", instance_id_);
+  if (is_sidecar_) {
+    name_ += "sidecar.";
+  }
+  ENVOY_LOG(debug, "NetworkPolicyMap({}) created.", name_);  
 
   tls_->set([&](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
       return std::make_shared<ThreadLocalPolicyMap>();
