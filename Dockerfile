@@ -13,6 +13,14 @@ ARG V
 ARG BAZEL_BUILD_OPTS
 
 #
+# Install Bazel
+#
+RUN export BAZEL_VERSION=$(cat .bazelversion) \
+	&& ARCH=$(uname -m) && [ "$ARCH" != "aarch64" ] || ARCH="arm64" \
+	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
+	&& chmod +x /usr/bin/bazel
+
+#
 # Please do not add any dependency updates before the 'make install' here,
 # as that will mess with caching for incremental builds!
 #
