@@ -12,10 +12,11 @@ namespace Cilium {
 class SocketMarkOption : public Network::Socket::Option,
                          public Logger::Loggable<Logger::Id::filter> {
  public:
-  SocketMarkOption(uint32_t identity, bool ingress,
+  SocketMarkOption(bool no_mark, uint32_t identity, bool ingress,
                    Network::Address::InstanceConstSharedPtr src_address)
       : identity_(identity),
         ingress_(ingress),
+        no_mark_(no_mark),
         src_address_(std::move(src_address)) {}
 
   absl::optional<Network::Socket::Option::Details> getOptionDetails(
@@ -27,6 +28,9 @@ class SocketMarkOption : public Network::Socket::Option,
   bool setOption(
       Network::Socket& socket,
       envoy::config::core::v3::SocketOption::SocketState state) const override {
+    if (no_mark_) {
+      return true;
+    }
     // Only set the option once per socket
     if (state != envoy::config::core::v3::SocketOption::STATE_PREBIND) {
       ENVOY_LOG(
@@ -75,6 +79,9 @@ class SocketMarkOption : public Network::Socket::Option,
   }
 
   void hashKey(std::vector<uint8_t>& key) const override {
+    if (no_mark_) {
+      return;
+    }
     // Source address is more specific than policy ID. If using an original
     // source address, we do not need to also add the source security ID to the
     // hash key. Note that since the identity is 3 bytes it will not collide
@@ -99,6 +106,7 @@ class SocketMarkOption : public Network::Socket::Option,
 
   uint32_t identity_;
   bool ingress_;
+  bool no_mark_;
   Network::Address::InstanceConstSharedPtr src_address_;
 };
 
@@ -106,11 +114,11 @@ class PolicyInstance;
 
 class SocketOption : public SocketMarkOption {
  public:
-  SocketOption(std::shared_ptr<const PolicyInstance> policy,
+  SocketOption(std::shared_ptr<const PolicyInstance> policy, bool no_mark,
                uint32_t source_identity, uint32_t destination_identity,
                bool ingress, uint16_t port, std::string&& pod_ip,
                Network::Address::InstanceConstSharedPtr src_address)
-      : SocketMarkOption(source_identity, ingress, src_address),
+      : SocketMarkOption(no_mark, source_identity, ingress, src_address),
         policy_(policy),
         destination_identity_(destination_identity),
         port_(port),
@@ -118,9 +126,9 @@ class SocketOption : public SocketMarkOption {
     ENVOY_LOG(
         debug,
         "Cilium SocketOption(): source_identity: {}, destination_identity: {}, "
-        "ingress: {}, port: {}, pod_ip: {}, src_address: {}",
+        "ingress: {}, port: {}, pod_ip: {}, src_address: {}, no_mark: {}",
         identity_, destination_identity_, ingress_, port_, pod_ip_,
-        src_address_ ? src_address_->asString() : "");
+        src_address_ ? src_address_->asString() : "", no_mark_);
   }
 
   const std::shared_ptr<const PolicyInstance> policy_;

@@ -90,7 +90,7 @@ class NetworkPolicyMap : public Singleton::Instance,
       const std::string& endpoint_policy_name) const;
 
   bool exists(const std::string& endpoint_policy_name) const {
-    return GetPolicyInstance(endpoint_policy_name).get() != nullptr;
+    return GetPolicyInstanceImpl(endpoint_policy_name).get() != nullptr;
   }
 
   // Config::SubscriptionCallbacks
@@ -129,6 +129,8 @@ class NetworkPolicyMap : public Singleton::Instance,
       resource_decoder_;
   Server::Configuration::TransportSocketFactoryContext&
       transport_socket_factory_context_;
+  const std::string local_ip_str_;
+  const bool is_sidecar_;
 };
 
 }  // namespace Cilium

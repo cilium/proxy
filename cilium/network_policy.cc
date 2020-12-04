@@ -614,9 +614,11 @@ NetworkPolicyMap::NetworkPolicyMap(
       validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
       resource_decoder_(validation_visitor_, "name"),
       transport_socket_factory_context_(
-          context.getTransportSocketFactoryContext()) {
+          context.getTransportSocketFactoryContext()),
+      local_ip_str_(context.localInfo().address()->ip()->addressAsString()),
+      is_sidecar_(context.localInfo().nodeName().rfind("sidecar~" , 0) == 0) {
   instance_id_++;
-  name_ = "cilium.policymap." + fmt::format("{}", instance_id_) + ".";
+  name_ = fmt::format("cilium.policymap.{}.{}.", local_ip_str_, instance_id_);
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
 
   tls_->set([&](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {

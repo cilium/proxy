@@ -250,8 +250,9 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   // Pass the metadata to an Envoy socket option we can retrieve later in other
   // Cilium filters.
+  bool no_mark = npmap_->is_sidecar_;
   socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, source_identity, destination_identity, is_ingress_, dip->port(),
+      policy, no_mark, source_identity, destination_identity, is_ingress_, dip->port(),
       std::move(pod_ip), src_address));
   return true;
 }
