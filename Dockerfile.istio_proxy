@@ -42,7 +42,6 @@ USER 0:1337
 COPY --from=istio /etc/istio /etc/istio
 COPY --from=istio /var/lib/istio /var/lib/istio
 COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/pilot-agent
-COPY --from=istio /usr/local/bin/istio-iptables /usr/local/bin/istio-iptables
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
 RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
 
