@@ -5,9 +5,9 @@ ARG ISTIO_VERSION=1.10.3
 ARG BASE_VERSION=1.10-dev.7
 
 # Pre-built cilium-envoy image from updated Istio deps
-ARG CILIUM_ENVOY_SHA=<fill-in-after-build>
+ARG CILIUM_ENVOY_SHA=5d5c6dc9307cfff8fcb9ea8f14298a8658a44faf@sha256:bc0eaf8a97ac0c1fad9bdb74a6044ae0aedf9f8c78c04084ebba0578b1a643d8
 
-FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
+FROM quay.io/cilium/cilium-envoy-dev:${CILIUM_ENVOY_SHA} as cilium-envoy
 
 #
 # Pre-built Istio image (non-TPROXY)
