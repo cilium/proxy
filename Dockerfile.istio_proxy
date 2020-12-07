@@ -5,7 +5,7 @@ ARG ISTIO_VERSION=1.8.2
 ARG BASE_VERSION=1.8-dev.6
 
 # Pre-built cilium-envoy image from updated Istio deps
-ARG CILIUM_ENVOY_SHA=b46908a8ec8c1bafcb041deb37766f45028ee8be
+ARG CILIUM_ENVOY_SHA=18b0814c318b7586c70b17a9395be141439b2655-amd64@sha256:527d14fb265b2010c1006a776acb713d4c0670c71df017e545008eac1a3258e9
 
 FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 
