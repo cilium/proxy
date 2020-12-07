@@ -58,6 +58,7 @@ COPY --from=istio /var/lib/istio /var/lib/istio
 COPY --from=istio-builder /work/out/linux_amd64/pilot-agent /usr/local/bin/pilot-agent
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
 RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
+RUN chgrp 1337 /usr/bin/curl && chmod 2755 /usr/bin/curl
 
 # Override the Envoy bootstrap to configure Envoy to use API v2 and to define
 # the "xds-grpc-cilium" cluster used by the Cilium filters to connect to Cilium
