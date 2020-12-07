@@ -9,7 +9,7 @@
 # being 2.27, while 2.28 and/or 2.29 is required. This will also
 # affect Istio sidecar compatibility, so we should keep the builder at
 # Ubuntu 18.04 for now.
-FROM docker.io/library/ubuntu:18.04
+FROM docker.io/library/ubuntu:18.04 as base
 LABEL maintainer="maintainer@cilium.io"
 RUN apt-get update && \
     apt-get upgrade -y && \
@@ -27,6 +27,7 @@ RUN apt-get update && \
       libtool \
       make \
       ninja-build \
+      patch \
       python \
       python3 \
       unzip \
@@ -47,10 +48,14 @@ RUN export BAZEL_VERSION=$(cat .bazelversion) \
 	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
 	&& chmod +x /usr/bin/bazel
 
+FROM base
+LABEL maintainer="maintainer@cilium.io"
+WORKDIR /cilium/proxy
+COPY . ./
+
 #
 # Build and keep the cache
 #
-COPY . ./
 RUN make BAZEL_BUILD_OPTS=--jobs=8 PKG_BUILD=1 ./bazel-bin/cilium-envoy && rm ./bazel-bin/cilium-envoy
 
 #
