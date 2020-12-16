@@ -1,0 +1,12 @@
+diff --git a/api/wasm/cpp/proxy_wasm_common.h b/api/wasm/cpp/proxy_wasm_common.h
+index 2f77f628ea..9565243b3f 100644
+--- a/api/wasm/cpp/proxy_wasm_common.h
++++ b/api/wasm/cpp/proxy_wasm_common.h
+@@ -51,6 +51,7 @@ inline std::string toString(WasmResult r) {
+     _CASE(InternalFailure);
+     _CASE(BrokenConnection);
+   }
++  return "Unknown_WasmResult";
+ }
+ #undef _CASE
+ 

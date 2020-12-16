@@ -328,6 +328,8 @@ type PortNetworkPolicyRule struct {
 	// A flow is matched by this predicate if the identifier of the policy
 	// applied on the flow's remote host is contained in this set.
 	// Optional. If not specified, any remote host is matched by this predicate.
+	// TODO: Make this uint32 in later versions to reduce format conversion overhead
+	// TODO: Consider cost of uniqueness validation
 	RemotePolicies []uint64 `protobuf:"varint,1,rep,packed,name=remote_policies,json=remotePolicies,proto3" json:"remote_policies,omitempty"`
 	// Optional downstream TLS context. If present, the incoming connection must be a TLS connection.
 	DownstreamTlsContext *TLSContext `protobuf:"bytes,3,opt,name=downstream_tls_context,json=downstreamTlsContext,proto3" json:"downstream_tls_context,omitempty"`
