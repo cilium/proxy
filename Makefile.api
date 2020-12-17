@@ -17,7 +17,7 @@ include Makefile.quiet
 # Depends on Envoy dependencies, Envoy must be built first
 
 PROTOC ?= bazel-out/host/bin/external/com_google_protobuf/protoc
-BIN_PATH ?= bazel-out/host/bin/external/com_github_golang_protobuf/protoc-gen-go/linux_amd64_stripped:bazel-out/host/bin/external/com_envoyproxy_protoc_gen_validate/linux_amd64_stripped
+BIN_PATH ?= bazel-out/host/bin/external/com_github_golang_protobuf/protoc-gen-go/protoc-gen-go_:bazel-out/host/bin/external/com_envoyproxy_protoc_gen_validate/protoc-gen-validate_
 
 ENVOY_API_PROTO_PATH = bazel-proxy/external/envoy/api
 CILIUM_PROTO_PATH = .
@@ -61,6 +61,11 @@ RAW_GO_MAPPINGS += udpa/annotations/migrate.proto=github.com/cncf/udpa/go/udpa/a
 RAW_GO_MAPPINGS += udpa/annotations/sensitive.proto=github.com/cncf/udpa/go/udpa/annotations/
 RAW_GO_MAPPINGS += udpa/annotations/status.proto=github.com/cncf/udpa/go/udpa/annotations/
 RAW_GO_MAPPINGS += udpa/annotations/versioning.proto=github.com/cncf/udpa/go/udpa/annotations/
+RAW_GO_MAPPINGS += udpa/annotations/security.proto=github.com/cncf/udpa/go/udpa/annotations/
+RAW_GO_MAPPINGS += udpa/core/v1/authority.proto=github.com/cncf/udpa/go/xds/core/v3/
+RAW_GO_MAPPINGS += udpa/core/v1/collection_entry.proto=github.com/cncf/udpa/go/xds/core/v3/
+RAW_GO_MAPPINGS += udpa/core/v1/resource_locator.proto=github.com/cncf/udpa/go/xds/core/v3/
+RAW_GO_MAPPINGS += udpa/core/v1/resource_name.proto=github.com/cncf/udpa/go/xds/core/v3/
 
 # Add mapping separators and remove the trailing slash
 # but first create "/ " and ",M"

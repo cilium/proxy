@@ -9,8 +9,8 @@ workspace(name = "cilium")
 #
 ENVOY_PROJECT = "envoyproxy"
 ENVOY_REPO = "envoy"
-ENVOY_SHA = "fa0371e658658625bcf4eb48f9874b07a852404f"
-ENVOY_SHA256 = "24df3c1dc2cdd9e2db5d0d35acd629a17f8f31d701d77505a6f94d7a084abd46"
+ENVOY_SHA = "69c307cbdb0386df9ed393e59fd6c24e5cab5603"
+ENVOY_SHA256 = "667be2f03081e5872dffb232b2211416ea090d1d423405e46ffcd112eeb653e1"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -45,6 +45,9 @@ envoy_api_dependencies()
 
 load("@envoy//bazel:repositories.bzl", "envoy_dependencies")
 envoy_dependencies()
+
+load("@envoy//bazel:repositories_extra.bzl", "envoy_dependencies_extra")
+envoy_dependencies_extra()
 
 load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
 envoy_dependency_imports()
