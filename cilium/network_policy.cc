@@ -33,7 +33,7 @@ protected:
       }
       return match;
     }
-    class HeaderMatch : public Envoy::Http::HeaderUtility::HeaderData {
+    class HeaderMatch : public Http::HeaderUtility::HeaderData {
     public:
       HeaderMatch(const cilium::HeaderMatch& config)
 	: HeaderData(matcher(config)),
@@ -47,7 +47,7 @@ protected:
     HttpNetworkPolicyRule(const cilium::HttpNetworkPolicyRule& rule) {
       ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
       for (const auto& header: rule.headers()) {
-	headers_.emplace_back(std::make_unique<Envoy::Http::HeaderUtility::HeaderData>(header));
+	headers_.emplace_back(std::make_unique<Http::HeaderUtility::HeaderData>(header));
 	const auto& header_data = *headers_.back();
 	ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
 		  header_data.name_.get(),
@@ -79,7 +79,7 @@ protected:
 
     bool Matches(const Envoy::Http::RequestHeaderMap& headers) const {
       // Empty set matches any headers.
-      return Envoy::Http::HeaderUtility::matchHeaders(headers, headers_);
+      return Http::HeaderUtility::matchHeaders(headers, headers_);
     }
 
     // Should only be called after 'Matches' returns 'true'.
@@ -88,7 +88,7 @@ protected:
       bool accepted = true;
       for (const auto& header_data : header_matches_) {
 	::cilium::KeyValue *kv;
-	if (Envoy::Http::HeaderUtility::matchHeaders(headers, header_data)) {
+	if (Http::HeaderUtility::matchHeaders(headers, header_data)) {
 	  // Match action
 	  switch (header_data.match_action_) {
 	  case cilium::HeaderMatch::CONTINUE_ON_MATCH:
@@ -124,34 +124,15 @@ protected:
 	    }
 	    {
 	      // otherwise need to find out if the header existed or not
-	      const Envoy::Http::HeaderEntry* entry;
-	      auto res = headers.lookup(header_data.name_, &entry);
-	      struct Ctx {
-		const std::string& name_;
-		const Envoy::Http::HeaderString* value_;
-	      } ctx = {
-		header_data.name_.get(),
-		res == Envoy::Http::RequestHeaderMap::Lookup::Found ? &entry->value() : nullptr
-	      };
-	      if (res == Envoy::Http::RequestHeaderMap::Lookup::NotSupported) {
-		// non-supported header, find by iteration
-		headers.iterate([](const Envoy::Http::HeaderEntry& entry, void* ctx_) {
-				  auto* ctx = static_cast<Ctx*>(ctx_);
-				  if (entry.key() == ctx->name_) {
-				    ctx->value_ = &entry.value();
-				    return Envoy::Http::HeaderMap::Iterate::Break;
-				  }
-				  return Envoy::Http::HeaderMap::Iterate::Continue;
-				}, &ctx);
-	      }
-	      if (!ctx.value_) {
+	      const auto header_value = Http::HeaderUtility::getAllOfHeaderAsString(headers, header_data.name_);
+	      if (!header_value.result().has_value()) {
 		continue; // nothing to remove
 	      }
 	      // Remove the header with an incorrect value
 	      headers.remove(header_data.name_);
 	      kv = log_entry.entry_.mutable_http()->add_rejected_headers();
-	      kv->set_key(ctx.name_);
-	      kv->set_value(ctx.value_->getStringView().data(), ctx.value_->getStringView().size());
+	      kv->set_key(header_data.name_.get());
+	      kv->set_value(header_value.result().value().data(), header_value.result().value().size());
 	    }
 	    continue;
 	  case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
@@ -166,7 +147,7 @@ protected:
       return accepted;
     }
 
-    std::vector<Envoy::Http::HeaderUtility::HeaderDataPtr> headers_; // Allowed if empty.
+    std::vector<Http::HeaderUtility::HeaderDataPtr> headers_; // Allowed if empty.
     std::vector<HeaderMatch> header_matches_;
   };
 
@@ -518,8 +499,9 @@ struct ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject {
 // Common base constructor
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
-  : tls_(context.threadLocal().allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
-    transport_socket_factory_context_(context.getTransportSocketFactoryContext()) {
+    : tls_(context.threadLocal().allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
+      resource_decoder_(validation_visitor_, "name"),
+      transport_socket_factory_context_(context.getTransportSocketFactoryContext()) {
   instance_id_++;
   name_ = "cilium.policymap." + fmt::format("{}", instance_id_) + ".";
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);  
@@ -535,7 +517,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   ctmap_ = ct;
   scope_ = context.scope().createScope(name_);
   subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy",
-			    context.localInfo(), context.clusterManager(), context.dispatcher(), context.random(), *scope_, *this);
+			    context.localInfo(), context.clusterManager(), context.dispatcher(), context.random(), *scope_, *this, resource_decoder_);
 }
 
 static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{nullptr};
@@ -571,7 +553,7 @@ void NetworkPolicyMap::resume() {
   }
 }
 
-void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) {
+void NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources, const std::string& version_info) {
   ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", name_, resources.size(), version_info);
 
   std::unordered_set<std::string> keeps;
@@ -580,12 +562,10 @@ void NetworkPolicyMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufW
   // Collect a shared vector of policies to be added
   auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
   for (const auto& resource: resources) {
-    auto config = MessageUtil::anyConvert<cilium::NetworkPolicy>(resource);
+    const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
     ENVOY_LOG(debug, "Received Network Policy for endpoint {} in onConfigUpdate() version {}", config.name(), version_info);
     keeps.insert(config.name());
     ct_maps_to_keep.insert(config.conntrack_map_name());
-
-    MessageUtil::validate(config, validation_visitor_);
 
     // First find the old config to figure out if an update is needed.
     const uint64_t new_hash = MessageUtil::hash(config);

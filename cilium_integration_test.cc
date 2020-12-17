@@ -15,6 +15,7 @@
 #include "common/network/utility.h"
 
 #include "common/common/thread.h"
+#include "common/config/decoded_resource_impl.h"
 #include "common/config/filesystem_subscription_impl.h"
 #include "common/config/utility.h"
 #include "common/filesystem/filesystem_impl.h"
@@ -358,7 +359,7 @@ createHostMap(const std::string& config, Server::Configuration::ListenerFactoryC
 	  Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::PolicyHostMap>(context.threadLocal());
 	auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-            context.dispatcher(), path, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
+            context.dispatcher(), path, *map, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
         map->startSubscription(std::move(subscription));
         return map;
     });
@@ -375,7 +376,7 @@ createPolicyMap(const std::string& config, Server::Configuration::FactoryContext
         Envoy::Config::SubscriptionStats stats = Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-            context.dispatcher(), path, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
+            context.dispatcher(), path, *map, map->resource_decoder_, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
 	map->startSubscription(std::move(subscription));
 	return map;
       });
@@ -498,12 +499,14 @@ static_resources:
         port_value: 0
     listener_filters:
       name: test_bpf_metadata
-      config:
+      typed_config:
+        "@type": type.googleapis.com/cilium.BpfMetadata
         is_ingress: {0}
     filter_chains:
       filters:
       - name: cilium.network
-        config:
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
           proxylib: "proxylib/libcilium.so"
       - name: envoy.http_connection_manager
         typed_config:
@@ -512,7 +515,8 @@ static_resources:
           codec_type: auto
           http_filters:
           - name: test_l7policy
-            config:
+            typed_config:
+              "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
           - name: envoy.router
           route_config:
@@ -589,8 +593,10 @@ public:
 
     MessageUtil::loadFromFile(path, message, ProtobufMessage::getNullValidationVisitor(), *api_.get());
     Envoy::Cilium::PolicyHostMap hmap(tls);
+    const auto decoded_resources =
+      Envoy::Config::DecodedResourcesWrapper(hmap, message.resources(), message.version_info());
 
-    EXPECT_THROW_WITH_MESSAGE(hmap.onConfigUpdate(message.resources(), "1"), EnvoyException, exmsg);
+    EXPECT_THROW_WITH_MESSAGE(hmap.onConfigUpdate(decoded_resources.refvec_, message.version_info()), EnvoyException, exmsg);
     tls.shutdownGlobalThreading();
   }
 
@@ -630,8 +636,10 @@ resources:
 
   MessageUtil::loadFromFile(path, message, ProtobufMessage::getNullValidationVisitor(), *api_.get());
   auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(tls);
+  const auto decoded_resources =
+    Envoy::Config::DecodedResourcesWrapper(*hmap, message.resources(), message.version_info());
 
-  VERBOSE_EXPECT_NO_THROW(hmap->onConfigUpdate(message.resources(), "2"));
+  VERBOSE_EXPECT_NO_THROW(hmap->onConfigUpdate(decoded_resources.refvec_, message.version_info()));
 
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()), 173);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.0").ip()), 12);
@@ -1020,12 +1028,14 @@ static_resources:
         port_value: 0
     listener_filters:
       name: test_bpf_metadata
-      config:
+      typed_config:
+        "@type": type.googleapis.com/cilium.BpfMetadata
         is_ingress: {0}
     filter_chains:
       filters:
       - name: cilium.network
-        config:
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
@@ -1091,12 +1101,12 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamWritesFirst) {
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
   tcp_client->waitForData("hello");
 
-  tcp_client->write("hello");
+  ASSERT_TRUE(tcp_client->write("hello"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1106,7 +1116,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamWritesFirst) {
 TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamDisconnect) {
   initialize();
   IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
-  tcp_client->write("hello");
+  ASSERT_TRUE(tcp_client->write("hello"));
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
@@ -1125,14 +1135,14 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamDisconnect) {
 TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
   initialize();
   IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
-  tcp_client->write("hello");
+  ASSERT_TRUE(tcp_client->write("hello"));
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
   ASSERT_TRUE(fake_upstream_connection->write("world"));
   tcp_client->waitForData("world");
-  tcp_client->write("hello", true);
+  ASSERT_TRUE(tcp_client->write("hello", true));
   ASSERT_TRUE(fake_upstream_connection->waitForData(10));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -1146,7 +1156,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyLargeWrite) {
 
   std::string data(1024 * 16, 'a');
   IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
-  tcp_client->write(data);
+  ASSERT_TRUE(tcp_client->write(data));
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
@@ -1186,7 +1196,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyDownstreamFlush) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   tcp_client->readDisable(true);
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
 
   // This ensures that readDisable(true) has been run on it's thread
   // before tcp_client starts writing.
@@ -1232,7 +1242,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamFlush) {
   // before tcp_client starts writing.
   tcp_client->waitForHalfClose();
 
-  tcp_client->write(data, true);
+  ASSERT_TRUE(tcp_client->write(data, true));
 
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
   ASSERT_TRUE(fake_upstream_connection->readDisable(false));
@@ -1263,7 +1273,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamFlushEnvoyExit) {
   // before tcp_client starts writing.
   tcp_client->waitForHalfClose();
 
-  tcp_client->write(data, true);
+  ASSERT_TRUE(tcp_client->write(data, true));
 
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
   test_server_.reset();
@@ -1314,12 +1324,14 @@ static_resources:
         port_value: 0
     listener_filters:
       name: test_bpf_metadata
-      config:
+      typed_config:
+        "@type": type.googleapis.com/cilium.BpfMetadata
         is_ingress: {0}
     filter_chains:
       filters:
       - name: cilium.network
-        config:
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
@@ -1375,12 +1387,12 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserUpstreamWritesFirst)
   ASSERT_TRUE(fake_upstream_connection->write("PASS reply direction\n"));
   tcp_client->waitForData("PASS reply direction\n");
 
-  tcp_client->write("PASS original direction\n");
+  ASSERT_TRUE(tcp_client->write("PASS original direction\n"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(FakeRawConnection::waitForInexactMatch("PASS")));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1398,12 +1410,12 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserPartialLines) {
   ASSERT_TRUE(fake_upstream_connection->write(" reply direction\n"));
   tcp_client->waitForData("PASS reply direction\n");
 
-  tcp_client->write("PASS original direction\n");
+  ASSERT_TRUE(tcp_client->write("PASS original direction\n"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(FakeRawConnection::waitForInexactMatch("PASS original direction\n")));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1414,8 +1426,8 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInject) {
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
-  tcp_client->write("INJECT reply direction\n");
-  tcp_client->write("PASS original direction\n");
+  ASSERT_TRUE(tcp_client->write("INJECT reply direction\n"));
+  ASSERT_TRUE(tcp_client->write("PASS original direction\n"));
   ASSERT_TRUE(fake_upstream_connection->write("PASS reply direction\n"));
 
   // These can in principle arrive in either order
@@ -1426,7 +1438,7 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInject) {
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1438,8 +1450,8 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartial) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("PASS reply"));
-  tcp_client->write("INJECT reply direction\n");
-  tcp_client->write("PASS original direction\n");
+  ASSERT_TRUE(tcp_client->write("INJECT reply direction\n"));
+  ASSERT_TRUE(tcp_client->write("PASS original direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->write(" direction\n"));
 
@@ -1451,7 +1463,7 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartial) {
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1463,9 +1475,9 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartialMultipl
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("PASS reply"));
-  tcp_client->write("INJECT reply direction\n");
-  tcp_client->write("DROP original direction\n");
-  tcp_client->write("INSERT original direction\n");
+  ASSERT_TRUE(tcp_client->write("INJECT reply direction\n"));
+  ASSERT_TRUE(tcp_client->write("DROP original direction\n"));
+  ASSERT_TRUE(tcp_client->write("INSERT original direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->write(" direction\n"));
 
@@ -1484,7 +1496,7 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartialMultipl
   
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1530,12 +1542,14 @@ static_resources:
         port_value: 0
     listener_filters:
       name: test_bpf_metadata
-      config:
+      typed_config:
+        "@type": type.googleapis.com/cilium.BpfMetadata
         is_ingress: {0}
     filter_chains:
       filters:
       - name: cilium.network
-        config:
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
           proxylib: "proxylib/libcilium.so"
           proxylib_params:
             access-log-path: "{{ test_udsdir }}/access_log.sock"
@@ -1586,12 +1600,12 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserUpstreamWritesFirs
   ASSERT_TRUE(fake_upstream_connection->write("24:PASS reply direction\n"));
   tcp_client->waitForData("24:PASS reply direction\n");
 
-  tcp_client->write("27:PASS original direction\n");
+  ASSERT_TRUE(tcp_client->write("27:PASS original direction\n"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(FakeRawConnection::waitForInexactMatch("PASS")));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1607,12 +1621,12 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserPartialBlocks) {
   ASSERT_TRUE(fake_upstream_connection->write(" reply direction\n"));
   tcp_client->waitForData("24:PASS reply direction\n");
 
-  tcp_client->write("27:PASS original direction\n");
+  ASSERT_TRUE(tcp_client->write("27:PASS original direction\n"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(FakeRawConnection::waitForInexactMatch("27:PASS original direction\n")));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1623,8 +1637,8 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInject) {
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
-  tcp_client->write("26:INJECT reply direction\n");
-  tcp_client->write("27:PASS original direction\n");
+  ASSERT_TRUE(tcp_client->write("26:INJECT reply direction\n"));
+  ASSERT_TRUE(tcp_client->write("27:PASS original direction\n"));
   ASSERT_TRUE(fake_upstream_connection->write("24:PASS reply direction\n"));
 
   // These can in principle arrive in either order
@@ -1637,7 +1651,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInject) {
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1649,8 +1663,8 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartial) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("24:PASS reply"));
-  tcp_client->write("26:INJECT reply direction\n");
-  tcp_client->write("27:PASS original direction\n");
+  ASSERT_TRUE(tcp_client->write("26:INJECT reply direction\n"));
+  ASSERT_TRUE(tcp_client->write("27:PASS original direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->write(" direction\n"));
 
@@ -1662,7 +1676,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartial) {
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1674,9 +1688,9 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartialMulti
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("24:PASS reply"));
-  tcp_client->write("26:INJECT reply direction\n");
-  tcp_client->write("27:DROP original direction\n");
-  tcp_client->write("29:INSERT original direction\n");
+  ASSERT_TRUE(tcp_client->write("26:INJECT reply direction\n"));
+  ASSERT_TRUE(tcp_client->write("27:DROP original direction\n"));
+  ASSERT_TRUE(tcp_client->write("29:INSERT original direction\n"));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   ASSERT_TRUE(fake_upstream_connection->write(" dire"));
@@ -1697,7 +1711,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartialMulti
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1708,15 +1722,15 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectBufferOverfl
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
-  tcp_client->write("26:INJECT reply direction\n");
-  tcp_client->write("27:DROP original direction\n");
+  ASSERT_TRUE(tcp_client->write("26:INJECT reply direction\n"));
+  ASSERT_TRUE(tcp_client->write("27:DROP original direction\n"));
 
   char buf[5000];
   memset(buf, 'A', sizeof buf);
   strncpy(buf, "5000:INSERT original direction", 30);
   buf[sizeof buf - 1] = '\n';
   
-  tcp_client->write(buf);
+  ASSERT_TRUE(tcp_client->write(buf));
   tcp_client->waitForData("26:INJECT reply direction\n", false);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(FakeRawConnection::waitForInexactMatch(buf)));
@@ -1728,7 +1742,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectBufferOverfl
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -1838,12 +1852,14 @@ static_resources:
         port_value: 0
     listener_filters:
     - name: test_bpf_metadata
-      config:
+      typed_config:
+        "@type": type.googleapis.com/cilium.BpfMetadata
         is_ingress: {0}
     filter_chains:
     - filters:
       - name: cilium.network
-        config:
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
@@ -1933,11 +1949,12 @@ public:
     // Set up the mock buffer factory so the newly created SSL client will have a mock write
     // buffer. This allows us to track the bytes actually written to the socket.
 
-    EXPECT_CALL(*mock_buffer_factory_, create_(_, _))
+    EXPECT_CALL(*mock_buffer_factory_, create_(_, _, _))
         .Times(1)
         .WillOnce(Invoke([&](std::function<void()> below_low,
-                             std::function<void()> above_high) -> Buffer::Instance* {
-          client_write_buffer_ = new NiceMock<MockWatermarkBuffer>(below_low, above_high);
+                             std::function<void()> above_high,
+                             std::function<void()> above_overflow) -> Buffer::Instance* {
+          client_write_buffer_ = new NiceMock<MockWatermarkBuffer>(below_low, above_high, above_overflow);
           ON_CALL(*client_write_buffer_, move(_))
               .WillByDefault(Invoke(client_write_buffer_, &MockWatermarkBuffer::baseMove));
           ON_CALL(*client_write_buffer_, drain(_))
@@ -2054,12 +2071,12 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamWritesFirst) {
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
   tcp_client->waitForData("hello");
 
-  tcp_client->write("hello");
+  ASSERT_TRUE(tcp_client->write("hello"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -2069,7 +2086,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamWritesFirst) {
 TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamDisconnect) {
   initialize();
   IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
-  tcp_client->write("hello");
+  ASSERT_TRUE(tcp_client->write("hello"));
 
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
@@ -2089,7 +2106,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamDisconnect) {
 TEST_P(CiliumTLSProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
   initialize();
   IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
-  tcp_client->write("hello");
+  ASSERT_TRUE(tcp_client->write("hello"));
 
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
@@ -2097,7 +2114,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
   ASSERT_TRUE(fake_upstream_connection->write("world"));
   tcp_client->waitForData("world");
-  tcp_client->write("hello", true);
+  ASSERT_TRUE(tcp_client->write("hello", true));
   ASSERT_TRUE(fake_upstream_connection->waitForData(10));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -2111,7 +2128,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyLargeWrite) {
 
   std::string data(1024 * 16, 'a');
   IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
-  tcp_client->write(data);
+  ASSERT_TRUE(tcp_client->write(data));
 
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
@@ -2153,7 +2170,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyDownstreamFlush) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   tcp_client->readDisable(true);
-  tcp_client->write("", true);
+  ASSERT_TRUE(tcp_client->write("", true));
 
   // This ensures that readDisable(true) has been run on it's thread
   // before tcp_client starts writing.
@@ -2205,7 +2222,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlush) {
   // before tcp_client starts writing.
   tcp_client->waitForHalfClose();
 
-  tcp_client->write(data, true);
+  ASSERT_TRUE(tcp_client->write(data, true));
 
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
   ASSERT_TRUE(fake_upstream_connection->readDisable(false));
@@ -2243,7 +2260,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlushEnvoyExit) {
   // before tcp_client starts writing.
   tcp_client->waitForHalfClose();
 
-  tcp_client->write(data, true);
+  ASSERT_TRUE(tcp_client->write(data, true));
 
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
   test_server_.reset();
@@ -2296,13 +2313,15 @@ static_resources:
         port_value: 0
     listener_filters:
     - name: test_bpf_metadata
-      config:
+      typed_config:
+        "@type": type.googleapis.com/cilium.BpfMetadata
         is_ingress: {0}
     - name: "envoy.listener.tls_inspector"
     filter_chains:
     - filters:
       - name: cilium.network
-        config:
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
@@ -2315,7 +2334,8 @@ static_resources:
         name: "cilium.tls_wrapper"
       filters:
       - name: cilium.network
-        config:
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
@@ -2452,7 +2472,8 @@ static_resources:
         port_value: 0
     listener_filters:
     - name: test_bpf_metadata
-      config:
+      typed_config:
+        "@type": type.googleapis.com/cilium.BpfMetadata
         is_ingress: {0}
     filter_chains:
     - filters:
@@ -2464,7 +2485,8 @@ static_resources:
           codec_type: auto
           http_filters:
           - name: test_l7policy
-            config:
+            typed_config:
+              "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
           - name: envoy.router
           route_config:
@@ -2492,7 +2514,8 @@ static_resources:
           codec_type: auto
           http_filters:
           - name: test_l7policy
-            config:
+            typed_config:
+              "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
           - name: envoy.router
           route_config:

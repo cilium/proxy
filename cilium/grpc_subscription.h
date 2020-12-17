@@ -19,10 +19,11 @@ namespace Cilium {
 class GrpcSubscriptionImpl : public Config::GrpcSubscriptionImpl {
 public:
   GrpcSubscriptionImpl(Config::GrpcMuxSharedPtr grpc_mux, Config::SubscriptionCallbacks& callbacks,
+                       Config::OpaqueResourceDecoder& resource_decoder,
                        Config::SubscriptionStats stats, absl::string_view type_url,
                        Event::Dispatcher& dispatcher, std::chrono::milliseconds init_fetch_timeout,
                        bool is_aggregated)
-    : Config::GrpcSubscriptionImpl(grpc_mux, callbacks, stats, type_url, dispatcher,
+    : Config::GrpcSubscriptionImpl(grpc_mux, callbacks, resource_decoder, stats, type_url, dispatcher,
 				   init_fetch_timeout, is_aggregated),
     type_url_(type_url), grpc_mux_(grpc_mux) {}
 
@@ -34,10 +35,12 @@ private:
   Config::GrpcMuxSharedPtr grpc_mux_;
 };
 
+
 std::unique_ptr<GrpcSubscriptionImpl>
 subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
 	  Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-	  Runtime::RandomGenerator& random, Stats::Scope &scope, Envoy::Config::SubscriptionCallbacks& callbacks);
+	  Runtime::RandomGenerator& random, Stats::Scope &scope, Config::SubscriptionCallbacks& callbacks,
+	  Config::OpaqueResourceDecoder& resource_decoder);
 
 } // namespace Cilium
 } // namespace Envoy

@@ -5,6 +5,7 @@
 #include "envoy/event/dispatcher.h"
 
 #include "common/common/logger.h"
+#include "common/config/opaque_resource_decoder_impl.h"
 #include "common/http/header_utility.h"
 #include "common/protobuf/message_validator_impl.h"
 #include "envoy/config/subscription.h"
@@ -18,6 +19,7 @@
 #include "extensions/transport_sockets/tls/context_config_impl.h"
 
 #include "cilium/api/npds.pb.h"
+#include "cilium/api/npds.pb.validate.h"
 #include "cilium/accesslog.h"
 #include "cilium/conntrack.h"
 
@@ -88,9 +90,9 @@ public:
   }
 
   // Config::SubscriptionCallbacks
-  void onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources,
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
 		      const std::string& version_info) override;
-  void onConfigUpdate(const Protobuf::RepeatedPtrField<envoy::service::discovery::v3::Resource>& added_resources,
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
 		      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
 		      const std::string& system_version_info) override {
     // NOT IMPLEMENTED YET.
@@ -99,9 +101,6 @@ public:
     UNREFERENCED_PARAMETER(system_version_info);
   }
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason, const EnvoyException* e) override;
-  std::string resourceName(const ProtobufWkt::Any& resource) override {
-    return MessageUtil::anyConvert<cilium::NetworkPolicy>(resource).name();
-  }
 
 private:
   const std::shared_ptr<const PolicyInstanceImpl>& GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
@@ -117,6 +116,7 @@ private:
   std::string name_;
   Cilium::CtMapSharedPtr ctmap_;
 public:
+  Envoy::Config::OpaqueResourceDecoderImpl<cilium::NetworkPolicy> resource_decoder_;
   Server::Configuration::TransportSocketFactoryContext& transport_socket_factory_context_;
 };
 

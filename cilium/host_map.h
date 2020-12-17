@@ -9,11 +9,13 @@
 #include "common/common/logger.h"
 #include "common/network/utility.h"
 #include "common/protobuf/message_validator_impl.h"
+
 #include "envoy/config/subscription.h"
 #include "envoy/singleton/instance.h"
 #include "envoy/thread_local/thread_local.h"
 
 #include "cilium/api/nphds.pb.h"
+#include "cilium/api/nphds.pb.validate.h"
 
 #include "absl/numeric/int128.h"
 
@@ -47,6 +49,7 @@ enum ID : uint64_t { UNKNOWN = 0, WORLD = 2 };
 
 class PolicyHostMap : public Singleton::Instance,
                       public Config::SubscriptionCallbacks,
+                      public Config::OpaqueResourceDecoder,
                       public std::enable_shared_from_this<PolicyHostMap>,
                       public Logger::Loggable<Logger::Id::config> {
 public:
@@ -166,9 +169,10 @@ public:
   }
 
   // Config::SubscriptionCallbacks
-  void onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) override;
-  void onConfigUpdate(const Protobuf::RepeatedPtrField<envoy::service::discovery::v3::Resource>& added_resources,
-		      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
+                      const std::string& version_info) override;
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
+                      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
 		      const std::string& system_version_info) override {
     // NOT IMPLEMENTED YET.
     UNREFERENCED_PARAMETER(added_resources);
@@ -176,8 +180,20 @@ public:
     UNREFERENCED_PARAMETER(system_version_info);
   }
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason, const EnvoyException* e) override;
-  std::string resourceName(const ProtobufWkt::Any& resource) override {
-    return fmt::format("{}", MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource).policy());
+
+  // Config::OpaqueResourceDecoder
+  ProtobufTypes::MessagePtr decodeResource(const ProtobufWkt::Any& resource) override {
+    auto typed_message = std::make_unique<cilium::NetworkPolicyHosts>();
+    // If the Any is a synthetic empty message (e.g. because the resource field was not set in
+    // Resource, this might be empty, so we shouldn't decode.
+    if (!resource.type_url().empty()) {
+      MessageUtil::anyConvertAndValidate<cilium::NetworkPolicyHosts>(resource, *typed_message, validation_visitor_);
+    }
+    return typed_message;
+  }
+
+  std::string resourceName(const Protobuf::Message& resource) override {
+    return fmt::format("{}", dynamic_cast<const cilium::NetworkPolicyHosts&>(resource).policy());
   }
 
 private:

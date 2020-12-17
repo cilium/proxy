@@ -84,7 +84,8 @@ const Protobuf::MethodDescriptor& sotwGrpcMethod(absl::string_view type_url) {
 std::unique_ptr<GrpcSubscriptionImpl>
 subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
 	  Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-	  Runtime::RandomGenerator& random, Stats::Scope &scope, Envoy::Config::SubscriptionCallbacks& callbacks) {
+	  Runtime::RandomGenerator& random, Stats::Scope &scope, Config::SubscriptionCallbacks& callbacks,
+	  Config::OpaqueResourceDecoder& resource_decoder) {
   // Hard-coded Cilium gRPC cluster
   // Note: No rate-limit settings are used, consider if needed.
   envoy::config::core::v3::ApiConfigSource api_config_source{};
@@ -92,7 +93,7 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
   api_config_source.set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
   api_config_source.add_grpc_services()->mutable_envoy_grpc()->set_cluster_name("xds-grpc-cilium"); 
 
-  Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(cm.clusters(), api_config_source);
+  Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(cm.primaryClusters(), api_config_source);
 
   Config::SubscriptionStats stats = Config::Utility::generateStats(scope);
 
@@ -100,13 +101,13 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
       std::make_shared<Config::GrpcMuxImpl>(
           local_info,
 	  Config::Utility::factoryForGrpcApiConfigSource(cm.grpcAsyncClientManager(),
-							 api_config_source, scope)
+							 api_config_source, scope, true)
 	      ->create(),
 	  dispatcher, sotwGrpcMethod(type_url), api_config_source.transport_api_version(),
           random, scope, Config::Utility::parseRateLimitSettings(api_config_source),
           api_config_source.set_node_on_first_message_only()),
-      callbacks, stats, type_url, dispatcher, std::chrono::milliseconds(0) /* no initial fetch timeout */,
-      /*is_aggregated*/ false);
+      callbacks, resource_decoder, stats, type_url, dispatcher,
+      std::chrono::milliseconds(0) /* no initial fetch timeout */, /*is_aggregated*/ false);
 }
 
 } // namespace Cilium

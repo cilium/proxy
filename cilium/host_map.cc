@@ -1,5 +1,4 @@
 #include "cilium/host_map.h"
-#include "cilium/api/nphds.pb.validate.h"
 #include "cilium/grpc_subscription.h"
 
 #include <string>
@@ -143,20 +142,17 @@ PolicyHostMap::PolicyHostMap(const LocalInfo::LocalInfo& local_info, Upstream::C
 			     Stats::Scope &scope, ThreadLocal::SlotAllocator& tls)
   : PolicyHostMap(tls) {
   scope_ = scope.createScope(name_);
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", local_info, cm, dispatcher, random, *scope_, *this);
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", local_info, cm, dispatcher, random, *scope_, *this, *this);
 }
 
-void PolicyHostMap::onConfigUpdate(const Protobuf::RepeatedPtrField<ProtobufWkt::Any>& resources, const std::string& version_info) {
+void PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources, const std::string& version_info) {
   ENVOY_LOG(debug, "PolicyHostMap::onConfigUpdate({}), {} resources, version: {}", name_, resources.size(), version_info);
 
   auto newmap = std::make_shared<ThreadLocalHostMapInitializer>();
 
   for (const auto& resource: resources) {
-    auto config = MessageUtil::anyConvert<cilium::NetworkPolicyHosts>(resource);
+    const auto& config = dynamic_cast<const cilium::NetworkPolicyHosts&>(resource.get().resource());
     ENVOY_LOG(trace, "Received NetworkPolicyHosts for policy {} in onConfigUpdate() version {}", config.policy(), version_info);
-
-    MessageUtil::validate(config, validation_visitor_);
-
     newmap->insert(config);
   }
 
