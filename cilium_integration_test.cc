@@ -1053,10 +1053,6 @@ public:
     enable_half_close_ = true;
   }
 
-  ~CiliumTcpIntegrationTest() override {
-    TearDown();
-  }
-
   virtual std::string testPolicy() {
     return TestEnvironment::substitute(TCP_POLICY, GetParam());
   }
@@ -1074,8 +1070,6 @@ public:
   }
 
   void TearDown() override {
-    test_server_.reset();
-    fake_upstreams_.clear();
     npmap.reset();
   }
 
