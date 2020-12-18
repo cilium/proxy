@@ -23,6 +23,7 @@ http_archive(
         "@//patches:original-dst-add-sni.patch",
         "@//patches:test-enable-half-close.patch",
         "@//patches:test-allow-disconnects.patch",
+        "@//patches:test-certs-update.patch",
         "@//patches:cross-aarch64.patch",
         "@//patches:envoy-arm64.patch",
     ],
