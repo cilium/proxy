@@ -2582,7 +2582,6 @@ public:
   void initialize() override {
     CiliumHttpIntegrationTest::initialize();
     fake_upstreams_[0]->setReadDisableOnNewConnection(false);
-    fake_upstreams_[0]->set_allow_unexpected_disconnects(allow_unexpected_disconnects_);
 
     // Set up the SSL client.
     Network::Address::InstanceConstSharedPtr address =
@@ -2637,7 +2636,6 @@ public:
 
   void Failed(Http::TestRequestHeaderMapImpl&& headers) {
     policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
-    allow_unexpected_disconnects_ = true;
     initialize();
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     response->waitForEndStream();
@@ -2660,7 +2658,6 @@ public:
   // Upstream
   bool upstream_tls_{true};
   std::string upstream_cert_name_{"upstreamlocalhost"};
-  bool allow_unexpected_disconnects_{false};
 
   // Downstream
   Network::TransportSocketFactoryPtr context_;

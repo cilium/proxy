@@ -1,0 +1,36 @@
+diff --git a/test/integration/fake_upstream.h b/test/integration/fake_upstream.h
+index ccbd4d329a..48fa6307b9 100644
+--- a/test/integration/fake_upstream.h
++++ b/test/integration/fake_upstream.h
+@@ -291,7 +291,8 @@ public:
+   ABSL_MUST_USE_RESULT
+   testing::AssertionResult
+   executeOnDispatcher(std::function<void(Network::Connection&)> f,
+-                      std::chrono::milliseconds timeout = TestUtility::DefaultTimeout) {
++                      std::chrono::milliseconds timeout = TestUtility::DefaultTimeout,
++                      bool allow_disconnects = true) {
+     Thread::LockGuard lock(lock_);
+     if (disconnected_) {
+       return testing::AssertionSuccess();
+@@ -316,7 +317,7 @@ public:
+     if (status == Thread::CondVar::WaitStatus::Timeout) {
+       return testing::AssertionFailure() << "Timed out while executing on dispatcher.";
+     }
+-    if (unexpected_disconnect && !allow_unexpected_disconnects_) {
++    if (unexpected_disconnect && !(allow_unexpected_disconnects_ || allow_disconnects)) {
+       return testing::AssertionFailure()
+              << "The connection disconnected unexpectedly, and allow_unexpected_disconnects_ is "
+                 "false."
+diff --git a/test/integration/fake_upstream.cc b/test/integration/fake_upstream.cc
+index 22e03e42c6..d4183a9aa9 100644
+--- a/test/integration/fake_upstream.cc
++++ b/test/integration/fake_upstream.cc
+@@ -456,7 +456,7 @@ FakeUpstream::FakeUpstream(Network::TransportSocketFactoryPtr&& transport_socket
+       api_(Api::createApiForTest(stats_store_)), time_system_(time_system),
+       dispatcher_(api_->allocateDispatcher("fake_upstream")),
+       handler_(new Server::ConnectionHandlerImpl(*dispatcher_)),
+-      allow_unexpected_disconnects_(false), read_disable_on_new_connection_(true),
++      allow_unexpected_disconnects_(true), read_disable_on_new_connection_(true),
+       enable_half_close_(enable_half_close), listener_(*this),
+       filter_chain_(Network::Test::createEmptyFilterChain(std::move(transport_socket_factory))) {
+   thread_ = api_->threadFactory().createThread([this]() -> void { threadRoutine(); });
