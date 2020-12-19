@@ -24,6 +24,7 @@ http_archive(
         "@//patches:test-enable-half-close.patch",
         "@//patches:test-allow-disconnects.patch",
         "@//patches:test-certs-update.patch",
+        "@//patches:test-double-server-create-timeout.patch",
         "@//patches:cross-aarch64.patch",
         "@//patches:envoy-arm64.patch",
     ],

@@ -2152,7 +2152,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyLargeWrite) {
       test_server_->counter("tcp.tcp_stats.downstream_flow_control_resumed_reading_total")->value();
   EXPECT_EQ(downstream_pauses, downstream_resumes);
 }
-#ifndef __aarch64__
+
 // Test that a downstream flush works correctly (all data is flushed)
 TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyDownstreamFlush) {
   // Use a very large size to make sure it is larger than the kernel socket read buffer.
@@ -2210,7 +2210,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlush) {
   // Disabling read does not let the TLS handshake to finish. We should be able to wait for
   // ConnectionEvent::Connected, which is raised after the TLS handshake has completed,
   // but just wait for a while instead for now.
-  usleep(10000);
+  usleep(100000);
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -2223,7 +2223,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlush) {
 
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
   ASSERT_TRUE(fake_upstream_connection->readDisable(false));
-  ASSERT_TRUE(fake_upstream_connection->waitForData(data.size()));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(data.size(), nullptr, 3 * TestUtility::DefaultTimeout));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   tcp_client->waitForHalfClose();
@@ -2248,7 +2248,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlushEnvoyExit) {
   // Disabling read does not let the TLS handshake to finish. We should be able to wait for
   // ConnectionEvent::Connected, which is raised after the TLS handshake has completed,
   // but just wait for a while instead for now.
-  usleep(10000);
+  usleep(100000);
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -2266,7 +2266,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlushEnvoyExit) {
 
   // Success criteria is that no ASSERTs fire and there are no leaks.
 }
-#endif
+
 //
 // Cilium filters with TCP proxy & Upstream TLS
 //
