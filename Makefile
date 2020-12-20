@@ -46,7 +46,7 @@ IMAGE_ARCH = $(SLASH)$(ARCH)
 DOCKERFILE_ARCH = .multi_arch
 
 BAZEL_ARCH = $(subst x86_64,k8,$(shell uname -m))
-ENVOY_LINKSTAMP_O = bazel-out/$(BAZEL_ARCH)-fastbuild/bin/_objs/cilium-envoy/envoy/source/common/common/version_linkstamp.o
+ENVOY_LINKSTAMP_O = bazel-bin/_objs/cilium-envoy/envoy/source/common/common/version_linkstamp.o
 
 ifdef PKG_BUILD
 all: precheck install-bazel clean-bins $(CILIUM_ENVOY_RELEASE_BIN) shutdown-bazel
@@ -140,13 +140,21 @@ debug: envoy-debug
 api: force-non-root Makefile.api
 	$(MAKE) -f Makefile.api all
 
-envoy-default: force-non-root
+bazel-bin-fastbuild: force-non-root
+	-rm -f bazel-bin
+	ln -s $(shell bazel info bazel-bin) bazel-bin
+
+envoy-default: bazel-bin-fastbuild
 	@$(ECHO_BAZEL)
 	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 # Allow root build for release
-$(CILIUM_ENVOY_BIN): force
+bazel-bin-opt: force
+	-rm -f bazel-bin
+	ln -s $(shell bazel info -c opt bazel-bin) bazel-bin
+
+$(CILIUM_ENVOY_BIN): bazel-bin-opt
 	@$(ECHO_BAZEL)
 	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:cilium-envoy $(BAZEL_FILTER)
@@ -160,7 +168,11 @@ docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push cilium/istio_proxy:$(ISTIO_VERSION)"
 
-envoy-debug: force-non-root
+bazel-bin-dbg: force-non-root
+	-rm -f bazel-bin
+	ln -s $(shell bazel info -c dbg bazel-bin) bazel-bin
+
+envoy-debug: bazel-bin-dbg
 	@$(ECHO_BAZEL)
 	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c dbg //:cilium-envoy $(BAZEL_FILTER)
