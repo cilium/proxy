@@ -9,8 +9,8 @@ workspace(name = "cilium")
 #
 ENVOY_PROJECT = "envoyproxy"
 ENVOY_REPO = "envoy"
-ENVOY_SHA = "fa0371e658658625bcf4eb48f9874b07a852404f"
-ENVOY_SHA256 = "24df3c1dc2cdd9e2db5d0d35acd629a17f8f31d701d77505a6f94d7a084abd46"
+ENVOY_SHA = "ca0d61134a84ce644c7f46549a06a99579fb97c0"
+ENVOY_SHA256 = "ba0e9d950085a56291799fdef8fe23703cf360b7cc507faee29c9548defdc6ca"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
