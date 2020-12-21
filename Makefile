@@ -89,9 +89,22 @@ endif
 $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
 endif
 
+.PHONY: docker-image-builder
 docker-image-builder: Dockerfile.builder clean
-	$(DOCKER) build -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
 
+# Extract the current builder reference from Dockerfile and combine with the deps build from Dockerfile.builder
+# This way we do not need to maintain multiple references to the current builder
+.PRECIOUS: Dockerfile.builder-refresh
+Dockerfile.builder-refresh: Dockerfile.builder Dockerfile Makefile
+	sed -n '/^FROM .*as builder/p' Dockerfile >$@
+	sed -n '1,/^FROM base as builder/d; p; /^RUN .*make envoy-deps/q' Dockerfile.builder >>$@
+
+.PHONY: docker-image-builder-refresh
+docker-image-builder-refresh: Dockerfile.builder-refresh clean
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
+
+.PHONY: docker-image-envoy
 docker-image-envoy: Dockerfile clean
 	@$(ECHO_GEN) docker-image-envoy
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)" .
@@ -158,6 +171,12 @@ bazel-bin-fastbuild: force-non-root
 	-rm -f bazel-bin
 	ln -s $(shell bazel info bazel-bin) bazel-bin
 
+envoy-deps-fastbuild: force-non-root
+	@$(ECHO_BAZEL)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-deps $(BAZEL_FILTER)
+	-rm bazel-bin/cilium-envoy-deps
+	$(BAZEL) shutdown
+
 envoy-default: bazel-bin-fastbuild
 	@$(ECHO_BAZEL)
 	-rm -f ${ENVOY_LINKSTAMP_O}
@@ -167,6 +186,12 @@ envoy-default: bazel-bin-fastbuild
 bazel-bin-opt: force
 	-rm -f bazel-bin
 	ln -s $(shell bazel info -c opt bazel-bin) bazel-bin
+
+envoy-deps-opt: force
+	@$(ECHO_BAZEL)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:cilium-envoy-deps $(BAZEL_FILTER)
+	-rm bazel-bin/cilium-envoy-deps
+	$(BAZEL) shutdown
 
 $(CILIUM_ENVOY_BIN): bazel-bin-opt
 	@$(ECHO_BAZEL)
@@ -194,7 +219,7 @@ envoy-debug: bazel-bin-dbg
 $(CHECK_FORMAT): force-non-root
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:check_format.py
 
-install: force-root
+install: $(CILIUM_ENVOY_BIN)
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T $(CILIUM_ENVOY_BIN) $(DESTDIR)$(BINDIR)/cilium-envoy
 # Strip only non-debug builds

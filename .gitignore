@@ -17,6 +17,7 @@ bazel-*
 
 cilium-envoy
 Dockerfile.istio_proxy
+Dockerfile.builder-refresh
 
 # Emacs backup files
 *~

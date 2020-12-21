@@ -36,7 +36,7 @@ RUN apt-get update && \
       zip && \
     apt-get purge --auto-remove && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /cilium/proxy
 COPY .bazelversion ./
@@ -48,16 +48,26 @@ RUN export BAZEL_VERSION=$(cat .bazelversion) \
 	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
 	&& chmod +x /usr/bin/bazel
 
-FROM base
+FROM base as builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
+ARG V
+ARG BAZEL_BUILD_OPTS
 
 #
-# Build and keep the cache
+# Build Bazel cache
 #
-RUN make BAZEL_BUILD_OPTS=--jobs=8 PKG_BUILD=1 ./bazel-bin/cilium-envoy && rm ./bazel-bin/cilium-envoy
+RUN BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS:---jobs=8} PKG_BUILD=1 V=$V DESTDIR=/tmp/install make envoy-deps-opt && rm -rf /cilium/proxy
 
 #
 # Absolutely nothing after making envoy deps!
 #
+
+FROM base
+LABEL maintainer="maintainer@cilium.io"
+WORKDIR /cilium/proxy
+ARG V
+ARG BAZEL_BUILD_OPTS
+
+COPY --from=builder /root/.cache/bazel /root/.cache/bazel

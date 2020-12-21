@@ -9,6 +9,34 @@ load(
 envoy_package()
 
 envoy_cc_library(
+    name = "envoy_deps_lib",
+    visibility = ["//visibility:public"],
+    repository = "@envoy",
+    deps = [
+        "@envoy//include/envoy/buffer:buffer_interface",
+        "@envoy//include/envoy/config:subscription_interface",
+        "@envoy//include/envoy/network:connection_interface",
+        "@envoy//include/envoy/network:filter_interface",
+        "@envoy//include/envoy/network:listen_socket_interface",
+        "@envoy//include/envoy/network:transport_socket_interface",
+        "@envoy//include/envoy/registry:registry",
+        "@envoy//include/envoy/server:filter_config_interface",
+        "@envoy//include/envoy/server:transport_socket_config_interface",
+        "@envoy//include/envoy/singleton:manager_interface",
+        "@envoy//source/common/buffer:buffer_lib",
+        "@envoy//source/common/common:assert_lib",
+        "@envoy//source/common/common:logger_lib",
+        "@envoy//source/common/config:grpc_subscription_lib",
+        "@envoy//source/common/local_info:local_info_lib",
+        "@envoy//source/common/network:address_lib",
+        "@envoy//source/common/router:config_utility_lib",
+        "@envoy//source/exe:envoy_common_lib",
+        "@envoy//source/extensions/transport_sockets/tls:ssl_socket_lib",
+        "@envoy//source/server:transport_socket_config_lib",
+    ],
+)
+
+envoy_cc_library(
     name = "tls_wrapper_lib",
     visibility = ["//visibility:public"],
     srcs = ["tls_wrapper.cc"],
@@ -17,8 +45,8 @@ envoy_cc_library(
     deps = [
         "@envoy//include/envoy/network:transport_socket_interface",
         "@envoy//include/envoy/registry",
-	"@envoy//include/envoy/server:transport_socket_config_interface",
-	"@envoy//source/server:transport_socket_config_lib",
+        "@envoy//include/envoy/server:transport_socket_config_interface",
+        "@envoy//source/server:transport_socket_config_lib",
         "@envoy//source/extensions/transport_sockets/tls:ssl_socket_lib",
         "//cilium:network_policy_lib",
         "//cilium:socket_option_lib",
@@ -44,8 +72,8 @@ envoy_cc_library(
         "@envoy//source/common/router:config_utility_lib",
         "//cilium/api:npds_cc_proto",
         "//cilium:accesslog_lib",
-	"//cilium:conntrack_lib",
-	"//cilium:grpc_subscription_lib",
+        "//cilium:conntrack_lib",
+        "//cilium:grpc_subscription_lib",
     ],
 )
 
@@ -197,8 +225,8 @@ envoy_cc_library(
     ],
     hdrs = [
         "proxylib.h",
-	"//:proxylib/libcilium.h",
-	"//:proxylib/types.h"
+        "//:proxylib/libcilium.h",
+        "//:proxylib/types.h"
     ],
     repository = "@envoy",
     deps = [

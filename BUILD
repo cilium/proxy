@@ -10,6 +10,16 @@ exports_files(["linux/bpf_common.h", "linux/bpf.h", "linux/type_mapper.h",
                "proxylib/libcilium.h", "proxylib/types.h"])
 
 envoy_cc_binary(
+    name = "cilium-envoy-deps",
+    repository = "@envoy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cilium:envoy_deps_lib",
+        "@envoy//source/exe:envoy_main_entry_lib",
+    ],
+)
+
+envoy_cc_binary(
     name = "cilium-envoy",
     repository = "@envoy",
     visibility = ["//visibility:public"],
