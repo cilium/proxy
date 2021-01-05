@@ -327,7 +327,7 @@ public:
       ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
     }
 
-    socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, source_identity, destination_identity, is_ingress_, 80, is_ingress_ ? 10000 : 10001, std::move(pod_ip), nullptr));
+    socket.addOption(std::make_shared<Cilium::SocketOption>(policy, source_identity, destination_identity, is_ingress_, 80, std::move(pod_ip), nullptr));
 
     return true;
   }
@@ -1767,7 +1767,7 @@ TEST_F(CiliumTest, AccessLog) {
   stream_info.start_time_ = time_system_.systemTime();
   Network::MockConnection connection;
   Network::Socket::OptionsSharedPtr options = std::make_shared<Network::Socket::Options>();
-  options->push_back(std::make_shared<Cilium::SocketOption>(nullptr, nullptr, 1, 173, true, 80, 10000, "1.2.3.4", nullptr));
+  options->push_back(std::make_shared<Cilium::SocketOption>(nullptr, 1, 173, true, 80, "1.2.3.4", nullptr));
   local_address_ = std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80);
   remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("5.6.7.8", 45678);
 

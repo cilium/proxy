@@ -66,20 +66,12 @@ CONST_STRING_VIEW(xForwardedProtoSV, "x-forwarded-proto");
 void AccessLog::Entry::InitFromConnection(const std::string& policy_name, bool ingress, const Network::Connection& conn) {
   entry_.set_policy_name(policy_name);
 
-  const auto& options_ = conn.socketOptions();
-  if (options_) {
-    const Cilium::SocketOption* option = nullptr;
-    for (const auto& option_: *options_) {
-      option = dynamic_cast<const Cilium::SocketOption*>(option_.get());
-      if (option) {
-	entry_.set_source_security_id(option->identity_);
-	entry_.set_destination_security_id(option->destination_identity_);
-	break;
-      }
-    }
-    if (!option) {
-      ENVOY_CONN_LOG(warn, "accesslog: Cilium Socket Option not found", conn);
-    }
+  const auto option = Cilium::GetSocketOption(conn.socketOptions());
+  if (option) {
+    entry_.set_source_security_id(option->identity_);
+    entry_.set_destination_security_id(option->destination_identity_);
+  } else {
+    ENVOY_CONN_LOG(warn, "accesslog: Cilium Socket Option not found", conn);
   }
   auto source_address = conn.remoteAddress();
   if (source_address != nullptr) {

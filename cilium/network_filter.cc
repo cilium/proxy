@@ -85,16 +85,6 @@ Network::FilterStatus Instance::onNewConnection() {
   auto& conn = callbacks_->connection();
   const auto option = Cilium::GetSocketOption(conn.socketOptions());
   if (option) {
-    maps_ = option->GetProxyMap();
-    if (maps_) {
-      // Insert connection callback to delete the proxymap entry once the connection is closed.
-      proxy_port_ = option->proxy_port_;
-      if (proxy_port_ != 0) {
-	conn.addConnectionCallbacks(*this);
-	ENVOY_CONN_LOG(debug, "Cilium Network: Added connection callbacks to delete proxymap entry later", conn);
-      }
-    }
-
     const std::string& policy_name = option->pod_ip_;
     if (option->policy_) {
       port_policy_ = option->policy_->findPortPolicy(option->ingress_, option->port_,
@@ -183,18 +173,6 @@ Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream)
   }
 
   return Network::FilterStatus::Continue;
-}
-
-void Instance::onEvent(Network::ConnectionEvent event) {
-  if (event == Network::ConnectionEvent::RemoteClose ||
-      event == Network::ConnectionEvent::LocalClose) {
-    if (maps_) {
-      auto& conn = callbacks_->connection();
-      bool ok = maps_->removeBpfMetadata(conn, proxy_port_);
-      ENVOY_CONN_LOG(debug, "Cilium Network: Connection Closed, proxymap cleanup {}", conn,
-		     ok ? "succeeded" : "failed");
-    }
-  }
 }
 
 } // namespace CiliumL3

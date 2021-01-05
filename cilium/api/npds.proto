@@ -58,7 +58,7 @@ message NetworkPolicy {
 
   // Name of the conntrack map to use with this policy.
   // The paths to various Cilium conntrack maps are derived using this name.
-  // Optional. If empty, proxymap lookup is used instead of conntrack map.
+  // Optional. If empty, ipcache or hostmap lookup is used instead of conntrack map.
   string conntrack_map_name = 5;
 }
 

@@ -58,7 +58,6 @@ namespace BpfMetadata {
 
 // Singleton registration via macro defined in envoy/singleton/manager.h
 SINGLETON_MANAGER_REGISTRATION(cilium_bpf_conntrack);
-SINGLETON_MANAGER_REGISTRATION(cilium_bpf_proxymap);
 SINGLETON_MANAGER_REGISTRATION(cilium_host_map);
 SINGLETON_MANAGER_REGISTRATION(cilium_ipcache);
 SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
@@ -97,14 +96,6 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
   // Only try opening bpf maps if bpf root is explicitly configured
   std::string bpf_root = config.bpf_root();
   if (bpf_root.length() > 0) {
-    maps_ = context.singletonManager().getTyped<Cilium::ProxyMap>(
-	SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_proxymap), [&bpf_root] {
-	  auto maps = std::make_shared<Cilium::ProxyMap>(bpf_root);
-	  if (!maps->Open()) {
-	    maps.reset();
-	  }
-	  return maps;
-	});
     ct_maps_ = context.singletonManager().getTyped<Cilium::CtMap>(
 	SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
 	  // Even if opening the global maps fail, local maps may still succeed later.
@@ -136,36 +127,19 @@ Config::Config(const ::cilium::BpfMetadata &config, Server::Configuration::Liste
 }
 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
-  uint32_t source_identity = 0, destination_identity = 0;
-  uint16_t orig_dport = 0, proxy_port = 0;
   Network::Address::InstanceConstSharedPtr src_address = socket.remoteAddress();
   const auto sip = src_address->ip();
-  auto dip = socket.localAddress()->ip();
+  const auto& dst_address = socket.localAddress();
+  const auto dip = dst_address->ip();
 
   if (!sip || !dip) {
-    ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}",
-		   src_address->asString(), socket.localAddress()->asString());
+    ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}", src_address->asString(), dst_address->asString());
     return false;
   }
 
-  // Cilium < 1.6 uses REDIRECT, which NATs the destination address
-  // and port. Proxymap is used to retrieve the originals, as well as
-  // the source security ID.
-  // Cilium >= 1.6 and sidecars use TPROXY, so the destination address
-  // is not NATted.
-  bool with_tproxy = (maps_ == nullptr);
-  
   // We do this first as this likely restores the destination address
-  if (with_tproxy) {
-    // Let the OriginalDstCluster know the destination address can be used.
-    socket.restoreLocalAddress(socket.localAddress()); // mark as `restored`
-    orig_dport = dip->port();
-  } else {
-    // Proxymap ('maps_') use will be deprecated when Cilium 1.6 is the oldest
-    // supported version.
-    maps_->getBpfMetadata(socket, &source_identity, &orig_dport, &proxy_port);
-    dip = socket.localAddress()->ip();
-  }
+  // Let the OriginalDstCluster know the destination address can be used.
+  socket.restoreLocalAddress(dst_address); // mark as `restored`
 
   std::string pod_ip, other_ip;
   if (is_ingress_) {
@@ -186,41 +160,40 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     return false;
   }
 
+  uint32_t source_identity = 0;
   // Resolve the source security ID, if not already resolved
-  if (source_identity == 0) {
-    if (ct_maps_ != nullptr) {
-      // Cilium >= 1.6 provides the conntrack name in the policy
-      auto ct_name = policy->conntrackName();
-      if (ct_name.length() > 0) {
-	source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
-      }
+  if (ct_maps_ != nullptr) {
+    auto ct_name = policy->conntrackName();
+    if (ct_name.length() > 0) {
+      source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
     }
-    if (source_identity == 0) {
-      if (ipcache_ != nullptr) {
-	// Resolve the source security ID from the IPCache
-	source_identity = ipcache_->resolve(sip);
-      } else if (hosts_ != nullptr) {
-	// Resolve the source security ID from xDS hosts map
-	source_identity = hosts_->resolve(sip);
-      }
+  }
+  if (source_identity == 0) {
+    if (ipcache_ != nullptr) {
+      // Resolve the source security ID from the IPCache
+      source_identity = ipcache_->resolve(sip);
+    } else if (hosts_ != nullptr) {
+      // Resolve the source security ID from xDS hosts map
+      source_identity = hosts_->resolve(sip);
+    }
 
-      // default source identity to the world if needed
-      if (source_identity == 0) {
-	source_identity = Cilium::ID::WORLD;
-	ENVOY_LOG(trace,
-		  "cilium.bpf_metadata ({}): Source identity defaults to WORLD",
-		  is_ingress_ ? "ingress" : "egress");
-      }
+    // default source identity to the world if needed
+    if (source_identity == 0) {
+      source_identity = Cilium::ID::WORLD;
+      ENVOY_LOG(trace, "cilium.bpf_metadata ({}): Source identity defaults to WORLD",
+		is_ingress_ ? "ingress" : "egress");
     }
   }
 
   // Resolve the destination security ID for egress
+  uint32_t destination_identity = 0;
   if (!is_ingress_) {
     if (ipcache_ != nullptr) {
       destination_identity = ipcache_->resolve(dip);
     } else if (hosts_ != nullptr) {
       destination_identity = hosts_->resolve(dip);
     }
+
     // default destination identity to the world if needed
     if (destination_identity == 0) {
       destination_identity = Cilium::ID::WORLD;
@@ -240,7 +213,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Add metadata for policy based listener filter chain matching.
   // This requires the TLS inspector to be run before us.
   std::string l7proto;
-  if (policy->useProxylib(is_ingress_, orig_dport, is_ingress_ ? source_identity : destination_identity, l7proto)) {
+  if (policy->useProxylib(is_ingress_, dip->port(), is_ingress_ ? source_identity : destination_identity, l7proto)) {
     const auto& old_protocols = socket.requestedApplicationProtocols();
     std::vector<absl::string_view> protocols;
     for (const auto& old_protocol : old_protocols) {
@@ -251,10 +224,9 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG(info, "cilium.bpf_metadata: setRequestedApplicationProtocols(..., {})", l7proto);
   }
 
-  // Pass the metadata to an Envoy socket option we can retrieve
-  // later in other Cilium filters.
-  socket.addOption(std::make_shared<Cilium::SocketOption>(policy, maps_, source_identity, destination_identity,
-      is_ingress_, orig_dport, proxy_port, std::move(pod_ip), src_address));
+  // Pass the metadata to an Envoy socket option we can retrieve later in other Cilium filters.
+  socket.addOption(std::make_shared<Cilium::SocketOption>(policy, source_identity, destination_identity,
+      is_ingress_, dip->port(), std::move(pod_ip), src_address));
   return true;
 }
 
