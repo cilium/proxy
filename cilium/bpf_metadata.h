@@ -11,7 +11,6 @@
 #include "cilium/host_map.h"
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
-#include "cilium/proxymap.h"
 
 namespace Envoy {
 namespace Filter {
@@ -33,7 +32,6 @@ public:
   bool may_use_original_source_address_;
 
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
-  Cilium::ProxyMapSharedPtr maps_{};
   Cilium::CtMapSharedPtr ct_maps_{};
   Cilium::IPCacheSharedPtr ipcache_{};
   std::shared_ptr<const Cilium::PolicyHostMap> hosts_{};

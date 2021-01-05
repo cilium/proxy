@@ -13,7 +13,6 @@
 #include "cilium/conntrack.h"
 #include "cilium/network_policy.h"
 #include "cilium/proxylib.h"
-#include "cilium/proxymap.h"
 
 namespace Envoy {
 namespace Filter {
@@ -44,7 +43,7 @@ typedef std::shared_ptr<Config> ConfigSharedPtr;
 /**
  * Implementation of a Cilium network filter.
  */
-class Instance : public Network::Filter, public Network::ConnectionCallbacks,
+class Instance : public Network::Filter,
                  Logger::Loggable<Logger::Id::filter> {
 public:
   Instance(const ConfigSharedPtr& config) : config_(config) {}
@@ -59,17 +58,10 @@ public:
   // Network::WriteFilter
   Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;
   
-  // Network::ConnectionCallbacks
-  void onEvent(Network::ConnectionEvent) override;
-  void onAboveWriteBufferHighWatermark() override {}
-  void onBelowWriteBufferLowWatermark() override {}
-
 private:
   const ConfigSharedPtr config_;
   Network::ReadFilterCallbacks* callbacks_ = nullptr;
-  Cilium::ProxyMapSharedPtr maps_{};
   std::string l7proto_{};
-  uint16_t proxy_port_ = 0;
   Cilium::GoFilter::InstancePtr go_parser_{};
   Cilium::PortPolicyConstSharedPtr port_policy_{};
   Cilium::AccessLog::Entry log_entry_{};

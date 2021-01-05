@@ -87,7 +87,6 @@ envoy_cc_library(
         "@envoy//include/envoy/network:listen_socket_interface",
         "@envoy//source/common/common:logger_lib",
         "//cilium:conntrack_lib",
-        "//cilium:proxymap_lib",
     ],
 )
 
@@ -179,26 +178,6 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
-    name = "proxymap_lib",
-    srcs = [
-        "proxymap.cc",
-    ],
-    hdrs = [
-        "proxymap.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        "@envoy//include/envoy/network:listen_socket_interface",
-        "@envoy//include/envoy/network:connection_interface",
-        "@envoy//include/envoy/singleton:manager_interface",
-        "@envoy//source/common/common:assert_lib",
-        "@envoy//source/common/common:logger_lib",
-        "@envoy//source/common/network:address_lib",
-        "//cilium:bpf_lib",
-    ],
-)
-
-envoy_cc_library(
     name = "conntrack_lib",
     srcs = [
         "conntrack.cc",
@@ -261,7 +240,6 @@ envoy_cc_library(
         "//cilium:conntrack_lib",
         "//cilium:network_policy_lib",
         "//cilium:proxylib_lib",
-        "//cilium:proxymap_lib",
         "//cilium:socket_option_lib",
     ],
 )
@@ -295,7 +273,6 @@ envoy_cc_library(
         "//cilium:conntrack_lib",
         "//cilium:grpc_subscription_lib",
         "//cilium:ipcache_lib",
-        "//cilium:proxymap_lib",
         "//cilium:socket_option_lib",
         "//cilium:network_policy_lib",
     ],
