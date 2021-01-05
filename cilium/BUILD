@@ -204,8 +204,8 @@ envoy_cc_library(
     ],
     hdrs = [
         "proxylib.h",
-        "//:proxylib/libcilium.h",
-        "//:proxylib/types.h"
+        "//proxylib:libcilium.h",
+        "//proxylib:types.h"
     ],
     repository = "@envoy",
     deps = [
