@@ -14,6 +14,10 @@
 
 include Makefile.defs
 
+# This image is used to extract proxylib/libcilium.so only for "tests" target
+# This will be changed to an official image as soon as they support multi-arch
+CILIUM_REF=docker.io/jrajahalme/cilium:latest
+
 CILIUM_ENVOY_BIN = ./bazel-bin/cilium-envoy
 CILIUM_ENVOY_RELEASE_BIN = ./cilium-envoy
 ENVOY_BINS = \
@@ -268,12 +272,21 @@ check: $(CHECK_FORMAT) force-non-root
 fix: $(CHECK_FORMAT) force-non-root
 	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) $(CHECK_FORMAT) --add-excluded-prefixes="./linux/" fix
 
+# Run rule even if file exists, as it can be for a wrong architecture
+.PHONY: proxylib/libcilium.so
+proxylib/libcilium.so:
+	if ! file $@ | grep $(shell uname -m | tr "_" "-"); then \
+		docker create -ti --name cilium-proxylib $(CILIUM_REF) bash && \
+		docker cp -L cilium-proxylib:/usr/lib/libcilium.so $@ && \
+		docker rm -fv cilium-proxylib ; \
+	fi
+
 # Run tests using the fastbuild by default.
-tests: force-non-root
+tests: proxylib/libcilium.so force-non-root
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c fastbuild //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c fastbuild $(BAZEL_TEST_OPTS) //:cilium_integration_test $(BAZEL_FILTER)
 
-debug-tests: force-non-root
+debug-tests: proxylib/libcilium.so force-non-root
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c debug $(BAZEL_TEST_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c debug $(BAZEL_TEST_OPTS) //:cilium_integration_test $(BAZEL_FILTER)
 
