@@ -196,6 +196,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
   if (input_len < dir.need_bytes_) {
     return FILTER_OK;
   }
+  dir.need_bytes_ = 0;
   
   const int max_ops = 16; // Make shorter for testing purposes
   FilterOp ops_[max_ops];
