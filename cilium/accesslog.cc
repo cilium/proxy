@@ -249,7 +249,7 @@ bool AccessLog::Connect() {
     return false;
   }
 
-  struct sockaddr_un addr = {.sun_family = AF_UNIX, .sun_path = {}};
+  struct sockaddr_un addr = {AF_UNIX, {}};
   strncpy(addr.sun_path, path_.c_str(), sizeof(addr.sun_path) - 1);
   if (::connect(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) ==
       -1) {
