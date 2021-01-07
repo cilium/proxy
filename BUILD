@@ -40,7 +40,7 @@ sh_test(
 
 sh_binary(
     name = "check_format.py",
-    srcs = ["@envoy//tools:check_format.py"],
+    srcs = ["@envoy//tools:code_format/check_format.py"],
     deps = [
         ":envoy_build_fixer.py",
         ":header_order.py",
@@ -49,10 +49,10 @@ sh_binary(
 
 sh_library(
     name = "header_order.py",
-    srcs = ["@envoy//tools:header_order.py"],
+    srcs = ["@envoy//tools:code_format/header_order.py"],
 )
 
 sh_library(
     name = "envoy_build_fixer.py",
-    srcs = ["@envoy//tools:envoy_build_fixer.py"],
+    srcs = ["@envoy//tools:code_format/envoy_build_fixer.py"],
 )
