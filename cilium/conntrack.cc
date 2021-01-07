@@ -5,6 +5,7 @@
 
 #include <cstdint>
 
+#include "common/common/utility.h"
 #include "common/network/address_impl.h"
 #include "linux/bpf.h"
 
@@ -182,7 +183,7 @@ CtMap::CtMap(const std::string& bpf_root) : bpf_root_(bpf_root) {
       openMap6("global") == ct_maps6_.end()) {
     ENVOY_LOG(debug,
               "cilium.bpf_metadata: conntrack map global open failed: ({})",
-              strerror(errno));
+              Envoy::errorDetails(errno));
   }
 }
 
@@ -246,7 +247,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name,
       ct_maps4_.erase(it);  // flush the map to force reload after each failure.
       ENVOY_LOG(info,
                 "cilium.bpf_metadata: IPv4 conntrack map {} lookup failed: {}",
-                map_name, strerror(errno));
+                map_name, Envoy::errorDetails(errno));
       return 0;
     }
   } else {
@@ -266,7 +267,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name,
       ct_maps6_.erase(it);  // flush the map to force reload after each failure.
       ENVOY_LOG(info,
                 "cilium.bpf_metadata: IPv6 conntrack map {} lookup failed: {}",
-                map_name, strerror(errno));
+                map_name, Envoy::errorDetails(errno));
       return 0;
     }
   }

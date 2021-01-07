@@ -156,6 +156,7 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "@envoy//source/common/common:logger_lib",
+        "@envoy//source/common/common:utility_lib",
     ],
 )
 
