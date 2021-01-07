@@ -1,11 +1,11 @@
 #pragma once
 
 #include <map>
-#include <mutex>
 #include <string>
 
 #include "cilium/api/accesslog.pb.h"
 #include "common/common/logger.h"
+#include "common/common/thread.h"
 #include "envoy/http/header_map.h"
 #include "envoy/network/connection.h"
 #include "envoy/router/router.h"
@@ -41,7 +41,7 @@ class AccessLog : Logger::Loggable<Logger::Id::router> {
   ~AccessLog();
 
  private:
-  static std::mutex logs_mutex;
+  static Thread::MutexBasicLockable logs_mutex;
   static std::map<std::string, std::unique_ptr<AccessLog>> logs;
 
   AccessLog(std::string path);
@@ -49,9 +49,9 @@ class AccessLog : Logger::Loggable<Logger::Id::router> {
   bool Connect();
 
   const std::string path_;
-  std::mutex fd_mutex_;
-  int fd_;
-  int open_count_;
+  Thread::MutexBasicLockable fd_mutex_;
+  int fd_ ABSL_GUARDED_BY(fd_mutex_);
+  int open_count_ ABSL_GUARDED_BY(fd_mutex_);
 };
 
 typedef std::unique_ptr<AccessLog> AccessLogPtr;

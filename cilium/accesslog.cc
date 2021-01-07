@@ -6,22 +6,23 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "common/common/lock_guard.h"
 #include "common/common/utility.h"
 #include "socket_option.h"
 
 namespace Envoy {
 namespace Cilium {
 
-std::mutex AccessLog::logs_mutex;
+Thread::MutexBasicLockable AccessLog::logs_mutex;
 std::map<std::string, AccessLogPtr> AccessLog::logs;
 
 AccessLog* AccessLog::Open(std::string path) {
-  std::lock_guard<std::mutex> guard1(logs_mutex);
+  Thread::LockGuard guard1(logs_mutex);
   AccessLog* log;
   auto it = logs.find(path);
   if (it != logs.end()) {
     log = it->second.get();
-    std::lock_guard<std::mutex> guard2(log->fd_mutex_);
+    Thread::LockGuard guard2(log->fd_mutex_);
     log->open_count_++;
     return log;
   }
@@ -36,19 +37,22 @@ AccessLog* AccessLog::Open(std::string path) {
 }
 
 void AccessLog::Close() {
-  std::lock_guard<std::mutex> guard1(logs_mutex);
-  std::lock_guard<std::mutex> guard2(fd_mutex_);
+  // Can't use Thread::LockGuard as it will result in calling a pure virtual
+  // function in integration test teardown.
+  logs_mutex.lock();
+  fd_mutex_.lock();
   open_count_--;
 
-  if (open_count_ > 0) {
-    return;
-  }
-  if (fd_ != -1) {
-    ::close(fd_);
-    fd_ = -1;
-  }
+  if (open_count_ == 0) {
+    if (fd_ != -1) {
+      ::close(fd_);
+      fd_ = -1;
+    }
 
-  logs.erase(path_);
+    logs.erase(path_);
+  }
+  fd_mutex_.unlock();
+  logs_mutex.unlock();
 }
 
 AccessLog::AccessLog(std::string path) : path_(path), fd_(-1), open_count_(1) {}
@@ -241,7 +245,7 @@ bool AccessLog::Connect() {
   if (path_.length() == 0) {
     return false;
   }
-  std::lock_guard<std::mutex> guard(fd_mutex_);
+  Thread::LockGuard guard(fd_mutex_);
 
   fd_ = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
   if (fd_ == -1) {
