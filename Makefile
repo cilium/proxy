@@ -24,7 +24,7 @@ ENVOY_BINS = \
 	$(CILIUM_ENVOY_BIN) \
 	$(CILIUM_ENVOY_RELEASE_BIN) \
 	./bazel-bin/cilium_integration_test
-CHECK_FORMAT ?= ./bazel-bin/check_format.py.runfiles/envoy/tools/check_format.py
+CHECK_FORMAT ?= ./bazel-bin/check_format.py.runfiles/envoy/tools/code_format/check_format.py
 
 SHELL=/bin/bash -o pipefail
 BAZEL ?= $(QUIET) bazel
@@ -267,10 +267,10 @@ precheck:
 	tools/check_repositories.sh
 
 check: $(CHECK_FORMAT) force-non-root
-	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) $(CHECK_FORMAT) --add-excluded-prefixes="./linux/" check
+	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes "./linux/" "./proxylib/" --build_fixer_check_excluded_paths="./" check
 
 fix: $(CHECK_FORMAT) force-non-root
-	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) $(CHECK_FORMAT) --add-excluded-prefixes="./linux/" fix
+	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes "./linux/" "./proxylib/" --build_fixer_check_excluded_paths="./" fix
 
 # Run rule even if file exists, as it can be for a wrong architecture
 .PHONY: proxylib/libcilium.so
