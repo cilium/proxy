@@ -1,54 +1,51 @@
 #pragma once
 
-#include <unordered_map>
-#include <unordered_set>
-#include <string>
 #include <functional>
 #include <memory>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 
+#include "bpf.h"
 #include "common/common/logger.h"
 #include "envoy/network/address.h"
 #include "envoy/singleton/instance.h"
 
-#include "bpf.h"
-
 namespace std {
-    template <>
-        class hash<const string>{
-        public :
-            size_t operator()(const string& key) const
-            {
-                return hash<string>()(key);
-            }
-    };
+template <>
+class hash<const string> {
+ public:
+  size_t operator()(const string& key) const { return hash<string>()(key); }
 };
+};  // namespace std
 
 namespace Envoy {
 namespace Cilium {
 
 class CtMap : public Singleton::Instance, Logger::Loggable<Logger::Id::filter> {
-public:
-  CtMap(const std::string &bpf_root);
+ public:
+  CtMap(const std::string& bpf_root);
 
   const std::string& bpfRoot() { return bpf_root_; }
 
-  uint32_t lookupSrcIdentity(const std::string& map_name, const Network::Address::Ip* sip,
-			     const Network::Address::Ip* dip, bool ingress);
+  uint32_t lookupSrcIdentity(const std::string& map_name,
+                             const Network::Address::Ip* sip,
+                             const Network::Address::Ip* dip, bool ingress);
 
-private:
+ private:
   class CtMap4 : public Bpf {
-  public:
+   public:
     CtMap4();
   };
 
   class CtMap6 : public Bpf {
-  public:
+   public:
     CtMap6();
   };
 
-public:
+ public:
   class CtMaps4 {
-  public:
+   public:
     CtMaps4(const std::string& bpf_root, const std::string& map_name);
 
     bool ok_;
@@ -56,18 +53,21 @@ public:
     CtMap4 ctmap4_any_;
   };
   class CtMaps6 {
-  public:
+   public:
     CtMaps6(const std::string& bpf_root, const std::string& map_name);
 
     bool ok_;
     CtMap6 ctmap6_tcp_;
     CtMap6 ctmap6_any_;
   };
-  void closeMaps(const std::shared_ptr<std::unordered_set<std::string>>& to_be_closed);
+  void closeMaps(
+      const std::shared_ptr<std::unordered_set<std::string>>& to_be_closed);
 
-private:
-  std::unordered_map<const std::string, std::unique_ptr<CtMaps4>>::iterator openMap4(const std::string& map_name);
-  std::unordered_map<const std::string, std::unique_ptr<CtMaps6>>::iterator openMap6(const std::string& map_name);
+ private:
+  std::unordered_map<const std::string, std::unique_ptr<CtMaps4>>::iterator
+  openMap4(const std::string& map_name);
+  std::unordered_map<const std::string, std::unique_ptr<CtMaps6>>::iterator
+  openMap6(const std::string& map_name);
 
   // All known conntrack maps. Populated with the "global" maps at startup,
   // further maps are opened and inserted on demand.
@@ -78,6 +78,6 @@ private:
 };
 
 typedef std::shared_ptr<CtMap> CtMapSharedPtr;
- 
-} // namespace Cilium
-} // namespace Envoy
+
+}  // namespace Cilium
+}  // namespace Envoy

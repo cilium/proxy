@@ -1,9 +1,8 @@
-#include "envoy/network/address.h"
-
-#include "test/test_common/environment.h"
-
-#include "tests/bpf_metadata.h"
 #include "tests/cilium_tcp_integration.h"
+
+#include "envoy/network/address.h"
+#include "test/test_common/environment.h"
+#include "tests/bpf_metadata.h"
 
 namespace Envoy {
 
@@ -25,8 +24,9 @@ resources:
 )EOF";
 
 CiliumTcpIntegrationTest::CiliumTcpIntegrationTest(const std::string& config)
-  : BaseIntegrationTest(GetParam(), config),
-    accessLogServer_(TestEnvironment::unixDomainSocketPath("access_log.sock")) {
+    : BaseIntegrationTest(GetParam(), config),
+      accessLogServer_(
+          TestEnvironment::unixDomainSocketPath("access_log.sock")) {
   enable_half_close_ = true;
 }
 
@@ -38,16 +38,19 @@ void CiliumTcpIntegrationTest::initialize() {
   policy_config = testPolicy();
   config_helper_.renameListener("tcp_proxy");
   BaseIntegrationTest::initialize();
-  // Pass the fake upstream address to the cilium bpf filter that will set it as an "original destination address".
+  // Pass the fake upstream address to the cilium bpf filter that will set it as
+  // an "original destination address".
   if (GetParam() == Network::Address::IpVersion::v4) {
-    original_dst_address = std::make_shared<Network::Address::Ipv4Instance>(Network::Test::getLoopbackAddressString(GetParam()), fake_upstreams_.back()->localAddress()->ip()->port());
+    original_dst_address = std::make_shared<Network::Address::Ipv4Instance>(
+        Network::Test::getLoopbackAddressString(GetParam()),
+        fake_upstreams_.back()->localAddress()->ip()->port());
   } else {
-    original_dst_address = std::make_shared<Network::Address::Ipv6Instance>(Network::Test::getLoopbackAddressString(GetParam()), fake_upstreams_.back()->localAddress()->ip()->port());
+    original_dst_address = std::make_shared<Network::Address::Ipv6Instance>(
+        Network::Test::getLoopbackAddressString(GetParam()),
+        fake_upstreams_.back()->localAddress()->ip()->port());
   }
 }
 
-void CiliumTcpIntegrationTest::TearDown() {
-  npmap.reset();
-}
+void CiliumTcpIntegrationTest::TearDown() { npmap.reset(); }
 
-}
+}  // namespace Envoy

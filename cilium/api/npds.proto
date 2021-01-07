@@ -19,10 +19,10 @@ service NetworkPolicyDiscoveryService {
   option (envoy.annotations.resource).type = "cilium.NetworkPolicy";
 
   rpc StreamNetworkPolicies(stream envoy.service.discovery.v3.DiscoveryRequest)
-      returns (stream envoy.service.discovery.v3.DiscoveryResponse) {
-  }
+      returns (stream envoy.service.discovery.v3.DiscoveryResponse) {}
 
-  rpc FetchNetworkPolicies(envoy.service.discovery.v3.DiscoveryRequest) returns (envoy.service.discovery.v3.DiscoveryResponse) {
+  rpc FetchNetworkPolicies(envoy.service.discovery.v3.DiscoveryRequest)
+      returns (envoy.service.discovery.v3.DiscoveryResponse) {
     option (google.api.http) = {
       post: "/v3/discovery:network_policies"
       body: "*"
@@ -58,7 +58,8 @@ message NetworkPolicy {
 
   // Name of the conntrack map to use with this policy.
   // The paths to various Cilium conntrack maps are derived using this name.
-  // Optional. If empty, ipcache or hostmap lookup is used instead of conntrack map.
+  // Optional. If empty, ipcache or hostmap lookup is used instead of conntrack
+  // map.
   string conntrack_map_name = 5;
 }
 
@@ -81,18 +82,20 @@ message PortNetworkPolicy {
 }
 
 message TLSContext {
-	// CA certificates. If present, the counterparty must provide a valid certificate.
-	string trusted_ca = 1;
+  // CA certificates. If present, the counterparty must provide a valid
+  // certificate.
+  string trusted_ca = 1;
 
-	// Certificate chain
-	string certificate_chain = 2;
+  // Certificate chain
+  string certificate_chain = 2;
 
-	// Private key
-	string private_key = 3;
+  // Private key
+  string private_key = 3;
 
-	// Server Name Indicator. For downstream this helps choose the certificate to present to the client.
-	// For upstream this will be used as the SNI on the client connection.
-	repeated string server_names = 4;
+  // Server Name Indicator. For downstream this helps choose the certificate to
+  // present to the client. For upstream this will be used as the SNI on the
+  // client connection.
+  repeated string server_names = 4;
 }
 
 // A network policy rule, as a conjunction of predicates on L3/L7 flows.
@@ -106,14 +109,18 @@ message PortNetworkPolicyRule {
   // A flow is matched by this predicate if the identifier of the policy
   // applied on the flow's remote host is contained in this set.
   // Optional. If not specified, any remote host is matched by this predicate.
-  // TODO: Make this uint32 in later versions to reduce format conversion overhead
+  // TODO: Make this uint32 in later versions to reduce format conversion
+  // overhead
   // TODO: Consider cost of uniqueness validation
-  repeated uint64 remote_policies = 1 [(validate.rules).repeated.unique = true];
+  repeated uint64 remote_policies = 1
+      [(validate.rules).repeated .unique = true];
 
-  // Optional downstream TLS context. If present, the incoming connection must be a TLS connection.
+  // Optional downstream TLS context. If present, the incoming connection must
+  // be a TLS connection.
   TLSContext downstream_tls_context = 3;
 
-  // Optional upstream TLS context. If present, the outgoing connection will use TLS.
+  // Optional upstream TLS context. If present, the outgoing connection will use
+  // TLS.
   TLSContext upstream_tls_context = 4;
 
   // Optional L7 protocol parser name. This is only used if the parser is not
@@ -146,38 +153,41 @@ message HttpNetworkPolicyRules {
   // The set of HTTP network policy rules.
   // An HTTP request is matched if any of its rules matches the request.
   // Required and may not be empty.
-  repeated HttpNetworkPolicyRule http_rules = 1 [(validate.rules).repeated.min_items = 1];
+  repeated HttpNetworkPolicyRule http_rules = 1
+      [(validate.rules).repeated .min_items = 1];
 }
 
 message HeaderMatch {
   string name = 1 [(validate.rules).string.min_bytes = 1];
-  string value = 2; // empty for presence match
+  string value = 2;  // empty for presence match
 
   // Action specifies what to do when the header matches.
   enum MatchAction {
-    CONTINUE_ON_MATCH = 0; // Keep checking other matches (default)
-    FAIL_ON_MATCH     = 1; // Drop the request if no other rule matches
-    DELETE_ON_MATCH   = 2; // Remove the whole matching header
+    CONTINUE_ON_MATCH = 0;  // Keep checking other matches (default)
+    FAIL_ON_MATCH = 1;      // Drop the request if no other rule matches
+    DELETE_ON_MATCH = 2;    // Remove the whole matching header
   }
   MatchAction match_action = 3;
 
   enum MismatchAction {
-    FAIL_ON_MISMATCH     = 0; // Drop the request if no other rule matches (default)
-    CONTINUE_ON_MISMATCH = 1; // Keep checking other matches, log the mismatch
-    ADD_ON_MISMATCH      = 2; // Add 'value' to the multivalued header
-    DELETE_ON_MISMATCH   = 3; // Remove the whole mismatching header
-    REPLACE_ON_MISMATCH  = 4; // Replace the whole mismatching header with 'value'
+    FAIL_ON_MISMATCH =
+        0;  // Drop the request if no other rule matches (default)
+    CONTINUE_ON_MISMATCH = 1;  // Keep checking other matches, log the mismatch
+    ADD_ON_MISMATCH = 2;       // Add 'value' to the multivalued header
+    DELETE_ON_MISMATCH = 3;    // Remove the whole mismatching header
+    REPLACE_ON_MISMATCH =
+        4;  // Replace the whole mismatching header with 'value'
   }
   MismatchAction mismatch_action = 4;
 }
 
 // An HTTP network policy rule, as a conjunction of predicates on HTTP requests.
-// If all the predicates of a rule match an HTTP request, the request is allowed. Otherwise, it is
-// denied.
+// If all the predicates of a rule match an HTTP request, the request is
+// allowed. Otherwise, it is denied.
 message HttpNetworkPolicyRule {
   // A set of matchers on the HTTP request's headers' names and values.
-  // If all the matchers in this set match an HTTP request, the request is allowed by this rule.
-  // Otherwise, it is denied.
+  // If all the matchers in this set match an HTTP request, the request is
+  // allowed by this rule. Otherwise, it is denied.
   //
   // Some special header names are:
   //
@@ -189,9 +199,9 @@ message HttpNetworkPolicyRule {
   repeated envoy.config.route.v3.HeaderMatcher headers = 1;
 
   // header_matches is a set of HTTP header name and value pairs that
-  // will be matched against the request headers, if all the other match requirements
-  // in 'headers' are met. Each HeaderAction determines what to do when there is a match
-  // or mismatch.
+  // will be matched against the request headers, if all the other match
+  // requirements in 'headers' are met. Each HeaderAction determines what to do
+  // when there is a match or mismatch.
   //
   // Optional.
   repeated HeaderMatch header_matches = 2;
@@ -202,12 +212,13 @@ message KafkaNetworkPolicyRules {
   // The set of Kafka network policy rules.
   // A Kafka request is matched if any of its rules matches the request.
   // Required and may not be empty.
-  repeated KafkaNetworkPolicyRule kafka_rules = 1 [(validate.rules).repeated.min_items = 1];
+  repeated KafkaNetworkPolicyRule kafka_rules = 1
+      [(validate.rules).repeated .min_items = 1];
 }
 
-// A Kafka network policy rule, as a conjunction of predicates on Kafka requests.
-// If all the predicates of a rule match a Kafka request, the request is allowed. Otherwise, it is
-// denied.
+// A Kafka network policy rule, as a conjunction of predicates on Kafka
+// requests. If all the predicates of a rule match a Kafka request, the request
+// is allowed. Otherwise, it is denied.
 message KafkaNetworkPolicyRule {
   // The Kafka request's API version.
   // If < 0, all Kafka requests are matched by this predicate.
@@ -218,17 +229,20 @@ message KafkaNetworkPolicyRule {
   repeated int32 api_keys = 2;
 
   // The Kafka request's client ID.
-  // Optional. If not specified, all Kafka requests are matched by this predicate.
-  // If specified, this predicates only matches requests that contain this client ID, and never
-  // matches requests that don't contain any client ID.
+  // Optional. If not specified, all Kafka requests are matched by this
+  // predicate. If specified, this predicates only matches requests that contain
+  // this client ID, and never matches requests that don't contain any client
+  // ID.
   string client_id = 3 [(validate.rules).string.pattern = "^[a-zA-Z0-9._-]*$"];
 
   // The Kafka request's topic.
-  // Optional. If not specified, this rule will not consider the Kafka request's topics.
-  // If specified, this predicates only matches requests that contain this topic, and never
-  // matches requests that don't contain any topic. However, messages that can not contain
-  // a topic will also me matched.
-  string topic = 4 [(validate.rules).string = {max_len: 255, pattern: "^[a-zA-Z0-9._-]*$"}];
+  // Optional. If not specified, this rule will not consider the Kafka request's
+  // topics. If specified, this predicates only matches requests that contain
+  // this topic, and never matches requests that don't contain any topic.
+  // However, messages that can not contain a topic will also me matched.
+  string topic = 4 [
+    (validate.rules).string = { max_len: 255, pattern: "^[a-zA-Z0-9._-]*$" }
+  ];
 }
 
 // A set of network policy rules that match generic L7 requests.
@@ -248,18 +262,19 @@ message L7NetworkPolicyRules {
 }
 
 // A generic L7 policy rule, as a conjunction of predicates on l7 requests.
-// If all the predicates of a rule match a request, the request is allowed. Otherwise, it is
-// denied.
+// If all the predicates of a rule match a request, the request is allowed.
+// Otherwise, it is denied.
 message L7NetworkPolicyRule {
   // Optional rule name, can be used in logging and error messages.
   string name = 3;
 
   // Generic rule for Go extensions.
-  // Optional. If empty, matches any request. Not allowed if 'metadata_rule' is present.
+  // Optional. If empty, matches any request. Not allowed if 'metadata_rule' is
+  // present.
   map<string, string> rule = 1;
 
-  // Generic rule for Envoy metadata enforcement. All matchers must match for the rule to
-  // allow the request/connection.
-  // Optional. If empty, matches any request. Not allowed if 'rule' is present.
+  // Generic rule for Envoy metadata enforcement. All matchers must match for
+  // the rule to allow the request/connection. Optional. If empty, matches any
+  // request. Not allowed if 'rule' is present.
   repeated envoy.type.matcher.v3.MetadataMatcher metadata_rule = 2;
 }

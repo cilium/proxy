@@ -1,14 +1,13 @@
-licenses(["notice"])  # Apache 2
-
 load(
     "@envoy//bazel:envoy_build_system.bzl",
     "envoy_proto_library",
 )
-
 load(
     "@envoy_api//bazel:api_build_system.bzl",
     "api_cc_py_proto_library",
 )
+
+licenses(["notice"])  # Apache 2
 
 api_cc_py_proto_library(
     name = "bpf_metadata",
@@ -39,9 +38,9 @@ api_cc_py_proto_library(
     visibility = ["//visibility:public"],
     deps = [
         "@envoy_api//envoy/annotations:pkg",
-        "@envoy_api//envoy/service/discovery/v3:pkg",
         "@envoy_api//envoy/config/core/v3:pkg",
         "@envoy_api//envoy/config/route/v3:pkg",
+        "@envoy_api//envoy/service/discovery/v3:pkg",
         "@envoy_api//envoy/type/matcher/v3:pkg",
     ],
 )

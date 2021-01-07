@@ -3,15 +3,14 @@
 #include <memory>
 #include <string>
 
+#include "cilium/bpf_metadata.h"
+#include "cilium/host_map.h"
+#include "cilium/network_policy.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/server/factory_context.h"
 #include "envoy/server/filter_config.h"
-
-#include "cilium/bpf_metadata.h"
-#include "cilium/host_map.h"
-#include "cilium/network_policy.h"
 
 namespace Envoy {
 
@@ -27,38 +26,39 @@ namespace Filter {
 namespace BpfMetadata {
 
 class TestConfig : public Config {
-public:
-  TestConfig(const ::cilium::BpfMetadata& config, Server::Configuration::ListenerFactoryContext& context);
+ public:
+  TestConfig(const ::cilium::BpfMetadata& config,
+             Server::Configuration::ListenerFactoryContext& context);
   ~TestConfig();
 
-  bool getMetadata(Network::ConnectionSocket &socket) override;
+  bool getMetadata(Network::ConnectionSocket& socket) override;
 };
 
 class TestInstance : public Instance {
-public:
+ public:
   TestInstance(const ConfigSharedPtr& config);
 };
 
-} // namespace BpfMetadata
-} // namespace Filter
+}  // namespace BpfMetadata
+}  // namespace Filter
 
 namespace Server {
 namespace Configuration {
 
 class TestBpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
-public:
+ public:
   // NamedListenerFilterConfigFactory
-  Network::ListenerFilterFactoryCb
-  createListenerFilterFactoryFromProto(const Protobuf::Message& proto_config,
-				       const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
-				       ListenerFactoryContext &context) override;
+  Network::ListenerFilterFactoryCb createListenerFilterFactoryFromProto(
+      const Protobuf::Message& proto_config,
+      const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
+      ListenerFactoryContext& context) override;
 
   ProtobufTypes::MessagePtr createEmptyConfigProto() override;
 
   std::string name() const override;
 };
 
-} // namespace Configuration
-} // namespace Server
+}  // namespace Configuration
+}  // namespace Server
 
-}
+}  // namespace Envoy

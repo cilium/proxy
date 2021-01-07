@@ -7,15 +7,15 @@ namespace Cilium {
 
 class TestConfigFactory
     : public Server::Configuration::NamedHttpFilterConfigFactory {
-public:
-  Http::FilterFactoryCb
-  createFilterFactoryFromProto(const Protobuf::Message& proto_config, const std::string&,
-                               Server::Configuration::FactoryContext& context) override;
+ public:
+  Http::FilterFactoryCb createFilterFactoryFromProto(
+      const Protobuf::Message& proto_config, const std::string&,
+      Server::Configuration::FactoryContext& context) override;
 
   ProtobufTypes::MessagePtr createEmptyConfigProto() override;
 
   std::string name() const override;
 };
 
-} // namespace Cilium
-}
+}  // namespace Cilium
+}  // namespace Envoy

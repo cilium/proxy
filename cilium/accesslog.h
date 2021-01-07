@@ -4,40 +4,43 @@
 #include <mutex>
 #include <string>
 
+#include "cilium/api/accesslog.pb.h"
+#include "common/common/logger.h"
 #include "envoy/http/header_map.h"
 #include "envoy/network/connection.h"
-#include "envoy/stream_info/stream_info.h"
 #include "envoy/router/router.h"
-
-#include "common/common/logger.h"
-
-#include "cilium/api/accesslog.pb.h"
+#include "envoy/stream_info/stream_info.h"
 
 namespace Envoy {
 namespace Cilium {
 
 class AccessLog : Logger::Loggable<Logger::Id::router> {
-public:
-  static AccessLog *Open(std::string path);
+ public:
+  static AccessLog* Open(std::string path);
   void Close();
 
   // wrapper for protobuf
   class Entry {
-  public:
-    void InitFromRequest(const std::string& policy_name, bool ingress, const Network::Connection*,
-                         const Http::RequestHeaderMap&, const StreamInfo::StreamInfo&);
+   public:
+    void InitFromRequest(const std::string& policy_name, bool ingress,
+                         const Network::Connection*,
+                         const Http::RequestHeaderMap&,
+                         const StreamInfo::StreamInfo&);
     void UpdateFromResponse(const Http::ResponseHeaderMap&, TimeSource&);
 
-    void InitFromConnection(const std::string& policy_name, bool ingress, const Network::Connection&);
-    bool UpdateFromMetadata(const std::string& l7proto, const ProtobufWkt::Struct& metadata, TimeSource& time_source);
+    void InitFromConnection(const std::string& policy_name, bool ingress,
+                            const Network::Connection&);
+    bool UpdateFromMetadata(const std::string& l7proto,
+                            const ProtobufWkt::Struct& metadata,
+                            TimeSource& time_source);
 
     ::cilium::LogEntry entry_{};
   };
-  void Log(Entry &entry, ::cilium::EntryType);
+  void Log(Entry& entry, ::cilium::EntryType);
 
   ~AccessLog();
 
-private:
+ private:
   static std::mutex logs_mutex;
   static std::map<std::string, std::unique_ptr<AccessLog>> logs;
 
@@ -53,5 +56,5 @@ private:
 
 typedef std::unique_ptr<AccessLog> AccessLogPtr;
 
-} // namespace Cilium
-} // namespace Envoy
+}  // namespace Cilium
+}  // namespace Envoy
