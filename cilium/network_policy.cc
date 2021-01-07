@@ -448,7 +448,7 @@ class PolicyInstanceImpl : public PolicyInstance {
    public:
     PortNetworkPolicyRules(
         const NetworkPolicyMap& parent,
-        const google::protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>&
+        const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>&
             rules) {
       if (rules.size() == 0) {
         ENVOY_LOG(trace,
@@ -501,8 +501,7 @@ class PolicyInstanceImpl : public PolicyInstance {
    public:
     PortNetworkPolicy(
         const NetworkPolicyMap& parent,
-        const google::protobuf::RepeatedPtrField<cilium::PortNetworkPolicy>&
-            rules) {
+        const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicy>& rules) {
       for (const auto& it : rules) {
         // Only TCP supported for HTTP
         if (it.protocol() == envoy::config::core::v3::SocketAddress::TCP) {
