@@ -440,9 +440,9 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserPartialLines) {
       fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("DROP reply "));
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  absl::SleepFor(absl::Milliseconds(10));
   ASSERT_TRUE(fake_upstream_connection->write("direction\nPASS"));
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  absl::SleepFor(absl::Milliseconds(10));
   ASSERT_TRUE(fake_upstream_connection->write(" reply direction\n"));
   tcp_client->waitForData("PASS reply direction\n");
 
@@ -528,9 +528,9 @@ TEST_P(CiliumGoLinetesterIntegrationTest,
   ASSERT_TRUE(fake_upstream_connection->write(" direction\n"));
 
   // These can in principle arrive in either order
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  absl::SleepFor(absl::Milliseconds(10));
   tcp_client->waitForData("PASS reply direction\n", false);
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  absl::SleepFor(absl::Milliseconds(10));
   tcp_client->waitForData("INJECT reply direction\n", false);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
@@ -703,9 +703,9 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInject) {
   ASSERT_TRUE(fake_upstream_connection->write("24:PASS reply direction\n"));
 
   // These can in principle arrive in either order
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  absl::SleepFor(absl::Milliseconds(10));
   tcp_client->waitForData("24:PASS reply direction\n", false);
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  absl::SleepFor(absl::Milliseconds(10));
   tcp_client->waitForData("26:INJECT reply direction\n", false);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
@@ -760,10 +760,10 @@ TEST_P(CiliumGoBlocktesterIntegrationTest,
   ASSERT_TRUE(tcp_client->write("27:DROP original direction\n"));
   ASSERT_TRUE(tcp_client->write("29:INSERT original direction\n"));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  absl::SleepFor(absl::Milliseconds(100));
   ASSERT_TRUE(fake_upstream_connection->write(" dire"));
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  absl::SleepFor(absl::Milliseconds(100));
   ASSERT_TRUE(fake_upstream_connection->write("ction\n"));
 
   // These can in principle arrive in either order
