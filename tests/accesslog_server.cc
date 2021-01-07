@@ -67,7 +67,7 @@ void AccessLogServer::threadRoutine() {
     ENVOY_LOG(critical, "Access Log thread started on fd: {}", fd_);
     // Accept a new connection
     struct sockaddr_un addr;
-    socklen_t addr_len;
+    socklen_t addr_len = sizeof(addr);
     ENVOY_LOG(warn, "Access log blocking accept on fd: {}", fd_);
     fd2_ = ::accept(fd_, reinterpret_cast<sockaddr*>(&addr), &addr_len);
     if (fd2_ < 0) {
