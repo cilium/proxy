@@ -9,6 +9,7 @@
 #include "cilium/socket_option.h"
 #include "common/common/assert.h"
 #include "common/common/fmt.h"
+#include "common/common/utility.h"
 #include "common/network/socket_option_factory.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/registry/registry.h"
@@ -271,27 +272,27 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
                   sizeof(lin));
   if (rc < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_LINGER: {}",
-              strerror(errno));
+              Envoy::errorDetails(errno));
   }
   rc = setsockopt(socket.ioHandle().fd(), SOL_SOCKET, SO_KEEPALIVE, &keepalive,
                   sizeof(keepalive));
   if (rc < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}",
-              strerror(errno));
+              Envoy::errorDetails(errno));
   } else {
     rc = setsockopt(socket.ioHandle().fd(), IPPROTO_TCP, TCP_KEEPINTVL, &secs,
                     sizeof(secs));
     if (rc < 0) {
       ENVOY_LOG(critical,
                 "Socket option failure. Failed to set TCP_KEEPINTVL: {}",
-                strerror(errno));
+                Envoy::errorDetails(errno));
     } else {
       rc = setsockopt(socket.ioHandle().fd(), IPPROTO_TCP, TCP_KEEPIDLE, &secs,
                       sizeof(secs));
       if (rc < 0) {
         ENVOY_LOG(critical,
                   "Socket option failure. Failed to set TCP_KEEPIDLE: {}",
-                  strerror(errno));
+                  Envoy::errorDetails(errno));
       }
     }
   }

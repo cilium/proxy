@@ -9,6 +9,7 @@
 #include <string>
 
 #include "cilium/api/accesslog.pb.h"
+#include "common/common/utility.h"
 #include "test/test_common/thread_factory_for_test.h"
 
 namespace Envoy {
@@ -19,7 +20,7 @@ AccessLogServer::AccessLogServer(const std::string path)
   ::unlink(path_.c_str());
   fd_ = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
   if (fd_ == -1) {
-    ENVOY_LOG(error, "Can't create socket: {}", strerror(errno));
+    ENVOY_LOG(error, "Can't create socket: {}", Envoy::errorDetails(errno));
     return;
   }
 
@@ -28,14 +29,15 @@ AccessLogServer::AccessLogServer(const std::string path)
   strncpy(addr.sun_path, path_.c_str(), sizeof(addr.sun_path) - 1);
   if (::bind(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) ==
       -1) {
-    ENVOY_LOG(warn, "Bind to {} failed: {}", path_, strerror(errno));
+    ENVOY_LOG(warn, "Bind to {} failed: {}", path_, Envoy::errorDetails(errno));
     Close();
     return;
   }
 
   ENVOY_LOG(critical, "Listening on {}", path_);
   if (::listen(fd_, 5) == -1) {
-    ENVOY_LOG(warn, "Listen on {} failed: {}", path_, strerror(errno));
+    ENVOY_LOG(warn, "Listen on {} failed: {}", path_,
+              Envoy::errorDetails(errno));
     Close();
     return;
   }
@@ -49,7 +51,8 @@ AccessLogServer::AccessLogServer(const std::string path)
 AccessLogServer::~AccessLogServer() {
   if (fd_ >= 0) {
     Close();
-    ENVOY_LOG(warn, "Waiting on access log to close: {}", strerror(errno));
+    ENVOY_LOG(warn, "Waiting on access log to close: {}",
+              Envoy::errorDetails(errno));
     thread_->join();
     thread_.reset();
   }
@@ -73,14 +76,16 @@ void AccessLogServer::threadRoutine() {
     ENVOY_LOG(warn, "Access log blocking accept on fd: {}", fd_);
     fd2_ = ::accept(fd_, reinterpret_cast<sockaddr*>(&addr), &addr_len);
     if (fd2_ < 0) {
-      ENVOY_LOG(critical, "Access log accept failed: {}", strerror(errno));
+      ENVOY_LOG(critical, "Access log accept failed: {}",
+                Envoy::errorDetails(errno));
     } else {
       char buf[8192];
       while (true) {
         ENVOY_LOG(warn, "Access log blocking recv on fd: {}", fd2_);
         ssize_t received = ::recv(fd2_, buf, sizeof(buf), 0);
         if (received < 0) {
-          ENVOY_LOG(warn, "Access log recv failed: {}", strerror(errno));
+          ENVOY_LOG(warn, "Access log recv failed: {}",
+                    Envoy::errorDetails(errno));
           break;
         } else if (received == 0) {
           ENVOY_LOG(warn, "Access log recv got no data!");

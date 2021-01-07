@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common/common/logger.h"
+#include "common/common/utility.h"
 #include "conntrack.h"
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/network/listen_socket.h"
@@ -46,11 +47,11 @@ class SocketMarkOption : public Network::Socket::Option,
         ENVOY_LOG(critical,
                   "Failed to set socket option SO_MARK to {}, capability "
                   "CAP_NET_ADMIN needed: {}",
-                  mark, strerror(errno));
+                  mark, Envoy::errorDetails(errno));
       } else {
         ENVOY_LOG(critical,
                   "Socket option failure. Failed to set SO_MARK to {}: {}",
-                  mark, strerror(errno));
+                  mark, Envoy::errorDetails(errno));
         return false;
       }
     }

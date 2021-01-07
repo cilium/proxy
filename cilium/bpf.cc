@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "common/common/logger.h"
+#include "common/common/utility.h"
 #include "linux/bpf.h"
 
 namespace Envoy {
@@ -104,10 +105,10 @@ bool Bpf::open(const std::string &path) {
     close();
   } else if (errno == ENOENT && log_on_error) {
     ENVOY_LOG(debug, "cilium.bpf_metadata: bpf syscall for map {} failed: {}",
-              path, strerror(errno));
+              path, Envoy::errorDetails(errno));
   } else if (log_on_error) {
     ENVOY_LOG(warn, "cilium.bpf_metadata: bpf syscall for map {} failed: {}",
-              path, strerror(errno));
+              path, Envoy::errorDetails(errno));
   }
 
   return false;

@@ -2,10 +2,7 @@
 
 #include <arpa/inet.h>
 
-//#include <string.h>
-
-//#include <cstdint>
-
+#include "common/common/utility.h"
 #include "linux/bpf.h"
 
 namespace Envoy {
@@ -93,7 +90,8 @@ uint32_t IPCache::resolve(const Network::Address::Ip* ip) {
               value.sec_label);
     return value.sec_label;
   }
-  ENVOY_LOG(info, "cilium.ipcache: bpf map lookup failed: {}", strerror(errno));
+  ENVOY_LOG(info, "cilium.ipcache: bpf map lookup failed: {}",
+            Envoy::errorDetails(errno));
   return 0;
 }
 

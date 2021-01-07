@@ -223,7 +223,8 @@ void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
       return;
     }
     if (sent == -1) {
-      ENVOY_LOG(debug, "Cilium access log send failed: {}", strerror(errno));
+      ENVOY_LOG(debug, "Cilium access log send failed: {}",
+                Envoy::errorDetails(errno));
     } else {
       ENVOY_LOG(debug, "Cilium access log send truncated by {} bytes.",
                 length - sent);
@@ -244,7 +245,7 @@ bool AccessLog::Connect() {
 
   fd_ = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
   if (fd_ == -1) {
-    ENVOY_LOG(error, "Can't create socket: {}", strerror(errno));
+    ENVOY_LOG(error, "Can't create socket: {}", Envoy::errorDetails(errno));
     return false;
   }
 
@@ -252,7 +253,8 @@ bool AccessLog::Connect() {
   strncpy(addr.sun_path, path_.c_str(), sizeof(addr.sun_path) - 1);
   if (::connect(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) ==
       -1) {
-    ENVOY_LOG(warn, "Connect to {} failed: {}", path_, strerror(errno));
+    ENVOY_LOG(warn, "Connect to {} failed: {}", path_,
+              Envoy::errorDetails(errno));
     ::close(fd_);
     fd_ = -1;
     return false;
