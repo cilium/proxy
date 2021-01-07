@@ -4,6 +4,7 @@
 
 #include "common/buffer/buffer_impl.h"
 #include "common/common/logger.h"
+#include "common/protobuf/protobuf.h"
 #include "envoy/network/connection.h"
 #include "proxylib/libcilium.h"
 
@@ -101,7 +102,7 @@ typedef void (*GoCloseCB)(uint64_t);
 class GoFilter : public Logger::Loggable<Logger::Id::filter> {
  public:
   GoFilter(const std::string& go_module,
-           const ::google::protobuf::Map<::std::string, ::std::string>&);
+           const Protobuf::Map<::std::string, ::std::string>&);
   ~GoFilter();
 
   class Instance : public Logger::Loggable<Logger::Id::filter> {

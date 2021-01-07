@@ -11,9 +11,8 @@
 namespace Envoy {
 namespace Cilium {
 
-GoFilter::GoFilter(
-    const std::string& go_module,
-    const ::google::protobuf::Map<::std::string, ::std::string>& params) {
+GoFilter::GoFilter(const std::string& go_module,
+                   const Protobuf::Map<::std::string, ::std::string>& params) {
   ENVOY_LOG(info, "GoFilter: Opening go module {}", go_module);
   ::dlerror();  // clear any possible error state
   go_module_handle_ = ::dlopen(go_module.c_str(), RTLD_NOW);
