@@ -3,14 +3,11 @@
 #include <string>
 
 #include "absl/types/optional.h"
-
-#include "envoy/stats/stats_macros.h"
-#include "envoy/server/filter_config.h"
-
-#include "common/common/logger.h"
-
 #include "cilium/accesslog.h"
 #include "cilium/api/l7policy.pb.h"
+#include "common/common/logger.h"
+#include "envoy/server/filter_config.h"
+#include "envoy/stats/stats_macros.h"
 
 namespace Envoy {
 namespace Cilium {

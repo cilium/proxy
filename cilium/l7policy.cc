@@ -1,32 +1,32 @@
 #include "cilium/l7policy.h"
-#include "cilium/api/l7policy.pb.validate.h"
 
 #include <string>
 
-#include "envoy/registry/registry.h"
-#include "envoy/singleton/manager.h"
-
+#include "cilium/api/l7policy.pb.validate.h"
+#include "cilium/network_policy.h"
+#include "cilium/socket_option.h"
 #include "common/buffer/buffer_impl.h"
 #include "common/common/enum_to_int.h"
 #include "common/config/utility.h"
 #include "common/http/header_map_impl.h"
-
-#include "cilium/network_policy.h"
-#include "cilium/socket_option.h"
+#include "envoy/registry/registry.h"
+#include "envoy/singleton/manager.h"
 
 namespace Envoy {
 namespace Cilium {
 
 class ConfigFactory
     : public Server::Configuration::NamedHttpFilterConfigFactory {
-public:
-  Http::FilterFactoryCb
-  createFilterFactoryFromProto(const Protobuf::Message& proto_config, const std::string&,
-                               Server::Configuration::FactoryContext& context) override {
+ public:
+  Http::FilterFactoryCb createFilterFactoryFromProto(
+      const Protobuf::Message& proto_config, const std::string&,
+      Server::Configuration::FactoryContext& context) override {
     auto config = std::make_shared<Cilium::Config>(
-        MessageUtil::downcastAndValidate<const ::cilium::L7Policy&>(proto_config, context.messageValidationVisitor()), context);
+        MessageUtil::downcastAndValidate<const ::cilium::L7Policy&>(
+            proto_config, context.messageValidationVisitor()),
+        context);
     return [config](
-               Http::FilterChainFactoryCallbacks &callbacks) mutable -> void {
+               Http::FilterChainFactoryCallbacks& callbacks) mutable -> void {
       callbacks.addStreamFilter(std::make_shared<Cilium::AccessFilter>(config));
     };
   }
@@ -45,32 +45,43 @@ static Registry::RegisterFactory<
     ConfigFactory, Server::Configuration::NamedHttpFilterConfigFactory>
     register_;
 
-Config::Config(const std::string& access_log_path, const std::string& denied_403_body,
-	       Server::Configuration::FactoryContext& context)
-    : time_source_(context.timeSource()), stats_{ALL_CILIUM_STATS(POOL_COUNTER_PREFIX(context.scope(), "cilium"))},
-      denied_403_body_(denied_403_body), access_log_(nullptr) {
+Config::Config(const std::string& access_log_path,
+               const std::string& denied_403_body,
+               Server::Configuration::FactoryContext& context)
+    : time_source_(context.timeSource()),
+      stats_{ALL_CILIUM_STATS(POOL_COUNTER_PREFIX(context.scope(), "cilium"))},
+      denied_403_body_(denied_403_body),
+      access_log_(nullptr) {
   if (access_log_path.length()) {
     access_log_ = AccessLog::Open(access_log_path);
     if (!access_log_) {
-      ENVOY_LOG(warn, "Cilium filter can not open access log socket {}", access_log_path);
+      ENVOY_LOG(warn, "Cilium filter can not open access log socket {}",
+                access_log_path);
     }
   }
   if (denied_403_body_.length() == 0) {
     denied_403_body_ = "Access denied";
   }
   size_t len = denied_403_body_.length();
-  if (len < 2 || denied_403_body_[len-2] != '\r' || denied_403_body_[len-1] != '\n') {
+  if (len < 2 || denied_403_body_[len - 2] != '\r' ||
+      denied_403_body_[len - 1] != '\n') {
     denied_403_body_.append("\r\n");
   }
 }
 
-Config::Config(const ::cilium::L7Policy &config, Server::Configuration::FactoryContext& context)
+Config::Config(const ::cilium::L7Policy& config,
+               Server::Configuration::FactoryContext& context)
     : Config(config.access_log_path(), config.denied_403_body(), context) {
   if (config.policy_name() != "") {
-    throw EnvoyException(fmt::format("cilium.l7policy: 'policy_name' is no longer supported: \'{}\'", config.DebugString()));
+    throw EnvoyException(fmt::format(
+        "cilium.l7policy: 'policy_name' is no longer supported: \'{}\'",
+        config.DebugString()));
   }
   if (config.has_is_ingress()) {
-    ENVOY_LOG(warn, "cilium.l7policy: 'is_ingress' config option is deprecated and is ignored: \'{}\'", config.DebugString());
+    ENVOY_LOG(warn,
+              "cilium.l7policy: 'is_ingress' config option is deprecated and "
+              "is ignored: \'{}\'",
+              config.DebugString());
   }
 }
 
@@ -80,7 +91,7 @@ Config::~Config() {
   }
 }
 
-void Config::Log(AccessLog::Entry &entry, ::cilium::EntryType type) {
+void Config::Log(AccessLog::Entry& entry, ::cilium::EntryType type) {
   if (access_log_) {
     access_log_->Log(entry, type);
   }
@@ -88,7 +99,8 @@ void Config::Log(AccessLog::Entry &entry, ::cilium::EntryType type) {
 
 void AccessFilter::onDestroy() {}
 
-Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
+Http::FilterHeadersStatus AccessFilter::decodeHeaders(
+    Http::RequestHeaderMap& headers, bool) {
   headers.remove(Http::Headers::get().EnvoyOriginalDstHost);
   const auto& conn = callbacks_->connection();
   bool allowed = false;
@@ -100,15 +112,19 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
       bool ingress = option->ingress_;
 
       // Fill in the log entry
-      log_entry_.InitFromRequest(policy_name, ingress, conn, headers, callbacks_->streamInfo());
+      log_entry_.InitFromRequest(policy_name, ingress, conn, headers,
+                                 callbacks_->streamInfo());
 
-      allowed = option->policy_ && option->policy_->Allowed(ingress, option->port_,
-							    ingress ? option->identity_ : option->destination_identity_,
-							    headers, log_entry_);
-      ENVOY_LOG(debug, "Cilium L7: {} ({}->{}) policy lookup for endpoint {}: {}",
-		ingress ? "Ingress" : "Egress",
-		option->identity_, option->destination_identity_,
-		policy_name, allowed ? "ALLOW" : "DENY");
+      allowed = option->policy_ &&
+                option->policy_->Allowed(
+                    ingress, option->port_,
+                    ingress ? option->identity_ : option->destination_identity_,
+                    headers, log_entry_);
+      ENVOY_LOG(debug,
+                "Cilium L7: {} ({}->{}) policy lookup for endpoint {}: {}",
+                ingress ? "Ingress" : "Egress", option->identity_,
+                option->destination_identity_, policy_name,
+                allowed ? "ALLOW" : "DENY");
     } else {
       ENVOY_LOG(warn, "Cilium L7: Cilium Socket Option not found");
     }
@@ -121,7 +137,8 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     config_->stats_.access_denied_.inc();
 
     // Return a 403 response
-    callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr, absl::nullopt, absl::string_view());
+    callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_,
+                               nullptr, absl::nullopt, absl::string_view());
     return Http::FilterHeadersStatus::StopIteration;
   }
 
@@ -129,13 +146,13 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   return Http::FilterHeadersStatus::Continue;
 }
 
-Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& headers,
-                                                      bool) {
+Http::FilterHeadersStatus AccessFilter::encodeHeaders(
+    Http::ResponseHeaderMap& headers, bool) {
   log_entry_.UpdateFromResponse(headers, config_->time_source_);
   config_->Log(log_entry_, denied_ ? ::cilium::EntryType::Denied
                                    : ::cilium::EntryType::Response);
   return Http::FilterHeadersStatus::Continue;
 }
 
-} // namespace Cilium
-} // namespace Envoy
+}  // namespace Cilium
+}  // namespace Envoy

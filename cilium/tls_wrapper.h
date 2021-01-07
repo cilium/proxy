@@ -26,17 +26,19 @@ struct SslSocketFactoryStats {
  * Config registration for the Cilium TLS wrapper transport socket factory.
  * @see TransportSocketConfigFactory.
  */
-class TlsWrapperConfigFactory : public virtual Server::Configuration::TransportSocketConfigFactory {
-public:
+class TlsWrapperConfigFactory
+    : public virtual Server::Configuration::TransportSocketConfigFactory {
+ public:
   ~TlsWrapperConfigFactory() override = default;
   std::string name() const override { return name_; }
 
   const std::string name_ = "cilium.tls_wrapper";
 };
 
-class UpstreamTlsWrapperFactory : public Server::Configuration::UpstreamTransportSocketConfigFactory,
-                                  public TlsWrapperConfigFactory {
-public:
+class UpstreamTlsWrapperFactory
+    : public Server::Configuration::UpstreamTransportSocketConfigFactory,
+      public TlsWrapperConfigFactory {
+ public:
   Network::TransportSocketFactoryPtr createTransportSocketFactory(
       const Protobuf::Message& config,
       Server::Configuration::TransportSocketFactoryContext& context) override;
@@ -48,14 +50,14 @@ DECLARE_FACTORY(UpstreamTlsWrapperFactory);
 class DownstreamTlsWrapperFactory
     : public Server::Configuration::DownstreamTransportSocketConfigFactory,
       public TlsWrapperConfigFactory {
-public:
-  Network::TransportSocketFactoryPtr
-  createTransportSocketFactory(const Protobuf::Message& config,
-                               Server::Configuration::TransportSocketFactoryContext& context,
-                               const std::vector<std::string>& server_names) override;
+ public:
+  Network::TransportSocketFactoryPtr createTransportSocketFactory(
+      const Protobuf::Message& config,
+      Server::Configuration::TransportSocketFactoryContext& context,
+      const std::vector<std::string>& server_names) override;
   ProtobufTypes::MessagePtr createEmptyConfigProto() override;
 };
 
 DECLARE_FACTORY(DownstreamTlsWrapperFactory);
-} // namespace Cilium
-} // namespace Envoy
+}  // namespace Cilium
+}  // namespace Envoy

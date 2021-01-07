@@ -1,7 +1,7 @@
 # Envoy binary for Istio sidecar proxy
 
 The integration of Cilium and Istio requires building artifacts from
-several repositories in order to build Docker images.  Some of those
+several repositories in order to build Docker images. Some of those
 artifacts require changes that have not yet been merged upstream.
 
 This document provides the instructions to build the Cilium-specific
@@ -10,7 +10,7 @@ Istio images.
 ## Build the Istio pilot docker image & cilium-istioctl
 
 Build the Istio pilot docker image modified to configure Cilium
-filters in every HTTP filter chain.  This work is being developed in
+filters in every HTTP filter chain. This work is being developed in
 cilium/istio `inject-cilium-filters-1.6.14` branch, which is based on
 Istio's release 1.6.14 branch. Make sure that when you build the Istio
 binaries that you are using a Linux box meeting the requirements of

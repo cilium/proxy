@@ -1,11 +1,15 @@
-licenses(["notice"])  # Apache 2
-
 load(
     "@envoy//bazel:envoy_build_system.bzl",
     "envoy_cc_binary",
 )
 
-exports_files(["linux/bpf_common.h", "linux/bpf.h", "linux/type_mapper.h"])
+licenses(["notice"])  # Apache 2
+
+exports_files([
+    "linux/bpf.h",
+    "linux/bpf_common.h",
+    "linux/type_mapper.h",
+])
 
 envoy_cc_binary(
     name = "cilium-envoy-deps",
@@ -27,7 +31,6 @@ envoy_cc_binary(
         "//cilium:network_filter_lib",
         "//cilium:l7policy_lib",
         "//cilium:tls_wrapper_lib",
-
         "@envoy//source/exe:envoy_main_entry_lib",
     ],
 )

@@ -22,7 +22,7 @@ namespace Cilium {
  * Bpf system call interface.
  */
 class Bpf : public Logger::Loggable<Logger::Id::filter> {
-public:
+ public:
   /**
    * Create a bpf map object without actually creating or opening a bpf map yet.
    * @param map_type the type of a bpf map to be opened or created, e.g.,
@@ -88,17 +88,17 @@ public:
    */
   bool lookup(const void *key, void *value);
 
-private:
+ private:
   int bpfSyscall(int cmd, union bpf_attr *attr);
 
-protected:
+ protected:
   int fd_;
 
-public:
+ public:
   uint32_t map_type_;
   uint32_t key_size_;
   uint32_t value_size_;
 };
 
-} // namespace Cilium
-} // namespace Envoy
+}  // namespace Cilium
+}  // namespace Envoy
