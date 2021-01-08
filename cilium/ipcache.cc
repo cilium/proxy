@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 
 #include "common/common/utility.h"
+#include "envoy/common/platform.h"
 #include "linux/bpf.h"
 
 namespace Envoy {
@@ -18,7 +19,7 @@ typedef uint32_t __u32;
 typedef uint16_t __u16;
 typedef uint8_t __u8;
 
-struct ipcache_key {
+PACKED_STRUCT(struct ipcache_key {
   struct bpf_lpm_trie_key lpm_key;
   __u16 pad1;
   __u8 pad2;
@@ -32,7 +33,7 @@ struct ipcache_key {
     };
     __u32 ip6[4];
   };
-} __attribute__((packed));
+});
 
 struct remote_endpoint_info {
   __u32 sec_label;

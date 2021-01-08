@@ -7,6 +7,7 @@
 
 #include "common/common/utility.h"
 #include "common/network/address_impl.h"
+#include "envoy/common/platform.h"
 #include "linux/bpf.h"
 
 namespace Envoy {
@@ -26,23 +27,23 @@ typedef uint8_t __u8;
 #define TUPLE_F_OUT 0
 #define TUPLE_F_IN 1
 
-struct ipv6_ct_tuple {
+PACKED_STRUCT(struct ipv6_ct_tuple {
   __be32 saddr[4];
   __be32 daddr[4];
   __be16 dport;
   __be16 sport;
   __u8 nexthdr;
   __u8 flags;
-} __attribute__((packed));
+});
 
-struct ipv4_ct_tuple {
+PACKED_STRUCT(struct ipv4_ct_tuple {
   __be32 saddr;
   __be32 daddr;
   __be16 dport;
   __be16 sport;
   __u8 nexthdr;
   __u8 flags;
-} __attribute__((packed));
+});
 
 struct ct_entry {
   __u64 rx_packets;
