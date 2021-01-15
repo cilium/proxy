@@ -1,8 +1,8 @@
 diff --git a/test/integration/fake_upstream.cc b/test/integration/fake_upstream.cc
-index 4763c9bbfe..22e03e42c6 100644
+index 5ed0c5cad6..2a5edabe35 100644
 --- a/test/integration/fake_upstream.cc
 +++ b/test/integration/fake_upstream.cc
-@@ -440,9 +440,10 @@ FakeUpstream::FakeUpstream(uint32_t port, FakeHttpConnection::Type type,
+@@ -432,9 +432,10 @@ FakeUpstream::FakeUpstream(uint32_t port, FakeHttpConnection::Type type,
  
  FakeUpstream::FakeUpstream(Network::TransportSocketFactoryPtr&& transport_socket_factory,
                             uint32_t port, FakeHttpConnection::Type type,
@@ -15,18 +15,18 @@ index 4763c9bbfe..22e03e42c6 100644
    ENVOY_LOG(info, "starting fake SSL server on port {}. Address version is {}",
              localAddress()->ip()->port(), Network::Test::addressVersionAsString(version));
  }
-@@ -565,7 +566,9 @@ FakeUpstream::waitForHttpConnection(Event::Dispatcher& client_dispatcher,
+@@ -546,7 +547,9 @@ FakeUpstream::waitForHttpConnection(Event::Dispatcher& client_dispatcher,
              envoy::config::core::v3::HttpProtocolOptions::ALLOW);
-         lock.release();
-         VERIFY_ASSERTION(connection->initialize());
--        VERIFY_ASSERTION(connection->readDisable(false));
-+        if (upstream.read_disable_on_new_connection_) {
-+          VERIFY_ASSERTION(connection->readDisable(false));
-+        }
-         return AssertionSuccess();
        }
+       VERIFY_ASSERTION(connection->initialize());
+-      VERIFY_ASSERTION(connection->readDisable(false));
++      if (upstream.read_disable_on_new_connection_) {
++        VERIFY_ASSERTION(connection->readDisable(false));
++      }
+       return AssertionSuccess();
      }
-@@ -589,7 +592,9 @@ AssertionResult FakeUpstream::waitForRawConnection(FakeRawConnectionPtr& connect
+   }
+@@ -568,7 +571,9 @@ AssertionResult FakeUpstream::waitForRawConnection(FakeRawConnectionPtr& connect
      connection = std::make_unique<FakeRawConnection>(consumeConnection(), timeSystem());
    }
    VERIFY_ASSERTION(connection->initialize());
@@ -38,19 +38,10 @@ index 4763c9bbfe..22e03e42c6 100644
    return AssertionSuccess();
  }
 diff --git a/test/integration/fake_upstream.h b/test/integration/fake_upstream.h
-index 6afeb17b36..ccbd4d329a 100644
+index 538b2808b6..c05e35a883 100644
 --- a/test/integration/fake_upstream.h
 +++ b/test/integration/fake_upstream.h
-@@ -431,7 +431,7 @@ protected:
-   FakeConnectionBase(SharedConnectionWrapper& shared_connection, Event::TestTimeSystem& time_system)
-       : shared_connection_(shared_connection), time_system_(time_system) {}
- 
--  Common::CallbackHandle* disconnect_callback_handle_;
-+  Common::CallbackHandle* disconnect_callback_handle_{};
-   SharedConnectionWrapper& shared_connection_;
-   bool initialized_{};
-   Thread::CondVar connection_event_;
-@@ -585,7 +585,7 @@ public:
+@@ -554,7 +554,7 @@ public:
                 Event::TestTimeSystem& time_system, bool enable_half_close = false);
    FakeUpstream(Network::TransportSocketFactoryPtr&& transport_socket_factory, uint32_t port,
                 FakeHttpConnection::Type type, Network::Address::IpVersion version,

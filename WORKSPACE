@@ -11,23 +11,24 @@ ENVOY_PROJECT = "envoyproxy"
 
 ENVOY_REPO = "envoy"
 
-ENVOY_SHA = "69c307cbdb0386df9ed393e59fd6c24e5cab5603"
+ENVOY_SHA = "e98e41a8e168af7acae8079fc0cd68155f699aa3"
 
-ENVOY_SHA256 = "667be2f03081e5872dffb232b2211416ea090d1d423405e46ffcd112eeb653e1"
+ENVOY_SHA256 = "715273c8d21208e3cb8503aed82527e7027e4d7cc3ba24c5c3ea75f239ddf0a2"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 http_archive(
     name = "envoy",
-    patch_args = ["-p1"],
+    patch_tool = "git",
+    patch_args = ["apply"],
     patches = [
         "@//patches:original-dst-add-sni.patch",
         "@//patches:test-enable-half-close.patch",
-        "@//patches:test-allow-disconnects.patch",
-        "@//patches:test-certs-update.patch",
         "@//patches:test-double-server-create-timeout.patch",
         "@//patches:cross-aarch64.patch",
-        "@//patches:envoy-arm64.patch",
+        "@//patches:envoy-1.16.3-fixes-backport.patch",
+        "@//patches:envoy-unused-variables.patch",
+        "@//patches:envoy-quiche-update-backport.patch",
     ],
     sha256 = ENVOY_SHA256,
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,

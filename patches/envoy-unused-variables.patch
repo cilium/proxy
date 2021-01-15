@@ -1,0 +1,57 @@
+commit 0fefccd1e01658dbe2fe0a2c980fb75f7ca2f0fb
+Author: Jarno Rajahalme <jarno@covalent.io>
+Date:   Fri Jan 15 08:35:57 2021 -0800
+
+    fix unused variables
+    
+    Signed-off-by: Jarno Rajahalme <jarno@covalent.io>
+---
+ source/common/upstream/cds_api_impl.cc  | 1 +
+ source/common/upstream/subset_lb.cc     | 1 +
+ source/server/admin/clusters_handler.cc | 2 ++
+ 3 files changed, 4 insertions(+)
+
+diff --git a/source/common/upstream/cds_api_impl.cc b/source/common/upstream/cds_api_impl.cc
+index 0ca7d5763d..a6522759c3 100644
+--- a/source/common/upstream/cds_api_impl.cc
++++ b/source/common/upstream/cds_api_impl.cc
+@@ -45,6 +45,7 @@ void CdsApiImpl::onConfigUpdate(const std::vector<Config::DecodedResourceRef>& r
+   }
+   Protobuf::RepeatedPtrField<std::string> to_remove_repeated;
+   for (const auto& [cluster_name, _] : clusters_to_remove) {
++    UNREFERENCED_PARAMETER(_);
+     *to_remove_repeated.Add() = cluster_name;
+   }
+   onConfigUpdate(resources, to_remove_repeated, version_info);
+diff --git a/source/common/upstream/subset_lb.cc b/source/common/upstream/subset_lb.cc
+index 309a4ea709..31188f2361 100644
+--- a/source/common/upstream/subset_lb.cc
++++ b/source/common/upstream/subset_lb.cc
+@@ -136,6 +136,7 @@ void SubsetLoadBalancer::rebuildSingle() {
+         if (fields_it != fields.end()) {
+           auto [iterator, did_insert] =
+               single_host_per_subset_map_.try_emplace(fields_it->second, host);
++          UNREFERENCED_PARAMETER(iterator);
+           if (!did_insert) {
+             // Two hosts with the same metadata value were found. Ignore all but one of them, and
+             // set a metric for how many times this happened.
+diff --git a/source/server/admin/clusters_handler.cc b/source/server/admin/clusters_handler.cc
+index e0e17350b7..622bfb4e7a 100644
+--- a/source/server/admin/clusters_handler.cc
++++ b/source/server/admin/clusters_handler.cc
+@@ -101,6 +101,7 @@ void setHealthFlag(Upstream::Host::HealthFlag flag, const Upstream::Host& host,
+ void ClustersHandler::writeClustersAsJson(Buffer::Instance& response) {
+   envoy::admin::v3::Clusters clusters;
+   for (const auto& [name, cluster_ref] : server_.clusterManager().clusters()) {
++    UNREFERENCED_PARAMETER(name);
+     const Upstream::Cluster& cluster = cluster_ref.get();
+     Upstream::ClusterInfoConstSharedPtr cluster_info = cluster.info();
+ 
+@@ -185,6 +186,7 @@ void ClustersHandler::writeClustersAsJson(Buffer::Instance& response) {
+ // TODO(efimki): Add support of text readouts stats.
+ void ClustersHandler::writeClustersAsText(Buffer::Instance& response) {
+   for (const auto& [name, cluster_ref] : server_.clusterManager().clusters()) {
++    UNREFERENCED_PARAMETER(name);
+     const Upstream::Cluster& cluster = cluster_ref.get();
+     const std::string& cluster_name = cluster.info()->name();
+     addOutlierInfo(cluster_name, cluster.outlierDetector(), response);

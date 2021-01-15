@@ -41,7 +41,7 @@ ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -
 
 DOCKER=$(QUIET)docker
 
-BAZEL_BUILD_OPTS ?= --jobs=3
+# BAZEL_BUILD_OPTS ?= --jobs=3
 
 SLASH = -
 ARCH=$(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))

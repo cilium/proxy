@@ -18,7 +18,7 @@ diff --git a/bazel/BUILD b/bazel/BUILD
 index 8c2b74a44..98a8e6878 100644
 --- a/bazel/BUILD
 +++ b/bazel/BUILD
-@@ -272,6 +272,11 @@ config_setting(
+@@ -308,6 +308,11 @@ config_setting(
      values = {"cpu": "aarch64"},
  )
  
@@ -34,7 +34,7 @@ diff --git a/bazel/envoy_build_system.bzl b/bazel/envoy_build_system.bzl
 index 70ef3df4f..2ae39c85f 100644
 --- a/bazel/envoy_build_system.bzl
 +++ b/bazel/envoy_build_system.bzl
-@@ -71,7 +71,7 @@ def envoy_cmake_external(
+@@ -79,7 +79,7 @@ def envoy_cmake_external(
          copy_pdb = False,
          pdb_name = "",
          cmake_files_dir = "$BUILD_TMPDIR/CMakeFiles",
@@ -43,8 +43,8 @@ index 70ef3df4f..2ae39c85f 100644
          **kwargs):
      cache_entries.update({"CMAKE_BUILD_TYPE": "Bazel"})
      cache_entries_debug = dict(cache_entries)
-@@ -102,11 +102,6 @@ def envoy_cmake_external(
-             "//conditions:default": cache_entries_debug,
+@@ -110,11 +110,6 @@ def envoy_cmake_external(
+             "//conditions:default": cache_entries,
          }),
          cmake_options = cmake_options,
 -        # TODO(lizan): Make this always true
@@ -59,7 +59,7 @@ diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
 index 3104e4f11..7055811f0 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
-@@ -15,6 +15,7 @@ configure_make(
+@@ -16,6 +16,7 @@ configure_make(
          "--disable-libunwind",
      ] + select({
          "//bazel:apple": ["AR=/usr/bin/ar"],
@@ -67,10 +67,10 @@ index 3104e4f11..7055811f0 100644
          "//conditions:default": [],
      }),
      lib_source = "@com_github_gperftools_gperftools//:all",
-@@ -46,6 +47,10 @@ configure_make(
-         # https://github.com/envoyproxy/envoy/issues/6084
-         # TODO(htuch): Remove when #6084 is fixed
+@@ -47,6 +48,10 @@ configure_make(
          "//bazel:asan_build": {"ENVOY_CONFIG_ASAN": "1"},
+         "//bazel:msan_build": {"ENVOY_CONFIG_MSAN": "1"},
+         "//bazel:windows_dbg_build": {"WINDOWS_DBG_BUILD": "debug"},
 +        "//bazel:linux_aarch64_cross": {
 +            "CC": "gcc",
 +            "CROSS": "aarch64-linux-gnu-",
@@ -78,10 +78,10 @@ index 3104e4f11..7055811f0 100644
          "//conditions:default": {},
      }),
      lib_source = "@com_github_luajit_luajit//:all",
-@@ -65,6 +70,10 @@ configure_make(
-         # https://github.com/envoyproxy/envoy/issues/6084
-         # TODO(htuch): Remove when #6084 is fixed
+@@ -68,6 +73,10 @@ configure_make(
          "//bazel:asan_build": {"ENVOY_CONFIG_ASAN": "1"},
+         "//bazel:msan_build": {"ENVOY_CONFIG_MSAN": "1"},
+         "//bazel:windows_dbg_build": {"WINDOWS_DBG_BUILD": "debug"},
 +        "//bazel:linux_aarch64_cross": {
 +            "CC": "gcc",
 +            "CROSS": "aarch64-linux-gnu-",
