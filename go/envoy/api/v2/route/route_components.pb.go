@@ -932,7 +932,7 @@ type RouteMatch struct {
 	//	*RouteMatch_Regex
 	//	*RouteMatch_SafeRegex
 	PathSpecifier isRouteMatch_PathSpecifier `protobuf_oneof:"path_specifier"`
-	// Indicates that prefix/path matching should be case insensitive. The default
+	// Indicates that prefix/path matching should be case sensitive. The default
 	// is true.
 	CaseSensitive *wrappers.BoolValue `protobuf:"bytes,4,opt,name=case_sensitive,json=caseSensitive,proto3" json:"case_sensitive,omitempty"`
 	// Indicates that the route should additionally match on a runtime key. Every time the route

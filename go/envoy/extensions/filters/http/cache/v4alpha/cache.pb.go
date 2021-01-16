@@ -37,17 +37,14 @@ type CacheConfig struct {
 
 	// Config specific to the cache storage implementation.
 	TypedConfig *any.Any `protobuf:"bytes,1,opt,name=typed_config,json=typedConfig,proto3" json:"typed_config,omitempty"`
-	// [#not-implemented-hide:]
-	// <TODO(toddmgreer) implement *vary* headers>
-	//
-	// List of allowed *Vary* headers.
+	// List of matching rules that defines allowed *Vary* headers.
 	//
 	// The *vary* response header holds a list of header names that affect the
 	// contents of a response, as described by
 	// https://httpwg.org/specs/rfc7234.html#caching.negotiated.responses.
 	//
 	// During insertion, *allowed_vary_headers* acts as a allowlist: if a
-	// response's *vary* header mentions any header names that aren't in
+	// response's *vary* header mentions any header names that aren't matched by any rules in
 	// *allowed_vary_headers*, that response will not be cached.
 	//
 	// During lookup, *allowed_vary_headers* controls what request headers will be

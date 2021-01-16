@@ -46,7 +46,7 @@ type MetricsServiceConfig struct {
 	// If true, counters are reported as the delta between flushing intervals. Otherwise, the current
 	// counter value is reported. Defaults to false.
 	// Eventually (https://github.com/envoyproxy/envoy/issues/10968) if this value is not set, the
-	// sink will take updates from the :ref:`MetricsResponse <envoy_api_msg_service.metrics.v3.StreamMetricsResponse>`.
+	// sink will take updates from the :ref:`MetricsResponse <envoy_api_msg_service.metrics.v4alpha.StreamMetricsResponse>`.
 	ReportCountersAsDeltas *wrappers.BoolValue `protobuf:"bytes,2,opt,name=report_counters_as_deltas,json=reportCountersAsDeltas,proto3" json:"report_counters_as_deltas,omitempty"`
 }
 

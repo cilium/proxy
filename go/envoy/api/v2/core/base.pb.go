@@ -295,7 +295,7 @@ type BuildVersion struct {
 	// SemVer version of extension.
 	Version *_type.SemanticVersion `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	// Free-form build information.
-	// Envoy defines several well known keys in the source/common/common/version.h file
+	// Envoy defines several well known keys in the source/common/version/version.h file
 	Metadata *_struct.Struct `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
 }
 

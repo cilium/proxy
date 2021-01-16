@@ -674,9 +674,15 @@ type Cluster struct {
 	// :ref:`STRICT_DNS<envoy_api_enum_value_Cluster.DiscoveryType.STRICT_DNS>`
 	// and :ref:`LOGICAL_DNS<envoy_api_enum_value_Cluster.DiscoveryType.LOGICAL_DNS>`
 	// this setting is ignored.
+	// Setting this value causes failure if the
+	// ``envoy.restart_features.use_apple_api_for_dns_lookups`` runtime value is true during
+	// server startup. Apple's API only allows overriding DNS resolvers via system settings.
 	DnsResolvers []*core.Address `protobuf:"bytes,18,rep,name=dns_resolvers,json=dnsResolvers,proto3" json:"dns_resolvers,omitempty"`
 	// [#next-major-version: Reconcile DNS options in a single message.]
 	// Always use TCP queries instead of UDP queries for DNS lookups.
+	// Setting this value causes failure if the
+	// ``envoy.restart_features.use_apple_api_for_dns_lookups`` runtime value is true during
+	// server startup. Apple' API only uses UDP for DNS resolution.
 	UseTcpForDnsLookups bool `protobuf:"varint,45,opt,name=use_tcp_for_dns_lookups,json=useTcpForDnsLookups,proto3" json:"use_tcp_for_dns_lookups,omitempty"`
 	// If specified, outlier detection will be enabled for this upstream cluster.
 	// Each of the configuration values can be overridden via
@@ -1933,7 +1939,7 @@ type Cluster_CommonLbConfig struct {
 	// If set to `true`, the cluster manager will drain all existing
 	// connections to upstream hosts whenever hosts are added or removed from the cluster.
 	CloseConnectionsOnHostSetChange bool `protobuf:"varint,6,opt,name=close_connections_on_host_set_change,json=closeConnectionsOnHostSetChange,proto3" json:"close_connections_on_host_set_change,omitempty"`
-	//Common Configuration for all consistent hashing load balancers (MaglevLb, RingHashLb, etc.)
+	// Common Configuration for all consistent hashing load balancers (MaglevLb, RingHashLb, etc.)
 	ConsistentHashingLbConfig *Cluster_CommonLbConfig_ConsistentHashingLbConfig `protobuf:"bytes,7,opt,name=consistent_hashing_lb_config,json=consistentHashingLbConfig,proto3" json:"consistent_hashing_lb_config,omitempty"`
 }
 
