@@ -174,7 +174,7 @@ api: force-non-root Makefile.api
 	$(MAKE) -f Makefile.api all
 
 /usr/lib/llvm-10:
-	sudo apt get install clang-10 llvm-10-dev clang-format-10 lld-10
+	sudo apt install clang-10 llvm-10-dev clang-format-10 lld-10
 
 clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-10
 	bazel/setup_clang.sh /usr/lib/llvm-10
