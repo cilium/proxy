@@ -17,6 +17,7 @@ RUN apt-get update && \
       # Envoy Build dependencies
       autoconf \
       automake \
+      clang-10 \
       cmake \
       coreutils \
       curl \
@@ -25,6 +26,8 @@ RUN apt-get update && \
       git \
       libc6-dev \
       libtool \
+      lld-10 \
+      llvm-10-dev \
       make \
       ninja-build \
       patch \

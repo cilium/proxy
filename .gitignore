@@ -27,3 +27,6 @@ external
 
 # generated from make targets
 *.ok
+
+# Clang config is platform-specific
+clang.bazelrc

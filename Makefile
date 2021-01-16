@@ -173,17 +173,24 @@ debug: envoy-debug
 api: force-non-root Makefile.api
 	$(MAKE) -f Makefile.api all
 
+/usr/lib/llvm-10:
+	sudo apt get install clang-10 llvm-10-dev clang-format-10 lld-10
+
+clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-10
+	bazel/setup_clang.sh /usr/lib/llvm-10
+	echo "build --config=clang" >> $@
+
 bazel-bin-fastbuild: force-non-root
 	-rm -f bazel-bin
 	ln -s $(shell bazel info bazel-bin) bazel-bin
 
-envoy-deps-fastbuild: force-non-root
+envoy-deps-fastbuild: bazel-bin-fastbuild clang.bazelrc
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-deps $(BAZEL_FILTER)
-	-rm bazel-bin/cilium-envoy-deps
+	-rm -f bazel-bin/cilium-envoy-deps
 	$(BAZEL) shutdown
 
-envoy-default: bazel-bin-fastbuild
+envoy-default: bazel-bin-fastbuild clang.bazelrc
 	@$(ECHO_BAZEL)
 	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
@@ -193,13 +200,13 @@ bazel-bin-opt: force
 	-rm -f bazel-bin
 	ln -s $(shell bazel info -c opt bazel-bin) bazel-bin
 
-envoy-deps-opt: force
+envoy-deps-opt: bazel-bin-opt clang.bazelrc
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:cilium-envoy-deps $(BAZEL_FILTER)
-	-rm bazel-bin/cilium-envoy-deps
+	-rm -f bazel-bin/cilium-envoy-deps
 	$(BAZEL) shutdown
 
-$(CILIUM_ENVOY_BIN): bazel-bin-opt
+$(CILIUM_ENVOY_BIN): bazel-bin-opt clang.bazelrc
 	@$(ECHO_BAZEL)
 	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:cilium-envoy $(BAZEL_FILTER)
