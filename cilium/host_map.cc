@@ -167,7 +167,7 @@ PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls)
 PolicyHostMap::PolicyHostMap(const LocalInfo::LocalInfo& local_info,
                              Upstream::ClusterManager& cm,
                              Event::Dispatcher& dispatcher,
-                             Runtime::RandomGenerator& random,
+                             Random::RandomGenerator& random,
                              Stats::Scope& scope,
                              ThreadLocal::SlotAllocator& tls)
     : PolicyHostMap(tls) {

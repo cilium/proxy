@@ -76,7 +76,7 @@ std::shared_ptr<const Cilium::PolicyHostMap> createHostMap(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context] {
         auto map = std::make_shared<Cilium::PolicyHostMap>(
             context.localInfo(), context.clusterManager(), context.dispatcher(),
-            context.random(), context.scope(), context.threadLocal());
+            context.api().randomGenerator(), context.scope(), context.threadLocal());
         map->startSubscription();
         return map;
       });
@@ -262,35 +262,30 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   config_->getMetadata(socket);
 
   // Set socket options for linger and keepalive (5 minutes).
-  int rc;
   struct ::linger lin {
     true, 10
   };
   int keepalive = true;
   int secs = 5 * 60;  // Five minutes
 
-  rc = setsockopt(socket.ioHandle().fd(), SOL_SOCKET, SO_LINGER, &lin,
-                  sizeof(lin));
-  if (rc < 0) {
+  auto status = socket.setSocketOption(SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
+  if (status.rc_ < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_LINGER: {}",
               Envoy::errorDetails(errno));
   }
-  rc = setsockopt(socket.ioHandle().fd(), SOL_SOCKET, SO_KEEPALIVE, &keepalive,
-                  sizeof(keepalive));
-  if (rc < 0) {
+  status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
+  if (status.rc_ < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}",
               Envoy::errorDetails(errno));
   } else {
-    rc = setsockopt(socket.ioHandle().fd(), IPPROTO_TCP, TCP_KEEPINTVL, &secs,
-                    sizeof(secs));
-    if (rc < 0) {
+    status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPINTVL, &secs, sizeof(secs));
+    if (status.rc_ < 0) {
       ENVOY_LOG(critical,
                 "Socket option failure. Failed to set TCP_KEEPINTVL: {}",
                 Envoy::errorDetails(errno));
     } else {
-      rc = setsockopt(socket.ioHandle().fd(), IPPROTO_TCP, TCP_KEEPIDLE, &secs,
-                      sizeof(secs));
-      if (rc < 0) {
+      status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPIDLE, &secs, sizeof(secs));
+      if (status.rc_ < 0) {
         ENVOY_LOG(critical,
                   "Socket option failure. Failed to set TCP_KEEPIDLE: {}",
                   Envoy::errorDetails(errno));

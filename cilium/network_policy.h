@@ -32,7 +32,9 @@ class PortPolicy {
   virtual bool allowed(
       const envoy::config::core::v3::Metadata& metadata) const PURE;
 
+  virtual Ssl::ContextConfig& getServerTlsContextConfig() const PURE;
   virtual Ssl::ContextSharedPtr getServerTlsContext() const PURE;
+  virtual Ssl::ContextConfig& getClientTlsContextConfig() const PURE;
   virtual Ssl::ContextSharedPtr getClientTlsContext() const PURE;
 };
 using PortPolicyConstSharedPtr = std::shared_ptr<const PortPolicy>;
@@ -120,6 +122,7 @@ class NetworkPolicyMap : public Singleton::Instance,
   ProtobufMessage::ValidationVisitor& validation_visitor_;
   Stats::ScopePtr scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
+  Envoy::Config::ScopedResume resume_;
   static uint64_t instance_id_;
   std::string name_;
   Cilium::CtMapSharedPtr ctmap_;

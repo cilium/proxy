@@ -46,11 +46,16 @@ class SslSocketWrapper : public Network::TransportSocket {
                 ? port_policy->getClientTlsContext()
                 : port_policy->getServerTlsContext();
 
+	Envoy::Ssl::ContextConfig& config = 
+            state_ == Extensions::TransportSockets::Tls::InitialState::Client
+                ? port_policy->getClientTlsContextConfig()
+                : port_policy->getServerTlsContextConfig();
+
         if (ctx) {
           // create the underlying SslSocket
           ssl_socket_ =
               std::make_unique<Extensions::TransportSockets::Tls::SslSocket>(
-                  ctx, state_, transport_socket_options_);
+                  std::move(ctx), state_, transport_socket_options_, config.createHandshaker());
 
           // Set the callbacks
           ssl_socket_->setTransportSocketCallbacks(callbacks);
@@ -112,6 +117,7 @@ class ClientSslSocketFactory : public Network::TransportSocketFactory {
   }
 
   bool implementsSecureTransport() const override { return true; }
+  bool usesProxyProtocolOptions() const override { return false; }
 };
 
 class ServerSslSocketFactory : public Network::TransportSocketFactory {
@@ -123,6 +129,7 @@ class ServerSslSocketFactory : public Network::TransportSocketFactory {
   }
 
   bool implementsSecureTransport() const override { return true; }
+  bool usesProxyProtocolOptions() const override { return false; }
 };
 
 }  // namespace

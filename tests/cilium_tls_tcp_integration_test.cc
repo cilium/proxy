@@ -176,7 +176,7 @@ class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
     // Ship some data upstream.
     Buffer::OwnedImpl buffer(data_to_send_upstream);
     ssl_client_->write(buffer, false);
-    while (client_write_buffer_->bytes_drained() !=
+    while (client_write_buffer_->bytesDrained() !=
            data_to_send_upstream.size()) {
       dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
     }
@@ -252,7 +252,7 @@ class CiliumTLSProxyIntegrationTest : public CiliumTLSIntegrationTest {
   }
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     IpVersions, CiliumTLSProxyIntegrationTest,
     testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
     TestUtility::ipTestParamsToString);
@@ -321,7 +321,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(10));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->write("", true));
-  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect(true));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
 }
 
@@ -593,7 +593,7 @@ class CiliumDownstreamTLSIntegrationTest : public CiliumTLSIntegrationTest {
   }
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     IpVersions, CiliumDownstreamTLSIntegrationTest,
     testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
     TestUtility::ipTestParamsToString);
@@ -653,7 +653,7 @@ TEST_P(CiliumDownstreamTLSIntegrationTest, UpstreamHalfClose) {
   const std::string& val("data");
   Buffer::OwnedImpl buffer(val);
   ssl_client_->write(buffer, false);
-  while (client_write_buffer_->bytes_drained() != val.size()) {
+  while (client_write_buffer_->bytesDrained() != val.size()) {
     dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
   }
   ASSERT_TRUE(fake_upstream_connection->waitForData(val.size()));

@@ -233,7 +233,7 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
   }
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     IpVersions, CiliumIntegrationTest,
     testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
@@ -632,7 +632,7 @@ resources:
   }
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     IpVersions, CiliumIntegrationEgressTest,
     testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 

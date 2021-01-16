@@ -417,8 +417,14 @@ class PolicyInstanceImpl : public PolicyInstance {
       return true;  // allowed by default
     }
 
+    Ssl::ContextConfig& getServerTlsContextConfig() const override {
+      return *server_config_;
+    }
     Ssl::ContextSharedPtr getServerTlsContext() const override {
       return server_context_;
+    }
+    Ssl::ContextConfig& getClientTlsContextConfig() const override {
+      return *client_config_;
     }
     Ssl::ContextSharedPtr getClientTlsContext() const override {
       return client_context_;
@@ -635,7 +641,7 @@ NetworkPolicyMap::NetworkPolicyMap(
   subscription_ =
       subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
                 context.clusterManager(), context.dispatcher(),
-                context.random(), *scope_, *this, resource_decoder_);
+                context.api().randomGenerator(), *scope_, *this, resource_decoder_);
 }
 
 static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{
@@ -664,17 +670,14 @@ const std::shared_ptr<const PolicyInstance> NetworkPolicyMap::GetPolicyInstance(
 }
 
 void NetworkPolicyMap::pause() {
-  auto sub = dynamic_cast<GrpcSubscriptionImpl*>(subscription_.get());
+  auto sub = dynamic_cast<Config::GrpcSubscriptionImpl*>(subscription_.get());
   if (sub) {
-    sub->pause();
+    resume_ = sub->pause();
   }
 }
 
 void NetworkPolicyMap::resume() {
-  auto sub = dynamic_cast<GrpcSubscriptionImpl*>(subscription_.get());
-  if (sub) {
-    sub->resume();
-  }
+  resume_.reset();
 }
 
 void NetworkPolicyMap::onConfigUpdate(
@@ -745,39 +748,33 @@ void NetworkPolicyMap::onConfigUpdate(
 
   // Execute changes on all threads.
   tls_->runOnAllThreads(
-      [shared_this, to_be_added, to_be_deleted]() -> void {
-        if (shared_this->tls_->get().get() != nullptr) {
-          ENVOY_LOG(trace,
-                    "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
-                    "updates on the next thread");
-          auto& npmap =
-              shared_this->tls_->getTyped<ThreadLocalPolicyMap>().policies_;
-          for (const auto& policy_name : *to_be_deleted) {
-            ENVOY_LOG(trace,
-                      "Cilium deleting removed network policy for endpoint {}",
-                      policy_name);
-            npmap.erase(policy_name);
-          }
-          for (const auto& new_policy : *to_be_added) {
-            ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}",
-                      new_policy->policy_proto_.name());
-            npmap[new_policy->policy_proto_.name()] = new_policy;
-          }
-        } else {
-          // Keep this at info level for now to see if this happens in the wild
-          ENVOY_LOG(warn, "Skipping stale network policy update");
-        }
+      [to_be_added, to_be_deleted](ThreadLocal::ThreadLocalObjectSharedPtr object) -> ThreadLocal::ThreadLocalObjectSharedPtr {
+	ENVOY_LOG(trace,
+		  "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
+		  "updates on the next thread");
+	auto& npmap = object->asType<ThreadLocalPolicyMap>().policies_;
+	for (const auto& policy_name : *to_be_deleted) {
+	  ENVOY_LOG(trace,
+		    "Cilium deleting removed network policy for endpoint {}",
+		    policy_name);
+	  npmap.erase(policy_name);
+	}
+	for (const auto& new_policy : *to_be_added) {
+	  ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}",
+		    new_policy->policy_proto_.name());
+	  npmap[new_policy->policy_proto_.name()] = new_policy;
+	}
+	return object;
       },
-      // resume NPDS and delete old cts when all threads have updated their
-      // policies
+      // Delete old cts when all threads have updated their policies,
+      // and resume NPDS after.
       [shared_this, cts_to_be_closed]() -> void {
-        // resume the subscription
-        ENVOY_LOG(trace, "Resuming NPDS subscription");
-        shared_this->resume();
-        if (shared_this->ctmap_ && shared_this->tls_->get().get() != nullptr &&
-            cts_to_be_closed->size() > 0) {
+        if (shared_this->ctmap_ && cts_to_be_closed->size() > 0) {
           shared_this->ctmap_->closeMaps(cts_to_be_closed);
         }
+        // resume subscription
+        ENVOY_LOG(trace, "Resuming NPDS subscription");
+        shared_this->resume();
       });
 }
 

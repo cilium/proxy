@@ -165,32 +165,29 @@ void AccessLog::Entry::InitFromRequest(const std::string& policy_name,
 
   // request headers
   headers.iterate(
-      [](const Http::HeaderEntry& header,
-         void* entry__) -> Http::HeaderMap::Iterate {
+      [http_entry](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
         const absl::string_view key = header.key().getStringView();
         const absl::string_view value = header.value().getStringView();
-        auto entry = static_cast<::cilium::HttpLogEntry*>(entry__);
 
         if (key == pathSV) {
-          entry->set_path(value.data(), value.size());
+          http_entry->set_path(value.data(), value.size());
         } else if (key == methodSV) {
-          entry->set_method(value.data(), value.size());
+          http_entry->set_method(value.data(), value.size());
         } else if (key == authoritySV) {
-          entry->set_host(value.data(), value.size());
+          http_entry->set_host(value.data(), value.size());
         } else if (key == xForwardedProtoSV) {
           // Envoy sets the ":scheme" header later in the router filter
           // according to the upstream protocol (TLS vs. clear), but we want to
           // get the downstream scheme, which is provided in
           // "x-forwarded-proto".
-          entry->set_scheme(value.data(), value.size());
+          http_entry->set_scheme(value.data(), value.size());
         } else {
-          ::cilium::KeyValue* kv = entry->add_headers();
+          ::cilium::KeyValue* kv = http_entry->add_headers();
           kv->set_key(key.data(), key.size());
           kv->set_value(value.data(), value.size());
         }
         return Http::HeaderMap::Iterate::Continue;
-      },
-      http_entry);
+      });
 }
 
 void AccessLog::Entry::UpdateFromResponse(
@@ -220,6 +217,7 @@ void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
     std::string msg;
     entry.SerializeToString(&msg);
     ssize_t length = msg.length();
+    Thread::LockGuard guard(fd_mutex_);
     ssize_t sent =
         ::send(fd_, msg.data(), length, MSG_DONTWAIT | MSG_EOR | MSG_NOSIGNAL);
     if (sent == length) {
@@ -239,13 +237,13 @@ void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
 }
 
 bool AccessLog::Connect() {
+  Thread::LockGuard guard(fd_mutex_);
   if (fd_ != -1) {
     return true;
   }
   if (path_.length() == 0) {
     return false;
   }
-  Thread::LockGuard guard(fd_mutex_);
 
   fd_ = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
   if (fd_ == -1) {

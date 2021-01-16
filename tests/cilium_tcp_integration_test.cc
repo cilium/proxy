@@ -72,7 +72,7 @@ class CiliumTcpProxyIntegrationTest : public CiliumTcpIntegrationTest {
                         "true")) {}
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     IpVersions, CiliumTcpProxyIntegrationTest,
     testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
     TestUtility::ipTestParamsToString);
@@ -138,7 +138,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(10));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->write("", true));
-  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect(true));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
 }
 
@@ -394,7 +394,7 @@ class CiliumGoLinetesterIntegrationTest : public CiliumTcpIntegrationTest {
   }
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     IpVersions, CiliumGoLinetesterIntegrationTest,
     testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
     TestUtility::ipTestParamsToString);
@@ -637,7 +637,7 @@ class CiliumGoBlocktesterIntegrationTest : public CiliumTcpIntegrationTest {
   }
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     IpVersions, CiliumGoBlocktesterIntegrationTest,
     testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
     TestUtility::ipTestParamsToString);
@@ -807,7 +807,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest,
   tcp_client->waitForData("26:INJECT reply direction\n", false);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
-      FakeRawConnection::waitForInexactMatch(buf)));
+      FakeRawConnection::waitForInexactMatch("INSERT original direction")));
   ASSERT_TRUE(fake_upstream_connection->waitForData(noMatch("DROP")));
 
   ASSERT_TRUE(fake_upstream_connection->write("24:DROP reply direction\n"));

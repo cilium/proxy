@@ -287,7 +287,7 @@ class CiliumTLSHttpIntegrationTest : public CiliumHttpTLSIntegrationTest {
                         "true")) {}
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     IpVersions, CiliumTLSHttpIntegrationTest,
     testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 

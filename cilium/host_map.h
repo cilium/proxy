@@ -66,7 +66,7 @@ class PolicyHostMap : public Singleton::Instance,
  public:
   PolicyHostMap(const LocalInfo::LocalInfo& local_info,
                 Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-                Runtime::RandomGenerator& random, Stats::Scope& scope,
+                Random::RandomGenerator& random, Stats::Scope& scope,
                 ThreadLocal::SlotAllocator& tls);
   PolicyHostMap(ThreadLocal::SlotAllocator& tls);
   ~PolicyHostMap() {

@@ -91,10 +91,10 @@ const Protobuf::MethodDescriptor& sotwGrpcMethod(absl::string_view type_url) {
       it->second.sotw_grpc_method_);
 }
 
-std::unique_ptr<GrpcSubscriptionImpl> subscribe(
+std::unique_ptr<Config::GrpcSubscriptionImpl> subscribe(
     const std::string& type_url, const LocalInfo::LocalInfo& local_info,
     Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-    Runtime::RandomGenerator& random, Stats::Scope& scope,
+    Random::RandomGenerator& random, Stats::Scope& scope,
     Config::SubscriptionCallbacks& callbacks,
     Config::OpaqueResourceDecoder& resource_decoder) {
   // Hard-coded Cilium gRPC cluster
@@ -111,7 +111,7 @@ std::unique_ptr<GrpcSubscriptionImpl> subscribe(
 
   Config::SubscriptionStats stats = Config::Utility::generateStats(scope);
 
-  return std::make_unique<GrpcSubscriptionImpl>(
+  return std::make_unique<Config::GrpcSubscriptionImpl>(
       std::make_shared<Config::GrpcMuxImpl>(
           local_info,
           Config::Utility::factoryForGrpcApiConfigSource(

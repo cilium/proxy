@@ -72,7 +72,7 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   }
 
   socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, source_identity, destination_identity, is_ingress_, 80,
+      policy, false, source_identity, destination_identity, is_ingress_, 80,
       std::move(pod_ip), nullptr));
 
   return true;

@@ -33,7 +33,7 @@ TEST_F(CiliumTest, AccessLog) {
   Network::Socket::OptionsSharedPtr options =
       std::make_shared<Network::Socket::Options>();
   options->push_back(std::make_shared<Cilium::SocketOption>(
-      nullptr, 1, 173, true, 80, "1.2.3.4", nullptr));
+      nullptr, false, 1, 173, true, 80, "1.2.3.4", nullptr));
   local_address_ =
       std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80);
   remote_address_ =
