@@ -61,16 +61,8 @@ ARG BAZEL_BUILD_OPTS
 #
 # Build Bazel cache
 #
-RUN BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS:---jobs=8} PKG_BUILD=1 V=$V DESTDIR=/tmp/install make envoy-deps-opt && rm -rf /cilium/proxy
+RUN BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS:---jobs=8} PKG_BUILD=1 V=$V DESTDIR=/tmp/install make envoy-deps-opt
 
 #
 # Absolutely nothing after making envoy deps!
 #
-
-FROM base
-LABEL maintainer="maintainer@cilium.io"
-WORKDIR /cilium/proxy
-ARG V
-ARG BAZEL_BUILD_OPTS
-
-COPY --from=builder /root/.cache/bazel /root/.cache/bazel
