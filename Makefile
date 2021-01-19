@@ -45,7 +45,7 @@ DOCKER=$(QUIET)docker
 # BAZEL_BUILD_OPTS ?= --jobs=3
 
 SLASH = -
-ARCH=$(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
+ARCH ?= $(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
 IMAGE_ARCH = $(SLASH)$(ARCH)
 
 DOCKERFILE_ARCH = .multi_arch
@@ -88,8 +88,15 @@ ifdef DOCKER_BUILDX
 DOCKER=$(QUIET)DOCKER_BUILDKIT=1 docker buildx
 DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
 ifneq ($(DOCKER_BUILDER),default)
-	DOCKER_BUILD_OPTS += --push --platform=linux/arm64,linux/amd64
+	DOCKER_BUILD_OPTS += --push
+ifeq ($(ARCH),amd64)
+	DOCKER_BUILD_OPTS += --platform=linux/amd64
+else ifeq ($(ARCH),arm64)
+	DOCKER_BUILD_OPTS += --platform=linux/arm64
+else ifeq ($(ARCH),multi)
+	DOCKER_BUILD_OPTS += --platform=linux/arm64,linux/amd64
 	DOCKER_ARCH_TAG:=$(SOURCE_VERSION)
+endif
 endif
 $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
 endif
