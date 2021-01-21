@@ -91,9 +91,15 @@ $(CILIUM_GO_TARGETS): $(CILIUM_PROTO_SOURCES) Makefile.api
 	done
 
 godeps:
-	GO111MODULE=on go get github.com/census-instrumentation/opencensus-proto@be218fb6bd674af7519b1850cdf8410d8cbd48e8
-	GO111MODULE=on go get github.com/envoyproxy/protoc-gen-validate@973ea075fe989fd7878619845d1e532e5bfe7115
-	GO111MODULE=on go get github.com/prometheus/client_model@99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c
-	GO111MODULE=on go get github.com/cncf/udpa/go@edbea6a78f6d1ba34edc69c53a396b1d88d59651
+# @envoy//api/bazel/repository_locations.bzl
+	GO111MODULE=on go get github.com/cncf/udpa@v0.0.1
+	GO111MODULE=on go get github.com/census-instrumentation/opencensus-proto@v0.3.0
+	GO111MODULE=on go get github.com/envoyproxy/protoc-gen-validate@278964a8052f96a2f514add0298098f63fb7f47f
+	GO111MODULE=on go get github.com/prometheus/client_model@60555c9708c786597e6b07bf846d0dc5c2a46f54
+# Latest and/or matching cilium/cilium/go.mod:
+	GO111MODULE=on go get google.golang.org/grpc@v1.29.1
+	GO111MODULE=on go get github.com/golang/protobuf@v1.4.3
+	GO111MODULE=on go get google.golang.org/genproto/...@22ae2b108f89
+	GO111MODULE=on go get google.golang.org/protobuf/...@v1.25.0
 
 .PHONY: all
