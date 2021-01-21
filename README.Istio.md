@@ -11,8 +11,8 @@ Istio images.
 
 Build the Istio pilot docker image modified to configure Cilium
 filters in every HTTP filter chain. This work is being developed in
-cilium/istio `inject-cilium-filters-1.10.3` branch, which is based on
-Istio release 1.10.3. Make sure that when you build the Istio
+cilium/istio `inject-cilium-filters-1.10.4` branch, which is based on
+Istio release 1.10.4. Make sure that when you build the Istio
 binaries that you are using a Linux box meeting the requirements of
 Istio.
 
@@ -20,8 +20,8 @@ Istio.
     cd ${GOPATH}/src/istio.io
     git clone https://github.com/cilium/istio.git
     cd istio
-    git checkout inject-cilium-filters-1.10.3
-    docker build -t cilium/istio_pilot:1.10.3 .
+    git checkout inject-cilium-filters-1.10.4
+    docker build -t cilium/istio_pilot:1.10.4 .
     make -f cilium-istioctl.Makefile
 
 ## Build Cilium's sidecar proxy Docker images
@@ -30,11 +30,11 @@ Istio.
     cd ${GOPATH}/src/github.com/cilium
     git clone https://github.com/cilium/proxy.git
     cd proxy
-    git checkout istio-1.10.3
+    git checkout istio-1.10.4
     make docker-istio-proxy
 
 ## Push the Docker images to Docker Hub
 
     docker login -u ...
-    docker image push cilium/istio_pilot:1.10.3
-    docker image push cilium/istio_proxy:1.10.3
+    docker image push cilium/istio_pilot:1.10.4
+    docker image push cilium/istio_proxy:1.10.4
