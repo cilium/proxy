@@ -1,28 +1,32 @@
-commit 0fefccd1e01658dbe2fe0a2c980fb75f7ca2f0fb
-Author: Jarno Rajahalme <jarno@covalent.io>
-Date:   Fri Jan 15 08:35:57 2021 -0800
+From 9761fa9029db4fd7fb6d6fbd23daf43225cb8ba9 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@covalent.io>
+Date: Fri, 15 Jan 2021 08:35:57 -0800
+Subject: [PATCH] fix unused variables
 
-    fix unused variables
-    
-    Signed-off-by: Jarno Rajahalme <jarno@covalent.io>
+Signed-off-by: Jarno Rajahalme <jarno@covalent.io>
 ---
- source/common/upstream/cds_api_impl.cc  | 1 +
+ source/common/upstream/cds_api_impl.cc  | 2 ++
  source/common/upstream/subset_lb.cc     | 1 +
  source/server/admin/clusters_handler.cc | 2 ++
- 3 files changed, 4 insertions(+)
+ source/server/overload_manager_impl.cc  | 1 +
+ 4 files changed, 6 insertions(+)
 
 diff --git a/source/common/upstream/cds_api_impl.cc b/source/common/upstream/cds_api_impl.cc
-index 0ca7d5763d..a6522759c3 100644
+index 4568bf84b8..7277cfd008 100644
 --- a/source/common/upstream/cds_api_impl.cc
 +++ b/source/common/upstream/cds_api_impl.cc
-@@ -45,6 +45,7 @@ void CdsApiImpl::onConfigUpdate(const std::vector<Config::DecodedResourceRef>& r
+@@ -46,9 +46,11 @@ void CdsApiImpl::onConfigUpdate(const std::vector<Config::DecodedResourceRef>& r
    }
    Protobuf::RepeatedPtrField<std::string> to_remove_repeated;
-   for (const auto& [cluster_name, _] : clusters_to_remove) {
+   for (const auto& [cluster_name, _] : all_existing_clusters.active_clusters_) {
 +    UNREFERENCED_PARAMETER(_);
      *to_remove_repeated.Add() = cluster_name;
    }
-   onConfigUpdate(resources, to_remove_repeated, version_info);
+   for (const auto& [cluster_name, _] : all_existing_clusters.warming_clusters_) {
++    UNREFERENCED_PARAMETER(_);
+     // Do not add the cluster twice when the cluster is both active and warming.
+     if (all_existing_clusters.active_clusters_.count(cluster_name) == 0) {
+       *to_remove_repeated.Add() = cluster_name;
 diff --git a/source/common/upstream/subset_lb.cc b/source/common/upstream/subset_lb.cc
 index 309a4ea709..31188f2361 100644
 --- a/source/common/upstream/subset_lb.cc
@@ -36,22 +40,37 @@ index 309a4ea709..31188f2361 100644
              // Two hosts with the same metadata value were found. Ignore all but one of them, and
              // set a metric for how many times this happened.
 diff --git a/source/server/admin/clusters_handler.cc b/source/server/admin/clusters_handler.cc
-index e0e17350b7..622bfb4e7a 100644
+index 801045e63e..6b4cdf03c7 100644
 --- a/source/server/admin/clusters_handler.cc
 +++ b/source/server/admin/clusters_handler.cc
-@@ -101,6 +101,7 @@ void setHealthFlag(Upstream::Host::HealthFlag flag, const Upstream::Host& host,
- void ClustersHandler::writeClustersAsJson(Buffer::Instance& response) {
-   envoy::admin::v3::Clusters clusters;
-   for (const auto& [name, cluster_ref] : server_.clusterManager().clusters()) {
+@@ -103,6 +103,7 @@ void ClustersHandler::writeClustersAsJson(Buffer::Instance& response) {
+   // TODO(mattklein123): Add ability to see warming clusters in admin output.
+   auto all_clusters = server_.clusterManager().clusters();
+   for (const auto& [name, cluster_ref] : all_clusters.active_clusters_) {
 +    UNREFERENCED_PARAMETER(name);
      const Upstream::Cluster& cluster = cluster_ref.get();
      Upstream::ClusterInfoConstSharedPtr cluster_info = cluster.info();
  
-@@ -185,6 +186,7 @@ void ClustersHandler::writeClustersAsJson(Buffer::Instance& response) {
- // TODO(efimki): Add support of text readouts stats.
- void ClustersHandler::writeClustersAsText(Buffer::Instance& response) {
-   for (const auto& [name, cluster_ref] : server_.clusterManager().clusters()) {
+@@ -189,6 +190,7 @@ void ClustersHandler::writeClustersAsText(Buffer::Instance& response) {
+   // TODO(mattklein123): Add ability to see warming clusters in admin output.
+   auto all_clusters = server_.clusterManager().clusters();
+   for (const auto& [name, cluster_ref] : all_clusters.active_clusters_) {
 +    UNREFERENCED_PARAMETER(name);
      const Upstream::Cluster& cluster = cluster_ref.get();
      const std::string& cluster_name = cluster.info()->name();
      addOutlierInfo(cluster_name, cluster.outlierDetector(), response);
+diff --git a/source/server/overload_manager_impl.cc b/source/server/overload_manager_impl.cc
+index 07872b9844..8ac0cdde3e 100644
+--- a/source/server/overload_manager_impl.cc
++++ b/source/server/overload_manager_impl.cc
+@@ -175,6 +175,7 @@ parseTimerMinimums(const ProtobufWkt::Any& typed_config,
+                   Event::ScaledMinimum(UnitFloat(scale_timer.min_scale().value() / 100.0)));
+ 
+     auto [_, inserted] = timer_map.insert(std::make_pair(timer_type, minimum));
++    UNREFERENCED_PARAMETER(_);
+     if (!inserted) {
+       throw EnvoyException(fmt::format("Found duplicate entry for timer type {}",
+                                        Config::TimerType_Name(scale_timer.timer())));
+-- 
+2.24.3 (Apple Git-128)
+

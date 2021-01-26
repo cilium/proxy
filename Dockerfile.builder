@@ -39,6 +39,7 @@ RUN apt-get update && \
       zip && \
     apt-get purge --auto-remove && \
     apt-get clean && \
+    ln /usr/bin/clang-10 /usr/bin/clang && ln /usr/bin/clang++-10 /usr/bin/clang++ && ln /usr/bin/lld-10 /usr/bin/lld && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /cilium/proxy
@@ -51,8 +52,20 @@ RUN export BAZEL_VERSION=$(cat .bazelversion) \
 	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
 	&& chmod +x /usr/bin/bazel
 
+#
+# Install GN (https://gn.googlesource.com/gn/) for arm64
+#
+RUN if [ "$(uname -m)" = "aarch64" ]; then \
+    git clone https://gn.googlesource.com/gn \
+    && cd gn \
+    && python build/gen.py \
+    && ninja -C out \
+    && install -m 0755 out/gn /usr/bin \
+    && cd .. \
+    && rm -rf gn /tmp/* /var/tmp/*; \
+    fi
+
 FROM base as builder
-LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
 ARG V
@@ -62,6 +75,13 @@ ARG BAZEL_BUILD_OPTS
 # Build Bazel cache
 #
 RUN BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS:---jobs=8} PKG_BUILD=1 V=$V DESTDIR=/tmp/install make envoy-deps-release
+
+#
+# Dummy stage to help out caching if the final push fails
+#
+FROM builder
+LABEL maintainer="maintainer@cilium.io"
+WORKDIR /cilium/proxy
 
 #
 # Absolutely nothing after making envoy deps!

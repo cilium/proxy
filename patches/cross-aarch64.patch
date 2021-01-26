@@ -1,13 +1,14 @@
-From d82b9ab4283a8db87b5e7487a3f3a2dbdf1649ae Mon Sep 17 00:00:00 2001
-From: Michal Rostecki <mrostecki@opensuse.org>
-Date: Mon, 24 Aug 2020 09:52:02 +0200
-Subject: [PATCH] build: Add support for aarch64 cross-compilation with gcc
+From e35f6fcd3525903412a9474cbdc7c5788d039f69 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@covalent.io>
+Date: Thu, 14 Jan 2021 21:11:27 -0800
+Subject: [PATCH] build: Cross-compilation fix for arm64
 
 This change adds the possibility to cross-compile Envoy for aarch64
 target on host by using a toolchain which defines "aarch64-cross"
 platform.
 
 Signed-off-by: Michal Rostecki <mrostecki@opensuse.org>
+Signed-off-by: Jarno Rajahalme <jarno@covalent.io>
 ---
  bazel/BUILD                  | 5 +++++
  bazel/envoy_build_system.bzl | 7 +------
@@ -15,10 +16,10 @@ Signed-off-by: Michal Rostecki <mrostecki@opensuse.org>
  3 files changed, 15 insertions(+), 6 deletions(-)
 
 diff --git a/bazel/BUILD b/bazel/BUILD
-index 8c2b74a44..98a8e6878 100644
+index fef6959059..e3829e17f8 100644
 --- a/bazel/BUILD
 +++ b/bazel/BUILD
-@@ -308,6 +308,11 @@ config_setting(
+@@ -383,6 +383,11 @@ config_setting(
      values = {"cpu": "aarch64"},
  )
  
@@ -31,10 +32,10 @@ index 8c2b74a44..98a8e6878 100644
      name = "linux_ppc",
      values = {"cpu": "ppc"},
 diff --git a/bazel/envoy_build_system.bzl b/bazel/envoy_build_system.bzl
-index 70ef3df4f..2ae39c85f 100644
+index e33386ed5b..5e7c5f30c1 100644
 --- a/bazel/envoy_build_system.bzl
 +++ b/bazel/envoy_build_system.bzl
-@@ -79,7 +79,7 @@ def envoy_cmake_external(
+@@ -93,7 +93,7 @@ def envoy_cmake_external(
          copy_pdb = False,
          pdb_name = "",
          cmake_files_dir = "$BUILD_TMPDIR/CMakeFiles",
@@ -43,7 +44,7 @@ index 70ef3df4f..2ae39c85f 100644
          **kwargs):
      cache_entries.update({"CMAKE_BUILD_TYPE": "Bazel"})
      cache_entries_debug = dict(cache_entries)
-@@ -110,11 +110,6 @@ def envoy_cmake_external(
+@@ -124,11 +124,6 @@ def envoy_cmake_external(
              "//conditions:default": cache_entries,
          }),
          cmake_options = cmake_options,
@@ -56,7 +57,7 @@ index 70ef3df4f..2ae39c85f 100644
          make_commands = make_commands,
          postfix_script = pf,
 diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index 3104e4f11..7055811f0 100644
+index aa73e3bbbc..b2c37640b2 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
 @@ -16,6 +16,7 @@ configure_make(
@@ -78,10 +79,10 @@ index 3104e4f11..7055811f0 100644
          "//conditions:default": {},
      }),
      lib_source = "@com_github_luajit_luajit//:all",
-@@ -68,6 +73,10 @@ configure_make(
+@@ -67,6 +72,10 @@ configure_make(
+         # TODO(htuch): Remove when #6084 is fixed
          "//bazel:asan_build": {"ENVOY_CONFIG_ASAN": "1"},
          "//bazel:msan_build": {"ENVOY_CONFIG_MSAN": "1"},
-         "//bazel:windows_dbg_build": {"WINDOWS_DBG_BUILD": "debug"},
 +        "//bazel:linux_aarch64_cross": {
 +            "CC": "gcc",
 +            "CROSS": "aarch64-linux-gnu-",
@@ -90,5 +91,5 @@ index 3104e4f11..7055811f0 100644
      }),
      lib_source = "@com_github_moonjit_moonjit//:all",
 -- 
-2.28.0
+2.24.3 (Apple Git-128)
 
