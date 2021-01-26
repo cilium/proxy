@@ -140,9 +140,9 @@ Config::Config(const ::cilium::BpfMetadata& config,
 }
 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
-  Network::Address::InstanceConstSharedPtr src_address = socket.remoteAddress();
+  Network::Address::InstanceConstSharedPtr src_address = socket.addressProvider().remoteAddress();
   const auto sip = src_address->ip();
-  const auto& dst_address = socket.localAddress();
+  const auto& dst_address = socket.addressProvider().localAddress();
   const auto dip = dst_address->ip();
 
   if (!sip || !dip) {
@@ -153,7 +153,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   // We do this first as this likely restores the destination address
   // Let the OriginalDstCluster know the destination address can be used.
-  socket.restoreLocalAddress(dst_address);  // mark as `restored`
+  socket.addressProvider().restoreLocalAddress(dst_address);  // mark as `restored`
 
   std::string pod_ip, other_ip;
   if (is_ingress_) {

@@ -112,8 +112,8 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(
       bool ingress = option->ingress_;
 
       // Fill in the log entry
-      log_entry_.InitFromRequest(policy_name, ingress, conn, headers,
-                                 callbacks_->streamInfo());
+      log_entry_.InitFromRequest(policy_name, *option,
+                                 callbacks_->streamInfo(), headers);
 
       allowed = option->policy_ &&
                 option->policy_->Allowed(

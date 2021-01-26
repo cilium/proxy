@@ -60,6 +60,10 @@ class PolicyInstance {
 
 class PolicyInstanceImpl;
 
+struct ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject {
+  std::map<std::string, std::shared_ptr<const PolicyInstanceImpl>> policies_;
+};
+
 class NetworkPolicyMap : public Singleton::Instance,
                          public Envoy::Config::SubscriptionCallbacks,
                          public std::enable_shared_from_this<NetworkPolicyMap>,
@@ -118,7 +122,7 @@ class NetworkPolicyMap : public Singleton::Instance,
   void pause();
   void resume();
 
-  ThreadLocal::SlotPtr tls_;
+  ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map;
   ProtobufMessage::ValidationVisitor& validation_visitor_;
   Stats::ScopePtr scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;

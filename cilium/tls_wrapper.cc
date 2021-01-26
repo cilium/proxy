@@ -101,6 +101,9 @@ class SslSocketWrapper : public Network::TransportSocket {
   Ssl::ConnectionInfoConstSharedPtr ssl() const override {
     return ssl_socket_ ? ssl_socket_->ssl() : nullptr;
   }
+  bool startSecureTransport() override {
+    return ssl_socket_ ? ssl_socket_->startSecureTransport() : false;
+  }
 
  private:
   Extensions::TransportSockets::Tls::InitialState state_;

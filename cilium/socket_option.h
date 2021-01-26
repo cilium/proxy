@@ -60,7 +60,7 @@ class SocketMarkOption : public Network::Socket::Option,
     }
 
     if (src_address_) {
-      socket.setLocalAddress(src_address_);
+      socket.addressProvider().setLocalAddress(src_address_);
     }
 
     ENVOY_LOG(trace,

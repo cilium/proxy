@@ -4,6 +4,7 @@
 #include <string>
 
 #include "cilium/api/accesslog.pb.h"
+#include "cilium/socket_option.h"
 #include "common/common/logger.h"
 #include "common/common/thread.h"
 #include "envoy/http/header_map.h"
@@ -22,14 +23,15 @@ class AccessLog : Logger::Loggable<Logger::Id::router> {
   // wrapper for protobuf
   class Entry {
    public:
-    void InitFromRequest(const std::string& policy_name, bool ingress,
-                         const Network::Connection*,
-                         const Http::RequestHeaderMap&,
-                         const StreamInfo::StreamInfo&);
+    void InitFromRequest(const std::string& policy_name,
+                         const Cilium::SocketOption& option,
+                         const StreamInfo::StreamInfo&,
+                         const Http::RequestHeaderMap&);
     void UpdateFromResponse(const Http::ResponseHeaderMap&, TimeSource&);
 
-    void InitFromConnection(const std::string& policy_name, bool ingress,
-                            const Network::Connection&);
+    void InitFromConnection(const std::string& policy_name,
+                            const Cilium::SocketOption& option,
+                            const StreamInfo::StreamInfo&);
     bool UpdateFromMetadata(const std::string& l7proto,
                             const ProtobufWkt::Struct& metadata,
                             TimeSource& time_source);

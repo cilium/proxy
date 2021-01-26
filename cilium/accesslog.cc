@@ -68,27 +68,22 @@ CONST_STRING_VIEW(authoritySV, ":authority");
 CONST_STRING_VIEW(xForwardedProtoSV, "x-forwarded-proto");
 
 void AccessLog::Entry::InitFromConnection(const std::string& policy_name,
-                                          bool ingress,
-                                          const Network::Connection& conn) {
+                                          const Cilium::SocketOption& option,
+                                          const StreamInfo::StreamInfo& info) {
   entry_.set_policy_name(policy_name);
+  entry_.set_source_security_id(option.identity_);
+  entry_.set_destination_security_id(option.destination_identity_);
+  entry_.set_is_ingress(option.ingress_);
 
-  const auto option = Cilium::GetSocketOption(conn.socketOptions());
-  if (option) {
-    entry_.set_source_security_id(option->identity_);
-    entry_.set_destination_security_id(option->destination_identity_);
-  } else {
-    ENVOY_CONN_LOG(warn, "accesslog: Cilium Socket Option not found", conn);
-  }
-  auto source_address = conn.remoteAddress();
+  auto source_address = info.downstreamAddressProvider().remoteAddress();
   if (source_address != nullptr) {
     entry_.set_source_address(source_address->asString());
   }
-  auto destination_address = conn.localAddress();
+
+  auto destination_address = info.downstreamAddressProvider().localAddress();
   if (destination_address != nullptr) {
     entry_.set_destination_address(destination_address->asString());
   }
-
-  entry_.set_is_ingress(ingress);
 }
 
 bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
@@ -136,11 +131,10 @@ bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
 }
 
 void AccessLog::Entry::InitFromRequest(const std::string& policy_name,
-                                       bool ingress,
-                                       const Network::Connection* conn,
-                                       const Http::RequestHeaderMap& headers,
-                                       const StreamInfo::StreamInfo& info) {
-  InitFromConnection(policy_name, ingress, *conn);
+                                       const Cilium::SocketOption& option,
+                                       const StreamInfo::StreamInfo& info,
+                                       const Http::RequestHeaderMap& headers) {
+  InitFromConnection(policy_name, option, info);
 
   auto time = info.startTime();
   entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
