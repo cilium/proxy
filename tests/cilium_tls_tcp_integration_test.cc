@@ -4,6 +4,8 @@
 #include "tests/cilium_tcp_integration.h"
 #include "tests/cilium_tls_integration.h"
 
+using testing::AtLeast;
+
 namespace Envoy {
 namespace Cilium {
 
@@ -61,7 +63,7 @@ static_resources:
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
           stat_prefix: tcp_stats
           cluster: tls-cluster
 )EOF";
@@ -85,9 +87,10 @@ class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
 
   void createUpstreams() override {
     if (upstream_tls_) {
-      fake_upstreams_.emplace_back(new FakeUpstream(
-          createUpstreamSslContext(), 0, FakeHttpConnection::Type::HTTP1,
-          version_, timeSystem(), true));
+      auto config = upstreamConfig();
+      config.upstream_protocol_ = FakeHttpConnection::Type::HTTP1;
+      config.enable_half_close_ = true;
+      fake_upstreams_.emplace_back(new FakeUpstream(createUpstreamSslContext(), 0, version_, config));
     } else {
       CiliumTcpIntegrationTest::
           createUpstreams();  // maybe BaseIntegrationTest::createUpstreams()
@@ -130,7 +133,7 @@ class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
     // to the socket.
 
     EXPECT_CALL(*mock_buffer_factory_, create_(_, _, _))
-        .Times(1)
+      .Times(AtLeast(1))
         .WillOnce(Invoke(
             [&](std::function<void()> below_low,
                 std::function<void()> above_high,
@@ -561,7 +564,7 @@ static_resources:
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
           stat_prefix: tcp_stats
           cluster: tls-cluster
     - filter_chain_match:
@@ -575,7 +578,7 @@ static_resources:
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
           stat_prefix: tcp_stats
           cluster: tls-cluster
 )EOF";

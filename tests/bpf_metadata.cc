@@ -33,7 +33,7 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   // fake setting the local address. It remains the same as required by the test
   // infra, but it will be marked as restored as required by the original_dst
   // cluster.
-  socket.restoreLocalAddress(original_dst_address);
+  socket.addressProvider().restoreLocalAddress(original_dst_address);
 
   // TLS filter chain matches this, make namespace part of this (e.g.,
   // "default")?
@@ -52,8 +52,8 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
   } else {
     source_identity = 173;
-    destination_identity = hosts_->resolve(socket.localAddress()->ip());
-    pod_ip = socket.localAddress()->ip()->addressAsString();
+    destination_identity = hosts_->resolve(socket.addressProvider().localAddress()->ip());
+    pod_ip = socket.addressProvider().localAddress()->ip()->addressAsString();
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
   auto policy = npmap_->GetPolicyInstance(pod_ip);

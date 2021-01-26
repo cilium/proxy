@@ -64,7 +64,7 @@ static_resources:
       - name: cilium.network
       - name: envoy.http_connection_manager
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
           stat_prefix: config_test
           codec_type: auto
           http_filters:
@@ -93,7 +93,7 @@ static_resources:
       - name: cilium.network
       - name: envoy.http_connection_manager
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
           stat_prefix: config_test
           codec_type: auto
           http_filters:
@@ -197,9 +197,10 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
 
   void createUpstreams() override {
     if (upstream_tls_) {
-      fake_upstreams_.emplace_back(new FakeUpstream(
-          createUpstreamSslContext(), 0, FakeHttpConnection::Type::HTTP1,
-          version_, timeSystem(), true));
+      auto config = upstreamConfig();
+      config.upstream_protocol_ = FakeHttpConnection::Type::HTTP1;
+      config.enable_half_close_ = true;
+      fake_upstreams_.emplace_back(new FakeUpstream(createUpstreamSslContext(), 0, version_, config));
     } else {
       CiliumHttpIntegrationTest::createUpstreams();
     }

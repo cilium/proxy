@@ -15,8 +15,6 @@ namespace Cilium {
 class CiliumTest : public testing::Test {
  protected:
   Event::SimulatedTimeSystem time_system_;
-  Network::Address::InstanceConstSharedPtr local_address_;
-  Network::Address::InstanceConstSharedPtr remote_address_;
 };
 
 TEST_F(CiliumTest, AccessLog) {
@@ -26,32 +24,24 @@ TEST_F(CiliumTest, AccessLog) {
       {":authority", "host"},
       {"x-forwarded-proto", "http"},
       {"x-request-id", "ba41267c-cfc2-4a92-ad3e-cd084ab099b4"}};
-  NiceMock<StreamInfo::MockStreamInfo> stream_info;
-  stream_info.protocol_ = Http::Protocol::Http11;
-  stream_info.start_time_ = time_system_.systemTime();
   Network::MockConnection connection;
+  connection.stream_info_.protocol_ = Http::Protocol::Http11;
+  connection.stream_info_.start_time_ = time_system_.systemTime();
+  
   Network::Socket::OptionsSharedPtr options =
       std::make_shared<Network::Socket::Options>();
-  options->push_back(std::make_shared<Cilium::SocketOption>(
-      nullptr, false, 1, 173, true, 80, "1.2.3.4", nullptr));
-  local_address_ =
-      std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80);
-  remote_address_ =
-      std::make_shared<Network::Address::Ipv4Instance>("5.6.7.8", 45678);
+  auto option = std::make_shared<Cilium::SocketOption>(
+      nullptr, false, 1, 173, true, 80, "1.2.3.4", nullptr);
+  options->push_back(option);
 
-  ENVOY_LOG_MISC(error, "source_address: {}", remote_address_->asString());
-  ENVOY_LOG_MISC(error, "destination_address: {}", local_address_->asString());
-
-  EXPECT_CALL(connection, socketOptions())
-      .WillOnce(testing::ReturnRef(options));
-  EXPECT_CALL(connection, localAddress())
-      .WillRepeatedly(testing::ReturnRef(local_address_));
-  EXPECT_CALL(connection, remoteAddress())
-      .WillRepeatedly(testing::ReturnRef(remote_address_));
+  connection.stream_info_.downstream_address_provider_->setLocalAddress(
+      std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80));
+  connection.stream_info_.downstream_address_provider_->setRemoteAddress(
+      std::make_shared<Network::Address::Ipv4Instance>("5.6.7.8", 45678));
 
   AccessLog::Entry log;
 
-  log.InitFromRequest("1.2.3.4", true, &connection, headers, stream_info);
+  log.InitFromRequest("1.2.3.4", *option, connection.stream_info_, headers);
 
   EXPECT_EQ(log.entry_.is_ingress(), true);
   EXPECT_EQ(log.entry_.entry_type(), ::cilium::EntryType::Request);

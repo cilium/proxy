@@ -27,7 +27,7 @@ CiliumTcpIntegrationTest::CiliumTcpIntegrationTest(const std::string& config)
     : BaseIntegrationTest(GetParam(), config),
       accessLogServer_(
           TestEnvironment::unixDomainSocketPath("access_log.sock")) {
-  enable_half_close_ = true;
+  enableHalfClose(true);
 }
 
 std::string CiliumTcpIntegrationTest::testPolicy() {

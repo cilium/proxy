@@ -270,7 +270,7 @@ class PolicyInstanceImpl : public PolicyInstance {
             parent.transport_socket_factory_context_.sslContextManager()
                 .createSslServerContext(
                     parent.transport_socket_factory_context_.scope(),
-                    *server_config_, server_names_);
+                    *server_config_, server_names_, nullptr);
       }
       if (rule.has_upstream_tls_context()) {
         auto config = rule.upstream_tls_context();
@@ -312,7 +312,7 @@ class PolicyInstanceImpl : public PolicyInstance {
             parent.transport_socket_factory_context_.sslContextManager()
                 .createSslClientContext(
                     parent.transport_socket_factory_context_.scope(),
-                    *client_config_);
+                    *client_config_, nullptr);
       }
       if (rule.has_http_rules()) {
         for (const auto& http_rule : rule.http_rules().http_rules()) {
@@ -608,15 +608,11 @@ class PolicyInstanceImpl : public PolicyInstance {
   const PortNetworkPolicy egress_;
 };
 
-struct ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject {
-  std::map<std::string, std::shared_ptr<const PolicyInstanceImpl>> policies_;
-};
-
 // Common base constructor
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(
     Server::Configuration::FactoryContext& context)
-    : tls_(context.threadLocal().allocateSlot()),
+    : tls_map(context.threadLocal()),
       validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
       resource_decoder_(validation_visitor_, "name"),
       transport_socket_factory_context_(
@@ -627,7 +623,7 @@ NetworkPolicyMap::NetworkPolicyMap(
   name_ = fmt::format("cilium.policymap.{}.{}.", local_ip_str_, instance_id_);
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
 
-  tls_->set([&](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
+  tls_map.set([&](Event::Dispatcher&) {
     return std::make_shared<ThreadLocalPolicyMap>();
   });
 }
@@ -650,15 +646,8 @@ static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{
 const std::shared_ptr<const PolicyInstanceImpl>&
 NetworkPolicyMap::GetPolicyInstanceImpl(
     const std::string& endpoint_policy_name) const {
-  if (tls_->get().get() == nullptr) {
-    ENVOY_LOG(
-        warn,
-        "Cilium L7 NetworkPolicyMap::GetPolicyInstance(): NULL TLS object!");
-    return null_instance_impl;
-  }
-  const ThreadLocalPolicyMap& map = tls_->getTyped<ThreadLocalPolicyMap>();
-  auto it = map.policies_.find(endpoint_policy_name);
-  if (it == map.policies_.end()) {
+  auto it = tls_map->policies_.find(endpoint_policy_name);
+  if (it == tls_map->policies_.end()) {
     return null_instance_impl;
   }
   return it->second;
@@ -722,7 +711,8 @@ void NetworkPolicyMap::onConfigUpdate(
   auto to_be_deleted = std::make_shared<std::vector<std::string>>();
   // Collect a shared vector of conntrack maps to close
   auto cts_to_be_closed = std::make_shared<std::unordered_set<std::string>>();
-  for (auto& pair : tls_->getTyped<ThreadLocalPolicyMap>().policies_) {
+  const auto& policies = tls_map->policies_;
+  for (auto& pair : policies) {
     if (keeps.find(pair.first) == keeps.end()) {
       to_be_deleted->emplace_back(pair.first);
     }
@@ -747,28 +737,26 @@ void NetworkPolicyMap::onConfigUpdate(
   std::shared_ptr<NetworkPolicyMap> shared_this = shared_from_this();
 
   // Execute changes on all threads.
-  tls_->runOnAllThreads(
-      [to_be_added, to_be_deleted](ThreadLocal::ThreadLocalObjectSharedPtr object) -> ThreadLocal::ThreadLocalObjectSharedPtr {
+  tls_map.runOnAllThreads(
+      [to_be_added, to_be_deleted](OptRef<ThreadLocalPolicyMap> npmap) {
 	ENVOY_LOG(trace,
 		  "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
 		  "updates on the next thread");
-	auto& npmap = object->asType<ThreadLocalPolicyMap>().policies_;
 	for (const auto& policy_name : *to_be_deleted) {
 	  ENVOY_LOG(trace,
 		    "Cilium deleting removed network policy for endpoint {}",
 		    policy_name);
-	  npmap.erase(policy_name);
+	  npmap->policies_.erase(policy_name);
 	}
 	for (const auto& new_policy : *to_be_added) {
 	  ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}",
 		    new_policy->policy_proto_.name());
-	  npmap[new_policy->policy_proto_.name()] = new_policy;
+	  npmap->policies_[new_policy->policy_proto_.name()] = new_policy;
 	}
-	return object;
       },
       // Delete old cts when all threads have updated their policies,
       // and resume NPDS after.
-      [shared_this, cts_to_be_closed]() -> void {
+      [shared_this, cts_to_be_closed]() {
         if (shared_this->ctmap_ && cts_to_be_closed->size() > 0) {
           shared_this->ctmap_->closeMaps(cts_to_be_closed);
         }

@@ -152,7 +152,7 @@ static_resources:
           proxylib: "proxylib/libcilium.so"
       - name: envoy.http_connection_manager
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.http_connection_manager.v2.HttpConnectionManager
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
           stat_prefix: config_test
           codec_type: auto
           http_filters:
@@ -216,7 +216,7 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
   void InvalidHostMap(const std::string& config, const char* exmsg) {
     std::string path =
         TestEnvironment::writeStringToFileForTest("host_map_fail.yaml", config);
-    envoy::api::v2::DiscoveryResponse message;
+    envoy::service::discovery::v3::DiscoveryResponse message;
     ThreadLocal::InstanceImpl tls;
 
     MessageUtil::loadFromFile(path, message,
@@ -256,7 +256,7 @@ resources:
 
   std::string path = TestEnvironment::writeStringToFileForTest(
       "host_map_success.yaml", config);
-  envoy::api::v2::DiscoveryResponse message;
+  envoy::service::discovery::v3::DiscoveryResponse message;
   ThreadLocal::InstanceImpl tls;
 
   MessageUtil::loadFromFile(

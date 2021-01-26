@@ -58,7 +58,7 @@ static_resources:
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
           stat_prefix: tcp_stats
           cluster: cluster1
 )EOF";
@@ -359,7 +359,7 @@ static_resources:
           proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
           stat_prefix: tcp_stats
           cluster: cluster1
 )EOF";
@@ -602,7 +602,7 @@ static_resources:
             access-log-path: "{{ test_udsdir }}/access_log.sock"
       - name: envoy.tcp_proxy
         typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
           stat_prefix: tcp_stats
           cluster: cluster1
 )EOF";

@@ -103,15 +103,15 @@ Network::FilterStatus Instance::onNewConnection() {
         if (config_->proxylib_.get() != nullptr) {
           go_parser_ = config_->proxylib_->NewInstance(
               conn, l7proto_, option->ingress_, option->identity_,
-              option->destination_identity_, conn.remoteAddress()->asString(),
-              conn.localAddress()->asString(), policy_name);
+              option->destination_identity_, conn.streamInfo().downstreamAddressProvider().remoteAddress()->asString(),
+              conn.streamInfo().downstreamAddressProvider().localAddress()->asString(), policy_name);
           if (go_parser_.get() == nullptr) {
             ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found",
                            conn, l7proto_);
             return Network::FilterStatus::StopIteration;
           }
         } else {
-          log_entry_.InitFromConnection(policy_name, option->ingress_, conn);
+          log_entry_.InitFromConnection(policy_name, *option, conn.streamInfo());
         }
       }
     }
