@@ -62,10 +62,8 @@ RAW_GO_MAPPINGS += udpa/annotations/sensitive.proto=github.com/cncf/udpa/go/udpa
 RAW_GO_MAPPINGS += udpa/annotations/status.proto=github.com/cncf/udpa/go/udpa/annotations/
 RAW_GO_MAPPINGS += udpa/annotations/versioning.proto=github.com/cncf/udpa/go/udpa/annotations/
 RAW_GO_MAPPINGS += udpa/annotations/security.proto=github.com/cncf/udpa/go/udpa/annotations/
-RAW_GO_MAPPINGS += udpa/core/v1/authority.proto=github.com/cncf/udpa/go/xds/core/v3/
-RAW_GO_MAPPINGS += udpa/core/v1/collection_entry.proto=github.com/cncf/udpa/go/xds/core/v3/
-RAW_GO_MAPPINGS += udpa/core/v1/resource_locator.proto=github.com/cncf/udpa/go/xds/core/v3/
-RAW_GO_MAPPINGS += udpa/core/v1/resource_name.proto=github.com/cncf/udpa/go/xds/core/v3/
+RAW_GO_MAPPINGS += xds/core/v3/collection_entry.proto=github.com/cncf/udpa/go/xds/core/v3/
+RAW_GO_MAPPINGS += xds/core/v3/authority.proto=github.com/cncf/udpa/go/xds/core/v3/
 
 # Add mapping separators and remove the trailing slash
 # but first create "/ " and ",M"
@@ -92,14 +90,15 @@ $(CILIUM_GO_TARGETS): $(CILIUM_PROTO_SOURCES) Makefile.api
 
 godeps:
 # @envoy//api/bazel/repository_locations.bzl
-	GO111MODULE=on go get github.com/cncf/udpa@v0.0.1
+	GO111MODULE=on go get github.com/cncf/udpa@cc1b757b3eddccaaaf0743cbb107742bb7e3ee4f
 	GO111MODULE=on go get github.com/census-instrumentation/opencensus-proto@v0.3.0
-	GO111MODULE=on go get github.com/envoyproxy/protoc-gen-validate@278964a8052f96a2f514add0298098f63fb7f47f
+	GO111MODULE=on go get github.com/envoyproxy/protoc-gen-validate@872b28c457822ed9c2a5405da3c33f386ac0e86f
 	GO111MODULE=on go get github.com/prometheus/client_model@60555c9708c786597e6b07bf846d0dc5c2a46f54
 # Latest and/or matching cilium/cilium/go.mod:
 	GO111MODULE=on go get google.golang.org/grpc@v1.29.1
 	GO111MODULE=on go get github.com/golang/protobuf@v1.4.3
-	GO111MODULE=on go get google.golang.org/genproto/...@22ae2b108f89
+	GO111MODULE=on go get google.golang.org/genproto/...@44e461bb6506
 	GO111MODULE=on go get google.golang.org/protobuf/...@v1.25.0
+	go mod tidy
 
 .PHONY: all
