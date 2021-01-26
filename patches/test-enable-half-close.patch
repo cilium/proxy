@@ -1,21 +1,18 @@
+From 631fde58a710e67fe39977555c62bf1dcb968b36 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@covalent.io>
+Date: Wed, 16 Dec 2020 16:03:23 -0800
+Subject: [PATCH] test: Allow use of half-close semantics on TLS connections
+
+Signed-off-by: Jarno Rajahalme <jarno@covalent.io>
+---
+ test/integration/fake_upstream.cc | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
 diff --git a/test/integration/fake_upstream.cc b/test/integration/fake_upstream.cc
-index 5ed0c5cad6..2a5edabe35 100644
+index 0b18b9e8c9..7cfceeab68 100644
 --- a/test/integration/fake_upstream.cc
 +++ b/test/integration/fake_upstream.cc
-@@ -432,9 +432,10 @@ FakeUpstream::FakeUpstream(uint32_t port, FakeHttpConnection::Type type,
- 
- FakeUpstream::FakeUpstream(Network::TransportSocketFactoryPtr&& transport_socket_factory,
-                            uint32_t port, FakeHttpConnection::Type type,
--                           Network::Address::IpVersion version, Event::TestTimeSystem& time_system)
-+                           Network::Address::IpVersion version, Event::TestTimeSystem& time_system,
-+                           bool enable_half_close)
-     : FakeUpstream(std::move(transport_socket_factory), makeTcpListenSocket(port, version), type,
--                   time_system, false) {
-+                   time_system, enable_half_close) {
-   ENVOY_LOG(info, "starting fake SSL server on port {}. Address version is {}",
-             localAddress()->ip()->port(), Network::Test::addressVersionAsString(version));
- }
-@@ -546,7 +547,9 @@ FakeUpstream::waitForHttpConnection(Event::Dispatcher& client_dispatcher,
+@@ -591,7 +591,9 @@ FakeUpstream::waitForHttpConnection(Event::Dispatcher& client_dispatcher,
              envoy::config::core::v3::HttpProtocolOptions::ALLOW);
        }
        VERIFY_ASSERTION(connection->initialize());
@@ -26,7 +23,7 @@ index 5ed0c5cad6..2a5edabe35 100644
        return AssertionSuccess();
      }
    }
-@@ -568,7 +571,9 @@ AssertionResult FakeUpstream::waitForRawConnection(FakeRawConnectionPtr& connect
+@@ -613,7 +615,9 @@ AssertionResult FakeUpstream::waitForRawConnection(FakeRawConnectionPtr& connect
      connection = std::make_unique<FakeRawConnection>(consumeConnection(), timeSystem());
    }
    VERIFY_ASSERTION(connection->initialize());
@@ -37,16 +34,6 @@ index 5ed0c5cad6..2a5edabe35 100644
    VERIFY_ASSERTION(connection->enableHalfClose(enable_half_close_));
    return AssertionSuccess();
  }
-diff --git a/test/integration/fake_upstream.h b/test/integration/fake_upstream.h
-index 538b2808b6..c05e35a883 100644
---- a/test/integration/fake_upstream.h
-+++ b/test/integration/fake_upstream.h
-@@ -554,7 +554,7 @@ public:
-                Event::TestTimeSystem& time_system, bool enable_half_close = false);
-   FakeUpstream(Network::TransportSocketFactoryPtr&& transport_socket_factory, uint32_t port,
-                FakeHttpConnection::Type type, Network::Address::IpVersion version,
--               Event::TestTimeSystem& time_system);
-+               Event::TestTimeSystem& time_system, bool enable_half_close = false);
-   ~FakeUpstream() override;
- 
-   FakeHttpConnection::Type httpType() { return http_type_; }
+-- 
+2.24.3 (Apple Git-128)
+

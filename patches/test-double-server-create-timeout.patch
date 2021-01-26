@@ -1,8 +1,21 @@
+From a3a2ccb2200ae9e4c2d03b1efc1e23dcfc7ce80f Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@covalent.io>
+Date: Thu, 14 Jan 2021 20:12:25 -0800
+Subject: [PATCH] test: Double listener creation timeout
+
+Allow tests using TLS listeners to succeed on slow computers without
+flaking.
+
+Signed-off-by: Jarno Rajahalme <jarno@covalent.io>
+---
+ test/integration/base_integration_test.cc | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
 diff --git a/test/integration/base_integration_test.cc b/test/integration/base_integration_test.cc
-index ade0576272..a0392292ea 100644
+index cda0a10011..11d50e369a 100644
 --- a/test/integration/base_integration_test.cc
 +++ b/test/integration/base_integration_test.cc
-@@ -265,7 +265,7 @@ void BaseIntegrationTest::createGeneratedApiTestServer(
+@@ -302,7 +302,7 @@ void BaseIntegrationTest::createGeneratedApiTestServer(
  
      // Wait for listeners to be created before invoking registerTestServerPorts() below, as that
      // needs to know about the bound listener ports.
@@ -11,3 +24,6 @@ index ade0576272..a0392292ea 100644
      const char* success = "listener_manager.listener_create_success";
      const char* rejected = "listener_manager.lds.update_rejected";
      for (Stats::CounterSharedPtr success_counter = test_server_->counter(success),
+-- 
+2.24.3 (Apple Git-128)
+
