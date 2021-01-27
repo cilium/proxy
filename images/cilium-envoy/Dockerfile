@@ -5,6 +5,7 @@
 
 ARG COMPILERS_IMAGE=docker.io/cilium/image-compilers:c1ba0665b6f9f012d014a642d9882f7c38bdf365
 
+# Explicitly selecting the amd64 image
 FROM --platform=linux/amd64 ${COMPILERS_IMAGE} as builder
 
 ARG BAZEL_BUILD_EXTRA_OPTS
