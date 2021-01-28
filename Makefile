@@ -37,7 +37,6 @@ BAZEL_ARCHIVE ?= ~/bazel-cache.tar.bz2
 CLANG ?= clang
 CLANG_FORMAT ?= clang-format
 BUILDIFIER ?= buildifier
-STRIP ?= $(QUIET) strip
 ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -d = -f2)
 
 DOCKER=$(QUIET)docker
@@ -204,23 +203,23 @@ envoy-default: bazel-bin-fastbuild $(COMPILER_DEP)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 # Allow root build for release
-bazel-bin-opt: force
+bazel-bin-release: force
 	-rm -f bazel-bin
-	ln -s $(shell bazel info -c opt bazel-bin) bazel-bin
+	ln -s $(shell bazel info --config=release bazel-bin) bazel-bin
 
-envoy-deps-opt: bazel-bin-opt $(COMPILER_DEP)
+envoy-deps-release: bazel-bin-release $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:cilium-envoy-deps $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy-deps $(BAZEL_FILTER)
 	-rm -f bazel-bin/cilium-envoy-deps
 	$(BAZEL) shutdown
 
-$(CILIUM_ENVOY_BIN): bazel-bin-opt $(COMPILER_DEP)
+$(CILIUM_ENVOY_BIN): bazel-bin-release $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
 	-rm -f ${ENVOY_LINKSTAMP_O}
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c opt //:cilium-envoy $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy $(BAZEL_FILTER)
 
 $(CILIUM_ENVOY_RELEASE_BIN): $(CILIUM_ENVOY_BIN)
-	$(STRIP) -o $(CILIUM_ENVOY_RELEASE_BIN) $(CILIUM_ENVOY_BIN)
+	mv $< $@
 
 docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
 	@$(ECHO_GEN) docker-istio-proxy
@@ -243,12 +242,6 @@ $(CHECK_FORMAT): force-non-root
 install: $(CILIUM_ENVOY_BIN)
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T $(CILIUM_ENVOY_BIN) $(DESTDIR)$(BINDIR)/cilium-envoy
-# Strip only non-debug builds
-ifeq "$(findstring -dbg,$(realpath bazel-bin))" ""
-ifeq "$(NOSTRIP)" ""
-	$(STRIP) $(DESTDIR)$(BINDIR)/cilium-envoy
-endif
-endif
 
 bazel-archive: force-non-root tests clean-bins
 	-sudo rm -f $(BAZEL_ARCHIVE)

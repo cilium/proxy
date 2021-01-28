@@ -61,7 +61,7 @@ ARG BAZEL_BUILD_OPTS
 #
 # Build Bazel cache
 #
-RUN BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS:---jobs=8} PKG_BUILD=1 V=$V DESTDIR=/tmp/install make envoy-deps-opt
+RUN BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS:---jobs=8} PKG_BUILD=1 V=$V DESTDIR=/tmp/install make envoy-deps-release
 
 #
 # Absolutely nothing after making envoy deps!
