@@ -29,6 +29,7 @@ http_archive(
         "@//patches:envoy-1.16.3-fixes-backport.patch",
         "@//patches:envoy-unused-variables.patch",
         "@//patches:envoy-quiche-update-backport.patch",
+	"@//patches:0001-bazel-Assume-default-compiler-is-gcc.patch",
     ],
     sha256 = ENVOY_SHA256,
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
