@@ -9,34 +9,6 @@ licenses(["notice"])  # Apache 2
 envoy_package()
 
 envoy_cc_library(
-    name = "envoy_deps_lib",
-    repository = "@envoy",
-    visibility = ["//visibility:public"],
-    deps = [
-        "@envoy//include/envoy/buffer:buffer_interface",
-        "@envoy//include/envoy/config:subscription_interface",
-        "@envoy//include/envoy/network:connection_interface",
-        "@envoy//include/envoy/network:filter_interface",
-        "@envoy//include/envoy/network:listen_socket_interface",
-        "@envoy//include/envoy/network:transport_socket_interface",
-        "@envoy//include/envoy/registry",
-        "@envoy//include/envoy/server:filter_config_interface",
-        "@envoy//include/envoy/server:transport_socket_config_interface",
-        "@envoy//include/envoy/singleton:manager_interface",
-        "@envoy//source/common/buffer:buffer_lib",
-        "@envoy//source/common/common:assert_lib",
-        "@envoy//source/common/common:logger_lib",
-        "@envoy//source/common/config:grpc_subscription_lib",
-        "@envoy//source/common/local_info:local_info_lib",
-        "@envoy//source/common/network:address_lib",
-        "@envoy//source/common/router:config_utility_lib",
-        "@envoy//source/exe:envoy_common_lib",
-        "@envoy//source/extensions/transport_sockets/tls:ssl_socket_lib",
-        "@envoy//source/server:transport_socket_config_lib",
-    ],
-)
-
-envoy_cc_library(
     name = "tls_wrapper_lib",
     srcs = ["tls_wrapper.cc"],
     hdrs = ["tls_wrapper.h"],

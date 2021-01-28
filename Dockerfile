@@ -8,7 +8,7 @@
 FROM quay.io/cilium/cilium-envoy-builder:1dbffdfc472eeaac0dd7b9f056cf03ad8bafeae2@sha256:50ad862fae1e58d3f4ce17f5a78ebc24320701c35125819504449958901fde45 as builder-refresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
-COPY .bazelrc .bazelversion envoy.bazelrc Makefile.defs Makefile.quiet Makefile WORKSPACE BUILD ./
+COPY .bazelrc .bazelversion envoy.bazelrc Makefile.defs Makefile.quiet Makefile WORKSPACE BUILD SOURCE_VERSION ./
 COPY bazel bazel
 COPY patches patches
 COPY tools tools

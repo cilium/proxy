@@ -30,3 +30,7 @@
 
 # Clang config is platform-specific
 /clang.bazelrc
+
+# generated for docker builds via make
+/SOURCE_VERSION
+/.dockerignore
