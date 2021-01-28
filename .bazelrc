@@ -14,3 +14,12 @@ build:remote --remote_timeout=7200
 # See: https://github.com/envoyproxy/envoy/pull/6519
 build --define path_normalization_by_default=true
 test --define path_normalization_by_default=true
+
+# release builds are optimized
+build:release -c opt
+
+# No debug info for release builds
+build:release --define no_debug_info=1
+build:release --linkopt=-Wl,--strip-all
+build:release --features=-per_object_debug_info
+build:release --fission=fastbuild
