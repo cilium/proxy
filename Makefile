@@ -74,9 +74,13 @@ SOURCE_VERSION :=
 # Use git only if in a Git repo
 ifneq ($(wildcard $(dir $(lastword $(MAKEFILE_LIST)))/.git),)
 	SOURCE_VERSION := $(shell git rev-parse HEAD)
+#	$(info $(shell git status)
 else
 	SOURCE_VERSION := $(shell cat SOURCE_VERSION)
 endif
+
+SOURCE_VERSION: force
+	@if [ "$(SOURCE_VERSION)" != "`cat 2>/dev/null SOURCE_VERSION`" ] ; then echo "$(SOURCE_VERSION)" >SOURCE_VERSION; fi
 
 DOCKER_IMAGE_TAG:=$(SOURCE_VERSION)
 DOCKER_ARCH_TAG:=$(DOCKER_IMAGE_TAG)$(IMAGE_ARCH)
@@ -100,8 +104,37 @@ endif
 $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
 endif
 
+.PHONY: dockerignore-builder
+dockerignore-builder: dockerignore-release
+	echo "/cilium/" >>.dockerignore
+	echo "/linux/" >>.dockerignore
+	echo "/proxylib/" >>.dockerignore
+
+.PHONY: dockerignore-release
+dockerignore-release:
+	echo "/.git/" >.dockerignore
+	sed -e '# Remove lines with white space, comments and files that must be passed to docker, "$$" due to make. #' \
+		-e '/^[[:space:]]*$$/d' -e '/^#/d' -e '/SOURCE_VERSION/d' \
+	    -e '# Apply pattern in all directories if it contains no "/", keep "!" up front. #' \
+		-e '/^[^!/][^/]*$$/s<^<**/<' -e '/^![^/]*$$/s<^!<!**/<' \
+	    -e '# Remove leading "./", keep "!" up front. #' \
+		-e 's<^\./<<' -e 's<^!\./<!<' \
+	    -e '# Append newline to the last line if missing. GNU sed does not do this automatically. #' \
+		-e "$$a" \
+	    .gitignore >> .dockerignore
+	echo "/.gitignore" >>.dockerignore
+	echo "/.clang-format" >>.dockerignore
+	echo "/go/" >>.dockerignore
+	echo "/go.*" >>.dockerignore
+	echo "/tests/" >>.dockerignore
+	echo "/Dockerfile*" >>.dockerignore
+	echo "/Makefile.api" >>.dockerignore
+	echo "/envoy_binary_test.sh" >>.dockerignore
+	echo "/README*" >>.dockerignore
+	echo "/envoy_bootstrap_v2.patch" >>.dockerignore
+
 .PHONY: docker-image-builder
-docker-image-builder: Dockerfile.builder clean
+docker-image-builder: Dockerfile.builder SOURCE_VERSION dockerignore-builder
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
 
 # Extract the current builder reference from Dockerfile and combine with the deps build from Dockerfile.builder
@@ -112,11 +145,11 @@ Dockerfile.builder-refresh: Dockerfile.builder Dockerfile Makefile
 	sed -n '1,/^FROM base as builder/d; p; /^RUN .*make envoy-deps/q' Dockerfile.builder >>$@
 
 .PHONY: docker-image-builder-refresh
-docker-image-builder-refresh: Dockerfile.builder-refresh clean
+docker-image-builder-refresh: Dockerfile.builder-refresh SOURCE_VERSION dockerignore-builder
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
 
 .PHONY: docker-image-envoy
-docker-image-envoy: Dockerfile clean
+docker-image-envoy: Dockerfile SOURCE_VERSION dockerignore-release
 	@$(ECHO_GEN) docker-image-envoy
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)" .
 ifndef DOCKER_BUILDX
@@ -125,7 +158,7 @@ ifndef DOCKER_BUILDX
 endif
 
 #Build multi-arch Envoy image builder
-docker-image-builder-multiarch: Dockerfile.builder$(DOCKERFILE_ARCH) clean
+docker-image-builder-multiarch: Dockerfile.builder$(DOCKERFILE_ARCH) SOURCE_VERSION dockerignore-builder
 	$(DOCKER) build -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" --build-arg ARCH=$(ARCH) .
 	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
 		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:latest$(IMAGE_ARCH)"
@@ -137,7 +170,7 @@ ifeq ($(ARCH),amd64)
 endif
 
 #Build multi-arch Envoy image
-docker-image-envoy-multiarch: Dockerfile$(DOCKERFILE_ARCH) clean
+docker-image-envoy-multiarch: Dockerfile$(DOCKERFILE_ARCH) SOURCE_VERSION dockerignore-release
 	@$(ECHO_GEN) docker-image-envoy
 	$(DOCKER) build -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
 	          -f Dockerfile$(DOCKERFILE_ARCH) .
@@ -263,8 +296,6 @@ clean-bins: force
 
 clean: force clean-bins
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
-	-rm .dockerignore
-	git status
 	@echo "Bazel clean skipped, try 'make veryclean' instead."
 
 veryclean: force clean-bins
