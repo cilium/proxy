@@ -17,6 +17,11 @@ ENVOY_SHA256 = "715273c8d21208e3cb8503aed82527e7027e4d7cc3ba24c5c3ea75f239ddf0a2
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+local_repository(
+    name = "envoy_build_config",
+    path = "envoy_build_config",
+)
+
 http_archive(
     name = "envoy",
     patch_tool = "git",
