@@ -15,8 +15,8 @@ man/
 # Bazel symlinks
 bazel-*
 
-cilium-envoy
-Dockerfile.istio_proxy
+/cilium-envoy
+/Dockerfile.istio_proxy
 Dockerfile.builder-refresh
 
 # Emacs backup files
@@ -30,3 +30,5 @@ external
 
 # Clang config is platform-specific
 clang.bazelrc
+/images/.buildx_builder
+/.buildx/
