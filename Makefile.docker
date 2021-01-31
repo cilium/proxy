@@ -1,0 +1,169 @@
+# Copyright 2017-2021 Authors of Cilium
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -d = -f2)
+
+DOCKER=$(QUIET)docker
+
+SLASH = -
+ARCH ?= $(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
+IMAGE_ARCH = $(SLASH)$(ARCH)
+
+DOCKERFILE_ARCH = .multi_arch
+
+SOURCE_VERSION :=
+
+# Use git only if in a Git repo
+ifneq ($(wildcard $(dir $(lastword $(MAKEFILE_LIST)))/.git),)
+  SOURCE_VERSION := $(shell git rev-parse HEAD)
+else
+  SOURCE_VERSION := $(shell cat SOURCE_VERSION)
+endif
+
+SOURCE_VERSION: force
+	@if [ "$(SOURCE_VERSION)" != "`cat 2>/dev/null SOURCE_VERSION`" ] ; then echo "$(SOURCE_VERSION)" >SOURCE_VERSION; fi
+
+DOCKER_IMAGE_TAG:=$(SOURCE_VERSION)
+DOCKER_ARCH_TAG:=$(DOCKER_IMAGE_TAG)$(IMAGE_ARCH)
+
+DOCKER_DEV_ACCOUNT ?= quay.io/cilium
+DOCKER_BUILD_OPTS ?=
+ifdef DOCKER_BUILDX
+  DOCKER=$(QUIET)DOCKER_BUILDKIT=1 docker buildx
+  DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
+  ifneq ($(DOCKER_BUILDER),default)
+    DOCKER_BUILD_OPTS += --push
+    ifeq ($(ARCH),amd64)
+      DOCKER_BUILD_OPTS += --platform=linux/amd64
+    else ifeq ($(ARCH),arm64)
+      DOCKER_BUILD_OPTS += --platform=linux/arm64
+    else ifeq ($(ARCH),multi)
+      DOCKER_BUILD_OPTS += --platform=linux/arm64,linux/amd64
+      DOCKER_ARCH_TAG:=$(SOURCE_VERSION)
+    endif
+  endif
+  $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
+endif
+
+.PHONY: dockerignore-builder
+dockerignore-builder: dockerignore-release
+	echo "/cilium/" >>.dockerignore
+	echo "/linux/" >>.dockerignore
+	echo "/proxylib/" >>.dockerignore
+
+.PHONY: dockerignore-release
+dockerignore-release:
+	echo "/.git/" >.dockerignore
+	sed -e '# Remove lines with white space, comments and files that must be passed to docker, "$$" due to make. #' \
+		-e '/^[[:space:]]*$$/d' -e '/^#/d' -e '/SOURCE_VERSION/d' \
+	    -e '# Apply pattern in all directories if it contains no "/", keep "!" up front. #' \
+		-e '/^[^!/][^/]*$$/s<^<**/<' -e '/^![^/]*$$/s<^!<!**/<' \
+	    -e '# Remove leading "./", keep "!" up front. #' \
+		-e 's<^\./<<' -e 's<^!\./<!<' \
+	    -e '# Append newline to the last line if missing. GNU sed does not do this automatically. #' \
+		-e "$$a" \
+	    .gitignore >> .dockerignore
+	echo "/.gitignore" >>.dockerignore
+	echo "/.clang-format" >>.dockerignore
+	echo "/go/" >>.dockerignore
+	echo "/go.*" >>.dockerignore
+	echo "/tests/" >>.dockerignore
+	echo "/Dockerfile*" >>.dockerignore
+	echo "/Makefile.dev" >>.dockerignore
+	echo "/Makefile.api" >>.dockerignore
+	echo "/Makefile.docker" >>.dockerignore
+	echo "/envoy_binary_test.sh" >>.dockerignore
+	echo "/README*" >>.dockerignore
+	echo "/envoy_bootstrap_v2.patch" >>.dockerignore
+
+.PHONY: docker-image-builder
+docker-image-builder: Dockerfile.builder SOURCE_VERSION dockerignore-builder
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
+
+# Extract the current builder reference from Dockerfile and combine with the deps build from Dockerfile.builder
+# This way we do not need to maintain multiple references to the current builder
+.PRECIOUS: Dockerfile.builder-refresh
+Dockerfile.builder-refresh: Dockerfile.builder Dockerfile Makefile
+	sed -n '/^FROM .*as builder/p' Dockerfile >$@
+	sed -n '1,/^FROM base as builder/d; p; /^RUN .*make envoy-deps/q' Dockerfile.builder >>$@
+
+.PHONY: docker-image-builder-refresh
+docker-image-builder-refresh: Dockerfile.builder-refresh SOURCE_VERSION dockerignore-builder
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
+
+.PHONY: docker-image-envoy
+docker-image-envoy: Dockerfile SOURCE_VERSION dockerignore-release
+	@$(ECHO_GEN) docker-image-envoy
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)" .
+ifndef DOCKER_BUILDX
+	$(QUIET)echo "Push like this when ready:"
+	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)"
+endif
+
+#Build multi-arch Envoy image builder
+docker-image-builder-multiarch: Dockerfile.builder$(DOCKERFILE_ARCH) SOURCE_VERSION dockerignore-builder
+	$(DOCKER) build -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" --build-arg ARCH=$(ARCH) .
+	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:latest$(IMAGE_ARCH)"
+ifeq ($(ARCH),amd64)
+	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)"
+	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)" \
+		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:latest"
+endif
+
+#Build multi-arch Envoy image
+docker-image-envoy-multiarch: Dockerfile$(DOCKERFILE_ARCH) SOURCE_VERSION dockerignore-release
+	@$(ECHO_GEN) docker-image-envoy
+	$(DOCKER) build -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+	          -f Dockerfile$(DOCKERFILE_ARCH) .
+	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)"
+ifeq ($(ARCH),amd64)
+	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)"
+	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest"
+endif
+	$(QUIET)echo "Push like this when ready:"
+	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)"
+ifeq ($(ARCH),amd64)
+	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)"
+	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest"
+endif
+
+#Push multi-arch support with fat-manifest:
+
+envoy-builder-manifest:
+	tools/push_manifest.sh cilium-envoy-builder $(DOCKER_IMAGE_TAG)
+	tools/push_manifest.sh cilium-envoy-builder latest
+
+docker-envoy-manifest:
+	tools/push_manifest.sh cilium-envoy $(DOCKER_IMAGE_TAG)
+	tools/push_manifest.sh cilium-envoy latest
+
+#Push multi-arch support with images uploaded:
+envoy-builder-image-manifest:
+	tools/push_manifest.sh -i cilium-envoy-builder $(DOCKER_IMAGE_TAG)
+	tools/push_manifest.sh -i cilium-envoy-builder latest
+
+docker-envoy-image-manifest:
+	tools/push_manifest.sh -i cilium-envoy $(DOCKER_IMAGE_TAG)
+	tools/push_manifest.sh -i cilium-envoy latest
+
+docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
+	@$(ECHO_GEN) docker-istio-proxy
+	$(DOCKER) build -f $< -t cilium/istio_proxy:$(ISTIO_VERSION) .
+	$(QUIET)echo "Push like this when ready:"
+	$(QUIET)echo "docker push cilium/istio_proxy:$(ISTIO_VERSION)"
