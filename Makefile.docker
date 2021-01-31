@@ -36,27 +36,37 @@ SOURCE_VERSION: force
 
 DOCKER_IMAGE_TAG:=$(SOURCE_VERSION)
 DOCKER_ARCH_TAG:=$(DOCKER_IMAGE_TAG)$(IMAGE_ARCH)
-
 DOCKER_DEV_ACCOUNT ?= quay.io/cilium
 DOCKER_CACHE_REPO ?= docker.io/cilium/cilium-dev
 DOCKER_BUILD_OPTS ?=
 ifdef DOCKER_BUILDX
   DOCKER=$(QUIET)DOCKER_BUILDKIT=1 docker buildx
+  ifeq ($(ARCH),amd64)
+    DOCKER_PLATFORMS := --platform=linux/amd64
+  else ifeq ($(ARCH),arm64)
+    DOCKER_PLATFORMS := --platform=linux/arm64
+  else ifeq ($(ARCH),multi)
+    DOCKER_PLATFORMS := --platform=linux/arm64,linux/amd64
+    DOCKER_ARCH_TAG:=$(SOURCE_VERSION)
+  endif
   DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
-  ifneq ($(DOCKER_BUILDER),default)
-    DOCKER_BUILD_OPTS += --push
-    ifeq ($(ARCH),amd64)
-      DOCKER_BUILD_OPTS += --platform=linux/amd64
-    else ifeq ($(ARCH),arm64)
-      DOCKER_BUILD_OPTS += --platform=linux/arm64
-    else ifeq ($(ARCH),multi)
-      DOCKER_BUILD_OPTS += --platform=linux/arm64,linux/amd64
-      DOCKER_ARCH_TAG:=$(SOURCE_VERSION)
+  ifdef DOCKER_PLATFORMS
+    ifeq ($(DOCKER_BUILDER),default)
+      DOCKER_BUILDKIT_DRIVER :=
+      ifdef DOCKER_BUILDKIT_IMAGE
+        DOCKER_BUILDKIT_DRIVER := --driver docker-container --driver-opt image=$(DOCKER_BUILDKIT_IMAGE)
+      endif
+      BUILDER_SETUP := $(shell docker buildx create $(DOCKER_PLATFORMS) $(DOCKER_BUILDKIT_DRIVER) --use)
+      DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
     endif
   endif
   DOCKER_BUILD_OPTS += --cache-from=type=registry,ref=$(DOCKER_CACHE_REPO):cilium-envoy-cache
-  ifdef CACHE_PUSH
-    DOCKER_BUILD_OPTS += --cache-to=type=registry,ref=$(DOCKER_CACHE_REPO):cilium-envoy-cache,mode=max
+  ifneq ($(DOCKER_BUILDER),default)
+    DOCKER_BUILD_OPTS += --push
+    DOCKER_BUILD_OPTS += $(DOCKER_PLATFORMS)
+    ifdef CACHE_PUSH
+      DOCKER_BUILD_OPTS += --cache-to=type=registry,ref=$(DOCKER_CACHE_REPO):cilium-envoy-cache,mode=max
+    endif
   endif
   $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
 endif
