@@ -21,6 +21,10 @@ SHELL=/bin/bash -o pipefail
 BAZEL ?= $(QUIET) bazel
 BAZEL_FILTER ?=
 BAZEL_OPTS ?=
+BAZEL_BUILD_OPTS ?=
+ifdef BAZEL_REMOTE_CACHE
+  BAZEL_BUILD_OPTS += --remote_cache=$(BAZEL_REMOTE_CACHE)
+endif
 # COMPILER_DEP:=clang.bazelrc
 
 BAZEL_ARCH = $(subst x86_64,k8,$(shell uname -m))

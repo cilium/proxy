@@ -37,8 +37,12 @@ SOURCE_VERSION: force
 DOCKER_IMAGE_TAG:=$(SOURCE_VERSION)
 DOCKER_ARCH_TAG:=$(DOCKER_IMAGE_TAG)$(IMAGE_ARCH)
 DOCKER_DEV_ACCOUNT ?= quay.io/cilium
-DOCKER_CACHE_REPO ?= docker.io/cilium/cilium-dev
+CACHE_REF ?= docker.io/cilium/cilium-dev:cilium-envoy-cache
 DOCKER_BUILD_OPTS ?=
+DOCKER_CACHE_OPTS ?=
+ifndef NO_CACHE
+  DOCKER_CACHE_OPTS += --cache-from=type=registry,ref=$(CACHE_REF)
+endif
 ifdef DOCKER_BUILDX
   DOCKER=$(QUIET)DOCKER_BUILDKIT=1 docker buildx
   ifeq ($(ARCH),amd64)
@@ -60,12 +64,16 @@ ifdef DOCKER_BUILDX
       DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
     endif
   endif
-  DOCKER_BUILD_OPTS += --cache-from=type=registry,ref=$(DOCKER_CACHE_REPO):cilium-envoy-cache
   ifneq ($(DOCKER_BUILDER),default)
     DOCKER_BUILD_OPTS += --push
     DOCKER_BUILD_OPTS += $(DOCKER_PLATFORMS)
     ifdef CACHE_PUSH
-      DOCKER_BUILD_OPTS += --cache-to=type=registry,ref=$(DOCKER_CACHE_REPO):cilium-envoy-cache,mode=max
+      ifeq ($(true,1,$(CACHE_PUSH)),true)
+        CACHE_TO_REF:=$(CACHE_REF)
+      else
+        CACHE_TO_REF:=$(CACHE_PUSH)
+      endif
+      DOCKER_CACHE_OPTS += --cache-to=type=registry,ref=$(CACHE_TO_REF),mode=max
     endif
   endif
   $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
@@ -115,12 +123,12 @@ Dockerfile.builder-refresh: Dockerfile.builder Dockerfile Makefile
 
 .PHONY: docker-image-builder-refresh
 docker-image-builder-refresh: Dockerfile.builder-refresh SOURCE_VERSION dockerignore-builder
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
 
 .PHONY: docker-image-envoy
 docker-image-envoy: Dockerfile SOURCE_VERSION dockerignore-release
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)" .
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)" .
 ifndef DOCKER_BUILDX
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)"
@@ -179,6 +187,6 @@ docker-envoy-image-manifest:
 
 docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
 	@$(ECHO_GEN) docker-istio-proxy
-	$(DOCKER) build -f $< -t cilium/istio_proxy:$(ISTIO_VERSION) .
+	$(DOCKER) build --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t cilium/istio_proxy:$(ISTIO_VERSION) .
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push cilium/istio_proxy:$(ISTIO_VERSION)"
