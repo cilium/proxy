@@ -14,6 +14,8 @@
 
 include Makefile.defs
 
+# COMPILER_DEP:=clang.bazelrc
+
 ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy
 ENVOY_TESTS = bazel-bin/tests/*_test
 
@@ -25,7 +27,11 @@ BAZEL_BUILD_OPTS ?=
 ifdef BAZEL_REMOTE_CACHE
   BAZEL_BUILD_OPTS += --remote_cache=$(BAZEL_REMOTE_CACHE)
 endif
-# COMPILER_DEP:=clang.bazelrc
+
+ifdef CROSSARCH
+  $(info CROSS-COMPILING for arm64)
+  BAZEL_BUILD_OPTS += --incompatible_enable_cc_toolchain_resolution --platforms=//bazel/platforms:aarch64_cross --define=cross=aarch64
+endif
 
 BAZEL_ARCH = $(subst x86_64,k8,$(shell uname -m))
 ENVOY_LINKSTAMP_O = bazel-bin/_objs/cilium-envoy/envoy/source/common/common/version_linkstamp.o
