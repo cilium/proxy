@@ -39,24 +39,30 @@ endif
 SOURCE_VERSION: force
 	@if [ "$(SOURCE_VERSION)" != "`cat 2>/dev/null SOURCE_VERSION`" ] ; then echo "$(SOURCE_VERSION)" >SOURCE_VERSION; fi
 
-DOCKER_IMAGE_TAG:=$(SOURCE_VERSION)
-DOCKER_ARCH_TAG:=$(DOCKER_IMAGE_TAG)$(IMAGE_ARCH)
+DOCKER_IMAGE_TAG := $(SOURCE_VERSION)
+DOCKER_ARCH_TAG := $(DOCKER_IMAGE_TAG)$(IMAGE_ARCH)
+BAZEL_VERSION := $(shell cat .bazelversion)
+BAZEL_ARCH_TAG := bazel-$(BAZEL_VERSION)$(IMAGE_ARCH)
+
 DOCKER_DEV_ACCOUNT ?= quay.io/cilium
 CACHE_REF ?= docker.io/cilium/cilium-dev:cilium-envoy-cache
 DOCKER_BUILD_OPTS ?=
 DOCKER_CACHE_OPTS ?=
 ifndef NO_CACHE
-  DOCKER_CACHE_OPTS += --cache-from=type=registry,ref=$(CACHE_REF)
+  DOCKER_CACHE_OPTS += --cache-from=$(CACHE_REF)
 endif
+DOCKER := $(QUIET)DOCKER_BUILDKIT=1 docker
 ifdef DOCKER_BUILDX
-  DOCKER=$(QUIET)DOCKER_BUILDKIT=1 docker buildx
+  DOCKER := $(DOCKER) buildx
   ifeq ($(ARCH),amd64)
     DOCKER_PLATFORMS := --platform=linux/amd64
   else ifeq ($(ARCH),arm64)
     DOCKER_PLATFORMS := --platform=linux/arm64
   else ifeq ($(ARCH),multi)
     DOCKER_PLATFORMS := --platform=linux/arm64,linux/amd64
-    DOCKER_ARCH_TAG:=$(SOURCE_VERSION)
+    # Multi-arch tags without -ARCH
+    DOCKER_ARCH_TAG := $(SOURCE_VERSION)
+    BAZEL_ARCH_TAG := bazel-$(BAZEL_VERSION)
   endif
   DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
   ifdef DOCKER_PLATFORMS
@@ -70,13 +76,16 @@ ifdef DOCKER_BUILDX
     endif
   endif
   ifneq ($(DOCKER_BUILDER),default)
-    DOCKER_BUILD_OPTS += --push
+    # Only insert '--push' if user did not pass a conflicting '--output' option
+    ifeq ($(findstring --output,$(DOCKER_BUILD_OPTS)),)
+      DOCKER_BUILD_OPTS += --push
+    endif
     DOCKER_BUILD_OPTS += $(DOCKER_PLATFORMS)
     ifdef CACHE_PUSH
       ifeq ($(true,1,$(CACHE_PUSH)),true)
-        CACHE_TO_REF:=$(CACHE_REF)
+        CACHE_TO_REF := $(CACHE_REF)
       else
-        CACHE_TO_REF:=$(CACHE_PUSH)
+        CACHE_TO_REF := $(CACHE_PUSH)
       endif
       DOCKER_CACHE_OPTS += --cache-to=type=registry,ref=$(CACHE_TO_REF),mode=max
     endif
@@ -84,11 +93,18 @@ ifdef DOCKER_BUILDX
   $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
 endif
 
+BUILDER_IMAGE_OPTS ?=
+ifdef BUILDER_IMAGE
+  BUILDER_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) --build-arg BUILDER=use-updated
+else
+  # Default builder refresh image ref
+  BUILDER_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:release-archive-latest
+endif
+
 .PHONY: dockerignore-builder
-dockerignore-builder: dockerignore-release
-	echo "/cilium/" >>.dockerignore
-	echo "/linux/" >>.dockerignore
-	echo "/proxylib/" >>.dockerignore
+dockerignore-builder:
+	echo "*" >.dockerignore
+	echo "!.bazelversion" >>.dockerignore
 
 .PHONY: dockerignore-release
 dockerignore-release:
@@ -117,23 +133,16 @@ dockerignore-release:
 
 .PHONY: docker-image-builder
 docker-image-builder: Dockerfile.builder SOURCE_VERSION dockerignore-builder
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BAZEL_ARCH_TAG) .
 
-# Extract the current builder reference from Dockerfile and combine with the deps build from Dockerfile.builder
-# This way we do not need to maintain multiple references to the current builder
-.PRECIOUS: Dockerfile.builder-refresh
-Dockerfile.builder-refresh: Dockerfile.builder Dockerfile Makefile
-	sed -n '/^FROM .*as builder/p' Dockerfile >$@
-	sed -n '1,/^FROM base as builder/d; p; /^RUN .*make envoy-deps/q' Dockerfile.builder >>$@
-
-.PHONY: docker-image-builder-refresh
-docker-image-builder-refresh: Dockerfile.builder-refresh SOURCE_VERSION dockerignore-builder
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(DOCKER_ARCH_TAG)" .
+.PHONY: docker-builder-archive
+docker-builder-archive: Dockerfile SOURCE_VERSION dockerignore-archive
+	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t $(BUILDER_IMAGE) .
 
 .PHONY: docker-image-envoy
 docker-image-envoy: Dockerfile SOURCE_VERSION dockerignore-release
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)" .
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG) .
 ifndef DOCKER_BUILDX
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)"
@@ -141,28 +150,28 @@ endif
 
 #Build multi-arch Envoy image builder
 docker-image-builder-multiarch: Dockerfile.builder$(DOCKERFILE_ARCH) SOURCE_VERSION dockerignore-builder
-	$(DOCKER) build -f $< -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" --build-arg ARCH=$(ARCH) .
-	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
-		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:latest$(IMAGE_ARCH)"
+	$(DOCKER) build -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH) --build-arg ARCH=$(ARCH) .
+	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH) \
+		$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:latest$(IMAGE_ARCH)
 ifeq ($(ARCH),amd64)
-	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
-		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)"
-	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)" \
-		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:latest"
+	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH) \
+		$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)
+	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION) \
+		$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:latest
 endif
 
 #Build multi-arch Envoy image
 docker-image-envoy-multiarch: Dockerfile$(DOCKERFILE_ARCH) SOURCE_VERSION dockerignore-release
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build -t "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
+	$(DOCKER) build -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH) \
 	          -f Dockerfile$(DOCKERFILE_ARCH) .
-	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
-		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)"
+	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH) \
+		$(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)
 ifeq ($(ARCH),amd64)
-	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
-		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)"
-	$(DOCKER) tag "$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)" \
-		"$(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest"
+	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH) \
+		$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)
+	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH) \
+		$(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest
 endif
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)"

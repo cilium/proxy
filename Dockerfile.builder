@@ -11,9 +11,14 @@
 # Ubuntu 18.04 for now.
 FROM docker.io/library/ubuntu:18.04 as base
 LABEL maintainer="maintainer@cilium.io"
+ARG TARGETARCH
 RUN apt-get update && \
-    apt-get upgrade -y && \
+    apt-get upgrade -y --no-install-recommends && \
+    # Only install cross tools on amd64
+    CROSSPKG="" && [ "$TARGETARCH" != "amd64" ] || CROSSPKG="gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu" && \
     apt-get install -y --no-install-recommends \
+      # Multi-arch cross-compilation packages
+      $CROSSPKG \
       # Envoy Build dependencies
       autoconf \
       automake \
@@ -48,14 +53,14 @@ COPY .bazelversion ./
 # Install Bazel
 #
 RUN export BAZEL_VERSION=$(cat .bazelversion) \
-	&& ARCH=$(uname -m) && [ "$ARCH" != "aarch64" ] || ARCH="arm64" \
+	&& ARCH=$TARGETARCH && [ "$ARCH" != "amd64" ] || ARCH="x86_64" \
 	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
 	&& chmod +x /usr/bin/bazel
 
 #
 # Install GN (https://gn.googlesource.com/gn/) for arm64
 #
-RUN if [ "$(uname -m)" = "aarch64" ]; then \
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
     git clone https://gn.googlesource.com/gn \
     && cd gn \
     && python build/gen.py \
@@ -64,25 +69,3 @@ RUN if [ "$(uname -m)" = "aarch64" ]; then \
     && cd .. \
     && rm -rf gn /tmp/* /var/tmp/*; \
     fi
-
-FROM base as builder
-WORKDIR /cilium/proxy
-COPY . ./
-ARG V
-ARG BAZEL_BUILD_OPTS
-
-#
-# Build Bazel cache
-#
-RUN BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS:---jobs=8} PKG_BUILD=1 V=$V DESTDIR=/tmp/install make envoy-deps-release
-
-#
-# Dummy stage to help out caching if the final push fails
-#
-FROM builder
-LABEL maintainer="maintainer@cilium.io"
-WORKDIR /cilium/proxy
-
-#
-# Absolutely nothing after making envoy deps!
-#
