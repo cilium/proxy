@@ -18,12 +18,8 @@ include Makefile.defs
 # This will be changed to an official image as soon as they support multi-arch
 CILIUM_REF=docker.io/jrajahalme/cilium:latest
 
-CILIUM_ENVOY_BIN = ./bazel-bin/cilium-envoy
-CILIUM_ENVOY_RELEASE_BIN = ./cilium-envoy
-ENVOY_BINS = \
-	$(CILIUM_ENVOY_BIN) \
-	$(CILIUM_ENVOY_RELEASE_BIN) \
-	./bazel-bin/cilium_integration_test
+ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy
+ENVOY_TESTS = bazel-bin/tests/*_test
 CHECK_FORMAT ?= ./bazel-bin/check_format.py.runfiles/envoy/tools/code_format/check_format.py
 
 SHELL=/bin/bash -o pipefail
@@ -53,14 +49,15 @@ BAZEL_ARCH = $(subst x86_64,k8,$(shell uname -m))
 ENVOY_LINKSTAMP_O = bazel-bin/_objs/cilium-envoy/envoy/source/common/common/version_linkstamp.o
 
 ifdef PKG_BUILD
-all: precheck install-bazel clean-bins $(CILIUM_ENVOY_RELEASE_BIN) shutdown-bazel
+  all: cilium-envoy
 else
-all: precheck install-bazel clean-bins envoy-default api shutdown-bazel
-endif
+  all: envoy-default api
 
-# Fetch and install Bazel if needed
-install-bazel:
+  # Fetch and install Bazel if needed
+  .PHONY: install-bazel
+  install-bazel:
 	tools/install_bazel.sh `cat .bazelversion`
+endif
 
 ifdef KEEP_BAZEL_RUNNING
 shutdown-bazel:
@@ -220,7 +217,7 @@ clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-10
 	bazel/setup_clang.sh /usr/lib/llvm-10
 	echo "build --config=clang" >> $@
 
-bazel-bin-fastbuild: force-non-root
+bazel-bin-fastbuild: clean-bins force-non-root
 	-rm -f bazel-bin
 	ln -s $(shell bazel info bazel-bin) bazel-bin
 
@@ -230,7 +227,7 @@ envoy-deps-fastbuild: bazel-bin-fastbuild $(COMPILER_DEP)
 	-rm -f bazel-bin/cilium-envoy-deps
 	$(BAZEL) shutdown
 
-envoy-default: bazel-bin-fastbuild $(COMPILER_DEP)
+envoy-default: install-bazel bazel-bin-fastbuild $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
 	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
@@ -246,12 +243,12 @@ envoy-deps-release: bazel-bin-release $(COMPILER_DEP)
 	-rm -f bazel-bin/cilium-envoy-deps
 	$(BAZEL) shutdown
 
-$(CILIUM_ENVOY_BIN): bazel-bin-release $(COMPILER_DEP)
+bazel-bin/cilium-envoy: bazel-bin-release $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
 	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy $(BAZEL_FILTER)
 
-$(CILIUM_ENVOY_RELEASE_BIN): $(CILIUM_ENVOY_BIN)
+cilium-envoy: bazel-bin/cilium-envoy
 	mv $< $@
 
 docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
@@ -272,9 +269,9 @@ envoy-debug: bazel-bin-dbg
 $(CHECK_FORMAT): force-non-root
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:check_format.py
 
-install: $(CILIUM_ENVOY_BIN)
+install: bazel-bin/cilium-envoy
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(INSTALL) -m 0755 -T $(CILIUM_ENVOY_BIN) $(DESTDIR)$(BINDIR)/cilium-envoy
+	$(INSTALL) -m 0755 -T bazel-bin/cilium-envoy $(DESTDIR)$(BINDIR)/cilium-envoy
 
 bazel-archive: force-non-root tests clean-bins
 	-sudo rm -f $(BAZEL_ARCHIVE)
@@ -292,7 +289,7 @@ bazel-restore: $(BAZEL_ARCHIVE)
 # Remove the binaries to get fresh version SHA
 clean-bins: force
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
-	-$(QUIET) rm -f $(ENVOY_BINS)
+	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
 
 clean: force clean-bins
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
@@ -330,7 +327,6 @@ debug-tests: proxylib/libcilium.so force-non-root
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c debug $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
 .PHONY: \
-	install-bazel \
 	shutdown-bazel \
 	bazel-restore \
 	docker-istio-proxy \

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 
 BAZEL_VERSION=$1
+if ! command -v sudo >/dev/null; then
+    exit 0
+fi
 
 echo "Checking if Bazel ${BAZEL_VERSION} needs to be installed..."
 if [[ $(command -v bazel) && "$(bazel version | grep 'label' | cut -d ' ' -f 3)" =~ ${BAZEL_VERSION} ]]; then
