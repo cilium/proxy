@@ -18,7 +18,7 @@
 # other status scripts, this one still echos the non-stable ("volatile") names.
 
 # The code below presents an implementation that works for git repository
-git_rev=$(git rev-parse HEAD)
+git_rev=$(git rev-parse HEAD 2>/dev/null)
 if [[ $? != 0 ]];
 then
     # If this SOURCE_VERSION file exists then it must have been placed here by a
@@ -31,6 +31,7 @@ then
         echo "BUILD_SCM_STATUS Distribution"
         exit 0
     fi
+    echo 2>&1 "No .git and SOURCE_VERSION does not exist!"
     exit 1
 fi
 echo "BUILD_SCM_REVISION ${git_rev}"
