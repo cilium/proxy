@@ -16,6 +16,11 @@ ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -
 
 DOCKER=$(QUIET)docker
 
+# Assume buildx if ARCH is explicitly defined
+ifdef ARCH
+  DOCKER_BUILDX:=1
+endif
+
 SLASH = -
 ARCH ?= $(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
 IMAGE_ARCH = $(SLASH)$(ARCH)
