@@ -1,0 +1,57 @@
+name: CI run integration tests
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  tests:
+    timeout-minutes: 360
+    name: Run integration tests on amd64
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Enable Docker IPv6
+        run: |
+          modprobe -v ipv6
+          sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json
+          sudo systemctl restart docker
+      - name: Add swap
+        run: |
+          set -x
+          file="/var/lib/swap"
+          sudo fallocate -l 4G "${file}"
+          sudo chmod 600 "${file}"
+          sudo mkswap "${file}"
+          sudo swapon "${file}"
+          sudo swapon -s
+          free -m
+          df -h
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/buildx-cache
+          key: docker-cache-tests
+          restore-keys: docker-cache-master
+      - name: Checkout PR Source Code
+        uses: actions/checkout@v2
+      - name: Pull proxylib/libcilium.so
+        run: |
+          docker create -ti --name cilium-proxylib quay.io/cilium/cilium:latest bash
+          docker cp -L cilium-proxylib:/usr/lib/libcilium.so proxylib/libcilium.so
+          docker rm -fv cilium-proxylib
+      - name: Prep for build
+        run: echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+      - name: Run integration tests on amd64
+        uses: docker/build-push-action@v2
+        id: docker_tests_ci
+        with:
+          context: .
+          file: ./Dockerfile.tests
+          platforms: linux/amd64
+          build-args: |
+            BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:test-archive-latest
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+            TESTLOGS=bazel-out/k8-fastbuild/testlogs
+          cache-from: type=local,src=/tmp/buildx-cache
+          push: false

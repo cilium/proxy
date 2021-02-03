@@ -55,12 +55,18 @@ ifdef DOCKER_BUILDX
     endif
     DOCKER_BUILD_OPTS += $(DOCKER_PLATFORMS)
     ifdef CACHE_PUSH
-      ifeq ($(true,1,$(CACHE_PUSH)),true)
-        CACHE_TO_REF := $(CACHE_REF)
+      ifeq ($(subst true,1,$(CACHE_PUSH)),1)
+        ifneq ($(findstring type=local,$(CACHE_REF)),)
+          CACHE_TO_REF := $(subst src=,dest=,$(CACHE_REF))
+	else ifneq ($(findstring type=registry,$(CACHE_REF)),)
+          CACHE_TO_REF := $(CACHE_REF)
+	else
+          CACHE_TO_REF := type=registry,ref=$(CACHE_REF)
+	endif
       else
         CACHE_TO_REF := $(CACHE_PUSH)
       endif
-      DOCKER_CACHE_OPTS += --cache-to=type=registry,ref=$(CACHE_TO_REF),mode=max
+      DOCKER_CACHE_OPTS += --cache-to=$(CACHE_TO_REF),mode=max
     endif
   endif
   $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
@@ -85,10 +91,14 @@ SOURCE_VERSION: force
 	@if [ "$(SOURCE_VERSION)" != "`cat 2>/dev/null SOURCE_VERSION`" ] ; then echo "$(SOURCE_VERSION)" >SOURCE_VERSION; fi
 
 BAZEL_VERSION := $(shell cat .bazelversion)
-BAZEL_ARCH_TAG := bazel-$(BAZEL_VERSION)$(IMAGE_ARCH)
-BRANCH_TAG := $(shell git rev-parse --abbrev-ref HEAD | tr -c '[:alnum:]_.\n-' '-')
-
+BUILDER_BASE_TAG ?= bazel-$(BAZEL_VERSION)$(IMAGE_ARCH)
+BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
+BRANCH_TAG := $(shell echo $(BRANCH_NAME) | tr -c '[:alnum:]_.\n-' '-')
 BUILDER_IMAGE_OPTS ?=
+
+# target for builder archive
+BUILDER_ARCHIVE_TAG ?= release-archive-latest
+TESTS_ARCHIVE_TAG ?= test-archive-latest
 
 ifndef NO_CACHE
   ifndef BUILDER_IMAGE
@@ -101,42 +111,37 @@ ifndef NO_CACHE
 endif
 
 ifdef BUILDER_IMAGE
-  BUILDER_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) --build-arg BUILDER=use-updated
+  BUILDER_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(BUILDER_IMAGE)
 endif
 ifdef TESTS_ARCHIVE_IMAGE
-  TESTS_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(TESTS_ARCHIVE_IMAGE) --build-arg BUILDER=use-updated
+  TESTS_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(TESTS_ARCHIVE_IMAGE)
 endif
 
 # Builder image consists only of build tools, so it only needs .bazelversion
-.PHONY: dockerignore-builder
-dockerignore-builder:
-	echo "*" >.dockerignore
-	echo "!/.bazelversion" >>.dockerignore
-
-# "archive" only builds Envoy dependency so it does not need Cilium-specific sources
-.PHONY: dockerignore-archive
-dockerignore-archive: dockerignore-release
-	echo "/cilium/" >>.dockerignore
-	echo "/linux/" >>.dockerignore
-	echo "/proxylib/" >>.dockerignore
+Dockerfile.builder.dockerignore:
+	echo "*" >$@
+	echo "!/.bazelversion" >>$@
 
 # Release does not need Go API or test files
-.PHONY: dockerignore-release
-dockerignore-release: .dockerignore
-	echo "/.clang-format" >>.dockerignore
-	echo "/go/" >>.dockerignore
-	echo "/go.*" >>.dockerignore
-	echo "/tests/" >>.dockerignore
-	echo "/Makefile.api" >>.dockerignore
-	echo "/envoy_binary_test.sh" >>.dockerignore
+Dockerfile.dockerignore: .dockerignore Makefile.docker
+	cp $< $@
+	echo "/.clang-format" >>$@
+	echo "/go/" >>$@
+	echo "/go.*" >>$@
+	echo "/tests/" >>$@
+	echo "/Makefile.api" >>$@
+	echo "/envoy_binary_test.sh" >>$@
 
-.PHONY: dockerignore-tests
-dockerignore-tests: .dockerignore
-	echo "!/proxylib/libcilium.so" >>.dockerignore
+# Tests do not need Go APIs, but need libcilium.so
+Dockerfile.tests.dockerignore: .dockerignore Makefile.docker
+	cp $< $@
+	echo "!/proxylib/libcilium.so" >>$@
+	echo "/go/" >>$@
+	echo "/go.*" >>$@
+	echo "/Makefile.api" >>$@
 
 # None of the docker builds need these. '-H' to not follow symbolic links.
 GIT_IGNORE_FILES := $(shell find -H . -not -path "./_build*" -not -path "./vendor*" -name .gitignore -print)
-.PHONY: .dockerignore
 .dockerignore: .gitignore Makefile.docker
 	echo "/.git/" >$@
 	echo $(dir $(GIT_IGNORE_FILES)) | tr ' ' '\n' | xargs -P1 -n1 -I {DIR} sed \
@@ -159,21 +164,21 @@ GIT_IGNORE_FILES := $(shell find -H . -not -path "./_build*" -not -path "./vendo
 	echo "/envoy_bootstrap_v2.patch" >>$@
 
 .PHONY: docker-image-builder
-docker-image-builder: Dockerfile.builder SOURCE_VERSION dockerignore-builder
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BAZEL_ARCH_TAG) .
+docker-image-builder: Dockerfile.builder SOURCE_VERSION Dockerfile.builder.dockerignore
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG) .
 
 .PHONY: docker-builder-archive
-docker-builder-archive: Dockerfile SOURCE_VERSION dockerignore-archive
-	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t $(BUILDER_IMAGE) .
+docker-builder-archive: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
+	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_ARCHIVE_TAG) .
 
 .PHONY: docker-tests-archive
-docker-tests-archive: Dockerfile.tests SOURCE_VERSION dockerignore-archive
-	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t $(TESTS_ARCHIVE_IMAGE) .
+docker-tests-archive: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore proxylib/libcilium.so
+	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_ARCHIVE_TAG) .
 
 TESTLOGS := bazel-out/$(BAZEL_ARCH)-fastbuild/testlogs
 
 .PHONY: docker-tests
-docker-tests: Dockerfile.tests SOURCE_VERSION dockerignore-tests proxylib/libcilium.so
+docker-tests: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore proxylib/libcilium.so
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) --progress=plain $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg TESTLOGS=$(TESTLOGS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< .
 
 ifeq ($(BRANCH_TAG),"master")
@@ -184,66 +189,9 @@ else
 endif
 
 .PHONY: docker-image-envoy
-docker-image-envoy: Dockerfile SOURCE_VERSION dockerignore-release
+docker-image-envoy: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
 	@$(ECHO_GEN) docker-image-envoy
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" $(DOCKER_IMAGE_ENVOY_TAGS) .
-
-#Build multi-arch Envoy image builder
-docker-image-builder-multiarch: Dockerfile.builder$(DOCKERFILE_ARCH) SOURCE_VERSION dockerignore-builder
-	$(DOCKER) build -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH) --build-arg ARCH=$(ARCH) .
-	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH) \
-		$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:latest$(IMAGE_ARCH)
-ifeq ($(ARCH),amd64)
-	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)$(IMAGE_ARCH) \
-		$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION)
-	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:$(SOURCE_VERSION) \
-		$(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-dev:latest
-endif
-
-#Build multi-arch Envoy image
-docker-image-envoy-multiarch: Dockerfile$(DOCKERFILE_ARCH) SOURCE_VERSION dockerignore-release
-	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH) \
-	          -f Dockerfile$(DOCKERFILE_ARCH) .
-	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH) \
-		$(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)
-ifeq ($(ARCH),amd64)
-	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH) \
-		$(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)
-	$(DOCKER) tag $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH) \
-		$(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest
-endif
-	$(QUIET)echo "Push like this when ready:"
-	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)"
-ifeq ($(ARCH),amd64)
-	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)"
-	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest"
-endif
-
-#Push multi-arch support with fat-manifest:
-
-ifeq ($(BRANCH_TAG),"master")
-  DOCKER_IMAGE_TAG := $(SOURCE_VERSION)
-else
-  DOCKER_IMAGE_TAG := $(BRANCH_TAG)
-endif
-
-envoy-builder-manifest:
-	tools/push_manifest.sh cilium-envoy-builder $(DOCKER_IMAGE_TAG)
-	tools/push_manifest.sh cilium-envoy-builder latest
-
-docker-envoy-manifest:
-	tools/push_manifest.sh cilium-envoy $(DOCKER_IMAGE_TAG)
-	tools/push_manifest.sh cilium-envoy latest
-
-#Push multi-arch support with images uploaded:
-envoy-builder-image-manifest:
-	tools/push_manifest.sh -i cilium-envoy-builder $(DOCKER_IMAGE_TAG)
-	tools/push_manifest.sh -i cilium-envoy-builder latest
-
-docker-envoy-image-manifest:
-	tools/push_manifest.sh -i cilium-envoy $(DOCKER_IMAGE_TAG)
-	tools/push_manifest.sh -i cilium-envoy latest
 
 docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
 	@$(ECHO_GEN) docker-istio-proxy

@@ -1,3 +1,4 @@
+#syntax=docker/dockerfile:1.2
 # 
 # BUILDER_BASE is a multi-platform image with all the build tools
 #
@@ -13,45 +14,38 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:bazel-3.7.2@sha256:9c3c490b
 # building on the same BUILDPLATFORM.
 #
 ARG BUILDER_IMAGE=builder-fresh
-#
-# Override this as "use-updated" to use pre-compiled bazel dependencies
-#
-ARG BUILDER=builder-fresh
 
 FROM $BUILDER_BASE as builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
-COPY .bazelrc .bazelversion envoy.bazelrc Makefile.defs Makefile.quiet Makefile WORKSPACE BUILD SOURCE_VERSION ./
-COPY bazel bazel
-COPY patches patches
-COPY tools tools
-COPY envoy_build_config envoy_build_config
+COPY . ./
 ARG V
 ARG BAZEL_BUILD_OPTS
 
 #
 # Build dependencies
 #
-RUN BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS} PKG_BUILD=1 V=$V make envoy-test-deps
+RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V make envoy-tests && PKG_BUILD=1 make clean
 
 # By default this stage picks up the result of the build above, but BUILDER_IMAGE can be
 # overridden to point to a saved image of an earlier run of that stage.
 FROM $BUILDER_IMAGE as builder-cache
 
+FROM $BUILDER_BASE as builder
+LABEL maintainer="maintainer@cilium.io"
+WORKDIR /cilium/proxy
+COPY . ./
+ARG V
+ARG COPY_CACHE_EXT
+ARG BAZEL_BUILD_OPTS
+RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=builder-cache,rw BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V COPY_CACHE_EXT=$COPY_CACHE_EXT make envoy-tests
+
 # This stage retains only the build caches from the previous step. This is used as the target for persisting
 # Bazel build caches for later re-use.
 FROM scratch as builder-archive
 LABEL maintainer="maintainer@cilium.io"
-COPY --from=builder-cache /root/.cache/ /root/.cache/
-
-FROM $BUILDER_BASE as builder
-LABEL maintainer="maintainer@cilium.io"
-COPY --from=builder-cache /root/.cache/ /root/.cache/
-WORKDIR /cilium/proxy
-COPY . ./
-ARG V
-ARG BAZEL_BUILD_OPTS
-RUN BAZEL_BUILD_OPTS=${BAZEL_BUILD_OPTS} PKG_BUILD=1 V=$V make envoy-tests
+ARG COPY_CACHE_EXT
+COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 
 #
 # Keep only the test logs
