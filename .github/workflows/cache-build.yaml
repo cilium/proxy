@@ -1,0 +1,148 @@
+name: Refresh test & build cache & build latest
+on:
+  push:
+    branches:
+      - master
+      - pr/jrajahalme/github-action-multi-arch
+
+jobs:
+  test-cache-refresh:
+    timeout-minutes: 360
+    name: Build test cache and push images
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Enable Docker IPv6
+        run: |
+          modprobe -v ipv6
+          sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json
+          sudo systemctl restart docker
+      - name: Add swap
+        run: |
+          set -x
+          file="/var/lib/swap"
+          sudo fallocate -l 4G "${file}"
+          sudo chmod 600 "${file}"
+          sudo mkswap "${file}"
+          sudo swapon "${file}"
+          sudo swapon -s
+          free -m
+          df -h
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to quay.io
+        uses: docker/login-action@v1
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_ENVOY_USERNAME }}
+          password: ${{ secrets.QUAY_ENVOY_PASSWORD }}
+      - name: Checkout PR
+        uses: actions/checkout@v2
+      - name: Pull proxylib/libcilium.so
+        run: |
+          docker create -ti --name cilium-proxylib quay.io/cilium/cilium:latest bash
+          docker cp -L cilium-proxylib:/usr/lib/libcilium.so proxylib/libcilium.so
+          docker rm -fv cilium-proxylib
+      - name: Prep for build
+        run: echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+      - name: Update integration test archive on amd64
+        uses: docker/build-push-action@v2
+        id: docker_tests_ci_build
+        with:
+          context: .
+          file: ./Dockerfile.tests
+          target: builder-archive
+          platforms: linux/amd64
+          build-args: |
+            COPY_CACHE_EXT=.new
+            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-envoy-1.17.0-archive
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-archive-latest
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/buildx-cache
+          key: docker-cache-tests
+      - name: Clear cache
+        run: rm -rf /tmp/buildx-cache/*
+      - name: Run integration tests on amd64 to update docker cache
+        uses: docker/build-push-action@v2
+        id: docker_tests_ci_cache_update
+        with:
+          context: .
+          file: ./Dockerfile.tests
+          platforms: linux/amd64
+          build-args: |
+            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-archive-latest
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+            TESTLOGS=bazel-out/k8-fastbuild/testlogs
+          cache-to: type=local,dest=/tmp/buildx-cache,mode=max
+          push: false
+  build-cache-and-push-images:
+    timeout-minutes: 360
+    name: Build cache and push images
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Add swap
+        run: |
+          set -x
+          file="/var/lib/swap"
+          sudo fallocate -l 4G "${file}"
+          sudo chmod 600 "${file}"
+          sudo mkswap "${file}"
+          sudo swapon "${file}"
+          sudo swapon -s
+          free -m
+          df -h
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to quay.io
+        uses: docker/login-action@v1
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_ENVOY_USERNAME }}
+          password: ${{ secrets.QUAY_ENVOY_PASSWORD }}
+      - name: Checkout PR
+        uses: actions/checkout@v2
+      - name: Prep for build
+        run: echo "${{ github.sha }}" >SOURCE_VERSION
+      - name: Multi-arch build & push of build artifact archive
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./Dockerfile
+          target: builder-archive
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            COPY_CACHE_EXT=.new
+            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:envoy-1.17.0-archive
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:release-archive-latest
+      - name: Cache Docker layers
+        uses: actions/cache@v2
+        with:
+          path: /tmp/buildx-cache
+          key: docker-cache-master
+      - name: Clear cache
+        run: |
+          rm -rf /tmp/buildx-cache/*
+          docker buildx prune -f
+      - name: Multi-arch build & push master latest
+        uses: docker/build-push-action@v2
+        id: docker_build_cd
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:release-archive-latest
+          cache-to: type=local,dest=/tmp/buildx-cache,mode=max
+          push: true
+          tags: |
+            quay.io/${{ github.repository_owner }}/cilium-envoy:latest
+            quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }}
+      - name: Release Image Digest
+        shell: bash
+        run:
+          echo "Digests:"
+          echo "quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }}@${{ steps.docker_build_cd.outputs.digest }}"

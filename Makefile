@@ -60,8 +60,6 @@ clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-10
 envoy-deps-release: $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy-deps $(BAZEL_FILTER)
-	-rm -f bazel-bin/cilium-envoy-deps
-	$(BAZEL) shutdown
 
 bazel-bin/cilium-envoy: $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
@@ -70,9 +68,16 @@ bazel-bin/cilium-envoy: $(COMPILER_DEP)
 cilium-envoy: bazel-bin/cilium-envoy
 	mv $< $@
 
+BAZEL_CACHE := $(subst --disk_cache=,,$(filter --disk_cache=%, $(BAZEL_BUILD_OPTS)))
+
 install: bazel-bin/cilium-envoy
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T $< $(DESTDIR)$(BINDIR)/cilium-envoy
+ifdef COPY_CACHE_EXT
+  ifneq ($(BAZEL_CACHE),)
+	cp -ra $(BAZEL_CACHE) $(BAZEL_CACHE)$(COPY_CACHE_EXT)
+  endif
+endif
 
 # Remove the binaries and linkstamp to get fresh version SHA for the next build
 clean: force
@@ -83,13 +88,16 @@ clean: force
 envoy-test-deps: $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build --build_tests_only $(BAZEL_BUILD_OPTS) --config=release -c fastbuild //:cilium-envoy-test-deps $(BAZEL_FILTER)
-	-rm -f bazel-bin/cilium-envoy-test-deps
-	$(BAZEL) shutdown
 
 .PHONY: envoy-tests
 envoy-tests: $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_TEST_OPTS) --config=release -c fastbuild //tests/... $(BAZEL_FILTER)
+ifdef COPY_CACHE_EXT
+  ifneq ($(BAZEL_CACHE),)
+	cp -ra $(BAZEL_CACHE) $(BAZEL_CACHE)$(COPY_CACHE_EXT)
+  endif
+endif
 
 .PHONY: \
 	install \
