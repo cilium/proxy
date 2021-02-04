@@ -157,6 +157,43 @@ For testing purposes you can define `DOCKER_DEV_ACCOUNT` as explained
 above to push the builder into a different registry or account.
 
 
+## Running integration tests
+
+To run Cilium Envoy integration tests in a docker container:
+
+```
+make docker-image-tests
+```
+
+This runs the integration tests after loading Bazel build cache for
+Envoy dependencies from
+`quay.io/cilium/cilium-envoy-builder:test-archive-latest`. Define
+`NO_CACHE=1` to compile tests from scratch.
+
+This command fails if any of the integration tests fail, printing the
+failing test logs on console.
+
+> Note that cross-compiling is not supported for running tests, so
+> specifying `ARCH` is not supported.
+
+
+### Updating the pre-compiled Envoy test dependencies
+
+Build and push a new version of the pre-compiled test dependencies by:
+
+```
+make docker-tests-archive
+```
+
+By default the pre-compiled test dependencies image is tagged as
+`quay.io/cilium/cilium-envoy-builder:test-archive-latest`. You can override the
+first two parts of this by defining `DOCKER_DEV_ACCOUNT=docker.io/me`,
+or completely by defining `BUILDER_IMAGE=<ref>`.
+
+Pre-compiled Envoy test dependencies need to be updated only when Envoy version
+is updated or patched enough to increase compilation time significantly.
+
+
 ## Updating generated API
 
 [Cilium project](https://github.com/cilium/cilium) vendors the Envoy
