@@ -2,6 +2,7 @@ load(
     "@envoy//bazel:envoy_build_system.bzl",
     "envoy_cc_binary",
     "envoy_cc_library",
+    "envoy_cc_test",
 )
 
 licenses(["notice"])  # Apache 2
@@ -37,7 +38,6 @@ envoy_cc_library(
         "@envoy//source/exe:envoy_common_lib",
         "@envoy//source/extensions/transport_sockets/tls:ssl_socket_lib",
         "@envoy//source/server:transport_socket_config_lib",
-        "@envoy//source/exe:envoy_main_entry_lib",
     ],
 )
 
@@ -45,7 +45,10 @@ envoy_cc_binary(
     name = "cilium-envoy-deps",
     repository = "@envoy",
     visibility = ["//visibility:public"],
-    deps = [":envoy_deps_lib"],
+    deps = [
+        "@envoy//source/exe:envoy_main_entry_lib",
+        ":envoy_deps_lib",
+    ],
 )
 
 envoy_cc_binary(
@@ -85,4 +88,21 @@ sh_library(
 sh_library(
     name = "envoy_build_fixer.py",
     srcs = ["@envoy//tools:code_format/envoy_build_fixer.py"],
+)
+
+envoy_cc_test(
+    name = "cilium-envoy-test-deps",
+    repository = "@envoy",
+    deps = [
+        "@envoy//source/common/common:logger_lib",
+        "@envoy//source/common/common:thread_lib",
+        "@envoy//test/integration:http_integration_lib",
+        "@envoy//test/integration:integration_lib",
+        "@envoy//test/mocks/network:connection_mocks",
+        "@envoy//test/mocks/stream_info:stream_info_mocks",
+        "@envoy//test/test_common:environment_lib",
+        "@envoy//test/test_common:thread_factory_for_test_lib",
+        "@envoy//test/test_common:utility_lib",
+        ":envoy_deps_lib",
+    ],
 )

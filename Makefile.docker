@@ -94,42 +94,69 @@ ifndef NO_CACHE
   ifndef BUILDER_IMAGE
     # Default builder refresh image ref
     BUILDER_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:release-archive-latest
+    TESTS_ARCHIVE_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:test-archive-latest
+  else
+    TESTS_ARCHIVE_IMAGE := $(BUILDER_IMAGE)
   endif
 endif
 
 ifdef BUILDER_IMAGE
   BUILDER_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) --build-arg BUILDER=use-updated
 endif
+ifdef TESTS_ARCHIVE_IMAGE
+  TESTS_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(TESTS_ARCHIVE_IMAGE) --build-arg BUILDER=use-updated
+endif
 
+# Builder image consists only of build tools, so it only needs .bazelversion
 .PHONY: dockerignore-builder
 dockerignore-builder:
 	echo "*" >.dockerignore
-	echo "!.bazelversion" >>.dockerignore
+	echo "!/.bazelversion" >>.dockerignore
 
+# "archive" only builds Envoy dependency so it does not need Cilium-specific sources
+.PHONY: dockerignore-archive
+dockerignore-archive: dockerignore-release
+	echo "/cilium/" >>.dockerignore
+	echo "/linux/" >>.dockerignore
+	echo "/proxylib/" >>.dockerignore
+
+# Release does not need Go API or test files
 .PHONY: dockerignore-release
-dockerignore-release:
-	echo "/.git/" >.dockerignore
-	sed -e '# Remove lines with white space, comments and files that must be passed to docker, "$$" due to make. #' \
-		-e '/^[[:space:]]*$$/d' -e '/^#/d' -e '/SOURCE_VERSION/d' \
-	    -e '# Apply pattern in all directories if it contains no "/", keep "!" up front. #' \
-		-e '/^[^!/][^/]*$$/s<^<**/<' -e '/^![^/]*$$/s<^!<!**/<' \
-	    -e '# Remove leading "./", keep "!" up front. #' \
-		-e 's<^\./<<' -e 's<^!\./<!<' \
-	    -e '# Append newline to the last line if missing. GNU sed does not do this automatically. #' \
-		-e "$$a" \
-	    .gitignore >> .dockerignore
-	echo "/.gitignore" >>.dockerignore
+dockerignore-release: .dockerignore
 	echo "/.clang-format" >>.dockerignore
 	echo "/go/" >>.dockerignore
 	echo "/go.*" >>.dockerignore
 	echo "/tests/" >>.dockerignore
-	echo "/Dockerfile*" >>.dockerignore
-	echo "/Makefile.dev" >>.dockerignore
 	echo "/Makefile.api" >>.dockerignore
-	echo "/Makefile.docker" >>.dockerignore
 	echo "/envoy_binary_test.sh" >>.dockerignore
-	echo "/README*" >>.dockerignore
-	echo "/envoy_bootstrap_v2.patch" >>.dockerignore
+
+.PHONY: dockerignore-tests
+dockerignore-tests: .dockerignore
+	echo "!/proxylib/libcilium.so" >>.dockerignore
+
+# None of the docker builds need these. '-H' to not follow symbolic links.
+GIT_IGNORE_FILES := $(shell find -H . -not -path "./_build*" -not -path "./vendor*" -name .gitignore -print)
+.PHONY: .dockerignore
+.dockerignore: .gitignore Makefile.docker
+	echo "/.git/" >$@
+	echo $(dir $(GIT_IGNORE_FILES)) | tr ' ' '\n' | xargs -P1 -n1 -I {DIR} sed \
+	    -e '# Remove lines with white space, comments and files that must be passed to docker, "$$" due to make. #' \
+		-e '/^[[:space:]]*$$/d' -e '/^#/d' -e '/SOURCE_VERSION/d' \
+	    -e '# Apply pattern in all directories if it contains no "/", keep "!" up front. #' \
+		-e '/^[^!/][^/]*$$/s<^<**/<' -e '/^![^/]*$$/s<^!<!**/<' \
+            -e '# Prepend with the directory name, keep "!" up front. #' \
+		-e '/^[^!]/s<^<{DIR}<' -e '/^!/s<^!<!{DIR}<' \
+	    -e '# Remove leading "./", keep "!" up front. #' \
+		-e 's<^\./<<' -e 's<^!\./<!<' \
+	    -e '# Append newline to the last line if missing. GNU sed does not do this automatically. #' \
+		-e "$$a" \
+	    $< >>$@
+	echo "/.gitignore" >>$@
+	echo "/Dockerfile*" >>$@
+	echo "/Makefile.dev" >>$@
+	echo "/Makefile.docker" >>$@
+	echo "/README*" >>$@
+	echo "/envoy_bootstrap_v2.patch" >>$@
 
 .PHONY: docker-image-builder
 docker-image-builder: Dockerfile.builder SOURCE_VERSION dockerignore-builder
@@ -138,6 +165,16 @@ docker-image-builder: Dockerfile.builder SOURCE_VERSION dockerignore-builder
 .PHONY: docker-builder-archive
 docker-builder-archive: Dockerfile SOURCE_VERSION dockerignore-archive
 	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t $(BUILDER_IMAGE) .
+
+.PHONY: docker-tests-archive
+docker-tests-archive: Dockerfile.tests SOURCE_VERSION dockerignore-archive
+	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t $(TESTS_ARCHIVE_IMAGE) .
+
+TESTLOGS := bazel-out/$(BAZEL_ARCH)-fastbuild/testlogs
+
+.PHONY: docker-tests
+docker-tests: Dockerfile.tests SOURCE_VERSION dockerignore-tests proxylib/libcilium.so
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --progress=plain $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg TESTLOGS=$(TESTLOGS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< .
 
 ifeq ($(BRANCH_TAG),"master")
   DOCKER_IMAGE_ENVOY_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)

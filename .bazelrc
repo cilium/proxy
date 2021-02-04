@@ -22,4 +22,4 @@ build:release -c opt
 build:release --define no_debug_info=1
 build:release --linkopt=-Wl,--strip-all
 build:release --features=-per_object_debug_info
-build:release --fission=fastbuild
+build:release --fission=dbg

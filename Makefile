@@ -16,7 +16,7 @@ include Makefile.defs
 
 # COMPILER_DEP:=clang.bazelrc
 
-ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy
+ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy bazel-bin/cilium-envoy-deps
 ENVOY_TESTS = bazel-bin/tests/*_test
 
 SHELL=/bin/bash -o pipefail
@@ -27,6 +27,9 @@ BAZEL_BUILD_OPTS ?=
 ifdef BAZEL_REMOTE_CACHE
   BAZEL_BUILD_OPTS += --remote_cache=$(BAZEL_REMOTE_CACHE)
 endif
+
+BAZEL_TEST_OPTS ?= $(BAZEL_BUILD_OPTS)
+BAZEL_TEST_OPTS += --test_output=errors
 
 ifdef CROSSARCH
   $(info CROSS-COMPILING for arm64)
@@ -39,8 +42,6 @@ ENVOY_LINKSTAMP_O = bazel-bin/_objs/cilium-envoy/envoy/source/common/common/vers
 ifdef PKG_BUILD
   all: cilium-envoy
 else
-  all: envoy-default api
-
   include Makefile.dev
   include Makefile.docker
 
@@ -82,14 +83,27 @@ cilium-envoy: bazel-bin/cilium-envoy
 
 install: bazel-bin/cilium-envoy
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(INSTALL) -m 0755 -T bazel-bin/cilium-envoy $(DESTDIR)$(BINDIR)/cilium-envoy
+	$(INSTALL) -m 0755 -T $< $(DESTDIR)$(BINDIR)/cilium-envoy
 
 # Remove the binaries to get fresh version SHA
 clean-bins: force
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
 	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
 
+.PHONY: envoy-test-deps
+envoy-test-deps: $(COMPILER_DEP)
+	@$(ECHO_BAZEL)
+	$(BAZEL) $(BAZEL_OPTS) build --build_tests_only $(BAZEL_BUILD_OPTS) --config=release -c fastbuild //:cilium-envoy-test-deps $(BAZEL_FILTER)
+	-rm -f bazel-bin/cilium-envoy-test-deps
+	$(BAZEL) shutdown
+
+.PHONY: envoy-tests
+envoy-tests: $(COMPILER_DEP)
+	@$(ECHO_BAZEL)
+	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_TEST_OPTS) --config=release -c fastbuild //tests/... $(BAZEL_FILTER)
+
 .PHONY: \
+	install \
 	force \
 	force-non-root \
 	force-root
