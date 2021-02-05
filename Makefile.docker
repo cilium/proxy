@@ -14,35 +14,12 @@
 
 ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -d = -f2)
 
-DOCKER=$(QUIET)docker
+DOCKER := $(QUIET)DOCKER_BUILDKIT=1 docker
 
 # Assume buildx if ARCH is explicitly defined
 ifdef ARCH
   DOCKER_BUILDX:=1
 endif
-
-SLASH = -
-ARCH ?= $(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
-IMAGE_ARCH = $(SLASH)$(ARCH)
-
-DOCKERFILE_ARCH = .multi_arch
-
-SOURCE_VERSION :=
-
-# Use git only if in a Git repo
-ifneq ($(wildcard $(dir $(lastword $(MAKEFILE_LIST)))/.git),)
-  SOURCE_VERSION := $(shell git rev-parse HEAD)
-else
-  SOURCE_VERSION := $(shell cat SOURCE_VERSION)
-endif
-
-SOURCE_VERSION: force
-	@if [ "$(SOURCE_VERSION)" != "`cat 2>/dev/null SOURCE_VERSION`" ] ; then echo "$(SOURCE_VERSION)" >SOURCE_VERSION; fi
-
-DOCKER_IMAGE_TAG := $(SOURCE_VERSION)
-DOCKER_ARCH_TAG := $(DOCKER_IMAGE_TAG)$(IMAGE_ARCH)
-BAZEL_VERSION := $(shell cat .bazelversion)
-BAZEL_ARCH_TAG := bazel-$(BAZEL_VERSION)$(IMAGE_ARCH)
 
 DOCKER_DEV_ACCOUNT ?= quay.io/cilium
 CACHE_REF ?= docker.io/cilium/cilium-dev:cilium-envoy-cache
@@ -51,7 +28,6 @@ DOCKER_CACHE_OPTS ?=
 ifndef NO_CACHE
   DOCKER_CACHE_OPTS += --cache-from=$(CACHE_REF)
 endif
-DOCKER := $(QUIET)DOCKER_BUILDKIT=1 docker
 ifdef DOCKER_BUILDX
   DOCKER := $(DOCKER) buildx
   ifeq ($(ARCH),amd64)
@@ -60,9 +36,6 @@ ifdef DOCKER_BUILDX
     DOCKER_PLATFORMS := --platform=linux/arm64
   else ifeq ($(ARCH),multi)
     DOCKER_PLATFORMS := --platform=linux/arm64,linux/amd64
-    # Multi-arch tags without -ARCH
-    DOCKER_ARCH_TAG := $(SOURCE_VERSION)
-    BAZEL_ARCH_TAG := bazel-$(BAZEL_VERSION)
   endif
   DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
   ifdef DOCKER_PLATFORMS
@@ -92,6 +65,28 @@ ifdef DOCKER_BUILDX
   endif
   $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
 endif
+
+SLASH = -
+ARCH ?= $(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
+# Add -<arch> suffix if ARCH is not "multi"
+ifeq ($(ARCH),multi)
+  ARCH :=
+else
+  IMAGE_ARCH := $(SLASH)$(ARCH)
+endif
+
+DOCKERFILE_ARCH = .multi_arch
+
+SOURCE_VERSION :=
+
+# This makefile may only be used with a git repo present
+SOURCE_VERSION := $(shell git rev-parse HEAD)
+SOURCE_VERSION: force
+	@if [ "$(SOURCE_VERSION)" != "`cat 2>/dev/null SOURCE_VERSION`" ] ; then echo "$(SOURCE_VERSION)" >SOURCE_VERSION; fi
+
+BAZEL_VERSION := $(shell cat .bazelversion)
+BAZEL_ARCH_TAG := bazel-$(BAZEL_VERSION)$(IMAGE_ARCH)
+BRANCH_TAG := $(shell git rev-parse --abbrev-ref HEAD | tr -c '[:alnum:]_.\n-' '-')
 
 BUILDER_IMAGE_OPTS ?=
 ifdef BUILDER_IMAGE
@@ -139,14 +134,17 @@ docker-image-builder: Dockerfile.builder SOURCE_VERSION dockerignore-builder
 docker-builder-archive: Dockerfile SOURCE_VERSION dockerignore-archive
 	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t $(BUILDER_IMAGE) .
 
+ifeq ($(BRANCH_TAG),"master")
+  DOCKER_IMAGE_ENVOY_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)
+  DOCKER_IMAHE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)
+else
+  DOCKER_IMAGE_ENVOY_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(BRANCH_TAG)$(IMAGE_ARCH)
+endif
+
 .PHONY: docker-image-envoy
 docker-image-envoy: Dockerfile SOURCE_VERSION dockerignore-release
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG) .
-ifndef DOCKER_BUILDX
-	$(QUIET)echo "Push like this when ready:"
-	$(QUIET)echo "docker push $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(DOCKER_ARCH_TAG)"
-endif
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" $(DOCKER_IMAGE_ENVOY_TAGS) .
 
 #Build multi-arch Envoy image builder
 docker-image-builder-multiarch: Dockerfile.builder$(DOCKERFILE_ARCH) SOURCE_VERSION dockerignore-builder
@@ -181,6 +179,12 @@ ifeq ($(ARCH),amd64)
 endif
 
 #Push multi-arch support with fat-manifest:
+
+ifeq ($(BRANCH_TAG),"master")
+  DOCKER_IMAGE_TAG := $(SOURCE_VERSION)
+else
+  DOCKER_IMAGE_TAG := $(BRANCH_TAG)
+endif
 
 envoy-builder-manifest:
 	tools/push_manifest.sh cilium-envoy-builder $(DOCKER_IMAGE_TAG)
