@@ -89,11 +89,16 @@ BAZEL_ARCH_TAG := bazel-$(BAZEL_VERSION)$(IMAGE_ARCH)
 BRANCH_TAG := $(shell git rev-parse --abbrev-ref HEAD | tr -c '[:alnum:]_.\n-' '-')
 
 BUILDER_IMAGE_OPTS ?=
+
+ifndef NO_CACHE
+  ifndef BUILDER_IMAGE
+    # Default builder refresh image ref
+    BUILDER_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:release-archive-latest
+  endif
+endif
+
 ifdef BUILDER_IMAGE
   BUILDER_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(BUILDER_IMAGE) --build-arg BUILDER=use-updated
-else
-  # Default builder refresh image ref
-  BUILDER_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:release-archive-latest
 endif
 
 .PHONY: dockerignore-builder
