@@ -65,9 +65,10 @@ details.
 
 Docker builds are done using Docker Buildx by default when `ARCH` is
 explicitly passed to `make`. You can also force Docker Buildx to be
-used by defining `DOCKER_BUILDX=1`. A new buildx builder instance will
-be created for amd64 and arm64 cross builds if the current builder is
-set to `default`.
+used when building for the host platform only (by not defining `ARCH`)
+by defining `DOCKER_BUILDX=1`. A new buildx builder instance will be
+created for amd64 and arm64 cross builds if the current builder is set
+to `default`.
 
 > Buildx builds will push the build result to
 > `quay.io/cilium/cilium-envoy:<GIT_SHA>` by default. You can change
@@ -78,13 +79,14 @@ set to `default`.
 > where `out` is a local directory name.
 
 
-### Using pre-compiled Envoy dependencies
+### Using custom pre-compiled Envoy dependencies
 
-The build can be speed up from hours to minutes by
-using the latest pre-compiled Envoy dependencies:
+Docker build uses cached Bazel artifacts from
+`quay.io/cilium/cilium-envoy-builder:release-archive-latest` by
+default. You can overrride this by defining `BUILDER_IMAGE=<ref>`:
 
 ```
-ARCH=multi BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:release-archive-latest make docker-image-envoy
+ARCH=multi BUILDER_IMAGE=docker.io/me/cilium-envoy-archive make docker-image-envoy
 ```
 
 > Bazel build artifacts contain toolchain specific data and binaries
@@ -92,6 +94,8 @@ ARCH=multi BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:release-archive-lat
 > builds. For now the image ref shown above is for builds on amd64
 > only (native amd64, cross-compiled arm64).
 
+Define `NO_CACHE=1` to build from scratch, but be warned that this can
+take several hours.
 
 ### Docker caching
 
@@ -104,7 +108,8 @@ this with our own build cache, which you can also update with the
 ARCH=multi CACHE_REF=docker.io/me/cilium-proxy:cache CACHE_PUSH=1 make docker-image-envoy
 ```
 
-`NO_CACHE=1` can be used to disable docker cache pulling.
+`NO_CACHE=1` can be used to disable docker cache pulling, but it also
+disables use of pre-built Bazel artifacts.`
 
 In a CI environment it might be a good idea to push a new cache image
 after each main branch commit.
