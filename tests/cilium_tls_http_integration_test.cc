@@ -238,11 +238,9 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     response->waitForEndStream();
 
-    uint64_t status;
-    EXPECT_EQ(true, absl::SimpleAtoi(
-                        response->headers().Status()->value().getStringView(),
-                        &status));
-    EXPECT_EQ(403, status);
+    EXPECT_TRUE(response->complete());
+    EXPECT_EQ("403", response->headers().getStatusValue());
+    cleanupUpstreamAndDownstream();
   }
 
   void Failed(Http::TestRequestHeaderMapImpl&& headers) {
@@ -251,11 +249,9 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     response->waitForEndStream();
 
-    uint64_t status;
-    EXPECT_EQ(true, absl::SimpleAtoi(
-                        response->headers().Status()->value().getStringView(),
-                        &status));
-    EXPECT_EQ(503, status);
+    EXPECT_TRUE(response->complete());
+    EXPECT_EQ("503", response->headers().getStatusValue());
+    cleanupUpstreamAndDownstream();
   }
 
   void Accepted(Http::TestRequestHeaderMapImpl&& headers) {
@@ -264,11 +260,11 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
     auto response =
         sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
 
-    uint64_t status;
-    EXPECT_EQ(true, absl::SimpleAtoi(
-                        response->headers().Status()->value().getStringView(),
-                        &status));
-    EXPECT_EQ(200, status);
+    EXPECT_TRUE(response->complete());
+    EXPECT_EQ("200", response->headers().getStatusValue());
+    EXPECT_TRUE(upstream_request_->complete());
+    EXPECT_EQ(0, upstream_request_->bodyLength());
+    cleanupUpstreamAndDownstream();
   }
 
   // Upstream

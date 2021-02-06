@@ -260,18 +260,18 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamFlush) {
   // it's thread before tcp_client starts writing.
   tcp_client->waitForHalfClose();
 
-  ASSERT_TRUE(tcp_client->write(data, true));
+  ASSERT_TRUE(tcp_client->write(data, true, true, std::chrono::milliseconds(30000)));
 
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
   ASSERT_TRUE(fake_upstream_connection->readDisable(false));
   ASSERT_TRUE(fake_upstream_connection->waitForData(data.size()));
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForHalfClose();
 
   EXPECT_EQ(
       test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
-  EXPECT_EQ(test_server_->gauge("tcp.tcp_stats.upstream_flush_active")->value(),
-            0);
+  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
 }
 
 // Test that Envoy doesn't crash or assert when shutting down with an upstream
