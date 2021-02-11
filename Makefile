@@ -37,7 +37,6 @@ ifdef CROSSARCH
 endif
 
 BAZEL_ARCH = $(subst x86_64,k8,$(shell uname -m))
-ENVOY_LINKSTAMP_O = bazel-bin/_objs/cilium-envoy/envoy/source/common/common/version_linkstamp.o
 
 ifdef PKG_BUILD
   all: cilium-envoy
@@ -51,10 +50,6 @@ else
 	tools/install_bazel.sh `cat .bazelversion`
 endif
 
-.PHONY: shutdown-bazel
-shutdown-bazel:
-	$(BAZEL) shutdown
-
 /usr/lib/llvm-10:
 	sudo apt install clang-10 llvm-10-dev clang-format-10 lld-10
 
@@ -62,20 +57,14 @@ clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-10
 	bazel/setup_clang.sh /usr/lib/llvm-10
 	echo "build --config=clang" >> $@
 
-# Allow root build for release
-bazel-bin-release: clean-bins force
-	-rm -f bazel-bin
-	ln -s $(shell bazel info --config=release bazel-bin) bazel-bin
-
-envoy-deps-release: bazel-bin-release $(COMPILER_DEP)
+envoy-deps-release: $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy-deps $(BAZEL_FILTER)
 	-rm -f bazel-bin/cilium-envoy-deps
 	$(BAZEL) shutdown
 
-bazel-bin/cilium-envoy: bazel-bin-release $(COMPILER_DEP)
+bazel-bin/cilium-envoy: $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
-	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy $(BAZEL_FILTER)
 
 cilium-envoy: bazel-bin/cilium-envoy
@@ -85,8 +74,8 @@ install: bazel-bin/cilium-envoy
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(INSTALL) -m 0755 -T $< $(DESTDIR)$(BINDIR)/cilium-envoy
 
-# Remove the binaries to get fresh version SHA
-clean-bins: force
+# Remove the binaries and linkstamp to get fresh version SHA for the next build
+clean: force
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
 	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
 

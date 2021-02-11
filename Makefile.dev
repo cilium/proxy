@@ -29,49 +29,24 @@ all: precheck envoy-default
 api: force-non-root Makefile.api envoy-deps-fastbuild
 	$(MAKE) -f Makefile.api all
 
-bazel-bin-fastbuild: clean-bins force-non-root install-bazel
-	-rm -f bazel-bin
-	ln -s $(shell bazel info bazel-bin) bazel-bin
-
-envoy-deps-fastbuild: bazel-bin-fastbuild $(COMPILER_DEP)
+envoy-deps-fastbuild: $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-deps $(BAZEL_FILTER)
 
-envoy-default: bazel-bin-fastbuild $(COMPILER_DEP)
+envoy-default: $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
-	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 debug: envoy-debug
 
-bazel-bin-dbg: clean-bins force-non-root install-bazel
-	-rm -f bazel-bin
-	ln -s $(shell bazel info -c dbg bazel-bin) bazel-bin
-
-envoy-debug: bazel-bin-dbg
+envoy-debug: $(COMPILER_DEP)
 	@$(ECHO_BAZEL)
-	-rm -f ${ENVOY_LINKSTAMP_O}
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c dbg //:cilium-envoy $(BAZEL_FILTER)
 
 $(CHECK_FORMAT): force-non-root
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:check_format.py
 
-bazel-archive: force-non-root clean-bins
-	-sudo rm -f $(BAZEL_ARCHIVE)
-	echo "Archiving bazel cache ($(BAZEL_CACHE)), this will take some time..."
-	cd $(dir $(BAZEL_CACHE)) && sudo tar cjf $(BAZEL_ARCHIVE) --atime-preserve=system $(notdir $(BAZEL_CACHE))
-
-bazel-restore: force-non-root $(BAZEL_ARCHIVE)
-	echo "Clearing & restoring bazel archive ($(BAZEL_ARCHIVE))..."
-	-sudo rm -Rf $(BAZEL_CACHE)
-	-mkdir $(dir $(BAZEL_CACHE))
-	cd $(dir $(BAZEL_CACHE)) && sudo tar xjf $(BAZEL_ARCHIVE) --warning=no-timestamp
-
-clean: force-non-root clean-bins
-	@$(ECHO_CLEAN) $(notdir $(shell pwd))
-	@echo "Bazel clean skipped, try 'make veryclean' instead."
-
-veryclean: force-non-root clean-bins
+veryclean: force-non-root clean
 	-sudo $(BAZEL) $(BAZEL_OPTS) clean
 	-sudo rm -Rf $(BAZEL_CACHE)
 
