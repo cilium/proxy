@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - master
-      - pr/jrajahalme/github-action-multi-arch
 
 jobs:
   test-cache-refresh:
