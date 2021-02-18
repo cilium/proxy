@@ -1,4 +1,4 @@
-From e9eea5b1904553f9958352d0c6b95d14c3ae8ce0 Mon Sep 17 00:00:00 2001
+From d7c540c5d5d156ea1c09a053505d152b02c0aaad Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@covalent.io>
 Date: Thu, 14 Jan 2021 20:46:16 -0800
 Subject: [PATCH] upstream: SNI support for OriginalDstCluster
@@ -6,14 +6,14 @@ Subject: [PATCH] upstream: SNI support for OriginalDstCluster
 Signed-off-by: Jarno Rajahalme <jarno@covalent.io>
 ---
  source/common/upstream/BUILD                  |   1 +
- .../common/upstream/original_dst_cluster.cc   | 108 ++++--
+ .../common/upstream/original_dst_cluster.cc   | 103 +++++-
  source/common/upstream/original_dst_cluster.h |  71 +++-
  test/common/upstream/BUILD                    |   3 +
  .../upstream/original_dst_cluster_test.cc     | 345 ++++++++++++------
- 5 files changed, 378 insertions(+), 150 deletions(-)
+ 5 files changed, 376 insertions(+), 147 deletions(-)
 
 diff --git a/source/common/upstream/BUILD b/source/common/upstream/BUILD
-index edfe095f1f..36547b125f 100644
+index 318e0c285d..f10c18faff 100644
 --- a/source/common/upstream/BUILD
 +++ b/source/common/upstream/BUILD
 @@ -292,6 +292,7 @@ envoy_cc_library(
@@ -25,7 +25,7 @@ index edfe095f1f..36547b125f 100644
          "//source/extensions/clusters:well_known_names",
          "@envoy_api//envoy/config/cluster/v3:pkg_cc_proto",
 diff --git a/source/common/upstream/original_dst_cluster.cc b/source/common/upstream/original_dst_cluster.cc
-index f869a22d03..c772e6705c 100644
+index f869a22d03..f4a3ec9853 100644
 --- a/source/common/upstream/original_dst_cluster.cc
 +++ b/source/common/upstream/original_dst_cluster.cc
 @@ -13,14 +13,25 @@
@@ -202,19 +202,14 @@ index f869a22d03..c772e6705c 100644
      const envoy::config::cluster::v3::Cluster& cluster, ClusterFactoryContext& context,
      Server::Configuration::TransportSocketFactoryContextImpl& socket_factory_context,
      Stats::ScopePtr&& stats_scope) {
-@@ -192,20 +255,19 @@ OriginalDstClusterFactory::createClusterImpl(
-         envoy::config::cluster::v3::Cluster::DiscoveryType_Name(cluster.type())));
-   }
- 
--  // TODO(mattklein123): The original DST load balancer type should be deprecated and instead
--  //                     the cluster should directly supply the load balancer. This will remove
--  //                     a special case and allow this cluster to be compiled out as an extension.
+@@ -195,17 +258,17 @@ OriginalDstClusterFactory::createClusterImpl(
+   // TODO(mattklein123): The original DST load balancer type should be deprecated and instead
+   //                     the cluster should directly supply the load balancer. This will remove
+   //                     a special case and allow this cluster to be compiled out as an extension.
 -  auto new_cluster =
 -      std::make_shared<OriginalDstCluster>(cluster, context.runtime(), socket_factory_context,
 -                                           std::move(stats_scope), context.addedViaApi());
 -  auto lb = std::make_unique<OriginalDstCluster::ThreadAwareLoadBalancer>(new_cluster);
-+  // TODO(mattklein123): Compile this cluster as an extension when the now deprecated original DST
-+  //                     load balancer type is removed.
 +  auto new_cluster = std::make_shared<Cluster>(cluster, context.runtime(), socket_factory_context,
 +                                               std::move(stats_scope), context.addedViaApi());
 +  auto lb = std::make_unique<Cluster::ThreadAwareLoadBalancer>(new_cluster);
@@ -383,10 +378,10 @@ index 0e1a3d992e..ded57779ef 100644
  } // namespace Upstream
  } // namespace Envoy
 diff --git a/test/common/upstream/BUILD b/test/common/upstream/BUILD
-index b0822e79a1..e88894b3cc 100644
+index 2d527136f2..553bb59682 100644
 --- a/test/common/upstream/BUILD
 +++ b/test/common/upstream/BUILD
-@@ -394,6 +394,7 @@ envoy_cc_test(
+@@ -395,6 +395,7 @@ envoy_cc_test(
  envoy_cc_test(
      name = "original_dst_cluster_test",
      srcs = ["original_dst_cluster_test.cc"],
@@ -394,7 +389,7 @@ index b0822e79a1..e88894b3cc 100644
      deps = [
          ":utility_lib",
          "//source/common/event:dispatcher_lib",
-@@ -401,6 +402,7 @@ envoy_cc_test(
+@@ -402,6 +403,7 @@ envoy_cc_test(
          "//source/common/upstream:original_dst_cluster_lib",
          "//source/common/upstream:upstream_lib",
          "//source/extensions/transport_sockets/raw_buffer:config",
@@ -402,7 +397,7 @@ index b0822e79a1..e88894b3cc 100644
          "//test/mocks:common_lib",
          "//test/mocks/local_info:local_info_mocks",
          "//test/mocks/network:network_mocks",
-@@ -411,6 +413,7 @@ envoy_cc_test(
+@@ -412,6 +414,7 @@ envoy_cc_test(
          "//test/mocks/ssl:ssl_mocks",
          "//test/mocks/upstream:cluster_manager_mocks",
          "//test/test_common:test_runtime_lib",
@@ -411,7 +406,7 @@ index b0822e79a1..e88894b3cc 100644
          "@envoy_api//envoy/config/cluster/v3:pkg_cc_proto",
      ],
 diff --git a/test/common/upstream/original_dst_cluster_test.cc b/test/common/upstream/original_dst_cluster_test.cc
-index 26f15b2264..8d25d58f25 100644
+index 10723a07de..7f3c1562ef 100644
 --- a/test/common/upstream/original_dst_cluster_test.cc
 +++ b/test/common/upstream/original_dst_cluster_test.cc
 @@ -26,6 +26,7 @@
@@ -456,16 +451,16 @@ index 26f15b2264..8d25d58f25 100644
      NiceMock<MockClusterManager> cm;
      Envoy::Stats::ScopePtr scope = stats_store_.createScope(fmt::format(
          "cluster.{}.", cluster_config.alt_stat_name().empty() ? cluster_config.name()
-@@ -83,18 +82,38 @@ public:
+@@ -83,19 +82,39 @@ public:
      Envoy::Server::Configuration::TransportSocketFactoryContextImpl factory_context(
          admin_, ssl_context_manager_, *scope, cm, local_info_, dispatcher_, stats_store_,
-         singleton_manager_, tls_, validation_visitor_, *api_);
+         singleton_manager_, tls_, validation_visitor_, *api_, options_);
 -    cluster_ = std::make_shared<OriginalDstCluster>(cluster_config, runtime_, factory_context,
 -                                                    std::move(scope), false);
++
 +    if (uses_tls) {
 +      EXPECT_CALL(ssl_context_manager_, createSslClientContext(_, _, _));
 +    }
-+
 +    cluster_ = std::make_shared<Cluster>(cluster_config, runtime_, factory_context,
 +                                         std::move(scope), false);
 +    thread_aware_lb_ = std::make_unique<Cluster::ThreadAwareLoadBalancer>(cluster_);
@@ -494,15 +489,16 @@ index 26f15b2264..8d25d58f25 100644
 +
    Stats::TestUtil::TestStore stats_store_;
    Ssl::MockContextManager ssl_context_manager_;
+   NiceMock<Event::MockDispatcher> dispatcher_;
 -  OriginalDstClusterSharedPtr cluster_;
 +  ClusterSharedPtr cluster_;
    ReadyWatcher membership_updated_;
    ReadyWatcher initialized_;
    NiceMock<Runtime::MockLoader> runtime_;
-@@ -107,27 +126,47 @@ public:
-   NiceMock<ThreadLocal::MockInstance> tls_;
+@@ -108,27 +127,47 @@ public:
    NiceMock<ProtobufMessage::MockValidationVisitor> validation_visitor_;
    Api::ApiPtr api_;
+   Server::MockOptions options_;
 +  Upstream::ThreadAwareLoadBalancerPtr thread_aware_lb_;
 +  Upstream::LoadBalancerFactorySharedPtr lb_factory_;
 +  Upstream::LoadBalancerPtr lb_;
@@ -551,7 +547,7 @@ index 26f15b2264..8d25d58f25 100644
      load_assignment:
        cluster_name: name
        endpoints:
-@@ -140,18 +179,17 @@ TEST_F(OriginalDstClusterTest, BadConfigWithLoadAssignment) {
+@@ -141,18 +180,17 @@ TEST_F(OriginalDstClusterTest, BadConfigWithLoadAssignment) {
    )EOF";
  
    EXPECT_THROW_WITH_MESSAGE(
@@ -572,7 +568,7 @@ index 26f15b2264..8d25d58f25 100644
      hosts:
        - socket_address:
            address: 127.0.0.1
-@@ -159,11 +197,11 @@ TEST_F(OriginalDstClusterTest, DEPRECATED_FEATURE_TEST(BadConfigWithDeprecatedHo
+@@ -160,11 +198,11 @@ TEST_F(OriginalDstClusterTest, DEPRECATED_FEATURE_TEST(BadConfigWithDeprecatedHo
    )EOF";
  
    EXPECT_THROW_WITH_MESSAGE(
@@ -586,7 +582,7 @@ index 26f15b2264..8d25d58f25 100644
    std::string yaml = R"EOF(
      name: name
      connect_timeout: 1.250s
-@@ -175,13 +213,13 @@ TEST_F(OriginalDstClusterTest, CleanupInterval) {
+@@ -176,13 +214,13 @@ TEST_F(OriginalDstClusterTest, CleanupInterval) {
    EXPECT_CALL(initialized_, ready());
    EXPECT_CALL(membership_updated_, ready()).Times(0);
    EXPECT_CALL(*cleanup_timer_, enableTimer(std::chrono::milliseconds(1000), _));
@@ -602,7 +598,7 @@ index 26f15b2264..8d25d58f25 100644
    std::string yaml = R"EOF(
      name: name,
      connect_timeout: 0.125s
-@@ -192,7 +230,7 @@ TEST_F(OriginalDstClusterTest, NoContext) {
+@@ -193,7 +231,7 @@ TEST_F(OriginalDstClusterTest, NoContext) {
    EXPECT_CALL(initialized_, ready());
    EXPECT_CALL(membership_updated_, ready()).Times(0);
    EXPECT_CALL(*cleanup_timer_, enableTimer(_, _));
@@ -611,7 +607,7 @@ index 26f15b2264..8d25d58f25 100644
  
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->hosts().size());
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->healthyHosts().size());
-@@ -204,9 +242,8 @@ TEST_F(OriginalDstClusterTest, NoContext) {
+@@ -205,9 +243,8 @@ TEST_F(OriginalDstClusterTest, NoContext) {
    // No downstream connection => no host.
    {
      TestLoadBalancerContext lb_context(nullptr);
@@ -622,7 +618,7 @@ index 26f15b2264..8d25d58f25 100644
      EXPECT_EQ(host, nullptr);
    }
  
-@@ -215,12 +252,8 @@ TEST_F(OriginalDstClusterTest, NoContext) {
+@@ -216,12 +253,8 @@ TEST_F(OriginalDstClusterTest, NoContext) {
      NiceMock<Network::MockConnection> connection;
      TestLoadBalancerContext lb_context(&connection);
  
@@ -636,7 +632,7 @@ index 26f15b2264..8d25d58f25 100644
      EXPECT_EQ(host, nullptr);
    }
  
-@@ -231,24 +264,16 @@ TEST_F(OriginalDstClusterTest, NoContext) {
+@@ -232,24 +265,16 @@ TEST_F(OriginalDstClusterTest, NoContext) {
      connection.stream_info_.downstream_address_provider_->restoreLocalAddress(
          std::make_shared<Network::Address::PipeInstance>("unix://foo"));
  
@@ -664,7 +660,7 @@ index 26f15b2264..8d25d58f25 100644
  
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->hosts().size());
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->healthyHosts().size());
-@@ -268,8 +293,7 @@ TEST_F(OriginalDstClusterTest, Membership) {
+@@ -269,8 +294,7 @@ TEST_F(OriginalDstClusterTest, Membership) {
  
    Event::PostCb post_cb;
    EXPECT_CALL(dispatcher_, post(_)).WillOnce(SaveArg<0>(&post_cb));
@@ -674,7 +670,7 @@ index 26f15b2264..8d25d58f25 100644
    post_cb();
    auto cluster_hosts = cluster_->prioritySet().hostSetsPerPriority()[0]->hosts();
  
-@@ -288,8 +312,7 @@ TEST_F(OriginalDstClusterTest, Membership) {
+@@ -289,8 +313,7 @@ TEST_F(OriginalDstClusterTest, Membership) {
              *cluster_->prioritySet().hostSetsPerPriority()[0]->hosts()[0]->address());
  
    // Same host is returned on the 2nd call
@@ -684,7 +680,7 @@ index 26f15b2264..8d25d58f25 100644
    EXPECT_EQ(host2, host);
  
    // Make host time out, no membership changes happen on the first timeout.
-@@ -317,8 +340,7 @@ TEST_F(OriginalDstClusterTest, Membership) {
+@@ -318,8 +341,7 @@ TEST_F(OriginalDstClusterTest, Membership) {
    // New host gets created
    EXPECT_CALL(membership_updated_, ready());
    EXPECT_CALL(dispatcher_, post(_)).WillOnce(SaveArg<0>(&post_cb));
@@ -694,7 +690,7 @@ index 26f15b2264..8d25d58f25 100644
    post_cb();
    EXPECT_NE(host3, nullptr);
    EXPECT_NE(host3, host);
-@@ -329,17 +351,10 @@ TEST_F(OriginalDstClusterTest, Membership) {
+@@ -330,17 +352,10 @@ TEST_F(OriginalDstClusterTest, Membership) {
    EXPECT_EQ(host3, cluster_->prioritySet().hostSetsPerPriority()[0]->hosts()[0]);
  }
  
@@ -714,7 +710,7 @@ index 26f15b2264..8d25d58f25 100644
  
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->hosts().size());
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->healthyHosts().size());
-@@ -360,18 +375,17 @@ TEST_F(OriginalDstClusterTest, Membership2) {
+@@ -361,18 +376,17 @@ TEST_F(OriginalDstClusterTest, Membership2) {
    connection2.stream_info_.downstream_address_provider_->restoreLocalAddress(
        std::make_shared<Network::Address::Ipv4Instance>("10.10.11.12"));
  
@@ -735,7 +731,7 @@ index 26f15b2264..8d25d58f25 100644
    post_cb();
    ASSERT_NE(host2, nullptr);
    EXPECT_EQ(*connection2.addressProvider().localAddress(), *host2->address());
-@@ -417,17 +431,10 @@ TEST_F(OriginalDstClusterTest, Membership2) {
+@@ -418,17 +432,10 @@ TEST_F(OriginalDstClusterTest, Membership2) {
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->hosts().size());
  }
  
@@ -755,7 +751,7 @@ index 26f15b2264..8d25d58f25 100644
  
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->hosts().size());
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->healthyHosts().size());
-@@ -444,10 +451,9 @@ TEST_F(OriginalDstClusterTest, Connection) {
+@@ -445,10 +452,9 @@ TEST_F(OriginalDstClusterTest, Connection) {
    connection.stream_info_.downstream_address_provider_->restoreLocalAddress(
        std::make_shared<Network::Address::Ipv6Instance>("FD00::1"));
  
@@ -767,7 +763,7 @@ index 26f15b2264..8d25d58f25 100644
    post_cb();
    ASSERT_NE(host, nullptr);
    EXPECT_EQ(*connection.addressProvider().localAddress(), *host->address());
-@@ -458,17 +464,10 @@ TEST_F(OriginalDstClusterTest, Connection) {
+@@ -459,17 +465,10 @@ TEST_F(OriginalDstClusterTest, Connection) {
    host->createConnection(dispatcher_, nullptr, nullptr);
  }
  
@@ -787,7 +783,7 @@ index 26f15b2264..8d25d58f25 100644
  
    PrioritySetImpl second;
    cluster_->prioritySet().addPriorityUpdateCb(
-@@ -494,10 +493,9 @@ TEST_F(OriginalDstClusterTest, MultipleClusters) {
+@@ -495,10 +494,9 @@ TEST_F(OriginalDstClusterTest, MultipleClusters) {
    connection.stream_info_.downstream_address_provider_->restoreLocalAddress(
        std::make_shared<Network::Address::Ipv6Instance>("FD00::1"));
  
@@ -799,7 +795,7 @@ index 26f15b2264..8d25d58f25 100644
    post_cb();
    ASSERT_NE(host, nullptr);
    EXPECT_EQ(*connection.addressProvider().localAddress(), *host->address());
-@@ -510,19 +508,15 @@ TEST_F(OriginalDstClusterTest, MultipleClusters) {
+@@ -511,19 +509,15 @@ TEST_F(OriginalDstClusterTest, MultipleClusters) {
    EXPECT_EQ(host, second.hostSetsPerPriority()[0]->hosts()[0]);
  }
  
@@ -822,7 +818,7 @@ index 26f15b2264..8d25d58f25 100644
  
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->hosts().size());
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->healthyHosts().size());
-@@ -531,7 +525,6 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
+@@ -532,7 +526,6 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
        0UL,
        cluster_->prioritySet().hostSetsPerPriority()[0]->healthyHostsPerLocality().get().size());
  
@@ -830,7 +826,7 @@ index 26f15b2264..8d25d58f25 100644
    Event::PostCb post_cb;
  
    // HTTP header override.
-@@ -540,7 +533,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
+@@ -541,7 +534,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
  
    EXPECT_CALL(membership_updated_, ready());
    EXPECT_CALL(dispatcher_, post(_)).WillOnce(SaveArg<0>(&post_cb));
@@ -839,7 +835,7 @@ index 26f15b2264..8d25d58f25 100644
    post_cb();
    ASSERT_NE(host1, nullptr);
    EXPECT_EQ("127.0.0.1:5555", host1->address()->asString());
-@@ -554,7 +547,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
+@@ -555,7 +548,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
  
    EXPECT_CALL(membership_updated_, ready());
    EXPECT_CALL(dispatcher_, post(_)).WillOnce(SaveArg<0>(&post_cb));
@@ -848,7 +844,7 @@ index 26f15b2264..8d25d58f25 100644
    post_cb();
    ASSERT_NE(host2, nullptr);
    EXPECT_EQ("127.0.0.1:5556", host2->address()->asString());
-@@ -564,7 +557,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
+@@ -565,7 +558,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
  
    EXPECT_CALL(membership_updated_, ready()).Times(0);
    EXPECT_CALL(dispatcher_, post(_)).Times(0);
@@ -857,7 +853,7 @@ index 26f15b2264..8d25d58f25 100644
    EXPECT_EQ(host3, nullptr);
    EXPECT_EQ(
        1, TestUtility::findCounter(stats_store_, "cluster.name.original_dst_host_invalid")->value());
-@@ -575,23 +568,16 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
+@@ -576,23 +569,16 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderEnabled) {
  
    EXPECT_CALL(membership_updated_, ready()).Times(0);
    EXPECT_CALL(dispatcher_, post(_)).Times(0);
@@ -884,7 +880,7 @@ index 26f15b2264..8d25d58f25 100644
  
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->hosts().size());
    EXPECT_EQ(0UL, cluster_->prioritySet().hostSetsPerPriority()[0]->healthyHosts().size());
-@@ -600,7 +586,6 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderDisabled) {
+@@ -601,7 +587,6 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderDisabled) {
        0UL,
        cluster_->prioritySet().hostSetsPerPriority()[0]->healthyHostsPerLocality().get().size());
  
@@ -892,7 +888,7 @@ index 26f15b2264..8d25d58f25 100644
    Event::PostCb post_cb;
  
    // Downstream connection with original_dst filter, HTTP header override ignored.
-@@ -612,7 +597,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderDisabled) {
+@@ -613,7 +598,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderDisabled) {
  
    EXPECT_CALL(membership_updated_, ready());
    EXPECT_CALL(dispatcher_, post(_)).WillOnce(SaveArg<0>(&post_cb));
@@ -901,7 +897,7 @@ index 26f15b2264..8d25d58f25 100644
    post_cb();
    ASSERT_NE(host1, nullptr);
    EXPECT_EQ(*connection1.addressProvider().localAddress(), *host1->address());
-@@ -626,7 +611,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderDisabled) {
+@@ -627,7 +612,7 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderDisabled) {
  
    EXPECT_CALL(membership_updated_, ready()).Times(0);
    EXPECT_CALL(dispatcher_, post(_)).Times(0);
@@ -910,7 +906,7 @@ index 26f15b2264..8d25d58f25 100644
    EXPECT_EQ(host2, nullptr);
  
    // Downstream connection over Unix Domain Socket, HTTP header override ignored.
-@@ -638,10 +623,156 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderDisabled) {
+@@ -639,10 +624,156 @@ TEST_F(OriginalDstClusterTest, UseHttpHeaderDisabled) {
  
    EXPECT_CALL(membership_updated_, ready()).Times(0);
    EXPECT_CALL(dispatcher_, post(_)).Times(0);

@@ -112,8 +112,8 @@ bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
     } else {
       auto new_value =
           MessageUtil::getJsonStringFromMessage(it->second, false, true);
-      if (new_value != pair.second) {
-        (*old_fields)[pair.first] = new_value;
+      if (new_value.ok() && new_value.value() != pair.second) {
+        (*old_fields)[pair.first] = new_value.value();
         changed = true;
       }
     }
@@ -123,7 +123,7 @@ bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
     auto it = old_fields->find(pair.first);
     if (it == old_fields->cend()) {
       (*old_fields)[pair.first] =
-          MessageUtil::getJsonStringFromMessage(pair.second, false, true);
+          MessageUtil::getJsonStringFromMessageOrDie(pair.second, false, true);
       changed = true;
     }
   }

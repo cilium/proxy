@@ -11,9 +11,9 @@ ENVOY_PROJECT = "envoyproxy"
 
 ENVOY_REPO = "envoy"
 
-ENVOY_SHA = "5c801b25cae04f06bf48248c90e87d623d7a6283"
+ENVOY_SHA = "98ac59243cf0c2960f267664da88c08f8b9641d1"
 
-ENVOY_SHA256 = "37eb3e62ac58bb3575f69dc59c3c8458007b7ed52aee2a8842f34fae6aefd7ee"
+ENVOY_SHA256 = "c58b5422ef4b722ea39cab033dca9a787dd26ed500586dd899854a092d5c4acf"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -28,12 +28,7 @@ http_archive(
     patch_args = ["apply"],
     patches = [
         "@//patches:original-dst-add-sni.patch",
-        "@//patches:test-enable-half-close.patch",
-        "@//patches:test-double-server-create-timeout.patch",
         "@//patches:cross-aarch64.patch",
-        "@//patches:envoy-unused-variables.patch",
-	"@//patches:0001-bazel-Assume-default-compiler-is-gcc.patch",
-	"@//patches:0001-bazel-Update-toolchains-to-3.7.2.patch",
     ],
     sha256 = ENVOY_SHA256,
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
