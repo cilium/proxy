@@ -1,0 +1,43 @@
+From 4c7ade4974696c857780d187591d599650fc92a5 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Fri, 30 Jul 2021 12:25:56 +0300
+Subject: [PATCH] common: Fix compile for Arm
+
+char type is unsigned in arm, resulting in compile errors:
+
+source/common/common/json_escape_string.h:67:23: error: comparison is always true due to limited range of data type [-Werror=type-limits]
+   67 |         if (character >= 0x00 && character <= 0x1f) {
+      |             ~~~~~~~~~~^~~~~~~
+
+Fix this by casting to unsigned.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ source/common/common/json_escape_string.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/source/common/common/json_escape_string.h b/source/common/common/json_escape_string.h
+index 94e93bfce2..74d3d6ee76 100644
+--- a/source/common/common/json_escape_string.h
++++ b/source/common/common/json_escape_string.h
+@@ -64,7 +64,7 @@ public:
+         position += 2;
+         break;
+       default:
+-        if (character >= 0x00 && character <= 0x1f) {
++        if (static_cast<unsigned char>(character) <= 0x1f) {
+           // Print character as unicode hex.
+           sprintf(&result[position + 1], "u%04x", static_cast<int>(character));
+           position += 6;
+@@ -107,7 +107,7 @@ public:
+       }
+ 
+       default: {
+-        if (character >= 0x00 && character <= 0x1f) {
++       if (static_cast<unsigned char>(character) <= 0x1f) {
+           // From character (1 byte) to unicode hex (6 bytes).
+           result += 5;
+         }
+-- 
+2.24.3 (Apple Git-128)
+

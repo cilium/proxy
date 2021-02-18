@@ -92,6 +92,7 @@ SOURCE_VERSION := $(shell git rev-parse HEAD)
 SOURCE_VERSION: force
 	@if [ "$(SOURCE_VERSION)" != "`cat 2>/dev/null SOURCE_VERSION`" ] ; then echo "$(SOURCE_VERSION)" >SOURCE_VERSION; fi
 
+ENVOY_VERSION := $(shell cat ENVOY_VERSION)
 BAZEL_VERSION := $(shell cat .bazelversion)
 BUILDER_BASE_TAG ?= bazel-$(BAZEL_VERSION)$(IMAGE_ARCH)
 BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
@@ -99,14 +100,14 @@ BRANCH_TAG := $(shell echo $(BRANCH_NAME) | tr -c '[:alnum:]_.\n-' '-')
 BUILDER_IMAGE_OPTS ?=
 
 # target for builder archive
-BUILDER_ARCHIVE_TAG ?= release-archive-latest
-TESTS_ARCHIVE_TAG ?= test-archive-latest
+BUILDER_ARCHIVE_TAG ?= $(ENVOY_VERSION)-archive-latest
+TESTS_ARCHIVE_TAG ?= test-$(ENVOY_VERSION)-archive-latest
 
 ifndef NO_CACHE
   ifndef BUILDER_IMAGE
     # Default builder refresh image ref
-    BUILDER_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:release-archive-latest
-    TESTS_ARCHIVE_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:test-archive-latest
+    BUILDER_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(ENVOY_VERSION)-archive-latest
+    TESTS_ARCHIVE_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:test-$(ENVOY_VERSION)-archive-latest
   else
     TESTS_ARCHIVE_IMAGE := $(BUILDER_IMAGE)
   endif

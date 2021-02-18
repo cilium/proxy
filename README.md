@@ -82,7 +82,7 @@ to `default`.
 ### Using custom pre-compiled Envoy dependencies
 
 Docker build uses cached Bazel artifacts from
-`quay.io/cilium/cilium-envoy-builder:release-archive-latest` by
+`quay.io/cilium/cilium-envoy-builder:envoy-1.18.3-archive-latest` by
 default. You can overrride this by defining `BUILDER_IMAGE=<ref>`:
 
 ```
@@ -124,12 +124,20 @@ ARCH=multi make docker-builder-archive
 ```
 
 By default the pre-compiled dependencies image is tagged as
-`quay.io/cilium/cilium-envoy-builder:release-archive-latest`. You can override the
-first two parts of this by defining `DOCKER_DEV_ACCOUNT=docker.io/me`,
-or completely by defining `BUILDER_IMAGE=<ref>`.
+`quay.io/cilium/cilium-envoy-builder:envoy-1.18.3-archive-latest`. You
+can override the first two parts of this by defining
+`DOCKER_DEV_ACCOUNT=docker.io/me`,
+`BUILDER_ARCHIVE_TAG=my-builder-archive`, or completely by defining
+`BUILDER_IMAGE=<ref>`.
 
-Pre-compiled Envoy dependencies need to be updated only when Envoy version
-is updated or patched enough to increase compilation time significantly.
+Pre-compiled Envoy dependencies need to be updated only when Envoy
+version is updated or patched enough to increase compilation time
+significantly. To do this you should update Envoy version in
+`ENVOY_VERSION` and supply `NO_CACHE=1` on the make line, e.g.:
+
+```
+ARCH=multi NO_CACHE=1 BUILDER_ARCHIVE_TAG=envoy-1.18.3-archive make docker-builder-archive
+```
 
 
 ## Updating the builder image
@@ -162,19 +170,20 @@ above to push the builder into a different registry or account.
 To run Cilium Envoy integration tests in a docker container:
 
 ```
-make docker-image-tests
+make docker-tests
 ```
 
 This runs the integration tests after loading Bazel build cache for
 Envoy dependencies from
-`quay.io/cilium/cilium-envoy-builder:test-archive-latest`. Define
+`quay.io/cilium/cilium-envoy-builder:test-envoy-1.18.3-archive-latest`. Define
 `NO_CACHE=1` to compile tests from scratch.
 
 This command fails if any of the integration tests fail, printing the
 failing test logs on console.
 
 > Note that cross-compiling is not supported for running tests, so
-> specifying `ARCH` is not supported.
+> specifying `ARCH` is only supported for the native platform.
+> `ARCH=multi` will fail.
 
 
 ### Updating the pre-compiled Envoy test dependencies
@@ -186,12 +195,20 @@ make docker-tests-archive
 ```
 
 By default the pre-compiled test dependencies image is tagged as
-`quay.io/cilium/cilium-envoy-builder:test-archive-latest`. You can override the
-first two parts of this by defining `DOCKER_DEV_ACCOUNT=docker.io/me`,
-or completely by defining `BUILDER_IMAGE=<ref>`.
+`quay.io/cilium/cilium-envoy-builder:test-envoy-1.18.3-archive-latest`. You
+can override the first two parts of this by defining
+`DOCKER_DEV_ACCOUNT=docker.io/me`,
+`TESTS_ARCHIVE_TAG=my-test-archive`, or completely by defining
+`BUILDER_IMAGE=<ref>`.
 
-Pre-compiled Envoy test dependencies need to be updated only when Envoy version
-is updated or patched enough to increase compilation time significantly.
+Pre-compiled Envoy test dependencies need to be updated only when
+Envoy version is updated or patched enough to increase compilation
+time significantly. To do this you should update Envoy version
+in `ENVOY_VERSION` and supply `NO_CACHE=1` on the make line, e.g.:
+
+```
+ARCH=amd64 NO_CACHE=1 TESTS_ARCHIVE_TAG=test-envoy-1.18.3-archive make docker-tests-archive
+```
 
 
 ## Updating generated API

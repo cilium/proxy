@@ -191,7 +191,7 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
-    response->waitForEndStream();
+    ASSERT_TRUE(response->waitForEndStream());
 
     EXPECT_TRUE(response->complete());
     EXPECT_EQ("403", response->headers().getStatusValue());
@@ -606,7 +606,7 @@ TEST_P(CiliumIntegrationTest, DuplicatePort) {
   initialize();
   codec_client_ = makeHttpConnection(lookupPort("http"));
   auto response = codec_client_->makeHeaderOnlyRequest(headers);
-  response->waitForEndStream();
+  ASSERT_TRUE(response->waitForEndStream());
 
   uint64_t status;
   ASSERT_TRUE(absl::SimpleAtoi(

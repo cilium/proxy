@@ -7,8 +7,7 @@
 namespace Envoy {
 
 CiliumHttpIntegrationTest::CiliumHttpIntegrationTest(const std::string& config)
-    : HttpIntegrationTest(Http::CodecClient::Type::HTTP1, GetParam(),
-                          realTime(), config),
+    : HttpIntegrationTest(Http::CodecClient::Type::HTTP1, GetParam(), config),
       accessLogServer_(
           TestEnvironment::unixDomainSocketPath("access_log.sock")) {
 #if 0
