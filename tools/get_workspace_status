@@ -17,33 +17,26 @@
 # done by prefixing keys with "STABLE_". To avoid breaking compatibility with
 # other status scripts, this one still echos the non-stable ("volatile") names.
 
-# The code below presents an implementation that works for git repository
-git_rev=$(git rev-parse HEAD 2>/dev/null)
-if [[ $? != 0 ]];
+# If this SOURCE_VERSION file exists then it must have been placed here by a
+# distribution doing a non-git, source build.
+# Distributions would be expected to echo the commit/tag as BUILD_SCM_REVISION
+if [ -f SOURCE_VERSION ]
 then
-    # If this SOURCE_VERSION file exists then it must have been placed here by a
-    # distribution doing a non-git, source build.
-    # Distributions would be expected to echo the commit/tag as BUILD_SCM_REVISION
-    if [ -f SOURCE_VERSION ]
-    then
-        echo "BUILD_SCM_REVISION $(cat SOURCE_VERSION)"
-        echo "STABLE_BUILD_SCM_REVISION $(cat SOURCE_VERSION)"
-        echo "BUILD_SCM_STATUS Distribution"
-        exit 0
-    fi
-    echo 2>&1 "No .git and SOURCE_VERSION does not exist!"
-    exit 1
+    echo "BUILD_SCM_REVISION $(cat SOURCE_VERSION)"
+    echo "STABLE_BUILD_SCM_REVISION $(cat SOURCE_VERSION)"
+    echo "BUILD_SCM_STATUS Distribution"
+    exit 0
 fi
+
+# The code below presents an implementation that works for git repository
+git_rev=$(git rev-parse HEAD) || exit 1
 echo "BUILD_SCM_REVISION ${git_rev}"
 echo "STABLE_BUILD_SCM_REVISION ${git_rev}"
 
 # Check whether there are any uncommitted changes
-git diff-index --quiet HEAD --
-if [[ $? == 0 ]];
-then
-    tree_status="Clean"
-else
+tree_status="Clean"
+git diff-index --quiet HEAD -- || {
     tree_status="Modified"
-fi
+}
 echo "BUILD_SCM_STATUS ${tree_status}"
 echo "STABLE_BUILD_SCM_STATUS ${tree_status}"

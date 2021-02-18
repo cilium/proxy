@@ -42,7 +42,9 @@ jobs:
           docker cp -L cilium-proxylib:/usr/lib/libcilium.so proxylib/libcilium.so
           docker rm -fv cilium-proxylib
       - name: Prep for build
-        run: echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+        run: |
+          echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+          echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
       - name: Run integration tests on amd64
         uses: docker/build-push-action@v2
         id: docker_tests_ci
@@ -51,7 +53,7 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:test-archive-latest
+            BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:test-${{ env.ENVOY_VERSION }}-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
             TESTLOGS=bazel-out/k8-fastbuild/testlogs
           cache-from: type=local,src=/tmp/buildx-cache

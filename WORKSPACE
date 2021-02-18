@@ -8,12 +8,13 @@ workspace(name = "cilium")
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
 ENVOY_PROJECT = "envoyproxy"
-
 ENVOY_REPO = "envoy"
 
-ENVOY_SHA = "46bf743b97d0d3f01ff437b2f10cc0bd9cdfe6e4"
-
-ENVOY_SHA256 = "99b099b55547951fdb7f9a344fe5a4a972503782de985dfc2d3128813269f851"
+# https://github.com/envoyproxy/envoy/tree/v1.18.3
+# NOTE: Update version number to file 'ENVOY_VERSION' to keep test and build docker images
+# for different versions.
+ENVOY_SHA = "98c1c9e9a40804b93b074badad1cdf284b47d58b"
+ENVOY_SHA256 = "4365a4c09b9a8b3c4ae34d75991fcd046f3e19d53d95dfd5c89209c30be94fe6"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -27,12 +28,8 @@ http_archive(
     patch_tool = "git",
     patch_args = ["apply"],
     patches = [
-        "@//patches:test-enable-half-close.patch",
-        "@//patches:test-double-server-create-timeout.patch",
+        "@//patches:0001-common-Fix-compile-for-Arm.patch",
         "@//patches:cross-aarch64.patch",
-        "@//patches:envoy-unused-variables.patch",
-	"@//patches:0001-bazel-Assume-default-compiler-is-gcc.patch",
-	"@//patches:0001-bazel-Update-toolchains-to-3.7.2.patch",
     ],
     sha256 = ENVOY_SHA256,
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,

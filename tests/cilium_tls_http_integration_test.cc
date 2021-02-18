@@ -236,7 +236,7 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
     policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
     initialize();
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
-    response->waitForEndStream();
+    ASSERT_TRUE(response->waitForEndStream());
 
     EXPECT_TRUE(response->complete());
     EXPECT_EQ("403", response->headers().getStatusValue());
@@ -247,7 +247,7 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
     policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
     initialize();
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
-    response->waitForEndStream();
+    ASSERT_TRUE(response->waitForEndStream());
 
     EXPECT_TRUE(response->complete());
     EXPECT_EQ("503", response->headers().getStatusValue());

@@ -110,6 +110,7 @@ std::unique_ptr<Config::GrpcSubscriptionImpl> subscribe(
       cm.primaryClusters(), api_config_source);
 
   Config::SubscriptionStats stats = Config::Utility::generateStats(scope);
+  Envoy::Config::SubscriptionOptions options;
 
   return std::make_unique<Config::GrpcSubscriptionImpl>(
       std::make_shared<Config::GrpcMuxImpl>(
@@ -123,7 +124,7 @@ std::unique_ptr<Config::GrpcSubscriptionImpl> subscribe(
           api_config_source.set_node_on_first_message_only()),
       callbacks, resource_decoder, stats, type_url, dispatcher,
       std::chrono::milliseconds(0) /* no initial fetch timeout */,
-      /*is_aggregated*/ false);
+      /*is_aggregated*/ false, options);
 }
 
 }  // namespace Cilium

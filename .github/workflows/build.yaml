@@ -40,7 +40,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Prep for build
-        run: echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+        run: |
+          echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+          echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
       - name: PR Multi-arch build & push of cilium-envoy
         uses: docker/build-push-action@v2
         id: docker_build_ci
@@ -49,7 +51,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           build-args: |
-            BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:release-archive-latest
+            BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:${{ env.ENVOY_VERSION }}-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           cache-from: type=local,src=/tmp/buildx-cache
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
@@ -61,9 +63,9 @@ jobs:
           docker create -ti --name cilium-envoy quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }} bash
           docker cp cilium-envoy:/usr/bin/cilium-envoy ./cilium-envoy
           docker rm -fv cilium-envoy
-          ENVOY_VERSION=$(./cilium-envoy --version)
-          echo ${ENVOY_VERSION}
-          [[ "${ENVOY_VERSION}" == *"${{ github.event.pull_request.head.sha }}"* ]]
+          envoy_version=$(./cilium-envoy --version)
+          echo ${envoy_version}
+          [[ "${envoy_version}" == *"${{ github.event.pull_request.head.sha }}"* ]]
       - name: CI Image Digest
         shell: bash
         run: |
