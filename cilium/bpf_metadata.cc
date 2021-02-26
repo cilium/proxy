@@ -231,7 +231,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   }
 
   // Add metadata for policy based listener filter chain matching.
-  // This requires the TLS inspector to be run before us.
+  // This requires the TLS inspector, if used, to run before us.
   std::string l7proto;
   if (policy->useProxylib(is_ingress_, dip->port(),
                           is_ingress_ ? source_identity : destination_identity,
