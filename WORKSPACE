@@ -27,7 +27,6 @@ http_archive(
     patch_tool = "git",
     patch_args = ["apply"],
     patches = [
-        "@//patches:original-dst-add-sni.patch",
         "@//patches:cross-aarch64.patch",
     ],
     sha256 = ENVOY_SHA256,
