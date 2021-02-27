@@ -94,6 +94,9 @@ envoy_cc_library(
         "//cilium:socket_option_lib",
         "//cilium/api:l7policy_cc_proto",
         "@envoy//include/envoy/config:subscription_interface",
+        "@envoy//source/common/http:utility_lib",
+        "@envoy//source/common/network:upstream_server_name_lib",
+        "@envoy//source/common/network:upstream_subject_alt_names_lib",
     ],
 )
 
@@ -214,6 +217,8 @@ envoy_cc_library(
         "@envoy//source/common/common:assert_lib",
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/network:address_lib",
+        "@envoy//source/common/network:upstream_server_name_lib",
+        "@envoy//source/common/network:upstream_subject_alt_names_lib",
     ],
 )
 
