@@ -27,7 +27,6 @@ http_archive(
     patch_tool = "git",
     patch_args = ["apply"],
     patches = [
-        "@//patches:original-dst-add-sni.patch",
         "@//patches:test-enable-half-close.patch",
         "@//patches:test-double-server-create-timeout.patch",
         "@//patches:cross-aarch64.patch",

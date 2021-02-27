@@ -7,6 +7,8 @@
 #include "common/buffer/buffer_impl.h"
 #include "common/common/assert.h"
 #include "common/common/fmt.h"
+#include "common/network/upstream_server_name.h"
+#include "common/network/upstream_subject_alt_names.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/registry/registry.h"
 #include "envoy/server/filter_config.h"
@@ -91,8 +93,26 @@ void Config::Log(Cilium::AccessLog::Entry& entry, ::cilium::EntryType type) {
 Network::FilterStatus Instance::onNewConnection() {
   ENVOY_LOG(debug, "Cilium Network: onNewConnection");
   auto& conn = callbacks_->connection();
+
   const auto option = Cilium::GetSocketOption(conn.socketOptions());
   if (option) {
+    // Pass metadata from tls_inspector to the filterstate, if any, but not in a sidecar
+    if (!option->no_mark_) {
+      auto have_sni = conn.streamInfo().filterState()->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
+      auto have_san = conn.streamInfo().filterState()->hasData<Network::UpstreamSubjectAltNames>(Network::UpstreamSubjectAltNames::key());
+      if (!have_sni || !have_san) {
+        const auto sni = conn.requestedServerName();
+        if (sni != "") {
+          conn.streamInfo().filterState()->setData(Network::UpstreamServerName::key(),
+                                                   std::make_unique<Network::UpstreamServerName>(sni),
+                                                   StreamInfo::FilterState::StateType::Mutable);
+          conn.streamInfo().filterState()->setData(Network::UpstreamSubjectAltNames::key(),
+                                                   std::make_unique<Network::UpstreamSubjectAltNames>(std::vector<std::string>{std::string(sni)}),
+                                                   StreamInfo::FilterState::StateType::Mutable);
+        }
+      }
+    }
+
     const std::string& policy_name = option->pod_ip_;
     if (option->policy_) {
       port_policy_ = option->policy_->findPortPolicy(
