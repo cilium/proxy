@@ -32,8 +32,8 @@ jobs:
         uses: docker/login-action@v1
         with:
           registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+          username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
+          password: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
       - name: Checkout PR
         uses: actions/checkout@v2
         with:
