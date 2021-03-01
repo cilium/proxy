@@ -13,7 +13,7 @@ jobs:
         run: |
           set -x
           file="/var/lib/swap"
-          sudo fallocate -l 4G "${file}"
+          sudo fallocate -l 8G "${file}"
           sudo chmod 600 "${file}"
           sudo mkswap "${file}"
           sudo swapon "${file}"
