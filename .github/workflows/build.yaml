@@ -50,7 +50,7 @@ jobs:
           platforms: linux/arm64
           build-args: |
             BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:release-archive-latest
-            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false --loading_phase_threads=1
           cache-from: type=local,src=/tmp/buildx-cache
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: false
@@ -64,7 +64,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:release-archive-latest
-            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false --loading_phase_threads=1
           cache-from: type=local,src=/tmp/buildx-cache
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: true
