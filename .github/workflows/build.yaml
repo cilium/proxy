@@ -41,20 +41,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Prep for build
         run: echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-      - name: PR amd64 build
-        uses: docker/build-push-action@v2
-        id: docker_build_ci_amd64
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          build-args: |
-            BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:release-archive-latest
-            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
-          cache-from: type=local,src=/tmp/buildx-cache
-          cache-to: type=local,dest=/tmp/buildx-cache,mode=max
-          push: false
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
       - name: PR arm64 build
         uses: docker/build-push-action@v2
         id: docker_build_ci_arm64
