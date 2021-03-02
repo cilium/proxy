@@ -17,8 +17,9 @@ jobs:
       - name: Add swap
         run: |
           set -x
-          file="/var/lib/swap"
-          sudo fallocate -l 4G "${file}"
+          file="/mnt/swapfile"
+          sudo swapoff "${file}"
+          sudo fallocate -l 8G "${file}"
           sudo chmod 600 "${file}"
           sudo mkswap "${file}"
           sudo swapon "${file}"
