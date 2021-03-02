@@ -42,7 +42,7 @@ jobs:
         run: echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
       - name: PR amd64 build
         uses: docker/build-push-action@v2
-        id: docker_build_ci
+        id: docker_build_ci_amd64
         with:
           context: .
           file: ./Dockerfile
@@ -56,7 +56,7 @@ jobs:
           tags: quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
       - name: PR arm64 build
         uses: docker/build-push-action@v2
-        id: docker_build_ci
+        id: docker_build_ci_arm64
         with:
           context: .
           file: ./Dockerfile
