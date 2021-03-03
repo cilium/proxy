@@ -55,8 +55,17 @@ jobs:
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: true
           tags: quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
+      - name: Envoy binary version check
+        shell: bash
+        run: |
+          docker create -ti --name cilium-envoy quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }} bash
+          docker cp cilium-envoy:/usr/bin/cilium-envoy ./cilium-envoy
+          docker rm -fv cilium-envoy
+          ENVOY_VERSION=$(./cilium-envoy --version)
+          echo ${ENVOY_VERSION}
+          [[ "${ENVOY_VERSION}" == *"${{ github.event.pull_request.head.sha }}"* ]]
       - name: CI Image Digest
         shell: bash
-        run:
+        run: |
           echo "Digests:"
           echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ci.outputs.digest }}"
