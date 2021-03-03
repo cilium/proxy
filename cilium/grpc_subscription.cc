@@ -123,7 +123,7 @@ std::unique_ptr<Config::GrpcSubscriptionImpl> subscribe(
           api_config_source.set_node_on_first_message_only()),
       callbacks, resource_decoder, stats, type_url, dispatcher,
       std::chrono::milliseconds(0) /* no initial fetch timeout */,
-      /*is_aggregated*/ false);
+      /*is_aggregated*/ false, /* use_namespace_matching */ false);
 }
 
 }  // namespace Cilium
