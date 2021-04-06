@@ -1,0 +1,556 @@
+From b44344666ff913afe5497c6d3228bb1ec120d696 Mon Sep 17 00:00:00 2001
+From: Tony Allen <tony@allen.gg>
+Date: Thu, 25 Mar 2021 12:23:55 -0400
+Subject: [PATCH 1/3] backport to 1.17: http: Fixing empty metadata map
+ handling (#230) (#252)
+
+Commit Message: Fixing a crash when the decoder receives an empty metadata map.
+
+Additional Description:
+Upon receiving an empty metadata map and trying to decode it an assertion is triggered in debug mode, and a seg-fault occurs in release mode.
+The proposed fix ignores the empty metadata maps and updates a stats if one is received.
+
+Risk Level: Medium for Envoy's running with Metadata support.
+Testing: Added integration tests.
+Docs Changes: Added a codec stats counter description.
+Release Notes: Added bug fix description.
+Platform Specific Features: N/A.
+Fixes a fuzz bug: 25303
+
+Signed-off-by: Tony Allen <tony@allen.gg>
+---
+ .../configuration/http/http_conn_man/stats.rst     |  1 +
+ source/common/http/http2/codec_impl.cc             |  8 +-
+ source/common/http/http2/codec_stats.h             |  1 +
+ test/common/http/http2/http2_frame.cc              |  2 +-
+ test/common/http/http2/http2_frame.h               |  2 +-
+ test/integration/http2_integration_test.cc         | 93 ++++++++++++++++++++++
+ test/integration/integration_stream_decoder.cc     |  1 +
+ test/integration/integration_stream_decoder.h      |  2 +
+ 8 files changed, 107 insertions(+), 3 deletions(-)
+
+diff --git a/docs/root/configuration/http/http_conn_man/stats.rst b/docs/root/configuration/http/http_conn_man/stats.rst
+index c6aa07f28..9c7d441b7 100644
+--- a/docs/root/configuration/http/http_conn_man/stats.rst
++++ b/docs/root/configuration/http/http_conn_man/stats.rst
+@@ -135,6 +135,7 @@ On the upstream side all http2 statistics are rooted at *cluster.<name>.http2.*
+    inbound_empty_frames_flood, Counter, Total number of connections terminated for exceeding the limit on consecutive inbound frames with an empty payload and no end stream flag. The limit is configured by setting the :ref:`max_consecutive_inbound_frames_with_empty_payload config setting <envoy_v3_api_field_config.core.v3.Http2ProtocolOptions.max_consecutive_inbound_frames_with_empty_payload>`.
+    inbound_priority_frames_flood, Counter, Total number of connections terminated for exceeding the limit on inbound frames of type PRIORITY. The limit is configured by setting the :ref:`max_inbound_priority_frames_per_stream config setting <envoy_v3_api_field_config.core.v3.Http2ProtocolOptions.max_inbound_priority_frames_per_stream>`.
+    inbound_window_update_frames_flood, Counter, Total number of connections terminated for exceeding the limit on inbound frames of type WINDOW_UPDATE. The limit is configured by setting the :ref:`max_inbound_window_updateframes_per_data_frame_sent config setting <envoy_v3_api_field_config.core.v3.Http2ProtocolOptions.max_inbound_window_update_frames_per_data_frame_sent>`.
++   metadata_empty_frames, Counter, Total number of metadata frames that were received and contained empty maps.
+    outbound_flood, Counter, Total number of connections terminated for exceeding the limit on outbound frames of all types. The limit is configured by setting the :ref:`max_outbound_frames config setting <envoy_v3_api_field_config.core.v3.Http2ProtocolOptions.max_outbound_frames>`.
+    outbound_control_flood, Counter, "Total number of connections terminated for exceeding the limit on outbound frames of types PING, SETTINGS and RST_STREAM. The limit is configured by setting the :ref:`max_outbound_control_frames config setting <envoy_v3_api_field_config.core.v3.Http2ProtocolOptions.max_outbound_control_frames>`."
+    requests_rejected_with_underscores_in_headers, Counter, Total numbers of rejected requests due to header names containing underscores. This action is configured by setting the :ref:`headers_with_underscores_action config setting <envoy_v3_api_field_config.core.v3.HttpProtocolOptions.headers_with_underscores_action>`.
+diff --git a/source/common/http/http2/codec_impl.cc b/source/common/http/http2/codec_impl.cc
+index 74a565b27..00231ea36 100644
+--- a/source/common/http/http2/codec_impl.cc
++++ b/source/common/http/http2/codec_impl.cc
+@@ -553,7 +553,13 @@ MetadataDecoder& ConnectionImpl::StreamImpl::getMetadataDecoder() {
+ }
+ 
+ void ConnectionImpl::StreamImpl::onMetadataDecoded(MetadataMapPtr&& metadata_map_ptr) {
+-  decoder().decodeMetadata(std::move(metadata_map_ptr));
++  // Empty metadata maps should not be decoded.
++  if (metadata_map_ptr->empty()) {
++    ENVOY_CONN_LOG(debug, "decode metadata called with empty map, skipping", parent_.connection_);
++    parent_.stats_.metadata_empty_frames_.inc();
++  } else {
++    decoder().decodeMetadata(std::move(metadata_map_ptr));
++  }
+ }
+ 
+ ConnectionImpl::ConnectionImpl(Network::Connection& connection, CodecStats& stats,
+diff --git a/source/common/http/http2/codec_stats.h b/source/common/http/http2/codec_stats.h
+index ba9d15920..eb11291f8 100644
+--- a/source/common/http/http2/codec_stats.h
++++ b/source/common/http/http2/codec_stats.h
+@@ -19,6 +19,7 @@ namespace Http2 {
+   COUNTER(inbound_empty_frames_flood)                                                              \
+   COUNTER(inbound_priority_frames_flood)                                                           \
+   COUNTER(inbound_window_update_frames_flood)                                                      \
++  COUNTER(metadata_empty_frames)                                                                   \
+   COUNTER(outbound_control_flood)                                                                  \
+   COUNTER(outbound_flood)                                                                          \
+   COUNTER(requests_rejected_with_underscores_in_headers)                                           \
+diff --git a/test/common/http/http2/http2_frame.cc b/test/common/http/http2/http2_frame.cc
+index 6717ec49b..266f7680d 100644
+--- a/test/common/http/http2/http2_frame.cc
++++ b/test/common/http/http2/http2_frame.cc
+@@ -248,7 +248,7 @@ Http2Frame Http2Frame::makeWindowUpdateFrame(uint32_t stream_index, uint32_t inc
+ 
+ // Note: encoder in codebase persists multiple maps, with each map representing an individual frame.
+ Http2Frame Http2Frame::makeMetadataFrameFromMetadataMap(uint32_t stream_index,
+-                                                        MetadataMap& metadata_map,
++                                                        const MetadataMap& metadata_map,
+                                                         MetadataFlags flags) {
+   const int numberOfNameValuePairs = metadata_map.size();
+   absl::FixedArray<nghttp2_nv> nameValues(numberOfNameValuePairs);
+diff --git a/test/common/http/http2/http2_frame.h b/test/common/http/http2/http2_frame.h
+index 53465a6f9..370316fc7 100644
+--- a/test/common/http/http2/http2_frame.h
++++ b/test/common/http/http2/http2_frame.h
+@@ -149,7 +149,7 @@ public:
+ 
+   static Http2Frame makeWindowUpdateFrame(uint32_t stream_index, uint32_t increment);
+   static Http2Frame makeMetadataFrameFromMetadataMap(uint32_t stream_index,
+-                                                     MetadataMap& metadata_map,
++                                                     const MetadataMap& metadata_map,
+                                                      MetadataFlags flags);
+ 
+   static Http2Frame makeMalformedRequest(uint32_t stream_index);
+diff --git a/test/integration/http2_integration_test.cc b/test/integration/http2_integration_test.cc
+index a0e73bdbd..9a9251c0a 100644
+--- a/test/integration/http2_integration_test.cc
++++ b/test/integration/http2_integration_test.cc
+@@ -180,6 +180,7 @@ TEST_P(Http2MetadataIntegrationTest, ProxyMetadataInResponse) {
+   response->waitForEndStream();
+   ASSERT_TRUE(response->complete());
+   EXPECT_EQ(response->metadataMap().find(key)->second, value);
++  EXPECT_EQ(1, response->metadataMapsDecodedCount());
+ 
+   // Sends the second request.
+   response = codec_client_->makeRequestWithBody(default_request_headers_, 10);
+@@ -199,6 +200,7 @@ TEST_P(Http2MetadataIntegrationTest, ProxyMetadataInResponse) {
+   response->waitForEndStream();
+   ASSERT_TRUE(response->complete());
+   EXPECT_EQ(response->metadataMap().find(key)->second, value);
++  EXPECT_EQ(1, response->metadataMapsDecodedCount());
+ 
+   // Sends the third request.
+   response = codec_client_->makeRequestWithBody(default_request_headers_, 10);
+@@ -218,6 +220,7 @@ TEST_P(Http2MetadataIntegrationTest, ProxyMetadataInResponse) {
+   response->waitForEndStream();
+   ASSERT_TRUE(response->complete());
+   EXPECT_EQ(response->metadataMap().find(key)->second, value);
++  EXPECT_EQ(1, response->metadataMapsDecodedCount());
+ 
+   // Sends the fourth request.
+   response = codec_client_->makeRequestWithBody(default_request_headers_, 10);
+@@ -238,6 +241,7 @@ TEST_P(Http2MetadataIntegrationTest, ProxyMetadataInResponse) {
+   response->waitForEndStream();
+   ASSERT_TRUE(response->complete());
+   EXPECT_EQ(response->metadataMap().find(key)->second, value);
++  EXPECT_EQ(1, response->metadataMapsDecodedCount());
+ 
+   // Sends the fifth request.
+   response = codec_client_->makeRequestWithBody(default_request_headers_, 10);
+@@ -258,6 +262,7 @@ TEST_P(Http2MetadataIntegrationTest, ProxyMetadataInResponse) {
+   response->waitForEndStream();
+   ASSERT_TRUE(response->complete());
+   EXPECT_EQ(response->metadataMap().find(key)->second, value);
++  EXPECT_EQ(1, response->metadataMapsDecodedCount());
+ 
+   // Sends the sixth request.
+   response = codec_client_->makeRequestWithBody(default_request_headers_, 10);
+@@ -308,6 +313,7 @@ TEST_P(Http2MetadataIntegrationTest, ProxyMultipleMetadata) {
+   // Verifies multiple metadata are received by the client.
+   response->waitForEndStream();
+   ASSERT_TRUE(response->complete());
++  EXPECT_EQ(4, response->metadataMapsDecodedCount());
+   for (int i = 0; i < size; i++) {
+     for (const auto& metadata : *multiple_vecs[i][0]) {
+       EXPECT_EQ(response->metadataMap().find(metadata.first)->second, metadata.second);
+@@ -341,6 +347,7 @@ TEST_P(Http2MetadataIntegrationTest, ProxyInvalidMetadata) {
+   // Verifies metadata is not received by the client.
+   response->waitForEndStream();
+   ASSERT_TRUE(response->complete());
++  EXPECT_EQ(0, response->metadataMapsDecodedCount());
+   EXPECT_EQ(response->metadataMap().size(), 0);
+ }
+ 
+@@ -382,6 +389,7 @@ TEST_P(Http2MetadataIntegrationTest, TestResponseMetadata) {
+   expected_metadata_keys.insert("data");
+   verifyExpectedMetadata(response->metadataMap(), expected_metadata_keys);
+   EXPECT_EQ(response->keyCount("duplicate"), 2);
++  EXPECT_EQ(2, response->metadataMapsDecodedCount());
+ 
+   // Upstream responds with headers, data and trailers.
+   response = codec_client_->makeRequestWithBody(default_request_headers_, 10);
+@@ -396,6 +404,7 @@ TEST_P(Http2MetadataIntegrationTest, TestResponseMetadata) {
+   expected_metadata_keys.insert("trailers");
+   verifyExpectedMetadata(response->metadataMap(), expected_metadata_keys);
+   EXPECT_EQ(response->keyCount("duplicate"), 3);
++  EXPECT_EQ(4, response->metadataMapsDecodedCount());
+ 
+   // Upstream responds with headers, 100-continue and data.
+   response =
+@@ -418,6 +427,7 @@ TEST_P(Http2MetadataIntegrationTest, TestResponseMetadata) {
+   expected_metadata_keys.insert("100-continue");
+   verifyExpectedMetadata(response->metadataMap(), expected_metadata_keys);
+   EXPECT_EQ(response->keyCount("duplicate"), 4);
++  EXPECT_EQ(4, response->metadataMapsDecodedCount());
+ 
+   // Upstream responds with headers and metadata that will not be consumed.
+   response = codec_client_->makeRequestWithBody(default_request_headers_, 10);
+@@ -436,6 +446,7 @@ TEST_P(Http2MetadataIntegrationTest, TestResponseMetadata) {
+   expected_metadata_keys.insert("aaa");
+   expected_metadata_keys.insert("keep");
+   verifyExpectedMetadata(response->metadataMap(), expected_metadata_keys);
++  EXPECT_EQ(2, response->metadataMapsDecodedCount());
+ 
+   // Upstream responds with headers, data and metadata that will be consumed.
+   response = codec_client_->makeRequestWithBody(default_request_headers_, 10);
+@@ -455,6 +466,7 @@ TEST_P(Http2MetadataIntegrationTest, TestResponseMetadata) {
+   expected_metadata_keys.insert("replace");
+   verifyExpectedMetadata(response->metadataMap(), expected_metadata_keys);
+   EXPECT_EQ(response->keyCount("duplicate"), 2);
++  EXPECT_EQ(3, response->metadataMapsDecodedCount());
+ }
+ 
+ TEST_P(Http2MetadataIntegrationTest, ProxyMultipleMetadataReachSizeLimit) {
+@@ -1568,6 +1580,87 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, Http2FrameIntegrationTest,
+                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                          TestUtility::ipTestParamsToString);
+ 
++// Tests sending an empty metadata map from downstream.
++TEST_P(Http2FrameIntegrationTest, DownstreamSendingEmptyMetadata) {
++  // Allow metadata usage.
++  config_helper_.addConfigModifier([&](envoy::config::bootstrap::v3::Bootstrap& bootstrap) -> void {
++    RELEASE_ASSERT(bootstrap.mutable_static_resources()->clusters_size() >= 1, "");
++    auto* cluster = bootstrap.mutable_static_resources()->mutable_clusters(0);
++    cluster->mutable_http2_protocol_options()->set_allow_metadata(true);
++  });
++  config_helper_.addConfigModifier(
++      [&](envoy::extensions::filters::network::http_connection_manager::v3::HttpConnectionManager&
++              hcm) -> void { hcm.mutable_http2_protocol_options()->set_allow_metadata(true); });
++
++  // This test uses an Http2Frame and not the encoder's encodeMetadata method,
++  // because encodeMetadata fails when an empty metadata map is sent.
++  beginSession();
++  FakeHttpConnectionPtr fake_upstream_connection;
++  FakeStreamPtr fake_upstream_request;
++
++  const uint32_t client_stream_idx = 1;
++  // Send request.
++  const Http2Frame request =
++      Http2Frame::makePostRequest(client_stream_idx, "host", "/path/to/long/url");
++  sendFrame(request);
++  ASSERT_TRUE(fake_upstreams_[0]->waitForHttpConnection(*dispatcher_, fake_upstream_connection));
++  ASSERT_TRUE(fake_upstream_connection->waitForNewStream(*dispatcher_, fake_upstream_request));
++
++  // Send metadata frame with empty metadata map.
++  const Http::MetadataMap empty_metadata_map;
++  const Http2Frame empty_metadata_map_frame = Http2Frame::makeMetadataFrameFromMetadataMap(
++      client_stream_idx, empty_metadata_map, Http2Frame::MetadataFlags::EndMetadata);
++  sendFrame(empty_metadata_map_frame);
++
++  // Send an empty data frame to close the stream.
++  const Http2Frame empty_data_frame =
++      Http2Frame::makeEmptyDataFrame(client_stream_idx, Http2Frame::DataFlags::EndStream);
++  sendFrame(empty_data_frame);
++
++  // Upstream sends a reply.
++  ASSERT_TRUE(fake_upstream_request->waitForEndStream(*dispatcher_));
++  const Http::TestResponseHeaderMapImpl response_headers{{":status", "200"}};
++  fake_upstream_request->encodeHeaders(response_headers, true);
++
++  // Make sure that a response from upstream is received by the client, and
++  // close the connection.
++  const auto response = readFrame();
++  EXPECT_EQ(Http2Frame::Type::Headers, response.type());
++  EXPECT_EQ(Http2Frame::ResponseStatus::Ok, response.responseStatus());
++  EXPECT_EQ(1, test_server_->counter("http2.metadata_empty_frames")->value());
++
++  // Cleanup.
++  tcp_client_->close();
++}
++
++// Tests that an empty metadata map from upstream is ignored.
++TEST_P(Http2MetadataIntegrationTest, UpstreamSendingEmptyMetadata) {
++  initialize();
++
++  // Send a request and make sure an upstream connection is established.
++  codec_client_ = makeHttpConnection(lookupPort("http"));
++  auto response = codec_client_->makeHeaderOnlyRequest(default_request_headers_);
++  waitForNextUpstreamRequest();
++  auto* upstream = fake_upstreams_.front().get();
++
++  // Send response headers.
++  upstream_request_->encodeHeaders(default_response_headers_, false);
++  // Send an empty metadata map back from upstream.
++  const Http::MetadataMap empty_metadata_map;
++  const Http2Frame empty_metadata_frame = Http2Frame::makeMetadataFrameFromMetadataMap(
++      1, empty_metadata_map, Http2Frame::MetadataFlags::EndMetadata);
++  ASSERT_TRUE(upstream->rawWriteConnection(
++      0, std::string(empty_metadata_frame.begin(), empty_metadata_frame.end())));
++  // Send an empty data frame after the metadata frame to end the stream.
++  upstream_request_->encodeData(0, true);
++
++  // Verifies that no metadata was received by the client.
++  response->waitForEndStream();
++  ASSERT_TRUE(response->complete());
++  EXPECT_EQ(0, response->metadataMapsDecodedCount());
++  EXPECT_EQ(1, test_server_->counter("cluster.cluster_0.http2.metadata_empty_frames")->value());
++}
++
+ // Tests upstream sending a metadata frame after ending a stream.
+ TEST_P(Http2MetadataIntegrationTest, UpstreamMetadataAfterEndStream) {
+   initialize();
+diff --git a/test/integration/integration_stream_decoder.cc b/test/integration/integration_stream_decoder.cc
+index 6ac864cda..0b7566675 100644
+--- a/test/integration/integration_stream_decoder.cc
++++ b/test/integration/integration_stream_decoder.cc
+@@ -97,6 +97,7 @@ void IntegrationStreamDecoder::decodeTrailers(Http::ResponseTrailerMapPtr&& trai
+ }
+ 
+ void IntegrationStreamDecoder::decodeMetadata(Http::MetadataMapPtr&& metadata_map) {
++  metadata_maps_decoded_count_++;
+   // Combines newly received metadata with the existing metadata.
+   for (const auto& metadata : *metadata_map) {
+     duplicated_metadata_key_count_[metadata.first]++;
+diff --git a/test/integration/integration_stream_decoder.h b/test/integration/integration_stream_decoder.h
+index 888a4ad26..99486c78b 100644
+--- a/test/integration/integration_stream_decoder.h
++++ b/test/integration/integration_stream_decoder.h
+@@ -29,6 +29,7 @@ public:
+   const Http::ResponseTrailerMapPtr& trailers() { return trailers_; }
+   const Http::MetadataMap& metadataMap() { return *metadata_map_; }
+   uint64_t keyCount(std::string key) { return duplicated_metadata_key_count_[key]; }
++  uint32_t metadataMapsDecodedCount() const { return metadata_maps_decoded_count_; }
+   void waitForContinueHeaders();
+   void waitForHeaders();
+   // This function waits until body_ has at least size bytes in it (it might have more). clearBody()
+@@ -70,6 +71,7 @@ private:
+   bool waiting_for_headers_{};
+   bool saw_reset_{};
+   Http::StreamResetReason reset_reason_{};
++  uint32_t metadata_maps_decoded_count_{};
+ };
+ 
+ using IntegrationStreamDecoderPtr = std::unique_ptr<IntegrationStreamDecoder>;
+-- 
+2.13.5
+
+
+From a65fa09e0160e445c0f26c6966c1668718d78123 Mon Sep 17 00:00:00 2001
+From: Rei Shimizu <Shikugawa@gmail.com>
+Date: Fri, 26 Mar 2021 02:03:05 +0900
+Subject: [PATCH 2/3] =?UTF-8?q?ssl:=20fix=20crash=20when=20peer=20sends=20?=
+ =?UTF-8?q?an=20SSL=20Alert=20with=20an=20un=E2=80=A6=20(#262)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Fix for CVE-2021-28683 (crash when peer sends an SSL Alert with an unknown code)
+
+Signed-off-by: Greg Greenway <ggreenway@apple.com>
+Co-authored-by: Christoph Pakulski <christoph@tetrate.io>
+Signed-off-by: Tony Allen <tony@allen.gg>
+---
+ .../transport_sockets/tls/context_impl.cc          |  7 ++---
+ .../extensions/transport_sockets/tls/ssl_socket.cc |  7 ++---
+ .../tls/integration/ssl_integration_test.cc        | 31 ++++++++++++++++++++++
+ 3 files changed, 39 insertions(+), 6 deletions(-)
+
+diff --git a/source/extensions/transport_sockets/tls/context_impl.cc b/source/extensions/transport_sockets/tls/context_impl.cc
+index ee84dec35..b0782b9a7 100644
+--- a/source/extensions/transport_sockets/tls/context_impl.cc
++++ b/source/extensions/transport_sockets/tls/context_impl.cc
+@@ -296,9 +296,10 @@ ContextImpl::ContextImpl(Stats::Scope& scope, const Envoy::Ssl::ContextConfig& c
+       if (ctx.cert_chain_ == nullptr ||
+           !SSL_CTX_use_certificate(ctx.ssl_ctx_.get(), ctx.cert_chain_.get())) {
+         while (uint64_t err = ERR_get_error()) {
+-          ENVOY_LOG_MISC(debug, "SSL error: {}:{}:{}:{}", err, ERR_lib_error_string(err),
+-                         ERR_func_error_string(err), ERR_GET_REASON(err),
+-                         ERR_reason_error_string(err));
++          ENVOY_LOG_MISC(debug, "SSL error: {}:{}:{}:{}", err,
++                         absl::NullSafeStringView(ERR_lib_error_string(err)),
++                         absl::NullSafeStringView(ERR_func_error_string(err)), ERR_GET_REASON(err),
++                         absl::NullSafeStringView(ERR_reason_error_string(err)));
+         }
+         throw EnvoyException(
+             absl::StrCat("Failed to load certificate chain from ", ctx.cert_chain_file_path_));
+diff --git a/source/extensions/transport_sockets/tls/ssl_socket.cc b/source/extensions/transport_sockets/tls/ssl_socket.cc
+index ba408c2d4..ab77f6c8f 100644
+--- a/source/extensions/transport_sockets/tls/ssl_socket.cc
++++ b/source/extensions/transport_sockets/tls/ssl_socket.cc
+@@ -217,9 +217,10 @@ void SslSocket::drainErrorQueue() {
+     if (failure_reason_.empty()) {
+       failure_reason_ = "TLS error:";
+     }
+-    failure_reason_.append(absl::StrCat(" ", err, ":", ERR_lib_error_string(err), ":",
+-                                        ERR_func_error_string(err), ":",
+-                                        ERR_reason_error_string(err)));
++    failure_reason_.append(absl::StrCat(" ", err, ":",
++                                        absl::NullSafeStringView(ERR_lib_error_string(err)), ":",
++                                        absl::NullSafeStringView(ERR_func_error_string(err)), ":",
++                                        absl::NullSafeStringView(ERR_reason_error_string(err))));
+   }
+   ENVOY_CONN_LOG(debug, "{}", callbacks_->connection(), failure_reason_);
+   if (saw_error && !saw_counted_error) {
+diff --git a/test/extensions/transport_sockets/tls/integration/ssl_integration_test.cc b/test/extensions/transport_sockets/tls/integration/ssl_integration_test.cc
+index 16896443a..1047566c1 100644
+--- a/test/extensions/transport_sockets/tls/integration/ssl_integration_test.cc
++++ b/test/extensions/transport_sockets/tls/integration/ssl_integration_test.cc
+@@ -18,6 +18,7 @@
+ 
+ #include "extensions/transport_sockets/tls/context_config_impl.h"
+ #include "extensions/transport_sockets/tls/context_manager_impl.h"
++#include "extensions/transport_sockets/tls/ssl_handshaker.h"
+ 
+ #include "test/extensions/common/tap/common.h"
+ #include "test/integration/autonomous_upstream.h"
+@@ -90,6 +91,36 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, SslIntegrationTest,
+                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                          TestUtility::ipTestParamsToString);
+ 
++// Test that Envoy behaves correctly when receiving an SSLAlert for an unspecified code. The codes
++// are defined in the standard, and assigned codes have a string associated with them in BoringSSL,
++// which is included in logs. For an unknown code, verify that no crash occurs.
++TEST_P(SslIntegrationTest, UnknownSslAlert) {
++  initialize();
++  Network::ClientConnectionPtr connection = makeSslClientConnection({});
++  ConnectionStatusCallbacks callbacks;
++  connection->addConnectionCallbacks(callbacks);
++  connection->connect();
++  while (!callbacks.connected()) {
++    dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
++  }
++
++  Ssl::ConnectionInfoConstSharedPtr ssl_info = connection->ssl();
++  SSL* ssl =
++      dynamic_cast<const Extensions::TransportSockets::Tls::SslHandshakerImpl*>(ssl_info.get())
++          ->ssl();
++  ASSERT_EQ(connection->state(), Network::Connection::State::Open);
++  ASSERT_NE(ssl, nullptr);
++  SSL_send_fatal_alert(ssl, 255);
++  while (!callbacks.closed()) {
++    dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
++  }
++
++  const std::string counter_name = listenerStatPrefix("ssl.connection_error");
++  Stats::CounterSharedPtr counter = test_server_->counter(counter_name);
++  test_server_->waitForCounterGe(counter_name, 1);
++  connection->close(Network::ConnectionCloseType::NoFlush);
++}
++
+ TEST_P(SslIntegrationTest, RouterRequestAndResponseWithGiantBodyBuffer) {
+   ConnectionCreationFunction creator = [&]() -> Network::ClientConnectionPtr {
+     return makeSslClientConnection({});
+-- 
+2.13.5
+
+
+From eee5323807b665a117f4fcaa3891f974c96be57f Mon Sep 17 00:00:00 2001
+From: Rei Shimizu <Shikugawa@gmail.com>
+Date: Fri, 26 Mar 2021 02:14:57 +0900
+Subject: [PATCH 3/3] grpc: fix grpc-timeout integer overflow (#254)
+
+Fixes CVE-2021-28682, a remotely exploitable integer overflow.
+
+Signed-off-by: Asra Ali <asraa@google.com>
+Co-authored-by: Tony Allen <tony@allen.gg>
+Co-authored-by: Christoph Pakulski <christoph@tetrate.io>
+Signed-off-by: Tony Allen <tony@allen.gg>
+---
+ source/common/grpc/common.cc               | 18 ++++++++++++------
+ source/common/grpc/common.h                |  2 ++
+ test/common/grpc/common_test.cc            | 18 ++++++++++++++++--
+ test/common/http/conn_manager_impl_test.cc | 13 +++++++++++++
+ 4 files changed, 43 insertions(+), 8 deletions(-)
+
+diff --git a/source/common/grpc/common.cc b/source/common/grpc/common.cc
+index 8b7551d8b..542b20475 100644
+--- a/source/common/grpc/common.cc
++++ b/source/common/grpc/common.cc
+@@ -167,12 +167,18 @@ Common::getGrpcTimeout(const Http::RequestHeaderMap& request_headers) {
+   const Http::HeaderEntry* header_grpc_timeout_entry = request_headers.GrpcTimeout();
+   std::chrono::milliseconds timeout;
+   if (header_grpc_timeout_entry) {
+-    uint64_t grpc_timeout;
+-    // TODO(dnoe): Migrate to pure string_view (#6580)
+-    std::string grpc_timeout_string(header_grpc_timeout_entry->value().getStringView());
+-    const char* unit = StringUtil::strtoull(grpc_timeout_string.c_str(), grpc_timeout);
+-    if (unit != nullptr && *unit != '\0') {
+-      switch (*unit) {
++    int64_t grpc_timeout;
++    absl::string_view timeout_entry = header_grpc_timeout_entry->value().getStringView();
++    if (timeout_entry.empty()) {
++      // Must be of the form TimeoutValue TimeoutUnit. See
++      // https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md#requests.
++      return absl::nullopt;
++    }
++    // TimeoutValue must be a positive integer of at most 8 digits.
++    if (absl::SimpleAtoi(timeout_entry.substr(0, timeout_entry.size() - 1), &grpc_timeout) &&
++        grpc_timeout >= 0 && static_cast<uint64_t>(grpc_timeout) <= MAX_GRPC_TIMEOUT_VALUE) {
++      const char unit = timeout_entry[timeout_entry.size() - 1];
++      switch (unit) {
+       case 'H':
+         return std::chrono::hours(grpc_timeout);
+       case 'M':
+diff --git a/source/common/grpc/common.h b/source/common/grpc/common.h
+index f76082610..dcade2ad8 100644
+--- a/source/common/grpc/common.h
++++ b/source/common/grpc/common.h
+@@ -178,6 +178,8 @@ public:
+ 
+ private:
+   static void checkForHeaderOnlyError(Http::ResponseMessage& http_response);
++
++  static constexpr size_t MAX_GRPC_TIMEOUT_VALUE = 99999999;
+ };
+ 
+ } // namespace Grpc
+diff --git a/test/common/grpc/common_test.cc b/test/common/grpc/common_test.cc
+index 3f6d88dd0..4a54ee4b6 100644
+--- a/test/common/grpc/common_test.cc
++++ b/test/common/grpc/common_test.cc
+@@ -78,6 +78,9 @@ TEST(GrpcContextTest, GetGrpcTimeout) {
+   Http::TestRequestHeaderMapImpl missing_unit{{"grpc-timeout", "123"}};
+   EXPECT_EQ(absl::nullopt, Common::getGrpcTimeout(missing_unit));
+ 
++  Http::TestRequestHeaderMapImpl small_missing_unit{{"grpc-timeout", "1"}};
++  EXPECT_EQ(absl::nullopt, Common::getGrpcTimeout(small_missing_unit));
++
+   Http::TestRequestHeaderMapImpl illegal_unit{{"grpc-timeout", "123F"}};
+   EXPECT_EQ(absl::nullopt, Common::getGrpcTimeout(illegal_unit));
+ 
+@@ -102,8 +105,19 @@ TEST(GrpcContextTest, GetGrpcTimeout) {
+   Http::TestRequestHeaderMapImpl unit_nanoseconds{{"grpc-timeout", "12345678n"}};
+   EXPECT_EQ(std::chrono::milliseconds(13), Common::getGrpcTimeout(unit_nanoseconds));
+ 
+-  // Max 8 digits and no leading whitespace or +- signs are not enforced on decode,
+-  // so we don't test for them.
++  // Test max 8 digits to prevent millisecond overflow.
++  Http::TestRequestHeaderMapImpl value_overflow{{"grpc-timeout", "6666666666666H"}};
++  EXPECT_EQ(absl::nullopt, Common::getGrpcTimeout(value_overflow));
++
++  // Reject negative values.
++  Http::TestRequestHeaderMapImpl value_negative{{"grpc-timeout", "-1S"}};
++  EXPECT_EQ(absl::nullopt, Common::getGrpcTimeout(value_negative));
++
++  // Allow positive values marked with +.
++  Http::TestRequestHeaderMapImpl value_positive{{"grpc-timeout", "+1S"}};
++  EXPECT_EQ(std::chrono::milliseconds(1000), Common::getGrpcTimeout(value_positive));
++
++  // No leading whitespace are not enforced on decode so we don't test for them.
+ }
+ 
+ TEST(GrpcCommonTest, GrpcStatusDetailsBin) {
+diff --git a/test/common/http/conn_manager_impl_test.cc b/test/common/http/conn_manager_impl_test.cc
+index 04df5b207..ccd383694 100644
+--- a/test/common/http/conn_manager_impl_test.cc
++++ b/test/common/http/conn_manager_impl_test.cc
+@@ -2284,6 +2284,19 @@ TEST_F(HttpConnectionManagerImplTest, DurationTimeout) {
+     decoder_filters_[0]->callbacks_->clusterInfo();
+   }
+ 
++  // With an invalid gRPC timeout, refreshing cached route will not use header and use stream
++  // duration.
++  latched_headers->setGrpcTimeout("6666666666666H");
++  {
++    // 25ms used already from previous case so timer is set to be 5ms.
++    EXPECT_CALL(*timer, enableTimer(std::chrono::milliseconds(5), _));
++    EXPECT_CALL(route_config_provider_.route_config_->route_->route_entry_, maxStreamDuration())
++        .Times(2)
++        .WillRepeatedly(Return(std::chrono::milliseconds(30)));
++    decoder_filters_[0]->callbacks_->clearRouteCache();
++    decoder_filters_[0]->callbacks_->clusterInfo();
++  }
++
+   // Cleanup.
+   EXPECT_CALL(*timer, disableTimer());
+   EXPECT_CALL(*decoder_filters_[0], onStreamComplete());
+-- 
+2.13.5
+
