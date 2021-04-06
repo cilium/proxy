@@ -11,9 +11,9 @@ ENVOY_PROJECT = "envoyproxy"
 
 ENVOY_REPO = "envoy"
 
-ENVOY_SHA = "d6a4496e712d7a2335b26e2f76210d5904002c26"
+ENVOY_SHA = "21fe4496ca0c7798d6a9a747fdbf1ec1071e7f4f"
 
-ENVOY_SHA256 = "d5c02f61cfff17ff8dcd6e7a0555182bd5e1cba3d1ebafe7a0fd5926c0511615"
+ENVOY_SHA256 = "4239723c5fb1b350aee9560655d94769835a9ac8c67fa42c355bdd1a7bbee204"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -27,7 +27,6 @@ http_archive(
     patch_tool = "git",
     patch_args = ["apply"],
     patches = [
-        "@//patches:whitebat-v1.17.patch",
         "@//patches:test-enable-half-close.patch",
         "@//patches:test-double-server-create-timeout.patch",
         "@//patches:cross-aarch64.patch",
