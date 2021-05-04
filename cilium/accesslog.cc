@@ -66,6 +66,7 @@ CONST_STRING_VIEW(pathSV, ":path");
 CONST_STRING_VIEW(methodSV, ":method");
 CONST_STRING_VIEW(authoritySV, ":authority");
 CONST_STRING_VIEW(xForwardedProtoSV, "x-forwarded-proto");
+CONST_STRING_VIEW(statusSV, ":status");
 
 void AccessLog::Entry::InitFromConnection(const std::string& policy_name,
                                           const Cilium::SocketOption& option,
@@ -192,13 +193,24 @@ void AccessLog::Entry::UpdateFromResponse(
                            .count());
 
   ::cilium::HttpLogEntry* http_entry = entry_.mutable_http();
-  const Http::HeaderEntry* status_entry = headers.Status();
-  if (status_entry) {
-    uint64_t status;
-    if (absl::SimpleAtoi(status_entry->value().getStringView(), &status)) {
-      http_entry->set_status(status);
-    }
-  }
+  // response headers
+  headers.iterate(
+      [http_entry](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
+        const absl::string_view key = header.key().getStringView();
+        const absl::string_view value = header.value().getStringView();
+
+        if (key == statusSV) {
+	  uint64_t status;
+	  if (absl::SimpleAtoi(value, &status)) {
+	    http_entry->set_status(status);
+	  }
+        } else {
+          ::cilium::KeyValue* kv = http_entry->add_headers();
+          kv->set_key(key.data(), key.size());
+          kv->set_value(value.data(), value.size());
+        }
+        return Http::HeaderMap::Iterate::Continue;
+      });
 }
 
 void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
