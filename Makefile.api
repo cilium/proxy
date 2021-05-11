@@ -17,7 +17,6 @@ include Makefile.quiet
 # Depends on Envoy dependencies, Envoy must be built first
 
 PROTOC ?= bazel-out/host/bin/external/com_google_protobuf/protoc
-BIN_PATH ?= bazel-out/host/bin/external/com_github_golang_protobuf/protoc-gen-go/protoc-gen-go_:bazel-out/host/bin/external/com_envoyproxy_protoc_gen_validate/protoc-gen-validate_
 
 ENVOY_API_PROTO_PATH = bazel-proxy/external/envoy/api
 CILIUM_PROTO_PATH = .
@@ -37,7 +36,6 @@ ENVOY_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(ENVOY_RAW_PROTOS))
 
 ENVOY_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(ENVOY_API_PROTOS))
 ENVOY_PROTO_DIRS := $(sort $(dir $(ENVOY_PROTO_SOURCES)))
-ENVOY_GO_TARGETS := $(addprefix $(GO_OUT)/,$(ENVOY_API_PROTOS:.proto=.pb.go))
 # Produce a raw list of package mappings
 RAW_GO_MAPPINGS := $(foreach proto,$(ENVOY_API_PROTOS),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
 
@@ -49,8 +47,6 @@ CILIUM_PROTO_SOURCES := \
 	cilium/api/npds.proto \
 	cilium/api/nphds.proto
 CILIUM_PROTO_DIRS := $(sort $(dir $(CILIUM_PROTO_SOURCES)))
-CILIUM_GO_TARGETS := $(addprefix $(GO_OUT)/,$(CILIUM_PROTO_SOURCES:.proto=.pb.go)) \
-	$(addprefix $(GO_OUT)/,$(CILIUM_PROTO_SOURCES:.proto=.pb.validate.go))
 RAW_GO_MAPPINGS += $(foreach proto,$(CILIUM_PROTO_SOURCES),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
 
 # Add mappings to vendored dependencies
@@ -72,20 +68,22 @@ file_sep +=
 map_sep := ,M
 GO_MAPPINGS := $(patsubst %/,%,$(map_sep)$(subst $(file_sep),$(map_sep),$(RAW_GO_MAPPINGS)))
 
-all: $(ENVOY_API_PROTO_PATH) $(ENVOY_GO_TARGETS) $(CILIUM_GO_TARGETS) godeps
+all: godeps $(ENVOY_API_PROTO_PATH) envoy-go-targets cilium-go-targets
 
-$(ENVOY_GO_TARGETS): $(ENVOY_PROTO_SOURCES) Makefile.api
+.PHONY: envoy-go-targets
+envoy-go-targets: $(ENVOY_PROTO_SOURCES) Makefile.api
 	$(QUIET)set -e; \
 	for path in $(ENVOY_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		PATH=$(PATH):$(BIN_PATH) $(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
+		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
 	done
 
-$(CILIUM_GO_TARGETS): $(CILIUM_PROTO_SOURCES) Makefile.api
+.PHONY: cilium-go-targets
+cilium-go-targets: $(CILIUM_PROTO_SOURCES) Makefile.api
 	$(QUIET)set -e; \
 	for path in $(CILIUM_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		PATH=$(PATH):$(BIN_PATH) $(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
+		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
 	done
 
 godeps:
@@ -95,10 +93,13 @@ godeps:
 	GO111MODULE=on go get github.com/envoyproxy/protoc-gen-validate@872b28c457822ed9c2a5405da3c33f386ac0e86f
 	GO111MODULE=on go get github.com/prometheus/client_model@60555c9708c786597e6b07bf846d0dc5c2a46f54
 # Latest and/or matching cilium/cilium/go.mod:
-	GO111MODULE=on go get google.golang.org/grpc@v1.29.1
-	GO111MODULE=on go get github.com/golang/protobuf@v1.4.3
 	GO111MODULE=on go get google.golang.org/genproto/...@44e461bb6506
 	GO111MODULE=on go get google.golang.org/protobuf/...@v1.25.0
+	GO111MODULE=on go get google.golang.org/grpc@v1.29.1
+	GO111MODULE=on go get github.com/golang/protobuf@v1.4.3
+	GO111MODULE=on go get github.com/golang/protobuf/protoc-gen-go@v1.4.3
+	GO111MODULE=on go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
+	GO111MODULE=on go install github.com/envoyproxy/protoc-gen-validate@872b28c457822ed9c2a5405da3c33f386ac0e86f
 	go mod tidy
 
 .PHONY: all
