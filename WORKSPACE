@@ -11,9 +11,9 @@ ENVOY_PROJECT = "envoyproxy"
 
 ENVOY_REPO = "envoy"
 
-ENVOY_SHA = "21fe4496ca0c7798d6a9a747fdbf1ec1071e7f4f"
+ENVOY_SHA = "46bf743b97d0d3f01ff437b2f10cc0bd9cdfe6e4"
 
-ENVOY_SHA256 = "4239723c5fb1b350aee9560655d94769835a9ac8c67fa42c355bdd1a7bbee204"
+ENVOY_SHA256 = "99b099b55547951fdb7f9a344fe5a4a972503782de985dfc2d3128813269f851"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
