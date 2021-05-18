@@ -5,6 +5,7 @@
 #include "envoy/http/protocol.h"
 #include "envoy/network/socket.h"
 #include "gtest/gtest.h"
+#include "test/mocks/event/mocks.h"
 #include "test/mocks/network/connection.h"
 #include "test/mocks/stream_info/mocks.h"
 #include "test/test_common/utility.h"
@@ -59,10 +60,34 @@ TEST_F(CiliumTest, AccessLog) {
   EXPECT_STREQ("host", log.entry_.http().host().c_str());
   EXPECT_STREQ("http", log.entry_.http().scheme().c_str());
 
+  // Request headers not captured above
   EXPECT_EQ(log.entry_.http().headers_size(), 1);
   EXPECT_STREQ(log.entry_.http().headers(0).key().c_str(), "x-request-id");
   EXPECT_STREQ(log.entry_.http().headers(0).value().c_str(),
                "ba41267c-cfc2-4a92-ad3e-cd084ab099b4");
+
+  Http::TestResponseHeaderMapImpl response_headers{
+      {"my-response-header", "response"}};
+
+  NiceMock<Event::SimulatedTimeSystem> time_source;
+  log.UpdateFromResponse(response_headers, time_source);
+
+  // Unmodified
+  EXPECT_EQ(log.entry_.has_http(), true);
+  EXPECT_EQ(::cilium::HttpProtocol::HTTP11, log.entry_.http().http_protocol());
+  EXPECT_STREQ("/", log.entry_.http().path().c_str());
+  EXPECT_STREQ("GET", log.entry_.http().method().c_str());
+  EXPECT_STREQ("host", log.entry_.http().host().c_str());
+  EXPECT_STREQ("http", log.entry_.http().scheme().c_str());
+
+  // x-request-id and response headers only
+  EXPECT_EQ(log.entry_.http().headers_size(), 2);
+  EXPECT_STREQ(log.entry_.http().headers(0).key().c_str(), "x-request-id");
+  EXPECT_STREQ(log.entry_.http().headers(0).value().c_str(),
+               "ba41267c-cfc2-4a92-ad3e-cd084ab099b4");
+  EXPECT_STREQ(log.entry_.http().headers(1).key().c_str(), "my-response-header");
+  EXPECT_STREQ(log.entry_.http().headers(1).value().c_str(),
+               "response");
 }
 
 }  // namespace Cilium

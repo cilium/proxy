@@ -28,7 +28,7 @@ message HttpLogEntry {
   string path = 4;    // Envoy ":path" header
   string method = 5;  // Envoy ":method" header
 
-  // Request headers not included above
+  // Request or response headers not included above
   repeated KeyValue headers = 6;
 
   // Response info

@@ -66,6 +66,7 @@ CONST_STRING_VIEW(pathSV, ":path");
 CONST_STRING_VIEW(methodSV, ":method");
 CONST_STRING_VIEW(authoritySV, ":authority");
 CONST_STRING_VIEW(xForwardedProtoSV, "x-forwarded-proto");
+CONST_STRING_VIEW(xRequestIdSV, "x-request-id");
 CONST_STRING_VIEW(statusSV, ":status");
 
 void AccessLog::Entry::InitFromConnection(const std::string& policy_name,
@@ -193,17 +194,39 @@ void AccessLog::Entry::UpdateFromResponse(
                            .count());
 
   ::cilium::HttpLogEntry* http_entry = entry_.mutable_http();
+
+  // Find existing x-request-id before clearing headers
+  std::string request_id;
+  for (int i = 0; i < http_entry->headers_size(); i++) {
+    if (http_entry->headers(i).key() == xRequestIdSV) {
+      request_id = http_entry->headers(i).value();
+      break;
+    }
+  }
+
+  // Remove headers logged for the request
+  http_entry->clear_headers();
+
+  // Add back the x-request-id, if any
+  if (request_id.length() > 0) {    
+    ::cilium::KeyValue* kv = http_entry->add_headers();
+    kv->set_key(xRequestIdSV.data(), xRequestIdSV.size());
+    kv->set_value(request_id);
+  }
+
   // response headers
   headers.iterate(
-      [http_entry](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
+      [http_entry, &request_id](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
         const absl::string_view key = header.key().getStringView();
         const absl::string_view value = header.value().getStringView();
 
         if (key == statusSV) {
-	  uint64_t status;
-	  if (absl::SimpleAtoi(value, &status)) {
-	    http_entry->set_status(status);
-	  }
+          uint64_t status;
+          if (absl::SimpleAtoi(value, &status)) {
+            http_entry->set_status(status);
+          }
+        } else if (key == xRequestIdSV && value == request_id) {
+          // We already have the request id, do not repeat it if the value is still the same
         } else {
           ::cilium::KeyValue* kv = http_entry->add_headers();
           kv->set_key(key.data(), key.size());
