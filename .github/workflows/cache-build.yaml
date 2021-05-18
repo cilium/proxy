@@ -54,7 +54,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             COPY_CACHE_EXT=.new
-            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-envoy-1.17.0-archive
+            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-envoy-1.17.3-archive
           push: true
           tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-archive-latest
       - name: Cache Docker layers
@@ -115,7 +115,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             COPY_CACHE_EXT=.new
-            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:envoy-1.17.0-archive
+            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:envoy-1.17.3-archive
           push: true
           tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:release-archive-latest
       - name: Cache Docker layers
