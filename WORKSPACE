@@ -27,6 +27,7 @@ http_archive(
     patch_tool = "git",
     patch_args = ["apply"],
     patches = [
+        "@//patches:whitebat-v1.17.patch",
         "@//patches:test-enable-half-close.patch",
         "@//patches:test-double-server-create-timeout.patch",
         "@//patches:cross-aarch64.patch",
