@@ -14,7 +14,7 @@
 
 include Makefile.defs
 
-# COMPILER_DEP:=clang.bazelrc
+COMPILER_DEP:=clang.bazelrc
 
 ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy bazel-bin/cilium-envoy-deps
 ENVOY_TESTS = bazel-bin/tests/*_test
