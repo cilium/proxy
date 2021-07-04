@@ -124,6 +124,11 @@ Dockerfile.builder.dockerignore:
 	echo "*" >$@
 	echo "!/.bazelversion" >>$@
 
+# Istio builds need envoy_bootstrap_tmpl.json
+Dockerfile.istio_proxy.dockerignore: Dockerfile.dockerignore
+	cp $< $@
+	echo "!/envoy_bootstrap_tmpl.json" >>$@
+
 # Release does not need Go API or test files
 Dockerfile.dockerignore: .dockerignore Makefile.docker
 	cp $< $@
@@ -195,8 +200,8 @@ docker-image-envoy: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
 	@$(ECHO_GEN) docker-image-envoy
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" $(DOCKER_IMAGE_ENVOY_TAGS) .
 
-docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
+docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json Dockerfile.istio_proxy.dockerignore
 	@$(ECHO_GEN) docker-istio-proxy
-	$(DOCKER) build --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t cilium/istio_proxy:$(ISTIO_VERSION) .
+	$(DOCKER) build --load --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< -t cilium/istio_proxy:$(ISTIO_VERSION) .
 	$(QUIET)echo "Push like this when ready:"
 	$(QUIET)echo "docker push cilium/istio_proxy:$(ISTIO_VERSION)"
