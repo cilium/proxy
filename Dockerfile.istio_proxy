@@ -15,6 +15,20 @@ FROM quay.io/cilium/cilium-envoy:${CILIUM_ENVOY_SHA} as cilium-envoy
 FROM istio/proxyv2:${ISTIO_VERSION} as istio
 
 #
+# Updated pilot-agent
+#
+FROM gcr.io/istio-testing/build-tools:release-1.10-2021-07-13T16-39-43 as istio-builder
+ENV BUILD_WITH_CONTAINER 0
+ENV IN_BUILD_CONTAINER 0
+ENV TARGET_OS linux
+ENV TARGET_ARCH amd64
+ENV BUILD_ALL false
+ENV TARGET_OUT /work/out/linux_amd64
+ENV TARGET_OUT_LINUX /work/out/linux_amd64
+WORKDIR /work
+RUN git clone --depth 1 --branch inject-cilium-filters-1.10.3 --no-tags https://github.com/cilium/istio.git && cd istio && make build-linux
+
+#
 # Please keep in sync with cilium/istio/pilot/docker/Dockerfile.proxyv2:
 #
 
@@ -41,7 +55,7 @@ USER 0:1337
 
 COPY --from=istio /etc/istio /etc/istio
 COPY --from=istio /var/lib/istio /var/lib/istio
-COPY --from=istio /usr/local/bin/pilot-agent /usr/local/bin/pilot-agent
+COPY --from=istio-builder /work/out/linux_amd64/pilot-agent /usr/local/bin/pilot-agent
 COPY --from=cilium-envoy /usr/bin/cilium-envoy /usr/local/bin/envoy
 RUN chgrp 1337 /usr/local/bin/envoy && chmod 2755 /usr/local/bin/envoy
 RUN chgrp 1337 /usr/bin/curl && chmod 2755 /usr/bin/curl
