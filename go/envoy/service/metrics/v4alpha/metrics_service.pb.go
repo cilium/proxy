@@ -9,7 +9,7 @@ package envoy_service_metrics_v4alpha
 import (
 	context "context"
 	v4alpha "github.com/cilium/proxy/go/envoy/config/core/v4alpha"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	_go "github.com/prometheus/client_model/go"

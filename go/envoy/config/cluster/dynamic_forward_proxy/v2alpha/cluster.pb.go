@@ -8,7 +8,7 @@ package envoy_config_cluster_dynamic_forward_proxy_v2alpha
 
 import (
 	v2alpha "github.com/cilium/proxy/go/envoy/config/common/dynamic_forward_proxy/v2alpha"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

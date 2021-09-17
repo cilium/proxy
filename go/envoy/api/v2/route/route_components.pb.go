@@ -12,7 +12,7 @@ import (
 	_type "github.com/cilium/proxy/go/envoy/type"
 	matcher "github.com/cilium/proxy/go/envoy/type/matcher"
 	v2 "github.com/cilium/proxy/go/envoy/type/tracing/v2"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

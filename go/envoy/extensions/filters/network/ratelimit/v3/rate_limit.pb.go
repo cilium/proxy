@@ -9,7 +9,7 @@ package envoy_extensions_filters_network_ratelimit_v3
 import (
 	v31 "github.com/cilium/proxy/go/envoy/config/ratelimit/v3"
 	v3 "github.com/cilium/proxy/go/envoy/extensions/common/ratelimit/v3"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

@@ -8,7 +8,7 @@ package envoy_extensions_filters_http_router_v3
 
 import (
 	v3 "github.com/cilium/proxy/go/envoy/config/accesslog/v3"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

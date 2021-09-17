@@ -8,7 +8,7 @@ package envoy_extensions_filters_http_ext_proc_v3alpha
 
 import (
 	v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -38,7 +38,6 @@ type ExternalProcessor struct {
 	// Configuration for the gRPC service that the filter will communicate with.
 	// The filter supports both the "Envoy" and "Google" gRPC clients.
 	GrpcService *v3.GrpcService `protobuf:"bytes,1,opt,name=grpc_service,json=grpcService,proto3" json:"grpc_service,omitempty"`
-	// [#not-implemented-hide:]
 	// By default, if the gRPC stream cannot be established, or if it is closed
 	// prematurely with an error, the filter will fail. Specifically, if the
 	// response headers have not yet been delivered, then it will return a 500
@@ -47,7 +46,6 @@ type ExternalProcessor struct {
 	// With this parameter set to true, however, then if the gRPC stream is prematurely closed
 	// or could not be opened, processing continues without error.
 	FailureModeAllow bool `protobuf:"varint,2,opt,name=failure_mode_allow,json=failureModeAllow,proto3" json:"failure_mode_allow,omitempty"`
-	// [#not-implemented-hide:]
 	// Specifies default options for how HTTP headers, trailers, and bodies are
 	// sent. See ProcessingMode for details.
 	ProcessingMode *ProcessingMode `protobuf:"bytes,3,opt,name=processing_mode,json=processingMode,proto3" json:"processing_mode,omitempty"`
@@ -72,13 +70,13 @@ type ExternalProcessor struct {
 	// See the :ref:`attribute documentation <arch_overview_attributes>`
 	// for the list of supported attributes and their types.
 	ResponseAttributes []string `protobuf:"bytes,6,rep,name=response_attributes,json=responseAttributes,proto3" json:"response_attributes,omitempty"`
-	// [#not-implemented-hide:]
 	// Specifies the timeout for each individual message sent on the stream and
 	// when the filter is running in synchronous mode. Whenever
 	// the proxy sends a message on the stream that requires a response, it will
 	// reset this timer, and will stop processing and return an error (subject
-	// to the processing mode) if the timer expires. There is no timeout when
-	// the filter is running in asynchronous mode. Default is 200 ms.
+	// to the processing mode) if the timer expires before a matching response.
+	// is received. There is no timeout when the filter is running in asynchronous
+	// mode. Default is 200 milliseconds.
 	MessageTimeout *durationpb.Duration `protobuf:"bytes,7,opt,name=message_timeout,json=messageTimeout,proto3" json:"message_timeout,omitempty"`
 	// [#not-implemented-hide:]
 	// Optional additional prefix to use when emitting statistics. This allows to distinguish

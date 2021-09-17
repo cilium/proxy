@@ -8,7 +8,7 @@ package envoy_api_v2
 
 import (
 	core "github.com/cilium/proxy/go/envoy/api/v2/core"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	proto "github.com/golang/protobuf/proto"
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

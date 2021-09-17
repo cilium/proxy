@@ -9,7 +9,7 @@ package envoy_service_event_reporting_v2alpha
 import (
 	context "context"
 	core "github.com/cilium/proxy/go/envoy/api/v2/core"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"

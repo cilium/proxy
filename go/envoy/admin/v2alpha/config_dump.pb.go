@@ -8,7 +8,7 @@ package envoy_admin_v2alpha
 
 import (
 	v2 "github.com/cilium/proxy/go/envoy/config/bootstrap/v2"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"

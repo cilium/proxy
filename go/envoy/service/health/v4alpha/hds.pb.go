@@ -11,7 +11,7 @@ import (
 	v4alpha1 "github.com/cilium/proxy/go/envoy/config/cluster/v4alpha"
 	v4alpha "github.com/cilium/proxy/go/envoy/config/core/v4alpha"
 	v3 "github.com/cilium/proxy/go/envoy/config/endpoint/v3"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"

@@ -10,7 +10,7 @@ import (
 	core "github.com/cilium/proxy/go/envoy/api/v2/core"
 	route "github.com/cilium/proxy/go/envoy/api/v2/route"
 	matcher "github.com/cilium/proxy/go/envoy/type/matcher"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	v1alpha1 "google.golang.org/genproto/googleapis/api/expr/v1alpha1"

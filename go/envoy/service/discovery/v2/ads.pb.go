@@ -9,7 +9,7 @@ package envoy_service_discovery_v2
 import (
 	context "context"
 	v2 "github.com/cilium/proxy/go/envoy/api/v2"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"

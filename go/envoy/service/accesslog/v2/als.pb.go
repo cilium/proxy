@@ -10,7 +10,7 @@ import (
 	context "context"
 	core "github.com/cilium/proxy/go/envoy/api/v2/core"
 	v2 "github.com/cilium/proxy/go/envoy/data/accesslog/v2"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"

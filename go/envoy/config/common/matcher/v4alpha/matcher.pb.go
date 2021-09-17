@@ -10,7 +10,7 @@ import (
 	v4alpha1 "github.com/cilium/proxy/go/envoy/config/core/v4alpha"
 	v4alpha "github.com/cilium/proxy/go/envoy/config/route/v4alpha"
 	v4alpha2 "github.com/cilium/proxy/go/envoy/type/matcher/v4alpha"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -864,6 +864,7 @@ type Matcher_MatcherList_Predicate_SinglePredicate struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Protocol-specific specification of input field to match on.
+	// [#extension-category: envoy.matching.common_inputs]
 	Input *v4alpha1.TypedExtensionConfig `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
 	// Types that are assignable to Matcher:
 	//	*Matcher_MatcherList_Predicate_SinglePredicate_ValueMatch
@@ -942,6 +943,7 @@ type Matcher_MatcherList_Predicate_SinglePredicate_ValueMatch struct {
 
 type Matcher_MatcherList_Predicate_SinglePredicate_CustomMatch struct {
 	// Extension for custom matching logic.
+	// [#extension-category: envoy.matching.input_matchers]
 	CustomMatch *v4alpha1.TypedExtensionConfig `protobuf:"bytes,3,opt,name=custom_match,json=customMatch,proto3,oneof"`
 }
 

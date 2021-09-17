@@ -8,7 +8,7 @@ package envoy_config_grpc_credential_v2alpha
 
 import (
 	core "github.com/cilium/proxy/go/envoy/api/v2/core"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"

@@ -10,7 +10,7 @@ import (
 	context "context"
 	_ "github.com/cilium/proxy/go/envoy/annotations"
 	v2 "github.com/cilium/proxy/go/envoy/api/v2"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"

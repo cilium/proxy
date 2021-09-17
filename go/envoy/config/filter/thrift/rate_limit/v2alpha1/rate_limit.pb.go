@@ -8,7 +8,7 @@ package envoy_config_filter_thrift_rate_limit_v2alpha1
 
 import (
 	v2 "github.com/cilium/proxy/go/envoy/config/ratelimit/v2"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

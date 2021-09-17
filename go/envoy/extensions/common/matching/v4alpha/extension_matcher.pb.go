@@ -9,7 +9,7 @@ package envoy_extensions_common_matching_v4alpha
 import (
 	v4alpha "github.com/cilium/proxy/go/envoy/config/common/matcher/v4alpha"
 	v4alpha1 "github.com/cilium/proxy/go/envoy/config/core/v4alpha"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

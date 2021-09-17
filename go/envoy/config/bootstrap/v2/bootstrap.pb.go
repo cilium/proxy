@@ -14,7 +14,7 @@ import (
 	v2 "github.com/cilium/proxy/go/envoy/config/metrics/v2"
 	v2alpha "github.com/cilium/proxy/go/envoy/config/overload/v2alpha"
 	v21 "github.com/cilium/proxy/go/envoy/config/trace/v2"
-	_ "github.com/cncf/udpa/go/udpa/annotations"
+	_ "github.com/cncf/xds/go/udpa/annotations"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	proto "github.com/golang/protobuf/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
