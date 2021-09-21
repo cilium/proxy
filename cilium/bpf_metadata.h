@@ -29,6 +29,7 @@ class Config : Logger::Loggable<Logger::Id::config> {
 
   bool is_ingress_;
   bool may_use_original_source_address_;
+  bool egress_mark_source_endpoint_id_;
 
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
   Cilium::CtMapSharedPtr ct_maps_{};

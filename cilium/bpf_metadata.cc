@@ -99,8 +99,12 @@ std::shared_ptr<const Cilium::NetworkPolicyMap> createPolicyMap(
 Config::Config(const ::cilium::BpfMetadata& config,
                Server::Configuration::ListenerFactoryContext& context)
     : is_ingress_(config.is_ingress()),
-      may_use_original_source_address_(
-          config.may_use_original_source_address()) {
+      may_use_original_source_address_(config.may_use_original_source_address()),
+      egress_mark_source_endpoint_id_(config.egress_mark_source_endpoint_id())
+{
+  if (egress_mark_source_endpoint_id_ && is_ingress_) {
+    throw EnvoyException("cilium.bpf_metadata: egress_mark_source_endpoint_id may not be set with is_ingress");
+  }
   // Note: all instances use the bpf root of the first filter with non-empty
   // bpf_root instantiated! Only try opening bpf maps if bpf root is explicitly
   // configured
@@ -126,7 +130,6 @@ Config::Config(const ::cilium::BpfMetadata& config,
           fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
     }
   }
-
   // Only create the hosts map if ipcache can't be opened
   if (ipcache_ == nullptr) {
     hosts_ = createHostMap(context);
@@ -222,8 +225,11 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   // Only use the original source address if permitted and the other node is not
   // in the same node and is not classified as WORLD.
-  if (may_use_original_source_address_ &&
-      destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip)) {
+  // Always use original source address with egress_mark_source_endpoint_id_ as
+  // policy enforcement after the proxy depends on it.
+  if (egress_mark_source_endpoint_id_ ||
+      (may_use_original_source_address_ &&
+       destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
     socket.addOptions(
         Network::SocketOptionFactory::buildIpTransparentOptions());
   } else {
@@ -250,9 +256,20 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   // Pass the metadata to an Envoy socket option we can retrieve later in other
   // Cilium filters.
-  bool no_mark = npmap_->is_sidecar_;
+  uint32_t mark = 0;
+  if (!npmap_->is_sidecar_) {
+    if (egress_mark_source_endpoint_id_) {
+      // Mark with source endpoint ID
+      mark = 0x0900 | policy->getEndpointID() << 16;
+    } else {
+      // Mark with source identity
+      uint32_t cluster_id = (source_identity >> 16) & 0xFF;
+      uint32_t identity_id = (source_identity & 0xFFFF) << 16;
+      mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
+    }
+  }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, no_mark, source_identity, destination_identity, is_ingress_, dip->port(),
+      policy, mark, source_identity, destination_identity, is_ingress_, dip->port(),
       std::move(pod_ip), src_address));
   return true;
 }

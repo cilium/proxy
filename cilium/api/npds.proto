@@ -37,10 +37,9 @@ message NetworkPolicy {
   // Required.
   string name = 1;
 
-  // The policy identifier associated with the network policy. Corresponds to
-  // remote_policies entries in PortNetworkPolicyRule.
+  // The endpoint identifier associated with the network policy.
   // Required.
-  uint64 policy = 2;
+  uint64 endpoint_id = 2;
 
   // The part of the policy to be enforced at ingress by the filter, as a set
   // of per-port network policies, one per destination L4 port.

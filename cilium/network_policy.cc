@@ -19,6 +19,7 @@ class PolicyInstanceImpl : public PolicyInstance {
   PolicyInstanceImpl(const NetworkPolicyMap& parent, uint64_t hash,
                      const cilium::NetworkPolicy& proto)
       : conntrack_map_name_(proto.conntrack_map_name()),
+        endpoint_id_(proto.endpoint_id()),
         hash_(hash),
         policy_proto_(proto),
         ingress_(parent, policy_proto_.ingress_per_port_policies()),
@@ -598,8 +599,13 @@ class PolicyInstanceImpl : public PolicyInstance {
     return conntrack_map_name_;
   }
 
+  uint32_t getEndpointID() const override {
+    return endpoint_id_;
+  }
+
  public:
   std::string conntrack_map_name_;
+  uint32_t endpoint_id_;
   uint64_t hash_;
   const cilium::NetworkPolicy policy_proto_;
 

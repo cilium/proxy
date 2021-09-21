@@ -96,8 +96,8 @@ Network::FilterStatus Instance::onNewConnection() {
 
   const auto option = Cilium::GetSocketOption(conn.socketOptions());
   if (option) {
-    // Pass metadata from tls_inspector to the filterstate, if any, but not in a sidecar
-    if (!option->no_mark_) {
+    // Pass metadata from tls_inspector to the filterstate, if any, but not in a sidecar, which have no mark
+    if (option->mark_ != 0) {
       auto have_sni = conn.streamInfo().filterState()->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
       auto have_san = conn.streamInfo().filterState()->hasData<Network::UpstreamSubjectAltNames>(Network::UpstreamSubjectAltNames::key());
       if (!have_sni || !have_san) {

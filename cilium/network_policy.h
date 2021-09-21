@@ -56,6 +56,8 @@ class PolicyInstance {
                            std::string& l7_proto) const PURE;
 
   virtual const std::string& conntrackName() const PURE;
+
+  virtual uint32_t getEndpointID() const PURE;
 };
 
 class PolicyInstanceImpl;
