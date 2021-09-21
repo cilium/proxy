@@ -31,7 +31,7 @@ PROTO_DEPS = \
 GO_OUT = go
 
 # Skip draft Envoy APIs that do not compile.
-ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy -not -path "*/envoy/extensions/access_loggers/open_telemetry/*" \( -name *.proto \) -print))
+ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy -not -path "*/v2alpha*" -not -path "*/v2/*" -not -path "*/v3alpha*" -not -path "*/v4alpha*" -not -path "*/envoy/extensions/access_loggers/open_telemetry/*" \( -name *.proto \) -print))
 ENVOY_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(ENVOY_RAW_PROTOS))
 
 ENVOY_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(ENVOY_API_PROTOS))
