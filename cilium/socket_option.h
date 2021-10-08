@@ -57,7 +57,18 @@ class SocketMarkOption : public Network::Socket::Option,
       }
     }
 
+    // Allow reuse of the original source address. This may by needed for
+    // retries to not fail on "address already in use" when using a specific
+    // source address and port.
     if (src_address_) {
+      uint32_t one = 1;
+      auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+      if (status.rc_ < 0) {
+	ENVOY_LOG(critical,
+		  "Failed to set socket option SO_REUSEADDR: {}",
+		  Envoy::errorDetails(errno));
+	return false;
+      }
       socket.addressProvider().setLocalAddress(src_address_);
     }
 
