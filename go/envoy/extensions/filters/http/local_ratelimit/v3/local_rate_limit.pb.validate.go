@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,25 +31,63 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
 // Validate checks the field values on LocalRateLimit with the rules defined in
-// the proto definition for this message. If any rules are violated, an error
-// is returned.
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *LocalRateLimit) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on LocalRateLimit with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in LocalRateLimitMultiError,
+// or nil if none found.
+func (m *LocalRateLimit) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *LocalRateLimit) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if utf8.RuneCountInString(m.GetStatPrefix()) < 1 {
-		return LocalRateLimitValidationError{
+		err := LocalRateLimitValidationError{
 			field:  "StatPrefix",
 			reason: "value length must be at least 1 runes",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetStatus()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetStatus()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LocalRateLimitValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LocalRateLimitValidationError{
+					field:  "Status",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetStatus()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return LocalRateLimitValidationError{
 				field:  "Status",
@@ -58,7 +97,26 @@ func (m *LocalRateLimit) Validate() error {
 		}
 	}
 
-	if v, ok := interface{}(m.GetTokenBucket()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetTokenBucket()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LocalRateLimitValidationError{
+					field:  "TokenBucket",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LocalRateLimitValidationError{
+					field:  "TokenBucket",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTokenBucket()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return LocalRateLimitValidationError{
 				field:  "TokenBucket",
@@ -68,7 +126,26 @@ func (m *LocalRateLimit) Validate() error {
 		}
 	}
 
-	if v, ok := interface{}(m.GetFilterEnabled()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetFilterEnabled()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LocalRateLimitValidationError{
+					field:  "FilterEnabled",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LocalRateLimitValidationError{
+					field:  "FilterEnabled",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetFilterEnabled()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return LocalRateLimitValidationError{
 				field:  "FilterEnabled",
@@ -78,7 +155,26 @@ func (m *LocalRateLimit) Validate() error {
 		}
 	}
 
-	if v, ok := interface{}(m.GetFilterEnforced()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetFilterEnforced()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LocalRateLimitValidationError{
+					field:  "FilterEnforced",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LocalRateLimitValidationError{
+					field:  "FilterEnforced",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetFilterEnforced()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return LocalRateLimitValidationError{
 				field:  "FilterEnforced",
@@ -89,16 +185,39 @@ func (m *LocalRateLimit) Validate() error {
 	}
 
 	if len(m.GetResponseHeadersToAdd()) > 10 {
-		return LocalRateLimitValidationError{
+		err := LocalRateLimitValidationError{
 			field:  "ResponseHeadersToAdd",
 			reason: "value must contain no more than 10 item(s)",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
 	for idx, item := range m.GetResponseHeadersToAdd() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, LocalRateLimitValidationError{
+						field:  fmt.Sprintf("ResponseHeadersToAdd[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, LocalRateLimitValidationError{
+						field:  fmt.Sprintf("ResponseHeadersToAdd[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return LocalRateLimitValidationError{
 					field:  fmt.Sprintf("ResponseHeadersToAdd[%v]", idx),
@@ -113,7 +232,26 @@ func (m *LocalRateLimit) Validate() error {
 	for idx, item := range m.GetDescriptors() {
 		_, _ = idx, item
 
-		if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, LocalRateLimitValidationError{
+						field:  fmt.Sprintf("Descriptors[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, LocalRateLimitValidationError{
+						field:  fmt.Sprintf("Descriptors[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
 			if err := v.Validate(); err != nil {
 				return LocalRateLimitValidationError{
 					field:  fmt.Sprintf("Descriptors[%v]", idx),
@@ -126,14 +264,38 @@ func (m *LocalRateLimit) Validate() error {
 	}
 
 	if m.GetStage() > 10 {
-		return LocalRateLimitValidationError{
+		err := LocalRateLimitValidationError{
 			field:  "Stage",
 			reason: "value must be less than or equal to 10",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
+	if len(errors) > 0 {
+		return LocalRateLimitMultiError(errors)
+	}
 	return nil
 }
+
+// LocalRateLimitMultiError is an error wrapping multiple validation errors
+// returned by LocalRateLimit.ValidateAll() if the designated constraints
+// aren't met.
+type LocalRateLimitMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m LocalRateLimitMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m LocalRateLimitMultiError) AllErrors() []error { return m }
 
 // LocalRateLimitValidationError is the validation error returned by
 // LocalRateLimit.Validate if the designated constraints aren't met.

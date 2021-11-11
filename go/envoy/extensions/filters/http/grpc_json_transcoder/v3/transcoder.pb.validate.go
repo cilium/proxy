@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,18 +31,52 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
 // Validate checks the field values on GrpcJsonTranscoder with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GrpcJsonTranscoder) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GrpcJsonTranscoder with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// GrpcJsonTranscoderMultiError, or nil if none found.
+func (m *GrpcJsonTranscoder) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GrpcJsonTranscoder) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetPrintOptions()).(interface{ Validate() error }); ok {
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetPrintOptions()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GrpcJsonTranscoderValidationError{
+					field:  "PrintOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GrpcJsonTranscoderValidationError{
+					field:  "PrintOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetPrintOptions()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return GrpcJsonTranscoderValidationError{
 				field:  "PrintOptions",
@@ -60,13 +95,36 @@ func (m *GrpcJsonTranscoder) Validate() error {
 	// no validation rules for ConvertGrpcStatus
 
 	if _, ok := GrpcJsonTranscoder_UrlUnescapeSpec_name[int32(m.GetUrlUnescapeSpec())]; !ok {
-		return GrpcJsonTranscoderValidationError{
+		err := GrpcJsonTranscoderValidationError{
 			field:  "UrlUnescapeSpec",
 			reason: "value must be one of the defined enum values",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetRequestValidationOptions()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetRequestValidationOptions()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, GrpcJsonTranscoderValidationError{
+					field:  "RequestValidationOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, GrpcJsonTranscoderValidationError{
+					field:  "RequestValidationOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRequestValidationOptions()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return GrpcJsonTranscoderValidationError{
 				field:  "RequestValidationOptions",
@@ -85,15 +143,39 @@ func (m *GrpcJsonTranscoder) Validate() error {
 		// no validation rules for ProtoDescriptorBin
 
 	default:
-		return GrpcJsonTranscoderValidationError{
+		err := GrpcJsonTranscoderValidationError{
 			field:  "DescriptorSet",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 
 	}
 
+	if len(errors) > 0 {
+		return GrpcJsonTranscoderMultiError(errors)
+	}
 	return nil
 }
+
+// GrpcJsonTranscoderMultiError is an error wrapping multiple validation errors
+// returned by GrpcJsonTranscoder.ValidateAll() if the designated constraints
+// aren't met.
+type GrpcJsonTranscoderMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GrpcJsonTranscoderMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GrpcJsonTranscoderMultiError) AllErrors() []error { return m }
 
 // GrpcJsonTranscoderValidationError is the validation error returned by
 // GrpcJsonTranscoder.Validate if the designated constraints aren't met.
@@ -153,11 +235,25 @@ var _ interface {
 
 // Validate checks the field values on GrpcJsonTranscoder_PrintOptions with the
 // rules defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *GrpcJsonTranscoder_PrintOptions) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on GrpcJsonTranscoder_PrintOptions with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// GrpcJsonTranscoder_PrintOptionsMultiError, or nil if none found.
+func (m *GrpcJsonTranscoder_PrintOptions) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GrpcJsonTranscoder_PrintOptions) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
+
+	var errors []error
 
 	// no validation rules for AddWhitespace
 
@@ -167,8 +263,28 @@ func (m *GrpcJsonTranscoder_PrintOptions) Validate() error {
 
 	// no validation rules for PreserveProtoFieldNames
 
+	if len(errors) > 0 {
+		return GrpcJsonTranscoder_PrintOptionsMultiError(errors)
+	}
 	return nil
 }
+
+// GrpcJsonTranscoder_PrintOptionsMultiError is an error wrapping multiple
+// validation errors returned by GrpcJsonTranscoder_PrintOptions.ValidateAll()
+// if the designated constraints aren't met.
+type GrpcJsonTranscoder_PrintOptionsMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GrpcJsonTranscoder_PrintOptionsMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GrpcJsonTranscoder_PrintOptionsMultiError) AllErrors() []error { return m }
 
 // GrpcJsonTranscoder_PrintOptionsValidationError is the validation error
 // returned by GrpcJsonTranscoder_PrintOptions.Validate if the designated
@@ -229,18 +345,55 @@ var _ interface {
 
 // Validate checks the field values on
 // GrpcJsonTranscoder_RequestValidationOptions with the rules defined in the
-// proto definition for this message. If any rules are violated, an error is returned.
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *GrpcJsonTranscoder_RequestValidationOptions) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on
+// GrpcJsonTranscoder_RequestValidationOptions with the rules defined in the
+// proto definition for this message. If any rules are violated, the result is
+// a list of violation errors wrapped in
+// GrpcJsonTranscoder_RequestValidationOptionsMultiError, or nil if none found.
+func (m *GrpcJsonTranscoder_RequestValidationOptions) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *GrpcJsonTranscoder_RequestValidationOptions) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
+
+	var errors []error
 
 	// no validation rules for RejectUnknownMethod
 
 	// no validation rules for RejectUnknownQueryParameters
 
+	if len(errors) > 0 {
+		return GrpcJsonTranscoder_RequestValidationOptionsMultiError(errors)
+	}
 	return nil
 }
+
+// GrpcJsonTranscoder_RequestValidationOptionsMultiError is an error wrapping
+// multiple validation errors returned by
+// GrpcJsonTranscoder_RequestValidationOptions.ValidateAll() if the designated
+// constraints aren't met.
+type GrpcJsonTranscoder_RequestValidationOptionsMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m GrpcJsonTranscoder_RequestValidationOptionsMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m GrpcJsonTranscoder_RequestValidationOptionsMultiError) AllErrors() []error { return m }
 
 // GrpcJsonTranscoder_RequestValidationOptionsValidationError is the validation
 // error returned by GrpcJsonTranscoder_RequestValidationOptions.Validate if

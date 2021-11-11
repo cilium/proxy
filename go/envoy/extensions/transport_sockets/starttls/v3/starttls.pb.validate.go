@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,18 +31,52 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
 // Validate checks the field values on StartTlsConfig with the rules defined in
-// the proto definition for this message. If any rules are violated, an error
-// is returned.
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *StartTlsConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on StartTlsConfig with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in StartTlsConfigMultiError,
+// or nil if none found.
+func (m *StartTlsConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *StartTlsConfig) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetCleartextSocketConfig()).(interface{ Validate() error }); ok {
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetCleartextSocketConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StartTlsConfigValidationError{
+					field:  "CleartextSocketConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StartTlsConfigValidationError{
+					field:  "CleartextSocketConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCleartextSocketConfig()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return StartTlsConfigValidationError{
 				field:  "CleartextSocketConfig",
@@ -52,13 +87,36 @@ func (m *StartTlsConfig) Validate() error {
 	}
 
 	if m.GetTlsSocketConfig() == nil {
-		return StartTlsConfigValidationError{
+		err := StartTlsConfigValidationError{
 			field:  "TlsSocketConfig",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetTlsSocketConfig()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetTlsSocketConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, StartTlsConfigValidationError{
+					field:  "TlsSocketConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, StartTlsConfigValidationError{
+					field:  "TlsSocketConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTlsSocketConfig()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return StartTlsConfigValidationError{
 				field:  "TlsSocketConfig",
@@ -68,8 +126,28 @@ func (m *StartTlsConfig) Validate() error {
 		}
 	}
 
+	if len(errors) > 0 {
+		return StartTlsConfigMultiError(errors)
+	}
 	return nil
 }
+
+// StartTlsConfigMultiError is an error wrapping multiple validation errors
+// returned by StartTlsConfig.ValidateAll() if the designated constraints
+// aren't met.
+type StartTlsConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m StartTlsConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m StartTlsConfigMultiError) AllErrors() []error { return m }
 
 // StartTlsConfigValidationError is the validation error returned by
 // StartTlsConfig.Validate if the designated constraints aren't met.

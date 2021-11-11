@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,38 +31,85 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
 // Validate checks the field values on RateLimit with the rules defined in the
-// proto definition for this message. If any rules are violated, an error is returned.
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
 func (m *RateLimit) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RateLimit with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in RateLimitMultiError, or nil
+// if none found.
+func (m *RateLimit) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RateLimit) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if utf8.RuneCountInString(m.GetDomain()) < 1 {
-		return RateLimitValidationError{
+		err := RateLimitValidationError{
 			field:  "Domain",
 			reason: "value length must be at least 1 runes",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
 	if m.GetStage() > 10 {
-		return RateLimitValidationError{
+		err := RateLimitValidationError{
 			field:  "Stage",
 			reason: "value must be less than or equal to 10",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
 	if _, ok := _RateLimit_RequestType_InLookup[m.GetRequestType()]; !ok {
-		return RateLimitValidationError{
+		err := RateLimitValidationError{
 			field:  "RequestType",
 			reason: "value must be in list [internal external both ]",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetTimeout()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetTimeout()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RateLimitValidationError{
+					field:  "Timeout",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RateLimitValidationError{
+					field:  "Timeout",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTimeout()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return RateLimitValidationError{
 				field:  "Timeout",
@@ -76,13 +124,36 @@ func (m *RateLimit) Validate() error {
 	// no validation rules for RateLimitedAsResourceExhausted
 
 	if m.GetRateLimitService() == nil {
-		return RateLimitValidationError{
+		err := RateLimitValidationError{
 			field:  "RateLimitService",
 			reason: "value is required",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
-	if v, ok := interface{}(m.GetRateLimitService()).(interface{ Validate() error }); ok {
+	if all {
+		switch v := interface{}(m.GetRateLimitService()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RateLimitValidationError{
+					field:  "RateLimitService",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RateLimitValidationError{
+					field:  "RateLimitService",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRateLimitService()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return RateLimitValidationError{
 				field:  "RateLimitService",
@@ -93,16 +164,39 @@ func (m *RateLimit) Validate() error {
 	}
 
 	if _, ok := RateLimit_XRateLimitHeadersRFCVersion_name[int32(m.GetEnableXRatelimitHeaders())]; !ok {
-		return RateLimitValidationError{
+		err := RateLimitValidationError{
 			field:  "EnableXRatelimitHeaders",
 			reason: "value must be one of the defined enum values",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
 	// no validation rules for DisableXEnvoyRatelimitedHeader
 
+	if len(errors) > 0 {
+		return RateLimitMultiError(errors)
+	}
 	return nil
 }
+
+// RateLimitMultiError is an error wrapping multiple validation errors returned
+// by RateLimit.ValidateAll() if the designated constraints aren't met.
+type RateLimitMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RateLimitMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RateLimitMultiError) AllErrors() []error { return m }
 
 // RateLimitValidationError is the validation error returned by
 // RateLimit.Validate if the designated constraints aren't met.
@@ -166,22 +260,60 @@ var _RateLimit_RequestType_InLookup = map[string]struct{}{
 }
 
 // Validate checks the field values on RateLimitPerRoute with the rules defined
-// in the proto definition for this message. If any rules are violated, an
-// error is returned.
+// in the proto definition for this message. If any rules are violated, the
+// first error encountered is returned, or nil if there are no violations.
 func (m *RateLimitPerRoute) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RateLimitPerRoute with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RateLimitPerRouteMultiError, or nil if none found.
+func (m *RateLimitPerRoute) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RateLimitPerRoute) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
+	var errors []error
+
 	if _, ok := RateLimitPerRoute_VhRateLimitsOptions_name[int32(m.GetVhRateLimits())]; !ok {
-		return RateLimitPerRouteValidationError{
+		err := RateLimitPerRouteValidationError{
 			field:  "VhRateLimits",
 			reason: "value must be one of the defined enum values",
 		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
 	}
 
+	if len(errors) > 0 {
+		return RateLimitPerRouteMultiError(errors)
+	}
 	return nil
 }
+
+// RateLimitPerRouteMultiError is an error wrapping multiple validation errors
+// returned by RateLimitPerRoute.ValidateAll() if the designated constraints
+// aren't met.
+type RateLimitPerRouteMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RateLimitPerRouteMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RateLimitPerRouteMultiError) AllErrors() []error { return m }
 
 // RateLimitPerRouteValidationError is the validation error returned by
 // RateLimitPerRoute.Validate if the designated constraints aren't met.

@@ -11,11 +11,12 @@ import (
 	"net/mail"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/ptypes"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 // ensure the imports are used
@@ -30,18 +31,52 @@ var (
 	_ = time.Duration(0)
 	_ = (*url.URL)(nil)
 	_ = (*mail.Address)(nil)
-	_ = ptypes.DynamicAny{}
+	_ = anypb.Any{}
+	_ = sort.Sort
 )
 
 // Validate checks the field values on UuidRequestIdConfig with the rules
 // defined in the proto definition for this message. If any rules are
-// violated, an error is returned.
+// violated, the first error encountered is returned, or nil if there are no violations.
 func (m *UuidRequestIdConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on UuidRequestIdConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// UuidRequestIdConfigMultiError, or nil if none found.
+func (m *UuidRequestIdConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *UuidRequestIdConfig) validate(all bool) error {
 	if m == nil {
 		return nil
 	}
 
-	if v, ok := interface{}(m.GetPackTraceReason()).(interface{ Validate() error }); ok {
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetPackTraceReason()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UuidRequestIdConfigValidationError{
+					field:  "PackTraceReason",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UuidRequestIdConfigValidationError{
+					field:  "PackTraceReason",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetPackTraceReason()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return UuidRequestIdConfigValidationError{
 				field:  "PackTraceReason",
@@ -51,8 +86,28 @@ func (m *UuidRequestIdConfig) Validate() error {
 		}
 	}
 
+	if len(errors) > 0 {
+		return UuidRequestIdConfigMultiError(errors)
+	}
 	return nil
 }
+
+// UuidRequestIdConfigMultiError is an error wrapping multiple validation
+// errors returned by UuidRequestIdConfig.ValidateAll() if the designated
+// constraints aren't met.
+type UuidRequestIdConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m UuidRequestIdConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m UuidRequestIdConfigMultiError) AllErrors() []error { return m }
 
 // UuidRequestIdConfigValidationError is the validation error returned by
 // UuidRequestIdConfig.Validate if the designated constraints aren't met.
