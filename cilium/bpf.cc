@@ -75,9 +75,12 @@ bool Bpf::open(const std::string &path) {
       }
       bpf_file.close();
 
-      if ((map_type == map_type_ || (map_type == BPF_MAP_TYPE_LRU_HASH &&
-                                     map_type_ == BPF_MAP_TYPE_HASH)) &&
-          key_size == key_size_ && value_size == value_size_) {
+      if ((map_type_ == map_type ||
+	   // BPF_MAP_TYPE_LRU_HASH and BPF_MAP_TYPE_LPM_TRIE are equivalent
+	   // to BPF_MAP_TYPE_HASH for lookups.
+	   (map_type_ == BPF_MAP_TYPE_HASH &&
+	    (map_type == BPF_MAP_TYPE_LRU_HASH || map_type == BPF_MAP_TYPE_LPM_TRIE))) && 
+          key_size_ == key_size && value_size_ == value_size) {
         return true;
       }
       if (log_on_error) {

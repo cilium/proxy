@@ -45,7 +45,7 @@ struct remote_endpoint_info {
 #define ENDPOINT_KEY_IPV6 2
 
 IPCache::IPCache(const std::string& bpf_root)
-    : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct ipcache_key),
+    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipcache_key),
           sizeof(struct remote_endpoint_info)),
       bpf_root_(bpf_root) {}
 
