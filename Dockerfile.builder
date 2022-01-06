@@ -14,8 +14,12 @@ LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
-    # Only install cross tools on amd64
-    CROSSPKG="" && [ "$TARGETARCH" != "amd64" ] || CROSSPKG="gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu" && \
+    # Install cross tools
+    CROSSPKG="" && \
+    # arm64 cross tools on amd64 (TARGETARCH = "amd64", so CROSSPKG is set)
+    [ "$TARGETARCH" != "amd64" ] || CROSSPKG="gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu" && \
+    # amd64 cross tools on arm64 (TARGETARCH = "arm64", so CROSSPKG is set)
+    [ "$TARGETARCH" != "arm64" ] || CROSSPKG="gcc-x86-64-linux-gnu g++-x86-64-linux-gnu libc6-dev-amd64-cross binutils-x86-64-linux-gnu" && \
     apt-get install -y --no-install-recommends \
       # Multi-arch cross-compilation packages
       $CROSSPKG \

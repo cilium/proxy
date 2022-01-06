@@ -19,16 +19,6 @@ filegroup(
     visibility = ["//visibility:private"],
 )
 
-cc_toolchain_suite(
-    name = "toolchain",
-    toolchains = {
-        # Bazel requires to provide the k8 toolchain, but this toolchain should
-        # be never used to producs k8 binaries!
-        "k8": ":gcc_aarch64_cross_cc_toolchain",
-        "aarch64-cross": ":gcc_aarch64_cross_cc_toolchain",
-    },
-)
-
 cc_toolchain(
     name = "gcc_aarch64_cross_cc_toolchain",
     all_files = ":gcc_aarch64_cross_toolchain_files",
@@ -140,4 +130,136 @@ cc_toolchain_config(
         "-D__TIMESTAMP__=\"redacted\"",
         "-D__TIME__=\"redacted\"",
     ],
+)
+
+platform(
+    name = "gcc_x86_64_cross",
+    constraint_values = [
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+filegroup(
+    name = "gcc_x86_64_cross_toolchain_files",
+    srcs = glob([
+        "x86_64-none-linux-gnu/**",
+        "libexec/**",
+        "lib/gcc/x86_64-none-linux-gnu/**",
+        "include/**",
+    ]),
+    visibility = ["//visibility:private"],
+)
+
+cc_toolchain(
+    name = "gcc_x86_64_cross_cc_toolchain",
+    all_files = ":gcc_x86_64_cross_toolchain_files",
+    compiler_files = ":gcc_x86_64_cross_toolchain_files",
+    dwp_files = ":empty",
+    linker_files = ":gcc_x86_64_cross_toolchain_files",
+    objcopy_files = ":gcc_x86_64_cross_toolchain_files",
+    strip_files = ":gcc_x86_64_cross_toolchain_files",
+    supports_param_files = 1,
+    toolchain_config = ":gcc_x86_64_cross_toolchain_config",
+    toolchain_identifier = "x86_64-linux-gnu",
+)
+
+toolchain(
+    name = "gcc_x86_64_cross_toolchain",
+    exec_compatible_with = [
+        "@platforms//cpu:aarch64",
+    ],
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+    ],
+    toolchain = ":gcc_x86_64_cross_cc_toolchain",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
+
+cc_toolchain_config(
+    name = "gcc_x86_64_cross_toolchain_config",
+    abi_libc_version = "unknown",
+    abi_version = "unknown",
+    compile_flags = [
+        "-U_FORTIFY_SOURCE",
+        "-fstack-protector",
+        "-Wall",
+        "-Wunused-but-set-parameter",
+        "-Wno-free-nonheap-object",
+        "-fno-omit-frame-pointer",
+    ],
+    compiler = "gcc",
+    coverage_compile_flags = ["--coverage"],
+    coverage_link_flags = ["--coverage"],
+    cpu = "k8",
+    cxx_builtin_include_directories = [
+        "/usr/lib/gcc-cross/x86_64-linux-gnu/7/include",
+        "/usr/lib/gcc-cross/x86_64-linux-gnu/7/include-fixed",
+        "/usr/lib/gcc-cross/x86_64-linux-gnu/8/include",
+        "/usr/lib/gcc-cross/x86_64-linux-gnu/9/include",
+        "/usr/x86_64-linux-gnu/include",
+        "/usr/include",
+        "/usr/x86_64-linux-gnu/include/c++/7",
+        "/usr/x86_64-linux-gnu/include/c++/8",
+        "/usr/x86_64-linux-gnu/include/c++/9",
+        "/usr/x86_64-linux-gnu/include/c++/7/x86_64-linux-gnu",
+        "/usr/x86_64-linux-gnu/include/c++/8/x86_64-linux-gnu",
+        "/usr/x86_64-linux-gnu/include/c++/9/x86_64-linux-gnu",
+        "/usr/x86_64-linux-gnu/include/c++/7/backward",
+        "/usr/x86_64-linux-gnu/include/c++/8/backward",
+        "/usr/x86_64-linux-gnu/include/c++/9/backward",
+    ],
+    cxx_flags = ["-std=c++0x"],
+    dbg_compile_flags = ["-g"],
+    host_system_name = "local",
+    link_flags = [
+        "-Wl,-no-as-needed",
+        "-Wl,-z,relro,-z,now",
+        "-pass-exit-codes",
+        "-lm",
+    ],
+    link_libs = ["-l:libstdc++.a"],
+    opt_compile_flags = [
+        "-g0",
+        "-O2",
+        "-D_FORTIFY_SOURCE=1",
+        "-DNDEBUG",
+        "-ffunction-sections",
+        "-fdata-sections",
+    ],
+    opt_link_flags = ["-Wl,--gc-sections"],
+    supports_start_end_lib = False,
+    target_libc = "x86_64",
+    target_system_name = "x86_64-linux-gnu",
+    tool_paths = {
+        "ar": "/usr/bin/x86_64-linux-gnu-ar",
+        "compat-ld": "/usr/bin/x86_64-linux-gnu-ld",
+        "ld": "/usr/bin/x86_64-linux-gnu-ld",
+        "cpp": "/usr/bin/x86_64-linux-gnu-cpp",
+        "gcc": "/usr/bin/x86_64-linux-gnu-gcc",
+        "dwp": "/usr/bin/x86_64-linux-gnu-dwp",
+        "gcov": "/usr/bin/x86_64-linux-gnu-gcov",
+        "nm": "/usr/bin/x86_64-linux-gnu-nm",
+        "objcopy": "/usr/bin/x86_64-linux-gnu-objcopy",
+        "objdump": "/usr/bin/x86_64-linux-gnu-objdump",
+        "strip": "/usr/bin/x86_64-linux-gnu-strip",
+    },
+    toolchain_identifier = "cross_x86_64",
+    unfiltered_compile_flags = [
+        "-fno-canonical-system-headers",
+        "-Wno-builtin-macro-redefined",
+        "-D__DATE__=\"redacted\"",
+        "-D__TIMESTAMP__=\"redacted\"",
+        "-D__TIME__=\"redacted\"",
+    ],
+)
+
+cc_toolchain_suite(
+    name = "toolchain",
+    toolchains = {
+        # Bazel requires to provide the k8 toolchain, but this toolchain should
+        # be never used to produce k8 binaries!
+        "k8": ":gcc_aarch64_cross_cc_toolchain",
+        "x86_64-cross": ":gcc_x86_64_cross_cc_toolchain",
+        "aarch64-cross": ":gcc_aarch64_cross_cc_toolchain",
+    },
 )

@@ -32,8 +32,12 @@ BAZEL_TEST_OPTS ?= $(BAZEL_BUILD_OPTS)
 BAZEL_TEST_OPTS += --test_output=errors
 
 ifdef CROSSARCH
-  $(info CROSS-COMPILING for arm64)
-  BAZEL_BUILD_OPTS += --incompatible_enable_cc_toolchain_resolution --platforms=//bazel/platforms:aarch64_cross --define=cross=aarch64
+  $(info CROSS-COMPILING for $(CROSSARCH))
+  ifeq ($(CROSSARCH),amd64)
+    BAZEL_BUILD_OPTS += --incompatible_enable_cc_toolchain_resolution --platforms=//bazel/platforms:x86_64_cross --define=cross=x86_64
+  else ifeq ($(CROSSARCH),arm64)
+    BAZEL_BUILD_OPTS += --incompatible_enable_cc_toolchain_resolution --platforms=//bazel/platforms:aarch64_cross --define=cross=aarch64
+  endif
 endif
 
 BAZEL_ARCH = $(subst x86_64,k8,$(shell uname -m))

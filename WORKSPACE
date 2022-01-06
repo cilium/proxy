@@ -67,4 +67,5 @@ envoy_dependency_imports()
 
 register_toolchains(
     "//bazel/toolchains:gcc_aarch64_cross_toolchain",
+    "//bazel/toolchains:gcc_x86_64_cross_toolchain",
 )
