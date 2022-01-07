@@ -12,6 +12,9 @@
 FROM docker.io/library/ubuntu:18.04 as base
 LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
+# Setup TimeZone to prevent tzdata package asking for it interactively
+ENV TZ=Etc/UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     # Install cross tools
