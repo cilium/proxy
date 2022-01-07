@@ -63,16 +63,3 @@ RUN export BAZEL_VERSION=$(cat .bazelversion) \
 	&& ARCH=$TARGETARCH && [ "$ARCH" != "amd64" ] || ARCH="x86_64" \
 	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
 	&& chmod +x /usr/bin/bazel
-
-#
-# Install GN (https://gn.googlesource.com/gn/) for arm64
-#
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-    git clone https://gn.googlesource.com/gn \
-    && cd gn \
-    && python build/gen.py \
-    && ninja -C out \
-    && install -m 0755 out/gn /usr/bin \
-    && cd .. \
-    && rm -rf gn /tmp/* /var/tmp/*; \
-    fi
