@@ -111,6 +111,11 @@ ifndef NO_CACHE
   else
     TESTS_ARCHIVE_IMAGE := $(BUILDER_IMAGE)
   endif
+else
+  DOCKER_CACHE_OPTS += --build-arg NO_CACHE=$(NO_CACHE)
+  ifeq ($(NO_CACHE),2)
+    DOCKER_CACHE_OPTS += --no-cache
+  endif
 endif
 
 ifdef BUILDER_IMAGE

@@ -23,7 +23,11 @@ ARG V
 ARG BAZEL_BUILD_OPTS
 ARG BUILDARCH
 ARG TARGETARCH
-
+ARG NO_CACHE
+#
+# Clear cache?
+#
+RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private if [ "z$NO_CACHE" = "z2" ]; then echo NO_CACHE=2 defined, clearing /root/.cache; rm -rf /root/.cache/*; fi
 #
 # Build dependencies
 #
