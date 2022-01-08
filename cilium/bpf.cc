@@ -12,8 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "common/common/logger.h"
-#include "common/common/utility.h"
+#include "source/common/common/utility.h"
 #include "linux/bpf.h"
 
 namespace Envoy {

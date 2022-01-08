@@ -5,8 +5,8 @@
 
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/socket_option.h"
-#include "common/common/logger.h"
-#include "common/common/thread.h"
+#include "source/common/common/logger.h"
+#include "source/common/common/thread.h"
 #include "envoy/http/header_map.h"
 #include "envoy/network/connection.h"
 #include "envoy/router/router.h"

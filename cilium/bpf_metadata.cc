@@ -7,10 +7,10 @@
 
 #include "cilium/api/bpf_metadata.pb.validate.h"
 #include "cilium/socket_option.h"
-#include "common/common/assert.h"
-#include "common/common/fmt.h"
-#include "common/common/utility.h"
-#include "common/network/socket_option_factory.h"
+#include "source/common/common/assert.h"
+#include "source/common/common/fmt.h"
+#include "source/common/common/utility.h"
+#include "source/common/network/socket_option_factory.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/registry/registry.h"
 #include "envoy/singleton/manager.h"
@@ -75,7 +75,7 @@ std::shared_ptr<const Cilium::PolicyHostMap> createHostMap(
   return context.singletonManager().getTyped<const Cilium::PolicyHostMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context] {
         auto map = std::make_shared<Cilium::PolicyHostMap>(
-            context.localInfo(), context.clusterManager(), context.dispatcher(),
+            context.localInfo(), context.clusterManager(), context.mainThreadDispatcher(),
             context.api().randomGenerator(), context.scope(), context.threadLocal());
         map->startSubscription();
         return map;
@@ -143,9 +143,9 @@ Config::Config(const ::cilium::BpfMetadata& config,
 }
 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
-  Network::Address::InstanceConstSharedPtr src_address = socket.addressProvider().remoteAddress();
+  Network::Address::InstanceConstSharedPtr src_address = socket.connectionInfoProvider().remoteAddress();
   const auto sip = src_address->ip();
-  const auto& dst_address = socket.addressProvider().localAddress();
+  const auto& dst_address = socket.connectionInfoProvider().localAddress();
   const auto dip = dst_address->ip();
 
   if (!sip || !dip) {
@@ -156,7 +156,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   // We do this first as this likely restores the destination address
   // Let the OriginalDstCluster know the destination address can be used.
-  socket.addressProvider().restoreLocalAddress(dst_address);  // mark as `restored`
+  socket.connectionInfoProvider().restoreLocalAddress(dst_address);  // mark as `restored`
 
   std::string pod_ip, other_ip;
   if (is_ingress_) {
@@ -286,26 +286,26 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   int secs = 5 * 60;  // Five minutes
 
   auto status = socket.setSocketOption(SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
-  if (status.rc_ < 0) {
+  if (status.return_value_ < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_LINGER: {}",
-              Envoy::errorDetails(errno));
+              Envoy::errorDetails(status.errno_));
   }
   status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
-  if (status.rc_ < 0) {
+  if (status.return_value_ < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}",
-              Envoy::errorDetails(errno));
+              Envoy::errorDetails(status.errno_));
   } else {
     status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPINTVL, &secs, sizeof(secs));
-    if (status.rc_ < 0) {
+    if (status.return_value_ < 0) {
       ENVOY_LOG(critical,
                 "Socket option failure. Failed to set TCP_KEEPINTVL: {}",
-                Envoy::errorDetails(errno));
+                Envoy::errorDetails(status.errno_));
     } else {
       status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPIDLE, &secs, sizeof(secs));
-      if (status.rc_ < 0) {
+      if (status.return_value_ < 0) {
         ENVOY_LOG(critical,
                   "Socket option failure. Failed to set TCP_KEEPIDLE: {}",
-                  Envoy::errorDetails(errno));
+                  Envoy::errorDetails(status.errno_));
       }
     }
   }

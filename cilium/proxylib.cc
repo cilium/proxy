@@ -3,9 +3,8 @@
 #include <dlfcn.h>
 
 #include "absl/container/fixed_array.h"
-#include "common/buffer/buffer_impl.h"
-#include "common/common/assert.h"
-#include "common/common/fmt.h"
+#include "source/common/common/assert.h"
+#include "source/common/common/fmt.h"
 #include "envoy/common/exception.h"
 
 namespace Envoy {

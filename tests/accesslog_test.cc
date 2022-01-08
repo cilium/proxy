@@ -1,7 +1,7 @@
 #include "cilium/accesslog.h"
 
 #include "cilium/socket_option.h"
-#include "common/network/address_impl.h"
+#include "source/common/network/address_impl.h"
 #include "envoy/http/protocol.h"
 #include "envoy/network/socket.h"
 #include "gtest/gtest.h"
@@ -35,9 +35,9 @@ TEST_F(CiliumTest, AccessLog) {
       nullptr, false, 1, 173, true, 80, "1.2.3.4", nullptr);
   options->push_back(option);
 
-  connection.stream_info_.downstream_address_provider_->setLocalAddress(
+  connection.stream_info_.downstream_connection_info_provider_->setLocalAddress(
       std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80));
-  connection.stream_info_.downstream_address_provider_->setRemoteAddress(
+  connection.stream_info_.downstream_connection_info_provider_->setRemoteAddress(
       std::make_shared<Network::Address::Ipv4Instance>("5.6.7.8", 45678));
 
   AccessLog::Entry log;

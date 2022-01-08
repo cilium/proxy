@@ -2,9 +2,9 @@
 
 #include "cilium/api/bpf_metadata.pb.validate.h"
 #include "cilium/socket_option.h"
-#include "common/common/logger.h"
-#include "common/config/filesystem_subscription_impl.h"
-#include "common/config/utility.h"
+#include "source/common/common/logger.h"
+#include "source/common/config/filesystem_subscription_impl.h"
+#include "source/common/config/utility.h"
 #include "test/test_common/environment.h"
 
 namespace Envoy {
@@ -33,7 +33,7 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   // fake setting the local address. It remains the same as required by the test
   // infra, but it will be marked as restored as required by the original_dst
   // cluster.
-  socket.addressProvider().restoreLocalAddress(original_dst_address);
+  socket.connectionInfoProvider().restoreLocalAddress(original_dst_address);
 
   // TLS filter chain matches this, make namespace part of this (e.g.,
   // "default")?
@@ -52,8 +52,8 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
   } else {
     source_identity = 173;
-    destination_identity = hosts_->resolve(socket.addressProvider().localAddress()->ip());
-    pod_ip = socket.addressProvider().localAddress()->ip()->addressAsString();
+    destination_identity = hosts_->resolve(socket.connectionInfoProvider().localAddress()->ip());
+    pod_ip = socket.connectionInfoProvider().localAddress()->ip()->addressAsString();
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
   auto policy = npmap_->GetPolicyInstance(pod_ip);
@@ -108,7 +108,7 @@ std::shared_ptr<const Cilium::PolicyHostMap> createHostMap(
             std::make_shared<Cilium::PolicyHostMap>(context.threadLocal());
         auto subscription =
             std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-                context.dispatcher(), path, *map, *map, stats,
+                context.mainThreadDispatcher(), path, *map, *map, stats,
                 ProtobufMessage::getNullValidationVisitor(), context.api());
         map->startSubscription(std::move(subscription));
         return map;
@@ -133,7 +133,7 @@ std::shared_ptr<const Cilium::NetworkPolicyMap> createPolicyMap(
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
         auto subscription =
             std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-                context.dispatcher(), path, *map, map->resource_decoder_, stats,
+                context.mainThreadDispatcher(), path, *map, map->resource_decoder_, stats,
                 ProtobufMessage::getNullValidationVisitor(), context.api());
         map->startSubscription(std::move(subscription));
         return map;

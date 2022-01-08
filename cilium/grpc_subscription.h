@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common/config/grpc_subscription_impl.h"
+#include "source/common/config/grpc_subscription_impl.h"
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/grpc_mux.h"
 #include "envoy/config/subscription.h"

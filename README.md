@@ -82,7 +82,7 @@ to `default`.
 ### Using custom pre-compiled Envoy dependencies
 
 Docker build uses cached Bazel artifacts from
-`quay.io/cilium/cilium-envoy-builder:envoy-1.18.4-archive-latest` by
+`quay.io/cilium/cilium-envoy-builder:envoy-1.20.1-archive-latest` by
 default. You can overrride this by defining `BUILDER_IMAGE=<ref>`:
 
 ```
@@ -124,7 +124,7 @@ ARCH=multi make docker-builder-archive
 ```
 
 By default the pre-compiled dependencies image is tagged as
-`quay.io/cilium/cilium-envoy-builder:envoy-1.18.4-archive-latest`. You
+`quay.io/cilium/cilium-envoy-builder:envoy-1.20.1-archive-latest`. You
 can override the first two parts of this by defining
 `DOCKER_DEV_ACCOUNT=docker.io/me`,
 `BUILDER_ARCHIVE_TAG=my-builder-archive`, or completely by defining
@@ -136,7 +136,7 @@ significantly. To do this you should update Envoy version in
 `ENVOY_VERSION` and supply `NO_CACHE=1` on the make line, e.g.:
 
 ```
-ARCH=multi NO_CACHE=1 BUILDER_ARCHIVE_TAG=envoy-1.18.4-archive make docker-builder-archive
+ARCH=multi NO_CACHE=1 BUILDER_ARCHIVE_TAG=envoy-1.20.1-archive make docker-builder-archive
 ```
 
 
@@ -175,7 +175,7 @@ make docker-tests
 
 This runs the integration tests after loading Bazel build cache for
 Envoy dependencies from
-`quay.io/cilium/cilium-envoy-builder:test-envoy-1.18.4-archive-latest`. Define
+`quay.io/cilium/cilium-envoy-builder:test-envoy-1.20.1-archive-latest`. Define
 `NO_CACHE=1` to compile tests from scratch.
 
 This command fails if any of the integration tests fail, printing the
@@ -195,7 +195,7 @@ make docker-tests-archive
 ```
 
 By default the pre-compiled test dependencies image is tagged as
-`quay.io/cilium/cilium-envoy-builder:test-envoy-1.18.4-archive-latest`. You
+`quay.io/cilium/cilium-envoy-builder:test-envoy-1.20.1-archive-latest`. You
 can override the first two parts of this by defining
 `DOCKER_DEV_ACCOUNT=docker.io/me`,
 `TESTS_ARCHIVE_TAG=my-test-archive`, or completely by defining
@@ -207,7 +207,7 @@ time significantly. To do this you should update Envoy version
 in `ENVOY_VERSION` and supply `NO_CACHE=1` on the make line, e.g.:
 
 ```
-ARCH=amd64 NO_CACHE=1 TESTS_ARCHIVE_TAG=test-envoy-1.18.4-archive make docker-tests-archive
+ARCH=amd64 NO_CACHE=1 TESTS_ARCHIVE_TAG=test-envoy-1.20.1-archive make docker-tests-archive
 ```
 
 

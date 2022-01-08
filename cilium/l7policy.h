@@ -5,7 +5,7 @@
 #include "absl/types/optional.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/l7policy.pb.h"
-#include "common/common/logger.h"
+#include "source/common/common/logger.h"
 #include "envoy/server/filter_config.h"
 #include "envoy/stats/stats_macros.h"
 

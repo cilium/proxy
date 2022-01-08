@@ -5,9 +5,9 @@
 
 #include "cilium/api/npds.pb.validate.h"
 #include "cilium/grpc_subscription.h"
-#include "common/common/matchers.h"
-#include "common/config/utility.h"
-#include "common/protobuf/protobuf.h"
+#include "source/common/common/matchers.h"
+#include "source/common/config/utility.h"
+#include "source/common/protobuf/protobuf.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -642,7 +642,7 @@ NetworkPolicyMap::NetworkPolicyMap(
   scope_ = context.scope().createScope(name_);
   subscription_ =
       subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
-                context.clusterManager(), context.dispatcher(),
+                context.clusterManager(), context.mainThreadDispatcher(),
                 context.api().randomGenerator(), *scope_, *this, resource_decoder_);
 }
 

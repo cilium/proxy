@@ -2,12 +2,12 @@
 
 #include "cilium/network_policy.h"
 #include "cilium/socket_option.h"
-#include "common/protobuf/utility.h"
+#include "source/common/protobuf/utility.h"
 #include "envoy/api/v2/auth/cert.pb.h"
 #include "envoy/api/v2/auth/cert.pb.validate.h"
-#include "extensions/transport_sockets/tls/context_config_impl.h"
-#include "extensions/transport_sockets/tls/ssl_socket.h"
-#include "server/transport_socket_config_impl.h"
+#include "source/extensions/transport_sockets/tls/context_config_impl.h"
+#include "source/extensions/transport_sockets/tls/ssl_socket.h"
+#include "source/server/transport_socket_config_impl.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -26,7 +26,7 @@ class SslSocketWrapper : public Network::TransportSocket {
  public:
   SslSocketWrapper(
       Extensions::TransportSockets::Tls::InitialState state,
-      const Network::TransportSocketOptionsSharedPtr& transport_socket_options)
+      const Network::TransportSocketOptionsConstSharedPtr& transport_socket_options)
       : state_(state), transport_socket_options_(transport_socket_options) {}
 
   // Network::TransportSocket
@@ -107,14 +107,14 @@ class SslSocketWrapper : public Network::TransportSocket {
 
  private:
   Extensions::TransportSockets::Tls::InitialState state_;
-  const Network::TransportSocketOptionsSharedPtr transport_socket_options_;
+  const Network::TransportSocketOptionsConstSharedPtr transport_socket_options_;
   SslSocketPtr ssl_socket_;
 };
 
 class ClientSslSocketFactory : public Network::TransportSocketFactory {
  public:
   Network::TransportSocketPtr createTransportSocket(
-      Network::TransportSocketOptionsSharedPtr options) const override {
+      Network::TransportSocketOptionsConstSharedPtr options) const override {
     return std::make_unique<SslSocketWrapper>(
         Extensions::TransportSockets::Tls::InitialState::Client, options);
   }
@@ -126,7 +126,7 @@ class ClientSslSocketFactory : public Network::TransportSocketFactory {
 class ServerSslSocketFactory : public Network::TransportSocketFactory {
  public:
   Network::TransportSocketPtr createTransportSocket(
-      Network::TransportSocketOptionsSharedPtr options) const override {
+      Network::TransportSocketOptionsConstSharedPtr options) const override {
     return std::make_unique<SslSocketWrapper>(
         Extensions::TransportSockets::Tls::InitialState::Server, options);
   }

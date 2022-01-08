@@ -6,8 +6,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "common/common/lock_guard.h"
-#include "common/common/utility.h"
+#include "source/common/common/lock_guard.h"
+#include "source/common/common/utility.h"
 #include "socket_option.h"
 
 namespace Envoy {

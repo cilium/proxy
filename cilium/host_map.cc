@@ -4,8 +4,8 @@
 #include <unordered_set>
 
 #include "cilium/grpc_subscription.h"
-#include "common/config/utility.h"
-#include "common/protobuf/protobuf.h"
+#include "source/common/config/utility.h"
+#include "source/common/protobuf/protobuf.h"
 
 namespace Envoy {
 namespace Cilium {

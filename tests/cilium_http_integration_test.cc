@@ -1,9 +1,9 @@
 #include "tests/cilium_http_integration.h"
 
-#include "common/config/decoded_resource_impl.h"
-#include "common/network/address_impl.h"
-#include "common/protobuf/protobuf.h"
-#include "common/thread_local/thread_local_impl.h"
+#include "source/common/config/decoded_resource_impl.h"
+#include "source/common/network/address_impl.h"
+#include "source/common/protobuf/protobuf.h"
+#include "source/common/thread_local/thread_local_impl.h"
 #include "tests/bpf_metadata.h"  // policy_config
 
 namespace Envoy {
@@ -160,7 +160,7 @@ static_resources:
             typed_config:
               "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
-          - name: envoy.router
+          - name: envoy.filters.http.router
           route_config:
             name: policy_enabled
             virtual_hosts:

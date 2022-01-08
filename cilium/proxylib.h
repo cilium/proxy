@@ -2,9 +2,9 @@
 
 #include <google/protobuf/map.h>
 
-#include "common/buffer/buffer_impl.h"
-#include "common/common/logger.h"
-#include "common/protobuf/protobuf.h"
+#include "source/common/buffer/buffer_impl.h"
+#include "source/common/common/logger.h"
+#include "source/common/protobuf/protobuf.h"
 #include "envoy/network/connection.h"
 #include "proxylib/libcilium.h"
 

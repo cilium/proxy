@@ -4,10 +4,10 @@
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/npds.pb.validate.h"
 #include "cilium/conntrack.h"
-#include "common/common/logger.h"
-#include "common/config/opaque_resource_decoder_impl.h"
-#include "common/http/header_utility.h"
-#include "common/protobuf/message_validator_impl.h"
+#include "source/common/common/logger.h"
+#include "source/common/config/opaque_resource_decoder_impl.h"
+#include "source/common/http/header_utility.h"
+#include "source/common/protobuf/message_validator_impl.h"
 #include "envoy/config/subscription.h"
 #include "envoy/event/dispatcher.h"
 #include "envoy/http/header_map.h"
@@ -17,8 +17,8 @@
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/type/matcher/v3/metadata.pb.h"
 #include "envoy/upstream/cluster_manager.h"
-#include "extensions/transport_sockets/tls/context_config_impl.h"
-#include "server/transport_socket_config_impl.h"
+#include "source/extensions/transport_sockets/tls/context_config_impl.h"
+#include "source/server/transport_socket_config_impl.h"
 
 namespace Envoy {
 namespace Cilium {

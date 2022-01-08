@@ -1,4 +1,4 @@
-From bc0ec6bc47dea78a5e4c96d6741699c6d4b4f699 Mon Sep 17 00:00:00 2001
+From d0daf0d05654d2baa67a6c68ed1e954fa87cb76c Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Thu, 6 Jan 2022 16:34:27 +0200
 Subject: [PATCH] build: Cross-compilation fix for arm64
@@ -11,15 +11,15 @@ Signed-off-by: Michal Rostecki <mrostecki@opensuse.org>
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
  bazel/BUILD                  | 10 ++++++++++
- bazel/envoy_build_system.bzl |  7 +------
- bazel/foreign_cc/BUILD       | 18 ++++++++++++++++++
- 3 files changed, 29 insertions(+), 6 deletions(-)
+ bazel/envoy_build_system.bzl |  6 ------
+ bazel/foreign_cc/BUILD       | 19 ++++++++++++++++++-
+ 3 files changed, 28 insertions(+), 7 deletions(-)
 
 diff --git a/bazel/BUILD b/bazel/BUILD
-index 98be980f8..3166470df 100644
+index 3b22ffc8f..2da063b7f 100644
 --- a/bazel/BUILD
 +++ b/bazel/BUILD
-@@ -427,11 +427,21 @@ config_setting(
+@@ -439,11 +439,21 @@ config_setting(
      values = {"cpu": "k8"},
  )
  
@@ -42,32 +42,31 @@ index 98be980f8..3166470df 100644
      name = "linux_ppc",
      values = {"cpu": "ppc"},
 diff --git a/bazel/envoy_build_system.bzl b/bazel/envoy_build_system.bzl
-index 921e51af6..e65ba1a32 100644
+index f48ebe705..a682b2ad7 100644
 --- a/bazel/envoy_build_system.bzl
 +++ b/bazel/envoy_build_system.bzl
-@@ -98,7 +98,7 @@ def envoy_cmake_external(
+@@ -101,7 +101,6 @@ def envoy_cmake(
          copy_pdb = False,
          pdb_name = "",
          cmake_files_dir = "$BUILD_TMPDIR/CMakeFiles",
 -        generate_crosstool_file = False,
-+        generate_crosstool_file = True,
          **kwargs):
      cache_entries.update({"CMAKE_BUILD_TYPE": "Bazel"})
      cache_entries_debug = dict(cache_entries)
-@@ -129,11 +129,6 @@ def envoy_cmake_external(
-             "//conditions:default": cache_entries,
-         }),
-         cmake_options = cmake_options,
+@@ -135,11 +134,6 @@ def envoy_cmake(
+         targets = ["", "install"],
+         # TODO: Remove install target and make this work
+         install = False,
 -        # TODO(lizan): Make this always true
 -        generate_crosstool_file = select({
 -            "@envoy//bazel:windows_x86_64": True,
 -            "//conditions:default": generate_crosstool_file,
 -        }),
          lib_source = lib_source,
-         make_commands = make_commands,
          postfix_script = pf,
+         **kwargs
 diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index 12f5c7642..d2d7b7dcc 100644
+index e55355fe8..94eab1726 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
 @@ -16,6 +16,8 @@ configure_make(
@@ -79,7 +78,7 @@ index 12f5c7642..d2d7b7dcc 100644
          "//conditions:default": [],
      }),
      lib_source = "@com_github_gperftools_gperftools//:all",
-@@ -47,6 +49,14 @@ configure_make(
+@@ -75,6 +77,14 @@ configure_make(
          "//bazel:asan_build": {"ENVOY_CONFIG_ASAN": "1"},
          "//bazel:msan_build": {"ENVOY_CONFIG_MSAN": "1"},
          "//bazel:windows_dbg_build": {"WINDOWS_DBG_BUILD": "debug"},
@@ -94,7 +93,7 @@ index 12f5c7642..d2d7b7dcc 100644
          "//conditions:default": {},
      }),
      lib_source = "@com_github_luajit_luajit//:all",
-@@ -67,6 +77,14 @@ configure_make(
+@@ -95,6 +105,14 @@ configure_make(
          # TODO(htuch): Remove when #6084 is fixed
          "//bazel:asan_build": {"ENVOY_CONFIG_ASAN": "1"},
          "//bazel:msan_build": {"ENVOY_CONFIG_MSAN": "1"},
@@ -109,6 +108,14 @@ index 12f5c7642..d2d7b7dcc 100644
          "//conditions:default": {},
      }),
      lib_source = "@com_github_moonjit_moonjit//:all",
+@@ -184,7 +202,6 @@ envoy_cmake(
+         "CMAKE_CXX_COMPILER_FORCED": "on",
+     },
+     defines = ["CURL_STATICLIB"],
+-    generate_crosstool_file = True,
+     lib_source = "@com_github_curl//:all",
+     out_static_libs = select({
+         "//bazel:windows_x86_64": ["libcurl.lib"],
 -- 
 2.34.0
 

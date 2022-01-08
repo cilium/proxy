@@ -1,5 +1,5 @@
-#include "extensions/transport_sockets/tls/context_config_impl.h"
-#include "extensions/transport_sockets/tls/ssl_socket.h"
+#include "source/extensions/transport_sockets/tls/context_config_impl.h"
+#include "source/extensions/transport_sockets/tls/ssl_socket.h"
 #include "test/integration/ssl_utility.h"
 #include "tests/bpf_metadata.h"  // policy_config
 #include "tests/cilium_http_integration.h"
@@ -72,7 +72,7 @@ static_resources:
             typed_config:
               "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
-          - name: envoy.router
+          - name: envoy.filters.http.router
           route_config:
             name: policy_enabled
             virtual_hosts:
@@ -101,7 +101,7 @@ static_resources:
             typed_config:
               "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
-          - name: envoy.router
+          - name: envoy.filters.http.router
           route_config:
             name: policy_enabled
             virtual_hosts:

@@ -3,8 +3,8 @@
 #include <atomic>
 #include <string>
 
-#include "common/common/logger.h"
-#include "common/common/thread.h"
+#include "source/common/common/logger.h"
+#include "source/common/common/thread.h"
 
 namespace Envoy {
 

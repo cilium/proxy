@@ -5,7 +5,7 @@
 #include "cilium/host_map.h"
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
-#include "common/common/logger.h"
+#include "source/common/common/logger.h"
 #include "envoy/json/json_object.h"
 #include "envoy/network/filter.h"
 #include "envoy/server/filter_config.h"

@@ -1,11 +1,10 @@
 #include "cilium/grpc_subscription.h"
 
-#include "common/config/grpc_mux_impl.h"
-#include "common/config/grpc_subscription_impl.h"
-#include "common/config/type_to_endpoint.h"
-#include "common/config/utility.h"
-#include "common/grpc/common.h"
-#include "common/protobuf/protobuf.h"
+#include "source/common/config/grpc_mux_impl.h"
+#include "source/common/config/type_to_endpoint.h"
+#include "source/common/config/utility.h"
+#include "source/common/grpc/common.h"
+#include "source/common/protobuf/protobuf.h"
 #include "envoy/annotations/resource.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 
@@ -117,9 +116,9 @@ std::unique_ptr<Config::GrpcSubscriptionImpl> subscribe(
           local_info,
           Config::Utility::factoryForGrpcApiConfigSource(
               cm.grpcAsyncClientManager(), api_config_source, scope, true)
-              ->create(),
+              ->createUncachedRawAsyncClient(),
           dispatcher, sotwGrpcMethod(type_url),
-          api_config_source.transport_api_version(), random, scope,
+          random, scope,
           Config::Utility::parseRateLimitSettings(api_config_source),
           api_config_source.set_node_on_first_message_only()),
       callbacks, resource_decoder, stats, type_url, dispatcher,

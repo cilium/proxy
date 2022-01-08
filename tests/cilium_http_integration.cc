@@ -1,6 +1,6 @@
 #include "tests/cilium_http_integration.h"
 
-#include "common/common/logger.h"
+#include "source/common/common/logger.h"
 #include "envoy/network/address.h"
 #include "tests/bpf_metadata.h"
 

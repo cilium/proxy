@@ -1,5 +1,5 @@
-#include "extensions/transport_sockets/tls/context_config_impl.h"
-#include "extensions/transport_sockets/tls/ssl_socket.h"
+#include "source/extensions/transport_sockets/tls/context_config_impl.h"
+#include "source/extensions/transport_sockets/tls/ssl_socket.h"
 #include "test/integration/ssl_utility.h"
 #include "tests/cilium_tcp_integration.h"
 #include "tests/cilium_tls_integration.h"
@@ -132,7 +132,7 @@ class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
     // a mock write buffer. This allows us to track the bytes actually written
     // to the socket.
 
-    EXPECT_CALL(*mock_buffer_factory_, create_(_, _, _))
+    EXPECT_CALL(*mock_buffer_factory_, createBuffer_(_, _, _))
         .Times(AtLeast(1))
         .WillOnce(Invoke(
             [&](std::function<void()> below_low,
@@ -555,7 +555,7 @@ static_resources:
       typed_config:
         "@type": type.googleapis.com/cilium.BpfMetadata
         is_ingress: {0}
-    - name: "envoy.listener.tls_inspector"
+    - name: "envoy.filters.listener.tls_inspector"
     filter_chains:
     - filters:
       - name: cilium.network

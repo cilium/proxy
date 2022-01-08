@@ -1,10 +1,10 @@
 #include "tests/cilium_tls_integration.h"
 
-#include "common/protobuf/utility.h"
+#include "source/common/protobuf/utility.h"
 #include "envoy/api/api.h"
 #include "envoy/network/transport_socket.h"
-#include "extensions/transport_sockets/tls/context_config_impl.h"
-#include "extensions/transport_sockets/tls/ssl_socket.h"
+#include "source/extensions/transport_sockets/tls/context_config_impl.h"
+#include "source/extensions/transport_sockets/tls/ssl_socket.h"
 #include "gtest/gtest.h"
 #include "test/integration/server.h"
 #include "test/mocks/server/transport_socket_factory_context.h"

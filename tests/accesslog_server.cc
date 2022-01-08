@@ -9,7 +9,7 @@
 #include <string>
 
 #include "cilium/api/accesslog.pb.h"
-#include "common/common/utility.h"
+#include "source/common/common/utility.h"
 #include "test/test_common/thread_factory_for_test.h"
 
 namespace Envoy {

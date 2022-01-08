@@ -1,7 +1,7 @@
 #pragma once
 
-#include "common/common/logger.h"
-#include "common/common/utility.h"
+#include "source/common/common/logger.h"
+#include "source/common/common/utility.h"
 #include "conntrack.h"
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/network/listen_socket.h"
@@ -41,18 +41,18 @@ class SocketMarkOption : public Network::Socket::Option,
       return true;
     }
     auto status = socket.setSocketOption(SOL_SOCKET, SO_MARK, &mark_, sizeof(mark_));
-    if (status.rc_ < 0) {
-      if (errno == EPERM) {
+    if (status.return_value_ < 0) {
+      if (status.errno_ == EPERM) {
         // Do not assert out in this case so that we can run tests without
         // CAP_NET_ADMIN.
         ENVOY_LOG(critical,
                   "Failed to set socket option SO_MARK to {}, capability "
                   "CAP_NET_ADMIN needed: {}",
-                  mark_, Envoy::errorDetails(errno));
+                  mark_, Envoy::errorDetails(status.errno_));
       } else {
         ENVOY_LOG(critical,
                   "Socket option failure. Failed to set SO_MARK to {}: {}",
-                  mark_, Envoy::errorDetails(errno));
+                  mark_, Envoy::errorDetails(status.errno_));
         return false;
       }
     }
@@ -63,13 +63,13 @@ class SocketMarkOption : public Network::Socket::Option,
     if (src_address_) {
       uint32_t one = 1;
       auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-      if (status.rc_ < 0) {
+      if (status.return_value_ < 0) {
 	ENVOY_LOG(critical,
 		  "Failed to set socket option SO_REUSEADDR: {}",
-		  Envoy::errorDetails(errno));
+		  Envoy::errorDetails(status.errno_));
 	return false;
       }
-      socket.addressProvider().setLocalAddress(src_address_);
+      socket.connectionInfoProvider().setLocalAddress(src_address_);
     }
 
     ENVOY_LOG(trace,
