@@ -9,7 +9,7 @@
 # being 2.27, while 2.28 and/or 2.29 is required. This will also
 # affect Istio sidecar compatibility, so we should keep the builder at
 # Ubuntu 18.04 for now.
-FROM docker.io/library/ubuntu:18.04 as base
+FROM docker.io/library/ubuntu:20.04 as base
 LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
 # Setup TimeZone to prevent tzdata package asking for it interactively
@@ -17,15 +17,10 @@ ENV TZ=Etc/UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
-    # Install cross tools
-    CROSSPKG="" && \
-    # arm64 cross tools on amd64 (TARGETARCH = "amd64", so CROSSPKG is set)
-    [ "$TARGETARCH" != "amd64" ] || CROSSPKG="gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu" && \
-    # amd64 cross tools on arm64 (TARGETARCH = "arm64", so CROSSPKG is set)
-    [ "$TARGETARCH" != "arm64" ] || CROSSPKG="gcc-x86-64-linux-gnu g++-x86-64-linux-gnu libc6-dev-amd64-cross binutils-x86-64-linux-gnu" && \
     apt-get install -y --no-install-recommends \
       # Multi-arch cross-compilation packages
-      $CROSSPKG \
+      gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu \
+      gcc-x86-64-linux-gnu g++-x86-64-linux-gnu libc6-dev-amd64-cross binutils-x86-64-linux-gnu \
       # Envoy Build dependencies
       autoconf \
       automake \
