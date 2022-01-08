@@ -12,9 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This image is used to extract proxylib/libcilium.so only for "tests" target
-# This will be changed to an official image as soon as they support multi-arch
-CILIUM_REF=docker.io/jrajahalme/cilium:latest
+# This image is used to extract proxylib/libcilium.so only for "tests" target.
+CILIUM_REF=quay.io/cilium/cilium:stable
 
 CHECK_FORMAT ?= ./bazel-bin/check_format.py.runfiles/envoy/tools/code_format/check_format.py
 
