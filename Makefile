@@ -31,16 +31,31 @@ endif
 BAZEL_TEST_OPTS ?= $(BAZEL_BUILD_OPTS)
 BAZEL_TEST_OPTS += --test_output=errors
 
-ifdef CROSSARCH
-  $(info CROSS-COMPILING for $(CROSSARCH))
-  ifeq ($(CROSSARCH),amd64)
-    BAZEL_BUILD_OPTS += --incompatible_enable_cc_toolchain_resolution --platforms=//bazel/platforms:x86_64_cross --define=cross=x86_64
-  else ifeq ($(CROSSARCH),arm64)
-    BAZEL_BUILD_OPTS += --incompatible_enable_cc_toolchain_resolution --platforms=//bazel/platforms:aarch64_cross --define=cross=aarch64
+BUILDARCH := $(subst aarch64,arm64,$(subst x86_64,amd64,$(shell uname -m)))
+BAZEL_ARCH := $(subst x86_64,k8,$(subst arm64,aarch64,$(shell uname -m)))
+
+# ARCH overrides TARGETARCH, but not if ARCH=multi
+ifdef ARCH
+  ifneq ($(ARCH),multi)
+    TARGETARCH := $(ARCH)
   endif
 endif
 
-BAZEL_ARCH = $(subst x86_64,k8,$(shell uname -m))
+ifeq ($(findstring --crosstool_top=,$(BAZEL_BUILD_OPTS)),)
+  BAZEL_BUILD_OPTS += --crosstool_top=//bazel/toolchains:toolchain
+endif
+ifdef TARGETARCH
+  ifneq "$(TARGETARCH)" "$(BUILDARCH)"
+    $(info CROSS-COMPILING for $(TARGETARCH))
+    BAZEL_ARCH := $(subst amd64,k8,$(subst arm64,aarch64,$(TARGETARCH)))
+    BAZEL_BUILD_OPTS += --cpu=$(BAZEL_ARCH)
+  else
+    $(info BUILDING for $(TARGETARCH) ($(BAZEL_ARCH)))
+  endif
+else
+  TARGETARCH := $(BUILDARCH)
+  $(info BUILDING on $(TARGETARCH) ($(BAZEL_ARCH)))
+endif
 
 ifdef PKG_BUILD
   all: cilium-envoy

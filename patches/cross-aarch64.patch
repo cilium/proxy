@@ -1,46 +1,14 @@
-From d0daf0d05654d2baa67a6c68ed1e954fa87cb76c Mon Sep 17 00:00:00 2001
+From 89d3ad384afd9a346be3ded575ba12922609e720 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
-Date: Thu, 6 Jan 2022 16:34:27 +0200
-Subject: [PATCH] build: Cross-compilation fix for arm64
+Date: Mon, 10 Jan 2022 14:51:49 +0200
+Subject: [PATCH] build: Cross-compilation fixes
 
-This change adds the possibility to cross-compile Envoy for aarch64
-target on host by using a toolchain which defines "aarch64-cross"
-platform.
-
-Signed-off-by: Michal Rostecki <mrostecki@opensuse.org>
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- bazel/BUILD                  | 10 ++++++++++
  bazel/envoy_build_system.bzl |  6 ------
  bazel/foreign_cc/BUILD       | 19 ++++++++++++++++++-
- 3 files changed, 28 insertions(+), 7 deletions(-)
+ 2 files changed, 18 insertions(+), 7 deletions(-)
 
-diff --git a/bazel/BUILD b/bazel/BUILD
-index 3b22ffc8f..2da063b7f 100644
---- a/bazel/BUILD
-+++ b/bazel/BUILD
-@@ -439,11 +439,21 @@ config_setting(
-     values = {"cpu": "k8"},
- )
- 
-+config_setting(
-+    name = "linux_x86_64_cross",
-+    define_values = {"cross": "x86_64"},
-+)
-+
- config_setting(
-     name = "linux_aarch64",
-     values = {"cpu": "aarch64"},
- )
- 
-+config_setting(
-+    name = "linux_aarch64_cross",
-+    define_values = {"cross": "aarch64"},
-+)
-+
- config_setting(
-     name = "linux_ppc",
-     values = {"cpu": "ppc"},
 diff --git a/bazel/envoy_build_system.bzl b/bazel/envoy_build_system.bzl
 index f48ebe705..a682b2ad7 100644
 --- a/bazel/envoy_build_system.bzl
@@ -66,15 +34,15 @@ index f48ebe705..a682b2ad7 100644
          postfix_script = pf,
          **kwargs
 diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index e55355fe8..94eab1726 100644
+index e55355fe8..11ead8288 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
 @@ -16,6 +16,8 @@ configure_make(
          "--disable-libunwind",
      ] + select({
          "//bazel:apple": ["AR=/usr/bin/ar"],
-+        "//bazel:linux_aarch64_cross": ["--host aarch64-linux-gnu"],
-+        "//bazel:linux_x86_64_cross": ["--host x86_64-linux-gnu"],
++        "//bazel:linux_aarch64": ["--host aarch64-linux-gnu"],
++        "//bazel:linux_x86_64": ["--host x86_64-linux-gnu"],
          "//conditions:default": [],
      }),
      lib_source = "@com_github_gperftools_gperftools//:all",
@@ -82,11 +50,11 @@ index e55355fe8..94eab1726 100644
          "//bazel:asan_build": {"ENVOY_CONFIG_ASAN": "1"},
          "//bazel:msan_build": {"ENVOY_CONFIG_MSAN": "1"},
          "//bazel:windows_dbg_build": {"WINDOWS_DBG_BUILD": "debug"},
-+        "//bazel:linux_aarch64_cross": {
++        "//bazel:linux_aarch64": {
 +            "CC": "gcc",
 +            "CROSS": "aarch64-linux-gnu-",
 +        },
-+        "//bazel:linux_x86_64_cross": {
++        "//bazel:linux_x86_64": {
 +            "CC": "gcc",
 +            "CROSS": "x86_64-linux-gnu-",
 +        },
@@ -97,11 +65,11 @@ index e55355fe8..94eab1726 100644
          # TODO(htuch): Remove when #6084 is fixed
          "//bazel:asan_build": {"ENVOY_CONFIG_ASAN": "1"},
          "//bazel:msan_build": {"ENVOY_CONFIG_MSAN": "1"},
-+        "//bazel:linux_aarch64_cross": {
++        "//bazel:linux_aarch64": {
 +            "CC": "gcc",
 +            "CROSS": "aarch64-linux-gnu-",
 +        },
-+        "//bazel:linux_x86_64_cross": {
++        "//bazel:linux_x86_64": {
 +            "CC": "gcc",
 +            "CROSS": "x86_64-linux-gnu-",
 +        },

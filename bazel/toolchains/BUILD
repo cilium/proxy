@@ -1,15 +1,8 @@
 load("@rules_cc//cc:defs.bzl", "cc_toolchain", "cc_toolchain_suite")
 load(":cc_toolchain_config.bzl", "cc_toolchain_config")
 
-platform(
-    name = "gcc_aarch64_cross",
-    constraint_values = [
-        "@platforms//cpu:aarch64",
-    ],
-)
-
 filegroup(
-    name = "gcc_aarch64_cross_toolchain_files",
+    name = "gcc_aarch64_linux_toolchain_files",
     srcs = glob([
         "aarch64-none-linux-gnu/**",
         "libexec/**",
@@ -20,32 +13,20 @@ filegroup(
 )
 
 cc_toolchain(
-    name = "gcc_aarch64_cross_cc_toolchain",
-    all_files = ":gcc_aarch64_cross_toolchain_files",
-    compiler_files = ":gcc_aarch64_cross_toolchain_files",
+    name = "gcc_aarch64_linux_cc_toolchain",
+    all_files = ":gcc_aarch64_linux_toolchain_files",
+    compiler_files = ":gcc_aarch64_linux_toolchain_files",
     dwp_files = ":empty",
-    linker_files = ":gcc_aarch64_cross_toolchain_files",
-    objcopy_files = ":gcc_aarch64_cross_toolchain_files",
-    strip_files = ":gcc_aarch64_cross_toolchain_files",
+    linker_files = ":gcc_aarch64_linux_toolchain_files",
+    objcopy_files = ":gcc_aarch64_linux_toolchain_files",
+    strip_files = ":gcc_aarch64_linux_toolchain_files",
     supports_param_files = 1,
-    toolchain_config = ":gcc_aarch64_cross_toolchain_config",
+    toolchain_config = ":gcc_aarch64_linux_toolchain_config",
     toolchain_identifier = "aarch64-linux-gnu",
 )
 
-toolchain(
-    name = "gcc_aarch64_cross_toolchain",
-    exec_compatible_with = [
-        "@platforms//cpu:x86_64",
-    ],
-    target_compatible_with = [
-        "@platforms//cpu:aarch64",
-    ],
-    toolchain = ":gcc_aarch64_cross_cc_toolchain",
-    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
-)
-
 cc_toolchain_config(
-    name = "gcc_aarch64_cross_toolchain_config",
+    name = "gcc_aarch64_linux_toolchain_config",
     abi_libc_version = "aarch64",
     abi_version = "aarch64",
     compile_flags = [
@@ -61,16 +42,16 @@ cc_toolchain_config(
         # signed characters. Using signed char by default
         # fixes that.
         "-fsigned-char",
-        # Disable assembly code in BoringSSL.
-        # TODO(mrostecki): Fix BoringSSL assembly code for
-        # aarch64.
-        "-DOPENSSL_NO_ASM",
     ],
     compiler = "gcc",
     coverage_compile_flags = ["--coverage"],
     coverage_link_flags = ["--coverage"],
     cpu = "aarch64",
     cxx_builtin_include_directories = [
+        "/usr/lib/gcc/aarch64-linux-gnu/7/include",
+        "/usr/lib/gcc/aarch64-linux-gnu/7/include-fixed",
+        "/usr/lib/gcc/aarch64-linux-gnu/8/include",
+        "/usr/lib/gcc/aarch64-linux-gnu/9/include",
         "/usr/lib/gcc-cross/aarch64-linux-gnu/7/include",
         "/usr/lib/gcc-cross/aarch64-linux-gnu/7/include-fixed",
         "/usr/lib/gcc-cross/aarch64-linux-gnu/8/include",
@@ -122,7 +103,7 @@ cc_toolchain_config(
         "objdump": "/usr/bin/aarch64-linux-gnu-objdump",
         "strip": "/usr/bin/aarch64-linux-gnu-strip",
     },
-    toolchain_identifier = "cross_aarch64",
+    toolchain_identifier = "linux_aarch64",
     unfiltered_compile_flags = [
         "-fno-canonical-system-headers",
         "-Wno-builtin-macro-redefined",
@@ -132,15 +113,8 @@ cc_toolchain_config(
     ],
 )
 
-platform(
-    name = "gcc_x86_64_cross",
-    constraint_values = [
-        "@platforms//cpu:x86_64",
-    ],
-)
-
 filegroup(
-    name = "gcc_x86_64_cross_toolchain_files",
+    name = "gcc_x86_64_linux_toolchain_files",
     srcs = glob([
         "x86_64-none-linux-gnu/**",
         "libexec/**",
@@ -151,32 +125,20 @@ filegroup(
 )
 
 cc_toolchain(
-    name = "gcc_x86_64_cross_cc_toolchain",
-    all_files = ":gcc_x86_64_cross_toolchain_files",
-    compiler_files = ":gcc_x86_64_cross_toolchain_files",
+    name = "gcc_x86_64_linux_cc_toolchain",
+    all_files = ":gcc_x86_64_linux_toolchain_files",
+    compiler_files = ":gcc_x86_64_linux_toolchain_files",
     dwp_files = ":empty",
-    linker_files = ":gcc_x86_64_cross_toolchain_files",
-    objcopy_files = ":gcc_x86_64_cross_toolchain_files",
-    strip_files = ":gcc_x86_64_cross_toolchain_files",
+    linker_files = ":gcc_x86_64_linux_toolchain_files",
+    objcopy_files = ":gcc_x86_64_linux_toolchain_files",
+    strip_files = ":gcc_x86_64_linux_toolchain_files",
     supports_param_files = 1,
-    toolchain_config = ":gcc_x86_64_cross_toolchain_config",
+    toolchain_config = ":gcc_x86_64_linux_toolchain_config",
     toolchain_identifier = "x86_64-linux-gnu",
 )
 
-toolchain(
-    name = "gcc_x86_64_cross_toolchain",
-    exec_compatible_with = [
-        "@platforms//cpu:aarch64",
-    ],
-    target_compatible_with = [
-        "@platforms//cpu:x86_64",
-    ],
-    toolchain = ":gcc_x86_64_cross_cc_toolchain",
-    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
-)
-
 cc_toolchain_config(
-    name = "gcc_x86_64_cross_toolchain_config",
+    name = "gcc_x86_64_linux_toolchain_config",
     abi_libc_version = "unknown",
     abi_version = "unknown",
     compile_flags = [
@@ -192,6 +154,10 @@ cc_toolchain_config(
     coverage_link_flags = ["--coverage"],
     cpu = "k8",
     cxx_builtin_include_directories = [
+        "/usr/lib/gcc/x86_64-linux-gnu/7/include",
+        "/usr/lib/gcc/x86_64-linux-gnu/7/include-fixed",
+        "/usr/lib/gcc/x86_64-linux-gnu/8/include",
+        "/usr/lib/gcc/x86_64-linux-gnu/9/include",
         "/usr/lib/gcc-cross/x86_64-linux-gnu/7/include",
         "/usr/lib/gcc-cross/x86_64-linux-gnu/7/include-fixed",
         "/usr/lib/gcc-cross/x86_64-linux-gnu/8/include",
@@ -228,8 +194,8 @@ cc_toolchain_config(
     ],
     opt_link_flags = ["-Wl,--gc-sections"],
     supports_start_end_lib = False,
-    target_libc = "x86_64",
-    target_system_name = "x86_64-linux-gnu",
+    target_libc = "unknown",
+    target_system_name = "unknown",
     tool_paths = {
         "ar": "/usr/bin/x86_64-linux-gnu-ar",
         "compat-ld": "/usr/bin/x86_64-linux-gnu-ld",
@@ -243,7 +209,7 @@ cc_toolchain_config(
         "objdump": "/usr/bin/x86_64-linux-gnu-objdump",
         "strip": "/usr/bin/x86_64-linux-gnu-strip",
     },
-    toolchain_identifier = "cross_x86_64",
+    toolchain_identifier = "linux_x86_64",
     unfiltered_compile_flags = [
         "-fno-canonical-system-headers",
         "-Wno-builtin-macro-redefined",
@@ -256,10 +222,7 @@ cc_toolchain_config(
 cc_toolchain_suite(
     name = "toolchain",
     toolchains = {
-        # Bazel requires to provide the k8 toolchain, but this toolchain should
-        # be never used to produce k8 binaries!
-        "k8": ":gcc_aarch64_cross_cc_toolchain",
-        "x86_64-cross": ":gcc_x86_64_cross_cc_toolchain",
-        "aarch64-cross": ":gcc_aarch64_cross_cc_toolchain",
+        "k8": ":gcc_x86_64_linux_cc_toolchain",
+        "aarch64": ":gcc_aarch64_linux_cc_toolchain",
     },
 )

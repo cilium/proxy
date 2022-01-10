@@ -24,6 +24,7 @@ ARG BAZEL_BUILD_OPTS
 ARG BUILDARCH
 ARG TARGETARCH
 ARG NO_CACHE
+ENV TARGETARCH=$TARGETARCH
 #
 # Clear cache?
 #
@@ -31,7 +32,7 @@ RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private if [ "
 #
 # Build dependencies
 #
-RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private [ "$BUILDARCH" = "$TARGETARCH" ] || CROSSARCH=$TARGETARCH && CROSSARCH=${CROSSARCH} BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DESTDIR=/tmp/install make bazel-bin/cilium-envoy
+RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DESTDIR=/tmp/install make bazel-bin/cilium-envoy
 
 # By default this stage picks up the result of the build above, but BUILDER_IMAGE can be
 # overridden to point to a saved image of an earlier run of that stage.
@@ -53,9 +54,9 @@ ARG COPY_CACHE_EXT
 ARG BAZEL_BUILD_OPTS
 ARG BUILDARCH
 ARG TARGETARCH
-
+ENV TARGETARCH=$TARGETARCH
 RUN ./tools/get_workspace_status
-RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=builder-cache,rw [ "$BUILDARCH" = "$TARGETARCH" ] || CROSSARCH=$TARGETARCH && CROSSARCH=${CROSSARCH} BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DESTDIR=/tmp/install COPY_CACHE_EXT=$COPY_CACHE_EXT make install
+RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=builder-cache,rw BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DESTDIR=/tmp/install COPY_CACHE_EXT=$COPY_CACHE_EXT make install
 
 # This stage retains only the build caches from the previous step. This is used as the target for persisting
 # Bazel build caches for later re-use.

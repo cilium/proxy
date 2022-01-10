@@ -28,7 +28,6 @@ http_archive(
     patch_tool = "git",
     patch_args = ["apply"],
     patches = [
-        "@//patches:0001-common-Fix-compile-for-Arm.patch",
         "@//patches:cross-aarch64.patch",
         "@//patches:unreferenced-parameters.patch",
     ],
@@ -65,8 +64,3 @@ envoy_dependencies_extra()
 load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
 
 envoy_dependency_imports()
-
-register_toolchains(
-    "//bazel/toolchains:gcc_aarch64_cross_toolchain",
-    "//bazel/toolchains:gcc_x86_64_cross_toolchain",
-)
