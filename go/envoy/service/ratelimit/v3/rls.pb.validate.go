@@ -516,6 +516,153 @@ var _ interface {
 	ErrorName() string
 } = RateLimitResponse_RateLimitValidationError{}
 
+// Validate checks the field values on RateLimitResponse_Quota with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *RateLimitResponse_Quota) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on RateLimitResponse_Quota with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// RateLimitResponse_QuotaMultiError, or nil if none found.
+func (m *RateLimitResponse_Quota) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *RateLimitResponse_Quota) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if m.GetRequests() <= 0 {
+		err := RateLimitResponse_QuotaValidationError{
+			field:  "Requests",
+			reason: "value must be greater than 0",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	switch m.ExpirationSpecifier.(type) {
+
+	case *RateLimitResponse_Quota_ValidUntil:
+
+		if all {
+			switch v := interface{}(m.GetValidUntil()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, RateLimitResponse_QuotaValidationError{
+						field:  "ValidUntil",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, RateLimitResponse_QuotaValidationError{
+						field:  "ValidUntil",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetValidUntil()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return RateLimitResponse_QuotaValidationError{
+					field:  "ValidUntil",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return RateLimitResponse_QuotaMultiError(errors)
+	}
+	return nil
+}
+
+// RateLimitResponse_QuotaMultiError is an error wrapping multiple validation
+// errors returned by RateLimitResponse_Quota.ValidateAll() if the designated
+// constraints aren't met.
+type RateLimitResponse_QuotaMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m RateLimitResponse_QuotaMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m RateLimitResponse_QuotaMultiError) AllErrors() []error { return m }
+
+// RateLimitResponse_QuotaValidationError is the validation error returned by
+// RateLimitResponse_Quota.Validate if the designated constraints aren't met.
+type RateLimitResponse_QuotaValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e RateLimitResponse_QuotaValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e RateLimitResponse_QuotaValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e RateLimitResponse_QuotaValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e RateLimitResponse_QuotaValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e RateLimitResponse_QuotaValidationError) ErrorName() string {
+	return "RateLimitResponse_QuotaValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e RateLimitResponse_QuotaValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sRateLimitResponse_Quota.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = RateLimitResponse_QuotaValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = RateLimitResponse_QuotaValidationError{}
+
 // Validate checks the field values on RateLimitResponse_DescriptorStatus with
 // the rules defined in the proto definition for this message. If any rules
 // are violated, the first error encountered is returned, or nil if there are
@@ -595,6 +742,35 @@ func (m *RateLimitResponse_DescriptorStatus) validate(all bool) error {
 		if err := v.Validate(); err != nil {
 			return RateLimitResponse_DescriptorStatusValidationError{
 				field:  "DurationUntilReset",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetQuota()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RateLimitResponse_DescriptorStatusValidationError{
+					field:  "Quota",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RateLimitResponse_DescriptorStatusValidationError{
+					field:  "Quota",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetQuota()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RateLimitResponse_DescriptorStatusValidationError{
+				field:  "Quota",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}

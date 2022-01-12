@@ -97,6 +97,8 @@ func (m *FilterConfig) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for SaveUpstreamAddress
+
 	if len(errors) > 0 {
 		return FilterConfigMultiError(errors)
 	}

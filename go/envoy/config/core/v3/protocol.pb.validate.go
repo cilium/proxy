@@ -187,6 +187,36 @@ func (m *QuicProtocolOptions) validate(all bool) error {
 		}
 	}
 
+	if wrapper := m.GetInitialStreamWindowSize(); wrapper != nil {
+
+		if val := wrapper.GetValue(); val < 1 || val > 16777216 {
+			err := QuicProtocolOptionsValidationError{
+				field:  "InitialStreamWindowSize",
+				reason: "value must be inside range [1, 16777216]",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
+	if wrapper := m.GetInitialConnectionWindowSize(); wrapper != nil {
+
+		if val := wrapper.GetValue(); val < 1 || val > 25165824 {
+			err := QuicProtocolOptionsValidationError{
+				field:  "InitialConnectionWindowSize",
+				reason: "value must be inside range [1, 25165824]",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
 	if len(errors) > 0 {
 		return QuicProtocolOptionsMultiError(errors)
 	}
@@ -292,6 +322,21 @@ func (m *UpstreamHttpProtocolOptions) validate(all bool) error {
 
 	// no validation rules for AutoSanValidation
 
+	if m.GetOverrideAutoSniHeader() != "" {
+
+		if !_UpstreamHttpProtocolOptions_OverrideAutoSniHeader_Pattern.MatchString(m.GetOverrideAutoSniHeader()) {
+			err := UpstreamHttpProtocolOptionsValidationError{
+				field:  "OverrideAutoSniHeader",
+				reason: "value does not match regex pattern \"^:?[0-9a-zA-Z!#$%&'*+-.^_|~`]+$\"",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
 	if len(errors) > 0 {
 		return UpstreamHttpProtocolOptionsMultiError(errors)
 	}
@@ -371,6 +416,165 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = UpstreamHttpProtocolOptionsValidationError{}
+
+var _UpstreamHttpProtocolOptions_OverrideAutoSniHeader_Pattern = regexp.MustCompile("^:?[0-9a-zA-Z!#$%&'*+-.^_|~`]+$")
+
+// Validate checks the field values on AlternateProtocolsCacheOptions with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *AlternateProtocolsCacheOptions) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on AlternateProtocolsCacheOptions with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the result is a list of violation errors wrapped in
+// AlternateProtocolsCacheOptionsMultiError, or nil if none found.
+func (m *AlternateProtocolsCacheOptions) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *AlternateProtocolsCacheOptions) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := AlternateProtocolsCacheOptionsValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if wrapper := m.GetMaxEntries(); wrapper != nil {
+
+		if wrapper.GetValue() <= 0 {
+			err := AlternateProtocolsCacheOptionsValidationError{
+				field:  "MaxEntries",
+				reason: "value must be greater than 0",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
+	if all {
+		switch v := interface{}(m.GetKeyValueStoreConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, AlternateProtocolsCacheOptionsValidationError{
+					field:  "KeyValueStoreConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, AlternateProtocolsCacheOptionsValidationError{
+					field:  "KeyValueStoreConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetKeyValueStoreConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return AlternateProtocolsCacheOptionsValidationError{
+				field:  "KeyValueStoreConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return AlternateProtocolsCacheOptionsMultiError(errors)
+	}
+	return nil
+}
+
+// AlternateProtocolsCacheOptionsMultiError is an error wrapping multiple
+// validation errors returned by AlternateProtocolsCacheOptions.ValidateAll()
+// if the designated constraints aren't met.
+type AlternateProtocolsCacheOptionsMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m AlternateProtocolsCacheOptionsMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m AlternateProtocolsCacheOptionsMultiError) AllErrors() []error { return m }
+
+// AlternateProtocolsCacheOptionsValidationError is the validation error
+// returned by AlternateProtocolsCacheOptions.Validate if the designated
+// constraints aren't met.
+type AlternateProtocolsCacheOptionsValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e AlternateProtocolsCacheOptionsValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e AlternateProtocolsCacheOptionsValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e AlternateProtocolsCacheOptionsValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e AlternateProtocolsCacheOptionsValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e AlternateProtocolsCacheOptionsValidationError) ErrorName() string {
+	return "AlternateProtocolsCacheOptionsValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e AlternateProtocolsCacheOptionsValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sAlternateProtocolsCacheOptions.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = AlternateProtocolsCacheOptionsValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = AlternateProtocolsCacheOptionsValidationError{}
 
 // Validate checks the field values on HttpProtocolOptions with the rules
 // defined in the proto definition for this message. If any rules are
@@ -497,6 +701,35 @@ func (m *HttpProtocolOptions) validate(all bool) error {
 	}
 
 	// no validation rules for HeadersWithUnderscoresAction
+
+	if all {
+		switch v := interface{}(m.GetMaxRequestsPerConnection()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, HttpProtocolOptionsValidationError{
+					field:  "MaxRequestsPerConnection",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, HttpProtocolOptionsValidationError{
+					field:  "MaxRequestsPerConnection",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetMaxRequestsPerConnection()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return HttpProtocolOptionsValidationError{
+				field:  "MaxRequestsPerConnection",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if len(errors) > 0 {
 		return HttpProtocolOptionsMultiError(errors)
@@ -795,17 +1028,6 @@ func (m *KeepaliveSettings) validate(all bool) error {
 
 	var errors []error
 
-	if m.GetInterval() == nil {
-		err := KeepaliveSettingsValidationError{
-			field:  "Interval",
-			reason: "value is required",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
 	if d := m.GetInterval(); d != nil {
 		dur, err := d.AsDuration(), d.CheckValid()
 		if err != nil {
@@ -903,6 +1125,36 @@ func (m *KeepaliveSettings) validate(all bool) error {
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
+		}
+	}
+
+	if d := m.GetConnectionIdleInterval(); d != nil {
+		dur, err := d.AsDuration(), d.CheckValid()
+		if err != nil {
+			err = KeepaliveSettingsValidationError{
+				field:  "ConnectionIdleInterval",
+				reason: "value is not a valid duration",
+				cause:  err,
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		} else {
+
+			gte := time.Duration(0*time.Second + 1000000*time.Nanosecond)
+
+			if dur < gte {
+				err := KeepaliveSettingsValidationError{
+					field:  "ConnectionIdleInterval",
+					reason: "value must be greater than or equal to 1ms",
+				}
+				if !all {
+					return err
+				}
+				errors = append(errors, err)
+			}
+
 		}
 	}
 
@@ -1571,6 +1823,8 @@ func (m *Http3ProtocolOptions) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for AllowExtendedConnect
+
 	if len(errors) > 0 {
 		return Http3ProtocolOptionsMultiError(errors)
 	}
@@ -1649,6 +1903,129 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = Http3ProtocolOptionsValidationError{}
+
+// Validate checks the field values on SchemeHeaderTransformation with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *SchemeHeaderTransformation) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on SchemeHeaderTransformation with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// SchemeHeaderTransformationMultiError, or nil if none found.
+func (m *SchemeHeaderTransformation) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *SchemeHeaderTransformation) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch m.Transformation.(type) {
+
+	case *SchemeHeaderTransformation_SchemeToOverwrite:
+
+		if _, ok := _SchemeHeaderTransformation_SchemeToOverwrite_InLookup[m.GetSchemeToOverwrite()]; !ok {
+			err := SchemeHeaderTransformationValidationError{
+				field:  "SchemeToOverwrite",
+				reason: "value must be in list [http https]",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return SchemeHeaderTransformationMultiError(errors)
+	}
+	return nil
+}
+
+// SchemeHeaderTransformationMultiError is an error wrapping multiple
+// validation errors returned by SchemeHeaderTransformation.ValidateAll() if
+// the designated constraints aren't met.
+type SchemeHeaderTransformationMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SchemeHeaderTransformationMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SchemeHeaderTransformationMultiError) AllErrors() []error { return m }
+
+// SchemeHeaderTransformationValidationError is the validation error returned
+// by SchemeHeaderTransformation.Validate if the designated constraints aren't met.
+type SchemeHeaderTransformationValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SchemeHeaderTransformationValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SchemeHeaderTransformationValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SchemeHeaderTransformationValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SchemeHeaderTransformationValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SchemeHeaderTransformationValidationError) ErrorName() string {
+	return "SchemeHeaderTransformationValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e SchemeHeaderTransformationValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSchemeHeaderTransformation.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SchemeHeaderTransformationValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SchemeHeaderTransformationValidationError{}
+
+var _SchemeHeaderTransformation_SchemeToOverwrite_InLookup = map[string]struct{}{
+	"http":  {},
+	"https": {},
+}
 
 // Validate checks the field values on Http1ProtocolOptions_HeaderKeyFormat
 // with the rules defined in the proto definition for this message. If any

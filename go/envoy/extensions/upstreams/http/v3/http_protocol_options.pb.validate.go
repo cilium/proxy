@@ -786,6 +786,64 @@ func (m *HttpProtocolOptions_AutoHttpConfig) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetHttp3ProtocolOptions()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, HttpProtocolOptions_AutoHttpConfigValidationError{
+					field:  "Http3ProtocolOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, HttpProtocolOptions_AutoHttpConfigValidationError{
+					field:  "Http3ProtocolOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetHttp3ProtocolOptions()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return HttpProtocolOptions_AutoHttpConfigValidationError{
+				field:  "Http3ProtocolOptions",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetAlternateProtocolsCacheOptions()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, HttpProtocolOptions_AutoHttpConfigValidationError{
+					field:  "AlternateProtocolsCacheOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, HttpProtocolOptions_AutoHttpConfigValidationError{
+					field:  "AlternateProtocolsCacheOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetAlternateProtocolsCacheOptions()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return HttpProtocolOptions_AutoHttpConfigValidationError{
+				field:  "AlternateProtocolsCacheOptions",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return HttpProtocolOptions_AutoHttpConfigMultiError(errors)
 	}

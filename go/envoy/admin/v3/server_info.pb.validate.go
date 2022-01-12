@@ -414,8 +414,6 @@ func (m *CommandLineOptions) validate(all bool) error {
 
 	// no validation rules for CpusetThreads
 
-	// no validation rules for BootstrapVersion
-
 	// no validation rules for EnableFineGrainLogging
 
 	// no validation rules for SocketPath

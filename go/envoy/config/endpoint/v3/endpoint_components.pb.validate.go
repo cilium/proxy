@@ -379,6 +379,138 @@ var _ interface {
 	ErrorName() string
 } = LbEndpointValidationError{}
 
+// Validate checks the field values on LedsClusterLocalityConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *LedsClusterLocalityConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on LedsClusterLocalityConfig with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// LedsClusterLocalityConfigMultiError, or nil if none found.
+func (m *LedsClusterLocalityConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *LedsClusterLocalityConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetLedsConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LedsClusterLocalityConfigValidationError{
+					field:  "LedsConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LedsClusterLocalityConfigValidationError{
+					field:  "LedsConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetLedsConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return LedsClusterLocalityConfigValidationError{
+				field:  "LedsConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for LedsCollectionName
+
+	if len(errors) > 0 {
+		return LedsClusterLocalityConfigMultiError(errors)
+	}
+	return nil
+}
+
+// LedsClusterLocalityConfigMultiError is an error wrapping multiple validation
+// errors returned by LedsClusterLocalityConfig.ValidateAll() if the
+// designated constraints aren't met.
+type LedsClusterLocalityConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m LedsClusterLocalityConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m LedsClusterLocalityConfigMultiError) AllErrors() []error { return m }
+
+// LedsClusterLocalityConfigValidationError is the validation error returned by
+// LedsClusterLocalityConfig.Validate if the designated constraints aren't met.
+type LedsClusterLocalityConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e LedsClusterLocalityConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e LedsClusterLocalityConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e LedsClusterLocalityConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e LedsClusterLocalityConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e LedsClusterLocalityConfigValidationError) ErrorName() string {
+	return "LedsClusterLocalityConfigValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e LedsClusterLocalityConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sLedsClusterLocalityConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = LedsClusterLocalityConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = LedsClusterLocalityConfigValidationError{}
+
 // Validate checks the field values on LocalityLbEndpoints with the rules
 // defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
@@ -517,6 +649,72 @@ func (m *LocalityLbEndpoints) validate(all bool) error {
 				cause:  err,
 			}
 		}
+	}
+
+	switch m.LbConfig.(type) {
+
+	case *LocalityLbEndpoints_LoadBalancerEndpoints:
+
+		if all {
+			switch v := interface{}(m.GetLoadBalancerEndpoints()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, LocalityLbEndpointsValidationError{
+						field:  "LoadBalancerEndpoints",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, LocalityLbEndpointsValidationError{
+						field:  "LoadBalancerEndpoints",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetLoadBalancerEndpoints()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return LocalityLbEndpointsValidationError{
+					field:  "LoadBalancerEndpoints",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *LocalityLbEndpoints_LedsClusterLocalityConfig:
+
+		if all {
+			switch v := interface{}(m.GetLedsClusterLocalityConfig()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, LocalityLbEndpointsValidationError{
+						field:  "LedsClusterLocalityConfig",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, LocalityLbEndpointsValidationError{
+						field:  "LedsClusterLocalityConfig",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetLedsClusterLocalityConfig()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return LocalityLbEndpointsValidationError{
+					field:  "LedsClusterLocalityConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	}
 
 	if len(errors) > 0 {
@@ -711,3 +909,141 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = Endpoint_HealthCheckConfigValidationError{}
+
+// Validate checks the field values on LocalityLbEndpoints_LbEndpointList with
+// the rules defined in the proto definition for this message. If any rules
+// are violated, the first error encountered is returned, or nil if there are
+// no violations.
+func (m *LocalityLbEndpoints_LbEndpointList) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on LocalityLbEndpoints_LbEndpointList
+// with the rules defined in the proto definition for this message. If any
+// rules are violated, the result is a list of violation errors wrapped in
+// LocalityLbEndpoints_LbEndpointListMultiError, or nil if none found.
+func (m *LocalityLbEndpoints_LbEndpointList) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *LocalityLbEndpoints_LbEndpointList) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	for idx, item := range m.GetLbEndpoints() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, LocalityLbEndpoints_LbEndpointListValidationError{
+						field:  fmt.Sprintf("LbEndpoints[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, LocalityLbEndpoints_LbEndpointListValidationError{
+						field:  fmt.Sprintf("LbEndpoints[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return LocalityLbEndpoints_LbEndpointListValidationError{
+					field:  fmt.Sprintf("LbEndpoints[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return LocalityLbEndpoints_LbEndpointListMultiError(errors)
+	}
+	return nil
+}
+
+// LocalityLbEndpoints_LbEndpointListMultiError is an error wrapping multiple
+// validation errors returned by
+// LocalityLbEndpoints_LbEndpointList.ValidateAll() if the designated
+// constraints aren't met.
+type LocalityLbEndpoints_LbEndpointListMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m LocalityLbEndpoints_LbEndpointListMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m LocalityLbEndpoints_LbEndpointListMultiError) AllErrors() []error { return m }
+
+// LocalityLbEndpoints_LbEndpointListValidationError is the validation error
+// returned by LocalityLbEndpoints_LbEndpointList.Validate if the designated
+// constraints aren't met.
+type LocalityLbEndpoints_LbEndpointListValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e LocalityLbEndpoints_LbEndpointListValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e LocalityLbEndpoints_LbEndpointListValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e LocalityLbEndpoints_LbEndpointListValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e LocalityLbEndpoints_LbEndpointListValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e LocalityLbEndpoints_LbEndpointListValidationError) ErrorName() string {
+	return "LocalityLbEndpoints_LbEndpointListValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e LocalityLbEndpoints_LbEndpointListValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sLocalityLbEndpoints_LbEndpointList.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = LocalityLbEndpoints_LbEndpointListValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = LocalityLbEndpoints_LbEndpointListValidationError{}

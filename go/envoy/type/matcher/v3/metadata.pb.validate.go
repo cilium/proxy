@@ -153,6 +153,8 @@ func (m *MetadataMatcher) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for Invert
+
 	if len(errors) > 0 {
 		return MetadataMatcherMultiError(errors)
 	}

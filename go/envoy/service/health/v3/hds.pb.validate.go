@@ -1599,3 +1599,101 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = HealthCheckSpecifierValidationError{}
+
+// Validate checks the field values on HdsDummy with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *HdsDummy) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on HdsDummy with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in HdsDummyMultiError, or nil
+// if none found.
+func (m *HdsDummy) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *HdsDummy) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return HdsDummyMultiError(errors)
+	}
+	return nil
+}
+
+// HdsDummyMultiError is an error wrapping multiple validation errors returned
+// by HdsDummy.ValidateAll() if the designated constraints aren't met.
+type HdsDummyMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m HdsDummyMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m HdsDummyMultiError) AllErrors() []error { return m }
+
+// HdsDummyValidationError is the validation error returned by
+// HdsDummy.Validate if the designated constraints aren't met.
+type HdsDummyValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e HdsDummyValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e HdsDummyValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e HdsDummyValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e HdsDummyValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e HdsDummyValidationError) ErrorName() string { return "HdsDummyValidationError" }
+
+// Error satisfies the builtin error interface
+func (e HdsDummyValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sHdsDummy.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = HdsDummyValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = HdsDummyValidationError{}

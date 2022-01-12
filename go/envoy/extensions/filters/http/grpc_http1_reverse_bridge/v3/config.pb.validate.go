@@ -70,6 +70,8 @@ func (m *FilterConfig) validate(all bool) error {
 
 	// no validation rules for WithholdGrpcFrames
 
+	// no validation rules for ResponseSizeHeader
+
 	if len(errors) > 0 {
 		return FilterConfigMultiError(errors)
 	}

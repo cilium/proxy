@@ -321,17 +321,6 @@ func (m *Cluster) validate(all bool) error {
 		}
 	}
 
-	if _, ok := _Cluster_LbPolicy_NotInLookup[m.GetLbPolicy()]; ok {
-		err := ClusterValidationError{
-			field:  "LbPolicy",
-			reason: "value must not be in list [7]",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
 	if _, ok := Cluster_LbPolicy_name[int32(m.GetLbPolicy())]; !ok {
 		err := ClusterValidationError{
 			field:  "LbPolicy",
@@ -733,6 +722,93 @@ func (m *Cluster) validate(all bool) error {
 	}
 
 	// no validation rules for UseTcpForDnsLookups
+
+	if all {
+		switch v := interface{}(m.GetDnsResolutionConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ClusterValidationError{
+					field:  "DnsResolutionConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ClusterValidationError{
+					field:  "DnsResolutionConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDnsResolutionConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ClusterValidationError{
+				field:  "DnsResolutionConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetTypedDnsResolverConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ClusterValidationError{
+					field:  "TypedDnsResolverConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ClusterValidationError{
+					field:  "TypedDnsResolverConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTypedDnsResolverConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ClusterValidationError{
+				field:  "TypedDnsResolverConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetWaitForWarmOnInit()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ClusterValidationError{
+					field:  "WaitForWarmOnInit",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ClusterValidationError{
+					field:  "WaitForWarmOnInit",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetWaitForWarmOnInit()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ClusterValidationError{
+				field:  "WaitForWarmOnInit",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	if all {
 		switch v := interface{}(m.GetOutlierDetection()).(type) {
@@ -1330,6 +1406,37 @@ func (m *Cluster) validate(all bool) error {
 			}
 		}
 
+	case *Cluster_RoundRobinLbConfig_:
+
+		if all {
+			switch v := interface{}(m.GetRoundRobinLbConfig()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, ClusterValidationError{
+						field:  "RoundRobinLbConfig",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, ClusterValidationError{
+						field:  "RoundRobinLbConfig",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetRoundRobinLbConfig()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return ClusterValidationError{
+					field:  "RoundRobinLbConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	}
 
 	if len(errors) > 0 {
@@ -1407,10 +1514,6 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = ClusterValidationError{}
-
-var _Cluster_LbPolicy_NotInLookup = map[Cluster_LbPolicy]struct{}{
-	7: {},
-}
 
 // Validate checks the field values on LoadBalancingPolicy with the rules
 // defined in the proto definition for this message. If any rules are
@@ -2539,6 +2642,295 @@ var _ interface {
 	ErrorName() string
 } = Cluster_LbSubsetConfigValidationError{}
 
+// Validate checks the field values on Cluster_SlowStartConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *Cluster_SlowStartConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on Cluster_SlowStartConfig with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// Cluster_SlowStartConfigMultiError, or nil if none found.
+func (m *Cluster_SlowStartConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *Cluster_SlowStartConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetSlowStartWindow()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, Cluster_SlowStartConfigValidationError{
+					field:  "SlowStartWindow",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, Cluster_SlowStartConfigValidationError{
+					field:  "SlowStartWindow",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSlowStartWindow()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return Cluster_SlowStartConfigValidationError{
+				field:  "SlowStartWindow",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetAggression()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, Cluster_SlowStartConfigValidationError{
+					field:  "Aggression",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, Cluster_SlowStartConfigValidationError{
+					field:  "Aggression",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetAggression()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return Cluster_SlowStartConfigValidationError{
+				field:  "Aggression",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return Cluster_SlowStartConfigMultiError(errors)
+	}
+	return nil
+}
+
+// Cluster_SlowStartConfigMultiError is an error wrapping multiple validation
+// errors returned by Cluster_SlowStartConfig.ValidateAll() if the designated
+// constraints aren't met.
+type Cluster_SlowStartConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m Cluster_SlowStartConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m Cluster_SlowStartConfigMultiError) AllErrors() []error { return m }
+
+// Cluster_SlowStartConfigValidationError is the validation error returned by
+// Cluster_SlowStartConfig.Validate if the designated constraints aren't met.
+type Cluster_SlowStartConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e Cluster_SlowStartConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e Cluster_SlowStartConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e Cluster_SlowStartConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e Cluster_SlowStartConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e Cluster_SlowStartConfigValidationError) ErrorName() string {
+	return "Cluster_SlowStartConfigValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e Cluster_SlowStartConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCluster_SlowStartConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = Cluster_SlowStartConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = Cluster_SlowStartConfigValidationError{}
+
+// Validate checks the field values on Cluster_RoundRobinLbConfig with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *Cluster_RoundRobinLbConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on Cluster_RoundRobinLbConfig with the
+// rules defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// Cluster_RoundRobinLbConfigMultiError, or nil if none found.
+func (m *Cluster_RoundRobinLbConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *Cluster_RoundRobinLbConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetSlowStartConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, Cluster_RoundRobinLbConfigValidationError{
+					field:  "SlowStartConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, Cluster_RoundRobinLbConfigValidationError{
+					field:  "SlowStartConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSlowStartConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return Cluster_RoundRobinLbConfigValidationError{
+				field:  "SlowStartConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return Cluster_RoundRobinLbConfigMultiError(errors)
+	}
+	return nil
+}
+
+// Cluster_RoundRobinLbConfigMultiError is an error wrapping multiple
+// validation errors returned by Cluster_RoundRobinLbConfig.ValidateAll() if
+// the designated constraints aren't met.
+type Cluster_RoundRobinLbConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m Cluster_RoundRobinLbConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m Cluster_RoundRobinLbConfigMultiError) AllErrors() []error { return m }
+
+// Cluster_RoundRobinLbConfigValidationError is the validation error returned
+// by Cluster_RoundRobinLbConfig.Validate if the designated constraints aren't met.
+type Cluster_RoundRobinLbConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e Cluster_RoundRobinLbConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e Cluster_RoundRobinLbConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e Cluster_RoundRobinLbConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e Cluster_RoundRobinLbConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e Cluster_RoundRobinLbConfigValidationError) ErrorName() string {
+	return "Cluster_RoundRobinLbConfigValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e Cluster_RoundRobinLbConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCluster_RoundRobinLbConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = Cluster_RoundRobinLbConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = Cluster_RoundRobinLbConfigValidationError{}
+
 // Validate checks the field values on Cluster_LeastRequestLbConfig with the
 // rules defined in the proto definition for this message. If any rules are
 // violated, the first error encountered is returned, or nil if there are no violations.
@@ -2599,6 +2991,35 @@ func (m *Cluster_LeastRequestLbConfig) validate(all bool) error {
 		if err := v.Validate(); err != nil {
 			return Cluster_LeastRequestLbConfigValidationError{
 				field:  "ActiveRequestBias",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetSlowStartConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, Cluster_LeastRequestLbConfigValidationError{
+					field:  "SlowStartConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, Cluster_LeastRequestLbConfigValidationError{
+					field:  "SlowStartConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetSlowStartConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return Cluster_LeastRequestLbConfigValidationError{
+				field:  "SlowStartConfig",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
@@ -2849,33 +3270,19 @@ func (m *Cluster_MaglevLbConfig) validate(all bool) error {
 
 	var errors []error
 
-	if all {
-		switch v := interface{}(m.GetTableSize()).(type) {
-		case interface{ ValidateAll() error }:
-			if err := v.ValidateAll(); err != nil {
-				errors = append(errors, Cluster_MaglevLbConfigValidationError{
-					field:  "TableSize",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		case interface{ Validate() error }:
-			if err := v.Validate(); err != nil {
-				errors = append(errors, Cluster_MaglevLbConfigValidationError{
-					field:  "TableSize",
-					reason: "embedded message failed validation",
-					cause:  err,
-				})
-			}
-		}
-	} else if v, ok := interface{}(m.GetTableSize()).(interface{ Validate() error }); ok {
-		if err := v.Validate(); err != nil {
-			return Cluster_MaglevLbConfigValidationError{
+	if wrapper := m.GetTableSize(); wrapper != nil {
+
+		if wrapper.GetValue() > 5000011 {
+			err := Cluster_MaglevLbConfigValidationError{
 				field:  "TableSize",
-				reason: "embedded message failed validation",
-				cause:  err,
+				reason: "value must be less than or equal to 5000011",
 			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
 		}
+
 	}
 
 	if len(errors) > 0 {
@@ -4166,14 +4573,12 @@ func (m *LoadBalancingPolicy_Policy) validate(all bool) error {
 
 	var errors []error
 
-	// no validation rules for Name
-
 	if all {
-		switch v := interface{}(m.GetTypedConfig()).(type) {
+		switch v := interface{}(m.GetTypedExtensionConfig()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
 				errors = append(errors, LoadBalancingPolicy_PolicyValidationError{
-					field:  "TypedConfig",
+					field:  "TypedExtensionConfig",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
@@ -4181,16 +4586,16 @@ func (m *LoadBalancingPolicy_Policy) validate(all bool) error {
 		case interface{ Validate() error }:
 			if err := v.Validate(); err != nil {
 				errors = append(errors, LoadBalancingPolicy_PolicyValidationError{
-					field:  "TypedConfig",
+					field:  "TypedExtensionConfig",
 					reason: "embedded message failed validation",
 					cause:  err,
 				})
 			}
 		}
-	} else if v, ok := interface{}(m.GetTypedConfig()).(interface{ Validate() error }); ok {
+	} else if v, ok := interface{}(m.GetTypedExtensionConfig()).(interface{ Validate() error }); ok {
 		if err := v.Validate(); err != nil {
 			return LoadBalancingPolicy_PolicyValidationError{
-				field:  "TypedConfig",
+				field:  "TypedExtensionConfig",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}

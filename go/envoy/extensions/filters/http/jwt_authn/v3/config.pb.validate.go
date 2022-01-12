@@ -106,9 +106,42 @@ func (m *JwtProvider) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
+	// no validation rules for PadForwardPayloadHeader
+
 	// no validation rules for PayloadInMetadata
 
+	// no validation rules for HeaderInMetadata
+
 	// no validation rules for ClockSkewSeconds
+
+	if all {
+		switch v := interface{}(m.GetJwtCacheConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, JwtProviderValidationError{
+					field:  "JwtCacheConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, JwtProviderValidationError{
+					field:  "JwtCacheConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetJwtCacheConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return JwtProviderValidationError{
+				field:  "JwtCacheConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	switch m.JwksSourceSpecifier.(type) {
 
@@ -264,6 +297,107 @@ var _ interface {
 
 var _JwtProvider_ForwardPayloadHeader_Pattern = regexp.MustCompile("^[^\x00\n\r]*$")
 
+// Validate checks the field values on JwtCacheConfig with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *JwtCacheConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on JwtCacheConfig with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in JwtCacheConfigMultiError,
+// or nil if none found.
+func (m *JwtCacheConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *JwtCacheConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for JwtCacheSize
+
+	if len(errors) > 0 {
+		return JwtCacheConfigMultiError(errors)
+	}
+	return nil
+}
+
+// JwtCacheConfigMultiError is an error wrapping multiple validation errors
+// returned by JwtCacheConfig.ValidateAll() if the designated constraints
+// aren't met.
+type JwtCacheConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m JwtCacheConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m JwtCacheConfigMultiError) AllErrors() []error { return m }
+
+// JwtCacheConfigValidationError is the validation error returned by
+// JwtCacheConfig.Validate if the designated constraints aren't met.
+type JwtCacheConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e JwtCacheConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e JwtCacheConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e JwtCacheConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e JwtCacheConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e JwtCacheConfigValidationError) ErrorName() string { return "JwtCacheConfigValidationError" }
+
+// Error satisfies the builtin error interface
+func (e JwtCacheConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sJwtCacheConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = JwtCacheConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = JwtCacheConfigValidationError{}
+
 // Validate checks the field values on RemoteJwks with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
@@ -338,6 +472,64 @@ func (m *RemoteJwks) validate(all bool) error {
 		if err := v.Validate(); err != nil {
 			return RemoteJwksValidationError{
 				field:  "CacheDuration",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetAsyncFetch()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RemoteJwksValidationError{
+					field:  "AsyncFetch",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RemoteJwksValidationError{
+					field:  "AsyncFetch",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetAsyncFetch()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RemoteJwksValidationError{
+				field:  "AsyncFetch",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetRetryPolicy()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RemoteJwksValidationError{
+					field:  "RetryPolicy",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RemoteJwksValidationError{
+					field:  "RetryPolicy",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRetryPolicy()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RemoteJwksValidationError{
+				field:  "RetryPolicy",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}
@@ -419,6 +611,107 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = RemoteJwksValidationError{}
+
+// Validate checks the field values on JwksAsyncFetch with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *JwksAsyncFetch) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on JwksAsyncFetch with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in JwksAsyncFetchMultiError,
+// or nil if none found.
+func (m *JwksAsyncFetch) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *JwksAsyncFetch) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for FastListener
+
+	if len(errors) > 0 {
+		return JwksAsyncFetchMultiError(errors)
+	}
+	return nil
+}
+
+// JwksAsyncFetchMultiError is an error wrapping multiple validation errors
+// returned by JwksAsyncFetch.ValidateAll() if the designated constraints
+// aren't met.
+type JwksAsyncFetchMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m JwksAsyncFetchMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m JwksAsyncFetchMultiError) AllErrors() []error { return m }
+
+// JwksAsyncFetchValidationError is the validation error returned by
+// JwksAsyncFetch.Validate if the designated constraints aren't met.
+type JwksAsyncFetchValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e JwksAsyncFetchValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e JwksAsyncFetchValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e JwksAsyncFetchValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e JwksAsyncFetchValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e JwksAsyncFetchValidationError) ErrorName() string { return "JwksAsyncFetchValidationError" }
+
+// Error satisfies the builtin error interface
+func (e JwksAsyncFetchValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sJwksAsyncFetch.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = JwksAsyncFetchValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = JwksAsyncFetchValidationError{}
 
 // Validate checks the field values on JwtHeader with the rules defined in the
 // proto definition for this message. If any rules are violated, the first

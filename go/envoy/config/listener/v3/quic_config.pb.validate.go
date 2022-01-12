@@ -173,6 +173,79 @@ func (m *QuicProtocolOptions) validate(all bool) error {
 		}
 	}
 
+	if wrapper := m.GetPacketsToReadToConnectionCountRatio(); wrapper != nil {
+
+		if wrapper.GetValue() < 1 {
+			err := QuicProtocolOptionsValidationError{
+				field:  "PacketsToReadToConnectionCountRatio",
+				reason: "value must be greater than or equal to 1",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
+	if all {
+		switch v := interface{}(m.GetCryptoStreamConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, QuicProtocolOptionsValidationError{
+					field:  "CryptoStreamConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, QuicProtocolOptionsValidationError{
+					field:  "CryptoStreamConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCryptoStreamConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return QuicProtocolOptionsValidationError{
+				field:  "CryptoStreamConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetProofSourceConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, QuicProtocolOptionsValidationError{
+					field:  "ProofSourceConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, QuicProtocolOptionsValidationError{
+					field:  "ProofSourceConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetProofSourceConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return QuicProtocolOptionsValidationError{
+				field:  "ProofSourceConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return QuicProtocolOptionsMultiError(errors)
 	}

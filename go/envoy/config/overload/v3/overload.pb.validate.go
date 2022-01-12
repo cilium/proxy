@@ -926,6 +926,118 @@ var _ interface {
 	ErrorName() string
 } = OverloadActionValidationError{}
 
+// Validate checks the field values on BufferFactoryConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *BufferFactoryConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on BufferFactoryConfig with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// BufferFactoryConfigMultiError, or nil if none found.
+func (m *BufferFactoryConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *BufferFactoryConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if val := m.GetMinimumAccountToTrackPowerOfTwo(); val < 10 || val > 56 {
+		err := BufferFactoryConfigValidationError{
+			field:  "MinimumAccountToTrackPowerOfTwo",
+			reason: "value must be inside range [10, 56]",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return BufferFactoryConfigMultiError(errors)
+	}
+	return nil
+}
+
+// BufferFactoryConfigMultiError is an error wrapping multiple validation
+// errors returned by BufferFactoryConfig.ValidateAll() if the designated
+// constraints aren't met.
+type BufferFactoryConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m BufferFactoryConfigMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m BufferFactoryConfigMultiError) AllErrors() []error { return m }
+
+// BufferFactoryConfigValidationError is the validation error returned by
+// BufferFactoryConfig.Validate if the designated constraints aren't met.
+type BufferFactoryConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e BufferFactoryConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e BufferFactoryConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e BufferFactoryConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e BufferFactoryConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e BufferFactoryConfigValidationError) ErrorName() string {
+	return "BufferFactoryConfigValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e BufferFactoryConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sBufferFactoryConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = BufferFactoryConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = BufferFactoryConfigValidationError{}
+
 // Validate checks the field values on OverloadManager with the rules defined
 // in the proto definition for this message. If any rules are violated, the
 // first error encountered is returned, or nil if there are no violations.
@@ -1054,6 +1166,35 @@ func (m *OverloadManager) validate(all bool) error {
 			}
 		}
 
+	}
+
+	if all {
+		switch v := interface{}(m.GetBufferFactoryConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, OverloadManagerValidationError{
+					field:  "BufferFactoryConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, OverloadManagerValidationError{
+					field:  "BufferFactoryConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBufferFactoryConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return OverloadManagerValidationError{
+				field:  "BufferFactoryConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
 	}
 
 	if len(errors) > 0 {

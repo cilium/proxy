@@ -184,6 +184,51 @@ func (m *LocalRateLimit) validate(all bool) error {
 		}
 	}
 
+	if len(m.GetRequestHeadersToAddWhenNotEnforced()) > 10 {
+		err := LocalRateLimitValidationError{
+			field:  "RequestHeadersToAddWhenNotEnforced",
+			reason: "value must contain no more than 10 item(s)",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	for idx, item := range m.GetRequestHeadersToAddWhenNotEnforced() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, LocalRateLimitValidationError{
+						field:  fmt.Sprintf("RequestHeadersToAddWhenNotEnforced[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, LocalRateLimitValidationError{
+						field:  fmt.Sprintf("RequestHeadersToAddWhenNotEnforced[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return LocalRateLimitValidationError{
+					field:  fmt.Sprintf("RequestHeadersToAddWhenNotEnforced[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
 	if len(m.GetResponseHeadersToAdd()) > 10 {
 		err := LocalRateLimitValidationError{
 			field:  "ResponseHeadersToAdd",
@@ -273,6 +318,8 @@ func (m *LocalRateLimit) validate(all bool) error {
 		}
 		errors = append(errors, err)
 	}
+
+	// no validation rules for LocalRateLimitPerDownstreamConnection
 
 	if len(errors) > 0 {
 		return LocalRateLimitMultiError(errors)

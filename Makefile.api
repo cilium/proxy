@@ -31,7 +31,7 @@ PROTO_DEPS = \
 GO_OUT = go
 
 # Skip draft Envoy APIs that do not compile.
-ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy -not -path "*/v2alpha*" -not -path "*/v2/*" -not -path "*/v3alpha*" -not -path "*/v4alpha*" -not -path "*/envoy/extensions/access_loggers/open_telemetry/*" \( -name *.proto \) -print))
+ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy $(ENVOY_API_PROTO_PATH)/contrib -not -path "*/v1alpha*" -not -path "*/v2alpha*" -not -path "*/v2/*" -not -path "*/v3alpha*" -not -path "*/v4alpha*" -not -path "*/envoy/extensions/access_loggers/open_telemetry/*" \( -name *.proto \) -print))
 ENVOY_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(ENVOY_RAW_PROTOS))
 
 ENVOY_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(ENVOY_API_PROTOS))
@@ -58,10 +58,12 @@ RAW_GO_MAPPINGS += udpa/annotations/sensitive.proto=github.com/cncf/xds/go/udpa/
 RAW_GO_MAPPINGS += udpa/annotations/status.proto=github.com/cncf/xds/go/udpa/annotations/
 RAW_GO_MAPPINGS += udpa/annotations/versioning.proto=github.com/cncf/xds/go/udpa/annotations/
 RAW_GO_MAPPINGS += udpa/annotations/security.proto=github.com/cncf/xds/go/udpa/annotations/
+RAW_GO_MAPPINGS += udpa/annotations/deprecation.proto=github.com/cncf/xds/go/udpa/annotations/
 RAW_GO_MAPPINGS += xds/core/v3/collection_entry.proto=github.com/cncf/xds/go/xds/core/v3/
 RAW_GO_MAPPINGS += xds/core/v3/authority.proto=github.com/cncf/xds/go/xds/core/v3/
 RAW_GO_MAPPINGS += xds/core/v3/context_params.proto=github.com/cncf/xds/go/xds/core/v3/
 RAW_GO_MAPPINGS += xds/core/v3/resource_locator.proto=github.com/cncf/xds/go/xds/core/v3/
+RAW_GO_MAPPINGS += xds/annotations/v3/status.proto=github.com/cncf/xds/go/xds/annotations/v3/
 RAW_GO_MAPPINGS += opentelemetry/proto/common/v1/common.proto=github.com/open-telemetry/opentelemetry-proto/opentelemetry/proto/common/v1/
 
 # Add mapping separators and remove the trailing slash
@@ -71,10 +73,10 @@ file_sep +=
 map_sep := ,M
 GO_MAPPINGS := $(patsubst %/,%,$(map_sep)$(subst $(file_sep),$(map_sep),$(RAW_GO_MAPPINGS)))
 
-all: godeps $(ENVOY_API_PROTO_PATH) envoy-go-targets cilium-go-targets
+all: godeps cilium-go-targets
 
 .PHONY: envoy-go-targets
-envoy-go-targets: $(ENVOY_PROTO_SOURCES) Makefile.api
+envoy-go-targets: $(ENVOY_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api
 	$(QUIET)set -e; \
 	for path in $(ENVOY_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
@@ -82,7 +84,7 @@ envoy-go-targets: $(ENVOY_PROTO_SOURCES) Makefile.api
 	done
 
 .PHONY: cilium-go-targets
-cilium-go-targets: $(CILIUM_PROTO_SOURCES) Makefile.api
+cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api envoy-go-targets
 	$(QUIET)set -e; \
 	for path in $(CILIUM_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
@@ -91,15 +93,15 @@ cilium-go-targets: $(CILIUM_PROTO_SOURCES) Makefile.api
 
 godeps:
 # @envoy//api/bazel/repository_locations.bzl
-	GO111MODULE=on go get github.com/open-telemetry/opentelemetry-proto@v0.7.0
-	GO111MODULE=on go get github.com/cncf/xds@cb28da3451f1
+	GO111MODULE=on go get github.com/open-telemetry/opentelemetry-proto@v0.9.0
+	GO111MODULE=on go get github.com/cncf/xds@01bcc9b48dfe
 	GO111MODULE=on go get github.com/census-instrumentation/opencensus-proto@v0.3.0
 	GO111MODULE=on go get github.com/envoyproxy/protoc-gen-validate@v0.6.2
-	GO111MODULE=on go get github.com/prometheus/client_model@60555c9708c786597e6b07bf846d0dc5c2a46f54
+	GO111MODULE=on go get github.com/prometheus/client_model@147c58e9608a
 # Latest and/or matching cilium/cilium/go.mod:
-	GO111MODULE=on go get google.golang.org/genproto/...@e9cf271f7f2c
+	GO111MODULE=on go get google.golang.org/genproto/...@3a66f561d7aa
 	GO111MODULE=on go get google.golang.org/protobuf/...@v1.27.1
-	GO111MODULE=on go get google.golang.org/grpc@v1.42.0
+	GO111MODULE=on go get google.golang.org/grpc@v1.43.0
 # Have to keep using github.com/golang/protobuf@v1.4.x version of protoc-gen-go to retain grpc
 # plugin support needed by Envoy API protos.
 # - google.golang.org/protobuf version of protoc-gen-go needs a separate protoc plugin for grpc,

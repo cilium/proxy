@@ -411,6 +411,8 @@ func (m *HTTPFault) validate(all bool) error {
 
 	// no validation rules for AbortGrpcStatusRuntime
 
+	// no validation rules for DisableDownstreamClusterStats
+
 	if len(errors) > 0 {
 		return HTTPFaultMultiError(errors)
 	}

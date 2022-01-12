@@ -184,17 +184,6 @@ func (m *DeniedHttpResponse) validate(all bool) error {
 
 	var errors []error
 
-	if m.GetStatus() == nil {
-		err := DeniedHttpResponseValidationError{
-			field:  "Status",
-			reason: "value is required",
-		}
-		if !all {
-			return err
-		}
-		errors = append(errors, err)
-	}
-
 	if all {
 		switch v := interface{}(m.GetStatus()).(type) {
 		case interface{ ValidateAll() error }:

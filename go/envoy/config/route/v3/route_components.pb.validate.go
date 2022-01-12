@@ -1255,6 +1255,37 @@ func (m *Route) validate(all bool) error {
 			}
 		}
 
+	case *Route_NonForwardingAction:
+
+		if all {
+			switch v := interface{}(m.GetNonForwardingAction()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, RouteValidationError{
+						field:  "NonForwardingAction",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, RouteValidationError{
+						field:  "NonForwardingAction",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetNonForwardingAction()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return RouteValidationError{
+					field:  "NonForwardingAction",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	default:
 		err := RouteValidationError{
 			field:  "Action",
@@ -1712,6 +1743,40 @@ func (m *RouteMatch) validate(all bool) error {
 				cause:  err,
 			}
 		}
+	}
+
+	for idx, item := range m.GetDynamicMetadata() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, RouteMatchValidationError{
+						field:  fmt.Sprintf("DynamicMetadata[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, RouteMatchValidationError{
+						field:  fmt.Sprintf("DynamicMetadata[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return RouteMatchValidationError{
+					field:  fmt.Sprintf("DynamicMetadata[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	}
 
 	switch m.PathSpecifier.(type) {
@@ -2785,6 +2850,9 @@ func (m *RouteAction) validate(all bool) error {
 			}
 		}
 
+	case *RouteAction_ClusterSpecifierPlugin:
+		// no validation rules for ClusterSpecifierPlugin
+
 	default:
 		err := RouteActionValidationError{
 			field:  "ClusterSpecifier",
@@ -3056,6 +3124,35 @@ func (m *RetryPolicy) validate(all bool) error {
 	}
 
 	if all {
+		switch v := interface{}(m.GetPerTryIdleTimeout()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RetryPolicyValidationError{
+					field:  "PerTryIdleTimeout",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RetryPolicyValidationError{
+					field:  "PerTryIdleTimeout",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetPerTryIdleTimeout()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RetryPolicyValidationError{
+				field:  "PerTryIdleTimeout",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
 		switch v := interface{}(m.GetRetryPriority()).(type) {
 		case interface{ ValidateAll() error }:
 			if err := v.ValidateAll(); err != nil {
@@ -3110,6 +3207,40 @@ func (m *RetryPolicy) validate(all bool) error {
 			if err := v.Validate(); err != nil {
 				return RetryPolicyValidationError{
 					field:  fmt.Sprintf("RetryHostPredicate[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	for idx, item := range m.GetRetryOptionsPredicates() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, RetryPolicyValidationError{
+						field:  fmt.Sprintf("RetryOptionsPredicates[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, RetryPolicyValidationError{
+						field:  fmt.Sprintf("RetryOptionsPredicates[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return RetryPolicyValidationError{
+					field:  fmt.Sprintf("RetryOptionsPredicates[%v]", idx),
 					reason: "embedded message failed validation",
 					cause:  err,
 				}
@@ -3808,6 +3939,107 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = DirectResponseActionValidationError{}
+
+// Validate checks the field values on NonForwardingAction with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *NonForwardingAction) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on NonForwardingAction with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// NonForwardingActionMultiError, or nil if none found.
+func (m *NonForwardingAction) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *NonForwardingAction) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if len(errors) > 0 {
+		return NonForwardingActionMultiError(errors)
+	}
+	return nil
+}
+
+// NonForwardingActionMultiError is an error wrapping multiple validation
+// errors returned by NonForwardingAction.ValidateAll() if the designated
+// constraints aren't met.
+type NonForwardingActionMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m NonForwardingActionMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m NonForwardingActionMultiError) AllErrors() []error { return m }
+
+// NonForwardingActionValidationError is the validation error returned by
+// NonForwardingAction.Validate if the designated constraints aren't met.
+type NonForwardingActionValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e NonForwardingActionValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e NonForwardingActionValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e NonForwardingActionValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e NonForwardingActionValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e NonForwardingActionValidationError) ErrorName() string {
+	return "NonForwardingActionValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e NonForwardingActionValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sNonForwardingAction.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = NonForwardingActionValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = NonForwardingActionValidationError{}
 
 // Validate checks the field values on Decorator with the rules defined in the
 // proto definition for this message. If any rules are violated, the first
@@ -4653,6 +4885,37 @@ func (m *HeaderMatcher) validate(all bool) error {
 			errors = append(errors, err)
 		}
 
+	case *HeaderMatcher_StringMatch:
+
+		if all {
+			switch v := interface{}(m.GetStringMatch()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, HeaderMatcherValidationError{
+						field:  "StringMatch",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, HeaderMatcherValidationError{
+						field:  "StringMatch",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetStringMatch()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return HeaderMatcherValidationError{
+					field:  "StringMatch",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	}
 
 	if len(errors) > 0 {
@@ -5234,10 +5497,12 @@ func (m *WeightedCluster_ClusterWeight) validate(all bool) error {
 
 	var errors []error
 
-	if utf8.RuneCountInString(m.GetName()) < 1 {
+	// no validation rules for Name
+
+	if !_WeightedCluster_ClusterWeight_ClusterHeader_Pattern.MatchString(m.GetClusterHeader()) {
 		err := WeightedCluster_ClusterWeightValidationError{
-			field:  "Name",
-			reason: "value length must be at least 1 runes",
+			field:  "ClusterHeader",
+			reason: "value does not match regex pattern \"^[^\\x00\\n\\r]*$\"",
 		}
 		if !all {
 			return err
@@ -5471,6 +5736,23 @@ func (m *WeightedCluster_ClusterWeight) validate(all bool) error {
 		}
 	}
 
+	switch m.HostRewriteSpecifier.(type) {
+
+	case *WeightedCluster_ClusterWeight_HostRewriteLiteral:
+
+		if !_WeightedCluster_ClusterWeight_HostRewriteLiteral_Pattern.MatchString(m.GetHostRewriteLiteral()) {
+			err := WeightedCluster_ClusterWeightValidationError{
+				field:  "HostRewriteLiteral",
+				reason: "value does not match regex pattern \"^[^\\x00\\n\\r]*$\"",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
 	if len(errors) > 0 {
 		return WeightedCluster_ClusterWeightMultiError(errors)
 	}
@@ -5551,9 +5833,13 @@ var _ interface {
 	ErrorName() string
 } = WeightedCluster_ClusterWeightValidationError{}
 
+var _WeightedCluster_ClusterWeight_ClusterHeader_Pattern = regexp.MustCompile("^[^\x00\n\r]*$")
+
 var _WeightedCluster_ClusterWeight_RequestHeadersToRemove_Pattern = regexp.MustCompile("^[^\x00\n\r]*$")
 
 var _WeightedCluster_ClusterWeight_ResponseHeadersToRemove_Pattern = regexp.MustCompile("^[^\x00\n\r]*$")
+
+var _WeightedCluster_ClusterWeight_HostRewriteLiteral_Pattern = regexp.MustCompile("^[^\x00\n\r]*$")
 
 // Validate checks the field values on RouteMatch_GrpcRouteMatchOptions with
 // the rules defined in the proto definition for this message. If any rules

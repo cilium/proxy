@@ -225,6 +225,8 @@ func (m *ExtAuthz) validate(all bool) error {
 
 	// no validation rules for StatPrefix
 
+	// no validation rules for BootstrapMetadataLabelsKey
+
 	switch m.Services.(type) {
 
 	case *ExtAuthz_GrpcService:
@@ -964,6 +966,35 @@ func (m *AuthorizationResponse) validate(all bool) error {
 		if err := v.Validate(); err != nil {
 			return AuthorizationResponseValidationError{
 				field:  "AllowedClientHeadersOnSuccess",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetDynamicMetadataFromHeaders()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, AuthorizationResponseValidationError{
+					field:  "DynamicMetadataFromHeaders",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, AuthorizationResponseValidationError{
+					field:  "DynamicMetadataFromHeaders",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDynamicMetadataFromHeaders()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return AuthorizationResponseValidationError{
+				field:  "DynamicMetadataFromHeaders",
 				reason: "embedded message failed validation",
 				cause:  err,
 			}

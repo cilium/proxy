@@ -141,6 +141,8 @@ func (m *MetricsServiceConfig) validate(all bool) error {
 		}
 	}
 
+	// no validation rules for EmitTagsAsLabels
+
 	if len(errors) > 0 {
 		return MetricsServiceConfigMultiError(errors)
 	}

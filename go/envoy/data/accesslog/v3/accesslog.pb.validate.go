@@ -1218,6 +1218,8 @@ func (m *ResponseFlags) validate(all bool) error {
 
 	// no validation rules for NoClusterFound
 
+	// no validation rules for OverloadManager
+
 	if len(errors) > 0 {
 		return ResponseFlagsMultiError(errors)
 	}

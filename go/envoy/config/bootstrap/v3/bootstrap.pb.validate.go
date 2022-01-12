@@ -507,6 +507,64 @@ func (m *Bootstrap) validate(all bool) error {
 
 	// no validation rules for UseTcpForDnsLookups
 
+	if all {
+		switch v := interface{}(m.GetDnsResolutionConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, BootstrapValidationError{
+					field:  "DnsResolutionConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, BootstrapValidationError{
+					field:  "DnsResolutionConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetDnsResolutionConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return BootstrapValidationError{
+				field:  "DnsResolutionConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetTypedDnsResolverConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, BootstrapValidationError{
+					field:  "TypedDnsResolverConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, BootstrapValidationError{
+					field:  "TypedDnsResolverConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetTypedDnsResolverConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return BootstrapValidationError{
+				field:  "TypedDnsResolverConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	for idx, item := range m.GetBootstrapExtensions() {
 		_, _ = idx, item
 
@@ -684,6 +742,40 @@ func (m *Bootstrap) validate(all bool) error {
 			}
 
 		}
+	}
+
+	for idx, item := range m.GetInlineHeaders() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, BootstrapValidationError{
+						field:  fmt.Sprintf("InlineHeaders[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, BootstrapValidationError{
+						field:  fmt.Sprintf("InlineHeaders[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return BootstrapValidationError{
+					field:  fmt.Sprintf("InlineHeaders[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	}
 
 	switch m.StatsFlush.(type) {
@@ -2266,6 +2358,142 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = LayeredRuntimeValidationError{}
+
+// Validate checks the field values on CustomInlineHeader with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *CustomInlineHeader) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CustomInlineHeader with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// CustomInlineHeaderMultiError, or nil if none found.
+func (m *CustomInlineHeader) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CustomInlineHeader) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetInlineHeaderName()) < 1 {
+		err := CustomInlineHeaderValidationError{
+			field:  "InlineHeaderName",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if !_CustomInlineHeader_InlineHeaderName_Pattern.MatchString(m.GetInlineHeaderName()) {
+		err := CustomInlineHeaderValidationError{
+			field:  "InlineHeaderName",
+			reason: "value does not match regex pattern \"^[^\\x00\\n\\r]*$\"",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if _, ok := CustomInlineHeader_InlineHeaderType_name[int32(m.GetInlineHeaderType())]; !ok {
+		err := CustomInlineHeaderValidationError{
+			field:  "InlineHeaderType",
+			reason: "value must be one of the defined enum values",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return CustomInlineHeaderMultiError(errors)
+	}
+	return nil
+}
+
+// CustomInlineHeaderMultiError is an error wrapping multiple validation errors
+// returned by CustomInlineHeader.ValidateAll() if the designated constraints
+// aren't met.
+type CustomInlineHeaderMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CustomInlineHeaderMultiError) Error() string {
+	var msgs []string
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CustomInlineHeaderMultiError) AllErrors() []error { return m }
+
+// CustomInlineHeaderValidationError is the validation error returned by
+// CustomInlineHeader.Validate if the designated constraints aren't met.
+type CustomInlineHeaderValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CustomInlineHeaderValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CustomInlineHeaderValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CustomInlineHeaderValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CustomInlineHeaderValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CustomInlineHeaderValidationError) ErrorName() string {
+	return "CustomInlineHeaderValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e CustomInlineHeaderValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCustomInlineHeader.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CustomInlineHeaderValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CustomInlineHeaderValidationError{}
+
+var _CustomInlineHeader_InlineHeaderName_Pattern = regexp.MustCompile("^[^\x00\n\r]*$")
 
 // Validate checks the field values on Bootstrap_StaticResources with the rules
 // defined in the proto definition for this message. If any rules are

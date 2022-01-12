@@ -86,6 +86,35 @@ func (m *UuidRequestIdConfig) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetUseRequestIdForTraceSampling()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, UuidRequestIdConfigValidationError{
+					field:  "UseRequestIdForTraceSampling",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, UuidRequestIdConfigValidationError{
+					field:  "UseRequestIdForTraceSampling",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetUseRequestIdForTraceSampling()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return UuidRequestIdConfigValidationError{
+				field:  "UseRequestIdForTraceSampling",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return UuidRequestIdConfigMultiError(errors)
 	}

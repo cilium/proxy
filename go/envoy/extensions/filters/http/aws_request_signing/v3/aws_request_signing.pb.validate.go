@@ -81,6 +81,8 @@ func (m *AwsRequestSigning) validate(all bool) error {
 
 	// no validation rules for HostRewrite
 
+	// no validation rules for UseUnsignedPayload
+
 	if len(errors) > 0 {
 		return AwsRequestSigningMultiError(errors)
 	}

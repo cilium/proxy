@@ -119,6 +119,17 @@ func (m *Compressor) validate(all bool) error {
 		}
 	}
 
+	if m.GetCompressorLibrary() == nil {
+		err := CompressorValidationError{
+			field:  "CompressorLibrary",
+			reason: "value is required",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
 	if all {
 		switch v := interface{}(m.GetCompressorLibrary()).(type) {
 		case interface{ ValidateAll() error }:

@@ -1609,6 +1609,37 @@ func (m *Matcher_MatcherList_Predicate) validate(all bool) error {
 			}
 		}
 
+	case *Matcher_MatcherList_Predicate_NotMatcher:
+
+		if all {
+			switch v := interface{}(m.GetNotMatcher()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, Matcher_MatcherList_PredicateValidationError{
+						field:  "NotMatcher",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, Matcher_MatcherList_PredicateValidationError{
+						field:  "NotMatcher",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetNotMatcher()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return Matcher_MatcherList_PredicateValidationError{
+					field:  "NotMatcher",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
 	default:
 		err := Matcher_MatcherList_PredicateValidationError{
 			field:  "MatchType",

@@ -141,6 +141,8 @@ func (m *Router) validate(all bool) error {
 
 	// no validation rules for RespectExpectedRqTimeout
 
+	// no validation rules for SuppressGrpcRequestFailureCodeStats
+
 	if len(errors) > 0 {
 		return RouterMultiError(errors)
 	}
