@@ -183,11 +183,9 @@ docker-builder-archive: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
 docker-tests-archive: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore proxylib/libcilium.so
 	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_ARCHIVE_TAG) .
 
-TESTLOGS := bazel-out/$(BAZEL_ARCH)-fastbuild/testlogs
-
 .PHONY: docker-tests
 docker-tests: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore proxylib/libcilium.so
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) --progress=plain $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg TESTLOGS=$(TESTLOGS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< .
+	$(DOCKER) build $(subst --push,,$(DOCKER_BUILD_OPTS)) --progress=plain $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(BAZEL_BUILD_OPTS)" -f $< .
 
 ifeq ($(BRANCH_TAG),"master")
   DOCKER_IMAGE_ENVOY_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)

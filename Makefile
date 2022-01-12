@@ -28,7 +28,7 @@ ifdef BAZEL_REMOTE_CACHE
   BAZEL_BUILD_OPTS += --remote_cache=$(BAZEL_REMOTE_CACHE)
 endif
 
-BAZEL_TEST_OPTS ?= $(BAZEL_BUILD_OPTS)
+BAZEL_TEST_OPTS ?= --jobs=HOST_RAM*0.0002 --test_timeout=2000
 BAZEL_TEST_OPTS += --test_output=errors
 
 BUILDARCH := $(subst aarch64,arm64,$(subst x86_64,amd64,$(shell uname -m)))
@@ -104,14 +104,14 @@ clean: force
 	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
 
 .PHONY: envoy-test-deps
-envoy-test-deps: $(COMPILER_DEP)
+envoy-test-deps: $(COMPILER_DEP) proxylib/libcilium.so
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build --build_tests_only $(BAZEL_BUILD_OPTS) --config=release -c fastbuild //:cilium-envoy-test-deps $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) build --build_tests_only $(BAZEL_BUILD_OPTS) --config=release -c fastbuild $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
 .PHONY: envoy-tests
-envoy-tests: $(COMPILER_DEP)
+envoy-tests: $(COMPILER_DEP) proxylib/libcilium.so
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_TEST_OPTS) --config=release -c fastbuild //tests/... $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) --config=release -c fastbuild $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 ifdef COPY_CACHE_EXT
   ifneq ($(BAZEL_CACHE),)
 	cp -ra $(BAZEL_CACHE) $(BAZEL_CACHE)$(COPY_CACHE_EXT)

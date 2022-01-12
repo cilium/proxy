@@ -76,7 +76,6 @@ jobs:
           build-args: |
             BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.ENVOY_VERSION }}-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
-            TESTLOGS=bazel-out/k8-fastbuild/testlogs
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: false
   build-cache-and-push-images:

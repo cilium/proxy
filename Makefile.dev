@@ -17,7 +17,6 @@ CILIUM_REF=quay.io/cilium/cilium:stable
 
 CHECK_FORMAT ?= ./bazel-bin/check_format.py.runfiles/envoy/tools/code_format/check_format.py
 
-BAZEL_TEST_OPTS ?= --jobs=1 --test_timeout=2000
 BAZEL_CACHE ?= ~/.cache/bazel
 BAZEL_ARCHIVE ?= ~/bazel-cache.tar.bz2
 CLANG_FORMAT ?= clang-format
@@ -58,11 +57,13 @@ check: $(CHECK_FORMAT) force-non-root
 fix: $(CHECK_FORMAT) force-non-root
 	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes "./linux/" "./proxylib/" --build_fixer_check_excluded_paths="./" fix
 
+# Fetch proxylib for the target architecture.
 # Run rule even if file exists, as it can be for a wrong architecture
 .PHONY: proxylib/libcilium.so
 proxylib/libcilium.so:
-	if ! file $@ | grep $(shell uname -m | tr "_" "-"); then \
-		docker create -ti --name cilium-proxylib $(CILIUM_REF) bash && \
+	if ! file $@ | grep $(subst k8,x86-64,$(BAZEL_ARCH)); then \
+		PROXYLIB_DIGEST=$$(docker buildx imagetools inspect quay.io/cilium/cilium:stable --raw | jq -r '.manifests[] | select(.platform.architecture == "$(TARGETARCH)") | .digest') && \
+		docker create -ti --name cilium-proxylib $(CILIUM_REF)@$${PROXYLIB_DIGEST} bash && \
 		docker cp -L cilium-proxylib:/usr/lib/libcilium.so $@ && \
 		docker rm -fv cilium-proxylib ; \
 	fi

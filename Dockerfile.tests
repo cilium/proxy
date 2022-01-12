@@ -15,29 +15,39 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:bazel-4.1.0@sha256:348d75c3
 #
 ARG BUILDER_IMAGE=builder-fresh
 
-FROM $BUILDER_BASE as builder-fresh
+FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
 ARG V
 ARG BAZEL_BUILD_OPTS
+ARG BUILDARCH
+ARG TARGETARCH
+ENV TARGETARCH=$TARGETARCH
 
 #
 # Build dependencies
 #
-RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V make envoy-tests && PKG_BUILD=1 make clean
+RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V make envoy-test-deps
 
 # By default this stage picks up the result of the build above, but BUILDER_IMAGE can be
 # overridden to point to a saved image of an earlier run of that stage.
 FROM $BUILDER_IMAGE as builder-cache
 
-FROM $BUILDER_BASE as builder
+#
+# Bazel > 4.2.2 needed to run the tests under QEMU,
+# see https://github.com/bazelbuild/bazel/pull/14391
+#
+# For now only native execution of the tests is supported.
+#
+FROM --platform=$TARGETPLATFORM $BUILDER_BASE as builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
 ARG V
 ARG COPY_CACHE_EXT
 ARG BAZEL_BUILD_OPTS
+
 RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=builder-cache,rw BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V COPY_CACHE_EXT=$COPY_CACHE_EXT make envoy-tests
 
 # This stage retains only the build caches from the previous step. This is used as the target for persisting
@@ -52,5 +62,4 @@ COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 #
 FROM scratch as testlogs
 LABEL maintainer="maintainer@cilium.io"
-ARG TESTLOGS
-COPY --from=builder /cilium/proxy/$TESTLOGS testlogs
+COPY --from=builder /cilium/proxy/bazel-testlogs testlogs
