@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
+
 package cilium;
 
 message BpfMetadata {

@@ -31,13 +31,19 @@ PROTO_DEPS = \
 GO_OUT = go
 
 # Skip draft Envoy APIs that do not compile.
-ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy $(ENVOY_API_PROTO_PATH)/contrib -not -path "*/v1alpha*" -not -path "*/v2alpha*" -not -path "*/v2/*" -not -path "*/v3alpha*" -not -path "*/v4alpha*" -not -path "*/envoy/extensions/access_loggers/open_telemetry/*" \( -name *.proto \) -print))
+ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy -not -path "*/v1alpha*" -not -path "*/v2alpha*" -not -path "*/v2/*" -not -path "*/v3alpha*" -not -path "*/v4alpha*" -not -path "*/envoy/extensions/access_loggers/open_telemetry/*" \( -name *.proto \) -print))
 ENVOY_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(ENVOY_RAW_PROTOS))
-
 ENVOY_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(ENVOY_API_PROTOS))
 ENVOY_PROTO_DIRS := $(sort $(dir $(ENVOY_PROTO_SOURCES)))
 # Produce a raw list of package mappings
 RAW_GO_MAPPINGS := $(foreach proto,$(ENVOY_API_PROTOS),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
+
+CONTRIB_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/contrib -not -path "*/v3alpha*" \( -name *.proto \) -print))
+CONTRIB_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(CONTRIB_RAW_PROTOS))
+CONTRIB_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(CONTRIB_API_PROTOS))
+CONTRIB_PROTO_DIRS := $(sort $(dir $(CONTRIB_PROTO_SOURCES)))
+# Produce a raw list of package mappings
+RAW_GO_MAPPINGS += $(foreach proto,$(CONTRIB_API_PROTOS),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
 
 CILIUM_PROTO_SOURCES := \
 	cilium/api/accesslog.proto \
@@ -80,21 +86,29 @@ envoy-go-targets: $(ENVOY_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api
 	$(QUIET)set -e; \
 	for path in $(ENVOY_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
+		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --go_opt=module=github.com/cilium/proxy/go --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) --validate_opt=module=github.com/envoyproxy/go-control-plane $${path}*.proto; \
+	done
+
+.PHONY: contrib-go-targets
+contrib-go-targets: $(CONTRIB_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api envoy-go-targets
+	$(QUIET)set -e; \
+	for path in $(CONTRIB_PROTO_DIRS) ; do \
+		$(ECHO_GEN) envoy/$$path; \
+		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --go_opt=module=github.com/cilium/proxy/go --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)/contrib/envoy --validate_opt=module=github.com/envoyproxy/go-control-plane/envoy $${path}*.proto; \
 	done
 
 .PHONY: cilium-go-targets
-cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api envoy-go-targets
+cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api contrib-go-targets
 	$(QUIET)set -e; \
 	for path in $(CILIUM_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) $${path}*.proto; \
+		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --go_opt=module=github.com/cilium/proxy/go --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) --validate_opt=module=github.com/cilium/proxy/go $${path}*.proto; \
 	done
 
 godeps:
 # @envoy//api/bazel/repository_locations.bzl
-	GO111MODULE=on go get github.com/open-telemetry/opentelemetry-proto@v0.9.0
-	GO111MODULE=on go get github.com/cncf/xds@01bcc9b48dfe
+	GO111MODULE=on go get github.com/open-telemetry/opentelemetry-proto@v0.11.0
+	GO111MODULE=on go get github.com/cncf/xds@d92e9ce0af51
 	GO111MODULE=on go get github.com/census-instrumentation/opencensus-proto@v0.3.0
 	GO111MODULE=on go get github.com/envoyproxy/protoc-gen-validate@v0.6.2
 	GO111MODULE=on go get github.com/prometheus/client_model@147c58e9608a
