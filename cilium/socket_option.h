@@ -113,6 +113,8 @@ class SocketMarkOption : public Network::Socket::Option,
     }
   }
 
+  bool isSupported() const override { return true; }
+
   uint32_t identity_;
   uint32_t mark_;
   bool ingress_;

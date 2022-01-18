@@ -1,4 +1,4 @@
-From 89d3ad384afd9a346be3ded575ba12922609e720 Mon Sep 17 00:00:00 2001
+From 5e0d4647760e8e690ff29622137225dbda2b0bf9 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 10 Jan 2022 14:51:49 +0200
 Subject: [PATCH] build: Cross-compilation fixes
@@ -34,7 +34,7 @@ index f48ebe705..a682b2ad7 100644
          postfix_script = pf,
          **kwargs
 diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index e55355fe8..11ead8288 100644
+index 4d3a28166..dfda5fca0 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
 @@ -16,6 +16,8 @@ configure_make(
@@ -85,5 +85,5 @@ index e55355fe8..11ead8288 100644
      out_static_libs = select({
          "//bazel:windows_x86_64": ["libcurl.lib"],
 -- 
-2.34.0
+2.34.1
 

@@ -13,8 +13,8 @@ ENVOY_REPO = "envoy"
 # https://github.com/envoyproxy/envoy/tree/v1.20.1
 # NOTE: Update version number to file 'ENVOY_VERSION' to keep test and build docker images
 # for different versions.
-ENVOY_SHA = "ea23f47b27464794980c05ab290a3b73d801405e"
-ENVOY_SHA256 = "bc3bba48930e91714ac43a9e0239f9c44144f0415e6b7f7b9dcada0aa55ed6c6"
+ENVOY_SHA = "a9d72603c68da3a10a1c0d021d01c7877e6f2a30"
+ENVOY_SHA256 = "a5141988689826df54667a401edf4ca49efed3dded22189dd0e7ebd688955782"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
@@ -29,6 +29,7 @@ http_archive(
     patch_args = ["apply"],
     patches = [
         "@//patches:cross-aarch64.patch",
+        "@//patches:clang-for-bpf.patch",
         "@//patches:unreferenced-parameters.patch",
     ],
     sha256 = ENVOY_SHA256,
