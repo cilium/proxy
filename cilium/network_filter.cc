@@ -45,9 +45,7 @@ class CiliumNetworkConfigFactory : public NamedNetworkFilterConfigFactory {
 /**
  * Static registration for the bpf metadata filter. @see RegisterFactory.
  */
-static Registry::RegisterFactory<CiliumNetworkConfigFactory,
-                                 NamedNetworkFilterConfigFactory>
-    registered_;
+REGISTER_FACTORY(CiliumNetworkConfigFactory, NamedNetworkFilterConfigFactory);
 
 }  // namespace Configuration
 }  // namespace Server

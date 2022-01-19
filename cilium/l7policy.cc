@@ -44,9 +44,7 @@ class ConfigFactory
 /**
  * Static registration for this filter. @see RegisterFactory.
  */
-static Registry::RegisterFactory<
-    ConfigFactory, Server::Configuration::NamedHttpFilterConfigFactory>
-    register_;
+REGISTER_FACTORY(ConfigFactory, Server::Configuration::NamedHttpFilterConfigFactory);
 
 Config::Config(const std::string& access_log_path,
                const std::string& denied_403_body,

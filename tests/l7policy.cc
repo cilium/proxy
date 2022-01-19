@@ -28,9 +28,7 @@ std::string TestConfigFactory::name() const { return "test_l7policy"; }
 /**
  * Static registration for this filter. @see RegisterFactory.
  */
-static Registry::RegisterFactory<
-    TestConfigFactory, Server::Configuration::NamedHttpFilterConfigFactory>
-    register_;
+REGISTER_FACTORY(TestConfigFactory, Server::Configuration::NamedHttpFilterConfigFactory);
 
 }  // namespace Cilium
 }  // namespace Envoy

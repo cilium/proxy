@@ -179,9 +179,7 @@ std::string TestBpfMetadataConfigFactory::name() const {
 /**
  * Static registration for the bpf metadata filter. @see RegisterFactory.
  */
-static Registry::RegisterFactory<TestBpfMetadataConfigFactory,
-                                 NamedListenerFilterConfigFactory>
-    registered_;
+REGISTER_FACTORY(TestBpfMetadataConfigFactory, NamedListenerFilterConfigFactory);
 
 }  // namespace Configuration
 }  // namespace Server

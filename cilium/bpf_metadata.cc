@@ -52,9 +52,7 @@ class BpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
 /**
  * Static registration for the bpf metadata filter. @see RegisterFactory.
  */
-static Registry::RegisterFactory<BpfMetadataConfigFactory,
-                                 NamedListenerFilterConfigFactory>
-    registered_;
+REGISTER_FACTORY(BpfMetadataConfigFactory, NamedListenerFilterConfigFactory);
 
 }  // namespace Configuration
 }  // namespace Server
