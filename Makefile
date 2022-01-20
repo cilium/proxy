@@ -41,9 +41,6 @@ ifdef ARCH
   endif
 endif
 
-ifeq ($(findstring --crosstool_top=,$(BAZEL_BUILD_OPTS)),)
-  BAZEL_BUILD_OPTS += --crosstool_top=//bazel/toolchains:toolchain
-endif
 ifdef TARGETARCH
   ifneq "$(TARGETARCH)" "$(BUILDARCH)"
     $(info CROSS-COMPILING for $(TARGETARCH))
