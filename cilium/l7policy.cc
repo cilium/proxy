@@ -104,54 +104,81 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(
     Http::RequestHeaderMap& headers, bool) {
   headers.remove(Http::Headers::get().EnvoyOriginalDstHost);
   const auto& conn = callbacks_->connection();
-  bool allowed = false;
 
-  if (conn) {
-    const auto option = Cilium::GetSocketOption(conn->socketOptions());
-    if (option) {
-      std::string policy_name = option->pod_ip_;
-      bool ingress = option->ingress_;
-
-      // Fill in the log entry
-      log_entry_.InitFromRequest(policy_name, *option,
-                                 callbacks_->streamInfo(), headers);
-
-      allowed = option->policy_ &&
-                option->policy_->Allowed(
-                    ingress, option->port_,
-                    ingress ? option->identity_ : option->destination_identity_,
-                    headers, log_entry_);
-      ENVOY_LOG(debug,
-                "Cilium L7: {} ({}->{}) policy lookup for endpoint {}: {}",
-                ingress ? "Ingress" : "Egress", option->identity_,
-                option->destination_identity_, policy_name,
-                allowed ? "ALLOW" : "DENY");
-    } else {
-      ENVOY_LOG(warn, "Cilium L7: Cilium Socket Option not found");
-    }
-  } else {
-    ENVOY_LOG(warn, "Cilium L7: No connection");
-  }
-
-  if (!allowed) {
-    denied_ = true;
-    config_->stats_.access_denied_.inc();
-
+  if (!conn) {
+    ENVOY_LOG(warn, "cilium.l7policy: No connection");
     // Return a 403 response
     callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_,
-                               nullptr, absl::nullopt, absl::string_view());
+			       nullptr, absl::nullopt, absl::string_view());
     return Http::FilterHeadersStatus::StopIteration;
   }
 
-  config_->Log(log_entry_, ::cilium::EntryType::Request);
+  const Network::Socket::OptionsSharedPtr socketOptions = conn->socketOptions();
+  callbacks_->addUpstreamCallback([this, socketOptions](Http::RequestHeaderMap& headers,
+							StreamInfo::StreamInfo& stream_info) -> bool {
+    const auto option = Cilium::GetSocketOption(socketOptions);
+    if (!option) {
+      ENVOY_LOG(warn, "cilium.l7policy: Cilium Socket Option not found");
+      return false;
+    }
+    std::string policy_name = option->pod_ip_;
+    bool ingress = option->ingress_;
+    uint32_t destination_identity = 0;
+    uint32_t destination_port = option->port_;
+    const Network::Address::InstanceConstSharedPtr& dst_address = stream_info.upstreamInfo()->upstreamHost()->address();
+
+    if (nullptr == dst_address) {
+      ENVOY_LOG(warn, "cilium.l7policy: No destination address");
+      return false;
+    }
+    if (!ingress) {
+      const auto dip = dst_address->ip();
+      if (!dip) {
+	ENVOY_LOG_MISC(warn, "cilium.l7policy: Non-IP destination address: {}", dst_address->asString());
+	return false;
+      }
+      destination_port = dip->port();
+      destination_identity = option->resolvePolicyId(dip);
+    }
+
+    // Fill in the log entry
+    log_entry_.InitFromRequest(policy_name, option->ingress_, option->identity_,
+			       callbacks_->streamInfo().downstreamAddressProvider().remoteAddress(),
+			       destination_identity, dst_address, stream_info, headers);
+
+    const auto& policy = option->getPolicy();
+    if (policy) {
+      allowed_ = policy->Allowed(ingress, destination_port,
+				 ingress ? option->identity_ : destination_identity,
+				 headers, log_entry_);
+      ENVOY_LOG(debug,
+		"cilium.l7policy: {} ({}->{}) policy lookup for endpoint {} for port {}: {}",
+		ingress ? "ingress" : "egress", option->identity_, destination_identity,
+		policy_name, destination_port, allowed_ ? "ALLOW" : "DENY");
+      if (allowed_) {
+	// Log as a forwarded request
+	config_->Log(log_entry_, ::cilium::EntryType::Request);
+      }
+    } else {
+      ENVOY_LOG(debug,
+		"cilium.l7policy: No {} policy found for pod {}, defaulting to DENY", ingress ? "ingress" : "egress", option->pod_ip_);
+    }
+
+    return allowed_;
+  });
+
   return Http::FilterHeadersStatus::Continue;
 }
 
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(
     Http::ResponseHeaderMap& headers, bool) {
   log_entry_.UpdateFromResponse(headers, config_->time_source_);
-  config_->Log(log_entry_, denied_ ? ::cilium::EntryType::Denied
-                                   : ::cilium::EntryType::Response);
+  auto logType = ::cilium::EntryType::Response;
+  if (!allowed_) {
+    logType = ::cilium::EntryType::Denied;
+    config_->stats_.access_denied_.inc();
+  }
+  config_->Log(log_entry_, logType);
   return Http::FilterHeadersStatus::Continue;
 }
 

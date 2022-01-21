@@ -364,18 +364,18 @@ static_resources:
           cluster: cluster1
 )EOF";
 
-const std::string TCP_POLICY_LINEPARSER = R"EOF(version_info: "0"
+const std::string TCP_POLICY_LINEPARSER_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   name: '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       l7_proto: "test.lineparser"
   egress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       l7_proto: "test.lineparser"
@@ -389,8 +389,8 @@ class CiliumGoLinetesterIntegrationTest : public CiliumTcpIntegrationTest {
                             cilium_linetester_config_fmt, GetParam()),
                         "true")) {}
 
-  std::string testPolicy() override {
-    return TestEnvironment::substitute(TCP_POLICY_LINEPARSER, GetParam());
+  std::string testPolicyFmt() override {
+    return TestEnvironment::substitute(TCP_POLICY_LINEPARSER_fmt, GetParam());
   }
 };
 
@@ -607,18 +607,18 @@ static_resources:
           cluster: cluster1
 )EOF";
 
-const std::string TCP_POLICY_BLOCKPARSER = R"EOF(version_info: "0"
+const std::string TCP_POLICY_BLOCKPARSER_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   name: '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       l7_proto: "test.blockparser"
   egress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       l7_proto: "test.blockparser"
@@ -632,8 +632,8 @@ class CiliumGoBlocktesterIntegrationTest : public CiliumTcpIntegrationTest {
                             cilium_blocktester_config_fmt, GetParam()),
                         "true")) {}
 
-  std::string testPolicy() override {
-    return TestEnvironment::substitute(TCP_POLICY_BLOCKPARSER, GetParam());
+  std::string testPolicyFmt() override {
+    return TestEnvironment::substitute(TCP_POLICY_BLOCKPARSER_fmt, GetParam());
   }
 };
 

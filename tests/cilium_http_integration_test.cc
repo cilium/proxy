@@ -8,55 +8,94 @@
 
 namespace Envoy {
 
-const std::string BASIC_POLICY = R"EOF(version_info: "0"
+// params: destination port number
+const std::string BASIC_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   name: '{{ ntop_ip_loopback_address }}'
-  policy: 3
+  endpoint_id: 3
   ingress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
-        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
-        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+        - headers:
+          - name: ':path'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '.*public$'
+        - headers:
+          - name: ':authority'
+            exact_match: 'allowedHOST'
+        - headers:
+          - name: ':authority'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '.*REGEX.*'
+        - headers:
+          - name: ':method'
+            exact_match: 'PUT'
+         - name: ':path'
+           exact_match: '/public/opinions'
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+        - headers:
+          - name: ':path'
+            exact_match: '/only-2-allowed'
   egress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
-        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
-        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+        - headers:
+          - name: ':path'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '.*public$'
+        - headers:
+          - name: ':authority'
+            exact_match: 'allowedHOST'
+        - headers:
+          - name: ':authority'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '.*REGEX.*'
+        - headers:
+          - name: ':method'
+            exact_match: 'PUT'
+          - name: ':path'
+            exact_match: '/public/opinions'
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+        - headers:
+          - name: ':path'
+            exact_match: '/only-2-allowed'
 )EOF";
 
-const std::string HEADER_ACTION_POLICY = R"EOF(version_info: "0"
+const std::string HEADER_ACTION_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   name: '{{ ntop_ip_loopback_address }}'
-  policy: 3
+  endpoint_id: 3
   ingress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/allowed' } ]
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
           header_matches:
           - name: 'header42'
             match_action: FAIL_ON_MATCH
@@ -64,12 +103,18 @@ resources:
           - name: 'header1'
             value: 'value1'
             mismatch_action: REPLACE_ON_MISMATCH
-        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
+        - headers:
+          - name: ':path'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '.*public$'
           header_matches:
           - name: 'user-agent'
             value: 'CuRL'
             mismatch_action: DELETE_ON_MISMATCH
-        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
+        - headers:
+          - name: ':authority'
+            exact_match: 'allowedHOST'
           header_matches:
           - name: 'header2'
             value: 'value2'
@@ -77,31 +122,59 @@ resources:
           - name: 'header42'
             match_action: DELETE_ON_MATCH
             mismatch_action: CONTINUE_ON_MISMATCH
-        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
+        - headers:
+          - name: ':authority'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '.*REGEX.*'
           header_matches:
           - name: 'header42'
             value: '42'
             mismatch_action: DELETE_ON_MISMATCH
-        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+        - headers:
+          - name: ':method'
+            exact_match: 'PUT'
+          - name: ':path'
+            exact_match: '/public/opinions'
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+        - headers:
+          - name: ':path'
+            exact_match: '/only-2-allowed'
   egress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
-        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
-        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+        - headers:
+          - name: ':path'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '.*public$'
+        - headers:
+          - name: ':authority'
+            exact_match: 'allowedHOST'
+        - headers:
+          - name: ':authority'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '.*REGEX.*'
+        - headers:
+          - name: ':method'
+            exact_match: 'PUT'
+          - name: ':path'
+            exact_match: '/public/opinions'
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+        - headers:
+          - name: ':path'
+            exact_match: '/only-2-allowed'
 )EOF";
 
 // params: is_ingress ("true", "false")
@@ -147,9 +220,6 @@ static_resources:
     filter_chains:
       filters:
       - name: cilium.network
-        typed_config:
-          "@type": type.googleapis.com/cilium.NetworkFilter
-          proxylib: "proxylib/libcilium.so"
       - name: envoy.http_connection_manager
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
@@ -185,9 +255,11 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
   CiliumIntegrationTest(const std::string& config)
       : CiliumHttpIntegrationTest(config) {}
 
+  std::string testPolicyFmt() {
+    return TestEnvironment::substitute(HEADER_ACTION_POLICY_fmt, GetParam());
+  }
+
   void Denied(Http::TestRequestHeaderMapImpl&& headers) {
-    policy_config =
-        TestEnvironment::substitute(HEADER_ACTION_POLICY, GetParam());
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
@@ -199,8 +271,6 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
   }
 
   void Accepted(Http::TestRequestHeaderMapImpl&& headers) {
-    policy_config =
-        TestEnvironment::substitute(HEADER_ACTION_POLICY, GetParam());
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response =
@@ -588,22 +658,37 @@ TEST_P(CiliumIntegrationTest, L3DeniedPath) {
           {":authority", "host"}});
 }
 
-TEST_P(CiliumIntegrationTest, DuplicatePort) {
-  // This policy has a duplicate port number, and will be rejected.
-  policy_config =
-      TestEnvironment::substitute(BASIC_POLICY, GetParam()) + R"EOF(  - port: 80
+class CiliumIntegrationPortTest : public CiliumIntegrationTest {
+ public:
+  CiliumIntegrationPortTest()
+    : CiliumIntegrationTest() {}
+
+  std::string testPolicyFmt() {
+    return TestEnvironment::substitute(BASIC_POLICY_fmt, GetParam()) + R"EOF(  - port: {0}
     rules:
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '/only-2-allowed' } } ]
+        - headers:
+          - name: ':path'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '/only-2-allowed'
 )EOF";
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    IpVersions, CiliumIntegrationPortTest,
+    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+
+TEST_P(CiliumIntegrationPortTest, DuplicatePort) {
+  initialize();
 
   // This would normally be allowed, but since the policy fails, everything will
   // be rejected.
   Http::TestRequestHeaderMapImpl headers = {
       {":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}};
-  initialize();
   codec_client_ = makeHttpConnection(lookupPort("http"));
   auto response = codec_client_->makeHeaderOnlyRequest(headers);
   ASSERT_TRUE(response->waitForEndStream());
@@ -683,6 +768,39 @@ TEST_P(CiliumIntegrationEgressTest, L3DeniedPath) {
   Denied({{":method", "GET"},
           {":path", "/only-2-allowed"},
           {":authority", "host"}});
+}
+
+
+const std::string L34_POLICY_fmt = R"EOF(version_info: "0"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  name: '{{ ntop_ip_loopback_address }}'
+  endpoint_id: 3
+  egress_per_port_policies:
+  - port: {0}
+    rules:
+    - remote_policies: [ 42 ]
+)EOF";
+
+class CiliumIntegrationEgressL34Test : public CiliumIntegrationEgressTest {
+ public:
+  CiliumIntegrationEgressL34Test() {}
+
+  std::string testPolicyFmt() {
+    return TestEnvironment::substitute(L34_POLICY_fmt, GetParam());
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    IpVersions, CiliumIntegrationEgressL34Test,
+    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+
+TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix) {
+  Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
+}
+
+TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix2) {
+  Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 }
 
 }  // namespace Envoy

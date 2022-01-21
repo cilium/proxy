@@ -36,22 +36,44 @@ class SslSocketWrapper : public Network::TransportSocket {
     // configuration
     const auto option =
         Cilium::GetSocketOption(callbacks.connection().socketOptions());
-    if (option && option->policy_) {
-      auto port_policy = option->policy_->findPortPolicy(
-          option->ingress_, option->port_,
-          option->ingress_ ? option->identity_ : option->destination_identity_);
+    if (option && option->initial_policy_) {
+
+      // Resolve the destination security ID and port
+      uint32_t destination_identity = 0;
+      uint32_t destination_port = option->port_;
+
+      if (!option->ingress_) {
+	Network::Address::InstanceConstSharedPtr dst_address =
+	  state_ == Extensions::TransportSockets::Tls::InitialState::Client
+	  ? callbacks.connection().connectionInfoProvider().remoteAddress()
+	  : callbacks.connection().connectionInfoProvider().localAddress();
+	if (dst_address) {
+	  const auto dip = dst_address->ip();
+	  if (dip) {
+	    destination_port = dip->port();
+	    destination_identity = option->resolvePolicyId(dip);
+	  } else {
+	    ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Non-IP destination address: {}", dst_address->asString());
+	  }
+	} else {
+	  ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: No destination address");
+	}
+      }
+
+      auto port_policy = option->initial_policy_->findPortPolicy(
+          option->ingress_, destination_port,
+          option->ingress_ ? option->identity_ : destination_identity);
       if (port_policy != nullptr) {
         Envoy::Ssl::ContextSharedPtr ctx =
             state_ == Extensions::TransportSockets::Tls::InitialState::Client
                 ? port_policy->getClientTlsContext()
                 : port_policy->getServerTlsContext();
-
-	Envoy::Ssl::ContextConfig& config = 
-            state_ == Extensions::TransportSockets::Tls::InitialState::Client
-                ? port_policy->getClientTlsContextConfig()
-                : port_policy->getServerTlsContextConfig();
-
         if (ctx) {
+          const Envoy::Ssl::ContextConfig& config = 
+              state_ == Extensions::TransportSockets::Tls::InitialState::Client
+                  ? port_policy->getClientTlsContextConfig()
+                  : port_policy->getServerTlsContextConfig();
+
           // create the underlying SslSocket
           ssl_socket_ =
               std::make_unique<Extensions::TransportSockets::Tls::SslSocket>(

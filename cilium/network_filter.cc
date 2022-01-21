@@ -88,66 +88,125 @@ void Config::Log(Cilium::AccessLog::Entry& entry, ::cilium::EntryType type) {
 }
 
 Network::FilterStatus Instance::onNewConnection() {
-  ENVOY_LOG(debug, "Cilium Network: onNewConnection");
-  auto& conn = callbacks_->connection();
+  ENVOY_LOG(debug, "cilium.network: onNewConnection");
 
-  const auto option = Cilium::GetSocketOption(conn.socketOptions());
-  if (option) {
-    // Pass metadata from tls_inspector to the filterstate, if any, but not in a sidecar, which have no mark
+  // Buffer data until proxylib policy is available, if configured with proxylib
+  if (config_->proxylib_.get() != nullptr) {
+    should_buffer_ = true;
+  }
+
+  callbacks_->addUpstreamCallback([this](
+            Upstream::HostDescriptionConstSharedPtr host,
+            StreamInfo::StreamInfo& stream_info) -> bool {
+    ENVOY_LOG(debug, "cilium.network: in upstream callback");
+    auto& conn = callbacks_->connection();
+    const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
+    const auto option = Cilium::GetSocketOption(socketOptions);
+
+    if (!option) {
+      ENVOY_CONN_LOG(warn, "cilium.network: Cilium Socket Option not found", conn);
+      return false;
+    }
+      
+    // Pass metadata from tls_inspector to the filterstate, if any & not already
+    // set via upstream cluster config, but not in a sidecar, which have no mark
     if (option->mark_ != 0) {
-      auto have_sni = conn.streamInfo().filterState()->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
-      auto have_san = conn.streamInfo().filterState()->hasData<Network::UpstreamSubjectAltNames>(Network::UpstreamSubjectAltNames::key());
+      auto have_sni = stream_info.filterState()->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
+      auto have_san = stream_info.filterState()->hasData<Network::UpstreamSubjectAltNames>(Network::UpstreamSubjectAltNames::key());
       if (!have_sni || !have_san) {
         const auto sni = conn.requestedServerName();
         if (sni != "") {
-          conn.streamInfo().filterState()->setData(Network::UpstreamServerName::key(),
-                                                   std::make_unique<Network::UpstreamServerName>(sni),
-                                                   StreamInfo::FilterState::StateType::Mutable);
-          conn.streamInfo().filterState()->setData(Network::UpstreamSubjectAltNames::key(),
-                                                   std::make_unique<Network::UpstreamSubjectAltNames>(std::vector<std::string>{std::string(sni)}),
-                                                   StreamInfo::FilterState::StateType::Mutable);
+          stream_info.filterState()->setData(Network::UpstreamServerName::key(),
+                                             std::make_unique<Network::UpstreamServerName>(sni),
+                                             StreamInfo::FilterState::StateType::Mutable);
+          stream_info.filterState()->setData(Network::UpstreamSubjectAltNames::key(),
+                                             std::make_unique<Network::UpstreamSubjectAltNames>(std::vector<std::string>{std::string(sni)}),
+                                             StreamInfo::FilterState::StateType::Mutable);
         }
       }
     }
 
+    // Resolve the destination security ID and port
+    uint32_t destination_identity = 0;
+    uint32_t destination_port = option->port_;
+
+    Network::Address::InstanceConstSharedPtr dst_address = host->address();
+    if (nullptr == dst_address) {
+      ENVOY_LOG(warn, "cilium.network (egress): No destination address ");
+      return false;
+    }
+    if (!option->ingress_) {
+      const auto dip = dst_address->ip();
+      if (!dip) {
+        ENVOY_LOG_MISC(warn, "cilium.network: Non-IP destination address: {}", dst_address->asString());
+        return false;
+      }
+      destination_port = dip->port();
+      destination_identity = option->resolvePolicyId(dip);
+    }
+
+    if (!option->initial_policy_) {
+      ENVOY_CONN_LOG(warn, "cilium.network: No network policy for pod {}", conn, option->pod_ip_);
+      return false;
+    }
+    port_policy_ = option->initial_policy_->findPortPolicy(option->ingress_, destination_port,
+							   option->ingress_ ? option->identity_ : destination_identity);
+    if (port_policy_ == nullptr) {
+      ENVOY_CONN_LOG(warn, "cilium.network: Policy NOT FOUND for id: {} port: {}",
+                     conn, option->ingress_ ? option->identity_ : destination_identity, destination_port);
+      return false;
+    }
+
+    if (!port_policy_->Matches(option->ingress_ ? option->identity_ : destination_identity)) {
+      // Connection not allowed by policy
+      ENVOY_CONN_LOG(warn, "cilium.network: Policy DENY on id: {} port: {}",
+                     conn, option->ingress_ ? option->identity_ : destination_identity, destination_port);
+      return false;
+    }
+
     const std::string& policy_name = option->pod_ip_;
-    if (option->policy_) {
-      port_policy_ = option->policy_->findPortPolicy(
-          option->ingress_, option->port_,
-          option->ingress_ ? option->identity_ : option->destination_identity_);
-      // populate l7proto_ if available
-      if (port_policy_ != nullptr && port_policy_->useProxylib(l7proto_)) {
-        if (config_->proxylib_.get() != nullptr) {
-          go_parser_ = config_->proxylib_->NewInstance(
-              conn, l7proto_, option->ingress_, option->identity_,
-              option->destination_identity_, conn.streamInfo().downstreamAddressProvider().remoteAddress()->asString(),
-              conn.streamInfo().downstreamAddressProvider().localAddress()->asString(), policy_name);
-          if (go_parser_.get() == nullptr) {
-            ENVOY_CONN_LOG(warn, "Cilium Network: Go parser \"{}\" not found",
-                           conn, l7proto_);
-            return Network::FilterStatus::StopIteration;
-          }
-        } else {
-          log_entry_.InitFromConnection(policy_name, *option, conn.streamInfo());
-        }
+    // populate l7proto_ if available
+    if (port_policy_->useProxylib(l7proto_)) {
+      // Initialize Go parser if requested
+      if (config_->proxylib_.get() != nullptr) {
+	go_parser_ = config_->proxylib_->NewInstance(conn, l7proto_, option->ingress_, option->identity_,
+						     destination_identity,
+						     stream_info.downstreamAddressProvider().remoteAddress()->asString(),
+						     dst_address->asString(), policy_name);
+	if (go_parser_.get() == nullptr) {
+	  ENVOY_CONN_LOG(warn, "cilium.network: Go parser \"{}\" not found", conn, l7proto_);
+	  return false;
+	}
+      } else { // no Go parser, initialize logging for metadata based access control
+	log_entry_.InitFromConnection(policy_name, option->ingress_, option->identity_,
+				      stream_info.downstreamAddressProvider().remoteAddress(),
+				      destination_identity, dst_address);
       }
     }
-  } else {
-    ENVOY_CONN_LOG(warn, "Cilium Network: Cilium Socket Option not found",
-                   conn);
-  }
+    should_buffer_ = false;
+    return true;
+  });
 
   return Network::FilterStatus::Continue;
 }
 
 Network::FilterStatus Instance::onData(Buffer::Instance& data,
                                        bool end_stream) {
+  if (should_buffer_) {
+    // Buffer data until upstream is selected and policy resolved
+    buffer_.move(data);
+    return Network::FilterStatus::Continue;
+  }
+  // Prepend buffered data if any
+  if (buffer_.length() > 0) {
+    data.prepend(buffer_);
+  }
   auto& conn = callbacks_->connection();
   if (go_parser_) {
     FilterResult res = go_parser_->OnIO(
         false, data, end_stream);  // 'false' marks original direction data
     ENVOY_CONN_LOG(trace,
-                   "Cilium Network::onData: \'GoFilter::OnIO\' returned {}",
+                   "cilium.network::onData: \'GoFilter::OnIO\' returned {}",
                    conn, res);
 
     if (res != FILTER_OK) {
@@ -159,7 +218,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data,
 
     if (go_parser_->WantReplyInject()) {
       ENVOY_CONN_LOG(
-          trace, "Cilium Network::onData: calling write() on an empty buffer",
+          trace, "cilium.network::onData: calling write() on an empty buffer",
           conn);
 
       // We have no idea when, if ever new data will be received on the
@@ -198,7 +257,7 @@ Network::FilterStatus Instance::onWrite(Buffer::Instance& data,
     FilterResult res = go_parser_->OnIO(
         true, data, end_stream);  // 'true' marks reverse direction data
     ENVOY_CONN_LOG(trace,
-                   "Cilium Network::OnWrite: \'GoFilter::OnIO\' returned {}",
+                   "cilium.network::OnWrite: \'GoFilter::OnIO\' returned {}",
                    callbacks_->connection(), res);
 
     if (res != FILTER_OK) {

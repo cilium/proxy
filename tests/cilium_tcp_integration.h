@@ -11,7 +11,9 @@ class CiliumTcpIntegrationTest
  public:
   CiliumTcpIntegrationTest(const std::string& config);
 
-  virtual std::string testPolicy();
+  void createEnvoy() override;
+
+  virtual std::string testPolicyFmt();
 
   void initialize() override;
   void TearDown() override;

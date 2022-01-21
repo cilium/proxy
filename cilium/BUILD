@@ -111,7 +111,6 @@ envoy_cc_library(
     repository = "@envoy",
     visibility = ["//visibility:public"],
     deps = [
-        "//cilium:socket_option_lib",
         "//cilium/api:accesslog_proto_cc_proto",
         "@envoy//source/exe:envoy_common_lib",
     ],

@@ -5,13 +5,14 @@
 #include "cilium/host_map.h"
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
+#include "cilium/socket_option.h"
 #include "source/common/common/logger.h"
 #include "envoy/json/json_object.h"
 #include "envoy/network/filter.h"
 #include "envoy/server/filter_config.h"
 
 namespace Envoy {
-namespace Filter {
+namespace Cilium {
 namespace BpfMetadata {
 
 /**
@@ -19,11 +20,17 @@ namespace BpfMetadata {
  * represents all global state shared among the working thread
  * instances of the filter.
  */
-class Config : Logger::Loggable<Logger::Id::config> {
+class Config : public Cilium::PolicyResolver,
+               public std::enable_shared_from_this<Config>,
+               Logger::Loggable<Logger::Id::config> {
  public:
   Config(const ::cilium::BpfMetadata &config,
          Server::Configuration::ListenerFactoryContext &context);
   virtual ~Config() {}
+
+  // PolicyResolver
+  uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
+  const std::shared_ptr<const PolicyInstance> getPolicy(const std::string&) const override;
 
   virtual bool getMetadata(Network::ConnectionSocket &socket);
 
@@ -55,5 +62,5 @@ class Instance : public Network::ListenerFilter,
 };
 
 }  // namespace BpfMetadata
-}  // namespace Filter
+}  // namespace Cilium
 }  // namespace Envoy

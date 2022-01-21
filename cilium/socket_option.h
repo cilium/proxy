@@ -9,6 +9,16 @@
 namespace Envoy {
 namespace Cilium {
 
+class PolicyInstance;
+
+class PolicyResolver {
+public:
+  virtual ~PolicyResolver() = default;
+
+  virtual uint32_t resolvePolicyId(const Network::Address::Ip*) const PURE;
+  virtual const std::shared_ptr<const PolicyInstance> getPolicy(const std::string&) const PURE;
+};
+
 class SocketMarkOption : public Network::Socket::Option,
                          public Logger::Loggable<Logger::Id::filter> {
  public:
@@ -121,31 +131,39 @@ class SocketMarkOption : public Network::Socket::Option,
   Network::Address::InstanceConstSharedPtr src_address_;
 };
 
-class PolicyInstance;
-
 class SocketOption : public SocketMarkOption {
  public:
   SocketOption(std::shared_ptr<const PolicyInstance> policy, uint32_t mark,
-               uint32_t source_identity, uint32_t destination_identity,
+               uint32_t source_identity,
                bool ingress, uint16_t port, std::string&& pod_ip,
-               Network::Address::InstanceConstSharedPtr src_address)
+               Network::Address::InstanceConstSharedPtr src_address,
+               const std::shared_ptr<PolicyResolver>& policy_id_resolver)
       : SocketMarkOption(mark, source_identity, ingress, src_address),
-        policy_(policy),
-        destination_identity_(destination_identity),
+        initial_policy_(policy),
         port_(port),
-        pod_ip_(std::move(pod_ip)) {
+        pod_ip_(std::move(pod_ip)),
+        policy_id_resolver_(policy_id_resolver) {
     ENVOY_LOG(
         debug,
-        "Cilium SocketOption(): source_identity: {}, destination_identity: {}, "
+        "Cilium SocketOption(): source_identity: {}, "
         "ingress: {}, port: {}, pod_ip: {}, src_address: {}, mark: {}",
-        identity_, destination_identity_, ingress_, port_, pod_ip_,
+        identity_, ingress_, port_, pod_ip_,
         src_address_ ? src_address_->asString() : "", mark_);
   }
 
-  const std::shared_ptr<const PolicyInstance> policy_;
-  uint32_t destination_identity_;
+  uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
+    return policy_id_resolver_->resolvePolicyId(ip);
+  }
+
+  const std::shared_ptr<const PolicyInstance> getPolicy() const {
+    return policy_id_resolver_->getPolicy(pod_ip_);
+  }
+ 
+  const std::shared_ptr<const PolicyInstance> initial_policy_;
   uint16_t port_;
   std::string pod_ip_;
+private:
+  const std::shared_ptr<PolicyResolver> policy_id_resolver_;
 };
 
 static inline const Cilium::SocketOption* GetSocketOption(

@@ -30,7 +30,7 @@ class BpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
       const Protobuf::Message& proto_config,
       const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
       Configuration::ListenerFactoryContext& context) override {
-    auto config = std::make_shared<Filter::BpfMetadata::Config>(
+    auto config = std::make_shared<Cilium::BpfMetadata::Config>(
         MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(
             proto_config, context.messageValidationVisitor()),
         context);
@@ -38,7 +38,7 @@ class BpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
                Network::ListenerFilterManager& filter_manager) mutable -> void {
       filter_manager.addAcceptFilter(
           listener_filter_matcher,
-          std::make_unique<Filter::BpfMetadata::Instance>(config));
+          std::make_unique<Cilium::BpfMetadata::Instance>(config));
     };
   }
 
@@ -57,7 +57,7 @@ REGISTER_FACTORY(BpfMetadataConfigFactory, NamedListenerFilterConfigFactory);
 }  // namespace Configuration
 }  // namespace Server
 
-namespace Filter {
+namespace Cilium {
 namespace BpfMetadata {
 
 // Singleton registration via macro defined in envoy/singleton/manager.h
@@ -140,6 +140,28 @@ Config::Config(const ::cilium::BpfMetadata& config,
   npmap_ = createPolicyMap(context, ct_maps_);
 }
 
+uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
+  uint32_t id = 0;
+
+  if (ipcache_ != nullptr) {
+    id = ipcache_->resolve(ip);
+  } else if (hosts_ != nullptr) {
+    id = hosts_->resolve(ip);
+  }
+
+  // default destination identity to the world if needed
+  if (id == 0) {
+    id = Cilium::ID::WORLD;
+    ENVOY_LOG(trace, "bpf_metadata: Identity for IP defaults to WORLD", ip->addressAsString());
+  }
+
+  return id;
+}
+
+const std::shared_ptr<const PolicyInstance> Config::getPolicy(const std::string& pod_ip) const {
+  return npmap_->GetPolicyInstance(pod_ip);
+}
+
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr src_address = socket.connectionInfoProvider().remoteAddress();
   const auto sip = src_address->ip();
@@ -169,7 +191,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
                    other_ip);
   }
 
-  const auto& policy = npmap_->GetPolicyInstance(pod_ip);
+  const auto& policy = getPolicy(pod_ip);
   if (policy == nullptr) {
     ENVOY_LOG(warn, "cilium.bpf_metadata ({}): No policy found for {}",
               is_ingress_ ? "ingress" : "egress", pod_ip);
@@ -186,39 +208,13 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     }
   }
   if (source_identity == 0) {
-    if (ipcache_ != nullptr) {
-      // Resolve the source security ID from the IPCache
-      source_identity = ipcache_->resolve(sip);
-    } else if (hosts_ != nullptr) {
-      // Resolve the source security ID from xDS hosts map
-      source_identity = hosts_->resolve(sip);
-    }
-
-    // default source identity to the world if needed
-    if (source_identity == 0) {
-      source_identity = Cilium::ID::WORLD;
-      ENVOY_LOG(trace,
-                "cilium.bpf_metadata ({}): Source identity defaults to WORLD",
-                is_ingress_ ? "ingress" : "egress");
-    }
+    source_identity = resolvePolicyId(sip);
   }
 
   // Resolve the destination security ID for egress
   uint32_t destination_identity = 0;
   if (!is_ingress_) {
-    if (ipcache_ != nullptr) {
-      destination_identity = ipcache_->resolve(dip);
-    } else if (hosts_ != nullptr) {
-      destination_identity = hosts_->resolve(dip);
-    }
-
-    // default destination identity to the world if needed
-    if (destination_identity == 0) {
-      destination_identity = Cilium::ID::WORLD;
-      ENVOY_LOG(trace,
-                "cilium.bpf_metadata (egress): Destination identity defaults "
-                "to WORLD");
-    }
+    destination_identity = resolvePolicyId(dip);
   }
 
   // Only use the original source address if permitted and the other node is not
@@ -236,6 +232,10 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   // Add metadata for policy based listener filter chain matching.
   // This requires the TLS inspector, if used, to run before us.
+  // Note: This requires egress policy be known before upstream host selection,
+  // so this feature only works with the original destionation cluster.
+  // This means that L7 LB does not work with the experimental Envoy Metadata
+  // based policies (e.g., with MongoDB or MySQL filters).
   std::string l7proto;
   if (policy->useProxylib(is_ingress_, dip->port(),
                           is_ingress_ ? source_identity : destination_identity,
@@ -267,8 +267,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     }
   }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, mark, source_identity, destination_identity, is_ingress_, dip->port(),
-      std::move(pod_ip), src_address));
+      policy, mark, source_identity, is_ingress_, dip->port(),
+      std::move(pod_ip), src_address, shared_from_this()));
   return true;
 }
 
@@ -312,5 +312,5 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
 }
 
 }  // namespace BpfMetadata
-}  // namespace Filter
+}  // namespace Cilium
 }  // namespace Envoy
