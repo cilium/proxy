@@ -22,7 +22,7 @@ extern std::shared_ptr<const Cilium::NetworkPolicyMap> npmap;
 
 extern std::string policy_config;
 
-namespace Filter {
+namespace Cilium {
 namespace BpfMetadata {
 
 class TestConfig : public Config {

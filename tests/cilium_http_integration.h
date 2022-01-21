@@ -12,10 +12,9 @@ class CiliumHttpIntegrationTest
   CiliumHttpIntegrationTest(const std::string& config);
   ~CiliumHttpIntegrationTest();
 
-  /**
-   * Initializer for an individual integration test.
-   */
-  void initialize() override;
+  void createEnvoy() override;
+
+  virtual std::string testPolicyFmt() PURE;
 
   AccessLogServer accessLogServer_;
 };

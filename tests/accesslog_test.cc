@@ -1,6 +1,5 @@
 #include "cilium/accesslog.h"
 
-#include "cilium/socket_option.h"
 #include "source/common/network/address_impl.h"
 #include "envoy/http/protocol.h"
 #include "envoy/network/socket.h"
@@ -14,7 +13,7 @@ namespace Envoy {
 namespace Cilium {
 
 class CiliumTest : public testing::Test {
- protected:
+protected:
   Event::SimulatedTimeSystem time_system_;
 };
 
@@ -26,23 +25,16 @@ TEST_F(CiliumTest, AccessLog) {
       {"x-forwarded-proto", "http"},
       {"x-request-id", "ba41267c-cfc2-4a92-ad3e-cd084ab099b4"}};
   Network::MockConnection connection;
+  auto source_address = std::make_shared<Network::Address::Ipv4Instance>("5.6.7.8", 45678);
+  auto destination_address = std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80);
   connection.stream_info_.protocol_ = Http::Protocol::Http11;
   connection.stream_info_.start_time_ = time_system_.systemTime();
-  
-  Network::Socket::OptionsSharedPtr options =
-      std::make_shared<Network::Socket::Options>();
-  auto option = std::make_shared<Cilium::SocketOption>(
-      nullptr, false, 1, 173, true, 80, "1.2.3.4", nullptr);
-  options->push_back(option);
-
-  connection.stream_info_.downstream_connection_info_provider_->setLocalAddress(
-      std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80));
-  connection.stream_info_.downstream_connection_info_provider_->setRemoteAddress(
-      std::make_shared<Network::Address::Ipv4Instance>("5.6.7.8", 45678));
+  connection.stream_info_.downstream_connection_info_provider_->setRemoteAddress(source_address);
+  connection.stream_info_.downstream_connection_info_provider_->setLocalAddress(destination_address);
 
   AccessLog::Entry log;
 
-  log.InitFromRequest("1.2.3.4", *option, connection.stream_info_, headers);
+  log.InitFromRequest("1.2.3.4", true, 1, source_address, 173, destination_address, connection.stream_info_, headers);
 
   EXPECT_EQ(log.entry_.is_ingress(), true);
   EXPECT_EQ(log.entry_.entry_type(), ::cilium::EntryType::Request);

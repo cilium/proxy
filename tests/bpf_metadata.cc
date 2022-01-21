@@ -10,14 +10,14 @@
 namespace Envoy {
 
 std::string host_map_config;
-std::shared_ptr<const Cilium::PolicyHostMap> hostmap{nullptr};
+std::shared_ptr<const Cilium::PolicyHostMap> hostmap{nullptr}; // Keep reference to singleton
 
 Network::Address::InstanceConstSharedPtr original_dst_address;
-std::shared_ptr<const Cilium::NetworkPolicyMap> npmap{nullptr};
+std::shared_ptr<const Cilium::NetworkPolicyMap> npmap{nullptr}; // Keep reference to singleton
 
 std::string policy_config;
 
-namespace Filter {
+namespace Cilium {
 namespace BpfMetadata {
 
 TestConfig::TestConfig(const ::cilium::BpfMetadata& config,
@@ -57,12 +57,13 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
   auto policy = npmap_->GetPolicyInstance(pod_ip);
+  auto port = original_dst_address->ip()->port();
 
   // Set metadata for policy based listener filter chain matching
   // Note: tls_inspector may overwrite this value, if it executes after us!
   std::string l7proto;
   if (policy &&
-      policy->useProxylib(is_ingress_, 80,
+      policy->useProxylib(is_ingress_, port,
                           is_ingress_ ? source_identity : destination_identity,
                           l7proto)) {
     std::vector<absl::string_view> protocols;
@@ -72,8 +73,8 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   }
 
   socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, false, source_identity, destination_identity, is_ingress_, 80,
-      std::move(pod_ip), nullptr));
+      policy, false, source_identity, is_ingress_, port,
+      std::move(pod_ip), nullptr, shared_from_this()));
 
   return true;
 }
@@ -154,7 +155,7 @@ TestBpfMetadataConfigFactory::createListenerFilterFactoryFromProto(
   // singleton is set before the gRPC subscription is attempted.
   npmap = createPolicyMap(policy_config, context);
 
-  auto config = std::make_shared<Filter::BpfMetadata::TestConfig>(
+  auto config = std::make_shared<Cilium::BpfMetadata::TestConfig>(
       MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(
           proto_config, context.messageValidationVisitor()),
       context);
@@ -163,7 +164,7 @@ TestBpfMetadataConfigFactory::createListenerFilterFactoryFromProto(
              Network::ListenerFilterManager& filter_manager) mutable -> void {
     filter_manager.addAcceptFilter(
         listener_filter_matcher,
-        std::make_unique<Filter::BpfMetadata::TestInstance>(config));
+        std::make_unique<Cilium::BpfMetadata::TestInstance>(config));
   };
 }
 

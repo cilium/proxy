@@ -29,12 +29,14 @@ class PortPolicy {
 
   virtual bool useProxylib(std::string& l7_proto) const PURE;
 
+  virtual bool Matches(uint64_t remote_id) const PURE;
+
   virtual bool allowed(
       const envoy::config::core::v3::Metadata& metadata) const PURE;
 
-  virtual Ssl::ContextConfig& getServerTlsContextConfig() const PURE;
+  virtual const Ssl::ContextConfig& getServerTlsContextConfig() const PURE;
   virtual Ssl::ContextSharedPtr getServerTlsContext() const PURE;
-  virtual Ssl::ContextConfig& getClientTlsContextConfig() const PURE;
+  virtual const Ssl::ContextConfig& getClientTlsContextConfig() const PURE;
   virtual Ssl::ContextSharedPtr getClientTlsContext() const PURE;
 };
 using PortPolicyConstSharedPtr = std::shared_ptr<const PortPolicy>;

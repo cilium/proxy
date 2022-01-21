@@ -63,6 +63,8 @@ class Instance : public Network::Filter, Logger::Loggable<Logger::Id::filter> {
   const ConfigSharedPtr config_;
   Network::ReadFilterCallbacks* callbacks_ = nullptr;
   std::string l7proto_{};
+  bool should_buffer_ = false;
+  Buffer::OwnedImpl buffer_;  // Buffer for initial connection data
   Cilium::GoFilter::InstancePtr go_parser_{};
   Cilium::PortPolicyConstSharedPtr port_policy_{};
   Cilium::AccessLog::Entry log_entry_{};

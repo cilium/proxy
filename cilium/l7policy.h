@@ -3,8 +3,10 @@
 #include <string>
 
 #include "absl/types/optional.h"
+
 #include "cilium/accesslog.h"
 #include "cilium/api/l7policy.pb.h"
+
 #include "source/common/common/logger.h"
 #include "envoy/server/filter_config.h"
 #include "envoy/stats/stats_macros.h"
@@ -56,7 +58,7 @@ typedef std::shared_ptr<Config> ConfigSharedPtr;
 class AccessFilter : public Http::StreamFilter,
                      Logger::Loggable<Logger::Id::filter> {
 public:
-  AccessFilter(ConfigSharedPtr& config) : config_(config), denied_(false) {}
+  AccessFilter(ConfigSharedPtr& config) : config_(config) {}
 
   // Http::StreamFilterBase
   void onDestroy() override;
@@ -93,7 +95,7 @@ private:
   ConfigSharedPtr config_;
   Http::StreamDecoderFilterCallbacks* callbacks_;
 
-  bool denied_;
+  bool allowed_ = false;
   AccessLog::Entry log_entry_;
 };
 

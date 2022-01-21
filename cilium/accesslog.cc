@@ -8,7 +8,6 @@
 
 #include "source/common/common/lock_guard.h"
 #include "source/common/common/utility.h"
-#include "socket_option.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -70,19 +69,20 @@ CONST_STRING_VIEW(xRequestIdSV, "x-request-id");
 CONST_STRING_VIEW(statusSV, ":status");
 
 void AccessLog::Entry::InitFromConnection(const std::string& policy_name,
-                                          const Cilium::SocketOption& option,
-                                          const StreamInfo::StreamInfo& info) {
+					  bool ingress,
+                                          uint32_t source_identity,
+                                          const Network::Address::InstanceConstSharedPtr& source_address,
+                                          uint32_t destination_identity,
+                                          const Network::Address::InstanceConstSharedPtr& destination_address) {
   entry_.set_policy_name(policy_name);
-  entry_.set_source_security_id(option.identity_);
-  entry_.set_destination_security_id(option.destination_identity_);
-  entry_.set_is_ingress(option.ingress_);
+  entry_.set_is_ingress(ingress);
+  entry_.set_source_security_id(source_identity);
+  entry_.set_destination_security_id(destination_identity);
 
-  auto source_address = info.downstreamAddressProvider().remoteAddress();
   if (source_address != nullptr) {
     entry_.set_source_address(source_address->asString());
   }
 
-  auto destination_address = info.downstreamAddressProvider().localAddress();
   if (destination_address != nullptr) {
     entry_.set_destination_address(destination_address->asString());
   }
@@ -133,10 +133,14 @@ bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
 }
 
 void AccessLog::Entry::InitFromRequest(const std::string& policy_name,
-                                       const Cilium::SocketOption& option,
-                                       const StreamInfo::StreamInfo& info,
+				       bool ingress,
+				       uint32_t source_identity,
+				       const Network::Address::InstanceConstSharedPtr& src_address,
+                                       uint32_t destination_identity,
+                                       const Network::Address::InstanceConstSharedPtr& dst_address,
+				       const StreamInfo::StreamInfo& info,
                                        const Http::RequestHeaderMap& headers) {
-  InitFromConnection(policy_name, option, info);
+  InitFromConnection(policy_name, ingress, source_identity, src_address, destination_identity, dst_address);
 
   auto time = info.startTime();
   entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(

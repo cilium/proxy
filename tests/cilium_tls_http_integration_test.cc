@@ -132,22 +132,22 @@ static_resources:
 // certificate_chain from test/config/integration/certs/servercert.pem
 // downstream_tls_context private_key from
 // test/config/integration/certs/serverkey.pem
-const std::string BASIC_TLS_POLICY = R"EOF(version_info: "0"
+const std::string BASIC_TLS_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   name: '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
-        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
-        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+        - headers: [ {{ name: ':path', exact_match: '/allowed' }} ]
+        - headers: [ {{ name: ':path', safe_regex_match: {{ google_re2: {{}}, regex: '.*public$' }} }} ]
+        - headers: [ {{ name: ':authority', exact_match: 'allowedHOST' }} ]
+        - headers: [ {{ name: ':authority', safe_regex_match: {{ google_re2: {{}}, regex: '.*REGEX.*' }} }} ]
+        - headers: [ {{ name: ':method', exact_match: 'PUT' }}, {{ name: ':path', exact_match: '/public/opinions' }} ]
       upstream_tls_context:
         trusted_ca: "-----BEGIN CERTIFICATE-----\nMIID7zCCAtegAwIBAgIUTQZdxxw6y4+Te1kv8hDza/KXTHUwDQYJKoZIhvcNAQEL\nBQAwfzELMAkGA1UEBhMCVVMxEzARBgNVBAgMCkNhbGlmb3JuaWExFjAUBgNVBAcM\nDVNhbiBGcmFuY2lzY28xDTALBgNVBAoMBEx5ZnQxGTAXBgNVBAsMEEx5ZnQgRW5n\naW5lZXJpbmcxGTAXBgNVBAMMEFRlc3QgVXBzdHJlYW0gQ0EwHhcNMjAwODA1MTkx\nNjAyWhcNMjIwODA1MTkxNjAyWjB/MQswCQYDVQQGEwJVUzETMBEGA1UECAwKQ2Fs\naWZvcm5pYTEWMBQGA1UEBwwNU2FuIEZyYW5jaXNjbzENMAsGA1UECgwETHlmdDEZ\nMBcGA1UECwwQTHlmdCBFbmdpbmVlcmluZzEZMBcGA1UEAwwQVGVzdCBVcHN0cmVh\nbSBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAOFT8hbqRn+9AKU2\nIFtZKFFYpt7v2x1e8gtzgPm3TT7RJcV2GLeT1cOwubL81ArQmwfyVlwJkt1wK7Uw\n+Z4FvtcCjQc4dR3yxkIdhzZOiq7PbQgAjyRNNGmneYTAvpXwC+l8ZV2M66ihUKgj\n7iGiqQCvYhuYIb7BEnOj20nFuvHlxaDWOst4SQgZmRIkQyA8rrAIRfu7aQiCEla5\n86AXcXV4gmOW3dsKNoXO8Fr+9mtAmJKocLtlUkCeDW+WYqv6RLjMVa915khNQLde\nbL+5hYxBcKYB10wOVzSTCfM6fbqtpqJZEdlGjkKtQ2Szy3mpoAJKPmZYzodVhL6N\nLhoLjZ8CAwEAAaNjMGEwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYw\nHQYDVR0OBBYEFDtmHVOikybtJjVEI4Q7wvUbwgBkMB8GA1UdIwQYMBaAFDtmHVOi\nkybtJjVEI4Q7wvUbwgBkMA0GCSqGSIb3DQEBCwUAA4IBAQAT3kBm2uCpB4cAmdgu\nu6sqxUvYFzYlHFnWrQ3ZFwMrLRSzUdrcp2nSQz+e8VeXI2SkLPCD5Xg+8GGLWA5X\nlH6tvVx41cRqSr611ebxPVWkEeP+ALkHo4xUbcR5WUJD52VxzqYbhavYFjB2FzqA\nOfefKyXIhcKtezKBwaJbVn9FseH49q6UNjYODOY88rW+2mvDoZWBUuti8CxNhIiu\nRHnGimY7H565NpbPliVlo2GhiKhJvyPwK7+cjfj68HaoixlXHmrg506bczO/Gt1a\nUSQmjtB05h8bki0LQDiCQu1fdOPEflJnv3VdFz2SSKNRab2asP+KbRPURUW8f9zN\nGNxR\n-----END CERTIFICATE-----\n"
       downstream_tls_context:
@@ -156,22 +156,22 @@ resources:
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+        - headers: [ {{ name: ':path', exact_match: '/only-2-allowed' }} ]
   egress_per_port_policies:
-  - port: 80
+  - port: {0}
     rules:
     - remote_policies: [ 1 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/allowed' } ]
-        - headers: [ { name: ':path', safe_regex_match: { google_re2: {}, regex: '.*public$' } } ]
-        - headers: [ { name: ':authority', exact_match: 'allowedHOST' } ]
-        - headers: [ { name: ':authority', safe_regex_match: { google_re2: {}, regex: '.*REGEX.*' } } ]
-        - headers: [ { name: ':method', exact_match: 'PUT' }, { name: ':path', exact_match: '/public/opinions' } ]
+        - headers: [ {{ name: ':path', exact_match: '/allowed' }} ]
+        - headers: [ {{ name: ':path', safe_regex_match: {{ google_re2: {{}}, regex: '.*public$' }} }} ]
+        - headers: [ {{ name: ':authority', exact_match: 'allowedHOST' }} ]
+        - headers: [ {{ name: ':authority', safe_regex_match: {{ google_re2: {{}}, regex: '.*REGEX.*' }} }} ]
+        - headers: [ {{ name: ':method', exact_match: 'PUT' }}, {{ name: ':path', exact_match: '/public/opinions' }} ]
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
-        - headers: [ { name: ':path', exact_match: '/only-2-allowed' } ]
+        - headers: [ {{ name: ':path', exact_match: '/only-2-allowed' }} ]
 )EOF";
 
 /*
@@ -239,8 +239,11 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
         std::vector<std::string>{});
   }
 
+  std::string testPolicyFmt() {
+    return TestEnvironment::substitute(BASIC_TLS_POLICY_fmt, GetParam());
+  }
+
   void Denied(Http::TestRequestHeaderMapImpl&& headers) {
-    policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
     initialize();
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     ASSERT_TRUE(response->waitForEndStream());
@@ -251,7 +254,6 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
   }
 
   void Failed(Http::TestRequestHeaderMapImpl&& headers) {
-    policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
     initialize();
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     ASSERT_TRUE(response->waitForEndStream());
@@ -262,7 +264,6 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
   }
 
   void Accepted(Http::TestRequestHeaderMapImpl&& headers) {
-    policy_config = TestEnvironment::substitute(BASIC_TLS_POLICY, GetParam());
     initialize();
     auto response =
         sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);

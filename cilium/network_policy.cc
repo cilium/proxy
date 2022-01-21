@@ -14,6 +14,46 @@ namespace Cilium {
 
 uint64_t NetworkPolicyMap::instance_id_ = 0;
 
+// PortPolicy used in cases where no rules are found -> always allow
+class AllowPortNetworkPolicyRule : public PortPolicy {
+ public:
+  AllowPortNetworkPolicyRule() {};
+
+  bool Matches(uint64_t) const override {
+    return true;
+  }
+
+  bool Matches(uint64_t, Envoy::Http::RequestHeaderMap&,
+               Cilium::AccessLog::Entry&) const {
+    return true;
+  }
+
+  // PortPolicy
+  bool useProxylib(std::string&) const override {
+    return false;
+  }
+
+  // Envoy Metadata matcher
+  bool allowed(const envoy::config::core::v3::Metadata&) const override {
+    return true;  // allowed by default
+  }
+
+  const Ssl::ContextConfig& getServerTlsContextConfig() const override {
+    return *Ssl::ServerContextConfigPtr{nullptr}; // not used
+  }
+  Ssl::ContextSharedPtr getServerTlsContext() const override {
+    return nullptr;
+  }
+  const Ssl::ContextConfig& getClientTlsContextConfig() const override {
+    return *Ssl::ClientContextConfigPtr{nullptr}; // not used
+  }
+  Ssl::ContextSharedPtr getClientTlsContext() const override {
+    return nullptr;
+  }
+};
+
+PortPolicyConstSharedPtr allowPortNetworkPolicyRule = std::make_shared<AllowPortNetworkPolicyRule>();
+
 class PolicyInstanceImpl : public PolicyInstance {
  public:
   PolicyInstanceImpl(const NetworkPolicyMap& parent, uint64_t hash,
@@ -334,7 +374,7 @@ class PolicyInstanceImpl : public PolicyInstance {
       }
     }
 
-    bool Matches(uint64_t remote_id) const {
+    bool Matches(uint64_t remote_id) const override {
       // Remote ID must match if we have any.
       if (allowed_remotes_.size() > 0) {
         auto search = allowed_remotes_.find(remote_id);
@@ -418,13 +458,13 @@ class PolicyInstanceImpl : public PolicyInstance {
       return true;  // allowed by default
     }
 
-    Ssl::ContextConfig& getServerTlsContextConfig() const override {
+    const Ssl::ContextConfig& getServerTlsContextConfig() const override {
       return *server_config_;
     }
     Ssl::ContextSharedPtr getServerTlsContext() const override {
       return server_context_;
     }
-    Ssl::ContextConfig& getClientTlsContextConfig() const override {
+    const Ssl::ContextConfig& getClientTlsContextConfig() const override {
       return *client_config_;
     }
     Ssl::ContextSharedPtr getClientTlsContext() const override {
@@ -491,6 +531,10 @@ class PolicyInstanceImpl : public PolicyInstance {
     }
 
     const PortPolicyConstSharedPtr findPortPolicy(uint64_t remote_id) const {
+      // Empty set matches any payload from anyone
+      if (rules_.size() == 0) {
+	return allowPortNetworkPolicyRule;
+      }
       for (const auto& rule : rules_) {
         if (rule->Matches(remote_id)) {
           return rule;
@@ -534,13 +578,11 @@ class PolicyInstanceImpl : public PolicyInstance {
     bool Matches(uint32_t port, uint64_t remote_id,
                  Envoy::Http::RequestHeaderMap& headers,
                  Cilium::AccessLog::Entry& log_entry) const {
-      bool found_port_rule = false;
       auto it = rules_.find(port);
       if (it != rules_.end()) {
         if (it->second.Matches(remote_id, headers, log_entry)) {
           return true;
         }
-        found_port_rule = true;
       }
       // Check for any rules that wildcard the port
       // Note: Wildcard port makes no sense for an L7 policy, but the policy
@@ -550,19 +592,20 @@ class PolicyInstanceImpl : public PolicyInstance {
         if (it->second.Matches(remote_id, headers, log_entry)) {
           return true;
         }
-        found_port_rule = true;
       }
-
-      // No policy for the port was found. Cilium always creates a policy for
-      // redirects it creates, so the host proxy never gets here. Sidecar gets
-      // all the traffic, which we need to pass through since the bpf datapath
-      // already allowed it.
-      return found_port_rule ? false : true;
+      return false;
     }
 
     const PortPolicyConstSharedPtr findPortPolicy(uint32_t port,
                                                   uint64_t remote_id) const {
       auto it = rules_.find(port);
+      if (it != rules_.end()) {
+        return it->second.findPortPolicy(remote_id);
+      }
+      // Check for any rules that wildcard the port
+      // Note: Wildcard port makes no sense for an L7 policy, but the policy
+      // could be a L3/L4 policy as well.
+      it = rules_.find(0);
       if (it != rules_.end()) {
         return it->second.findPortPolicy(remote_id);
       }
