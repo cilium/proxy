@@ -34,6 +34,13 @@ static_resources:
       seconds: 1
     transport_socket:
       name: "cilium.tls_wrapper"
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        upstream_http_protocol_options:
+          auto_sni: true
+          auto_san_validation: true
+        use_downstream_protocol_config: {{}}
   - name: xds-grpc-cilium
     connect_timeout:
       seconds: 5
@@ -296,13 +303,6 @@ TEST_P(CiliumTLSHttpIntegrationTest, DeniedPathPrefix) {
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefix) {
   Accepted(
       {{":method", "GET"}, {":path", "/allowed"}, {":authority", "localhost"}});
-}
-
-TEST_P(CiliumTLSHttpIntegrationTest, InvalidHostNameSNI) {
-  // SNI is now coming from the cilium listener filter, so it is accepted
-  Accepted({{":method", "GET"},
-            {":path", "/allowed"},
-            {":authority", "nonlocalhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefixStrippedHeader) {

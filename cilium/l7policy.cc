@@ -112,23 +112,6 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(
       std::string policy_name = option->pod_ip_;
       bool ingress = option->ingress_;
 
-      // crete SNI from host header if needed, but don't do this in a sidecar (which have no mark)
-      if (option->mark_ != 0) {
-        auto have_sni = callbacks_->streamInfo().filterState()->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
-        auto have_san = callbacks_->streamInfo().filterState()->hasData<Network::UpstreamSubjectAltNames>(Network::UpstreamSubjectAltNames::key());
-        if (!have_sni || !have_san) {
-          const auto parsed_authority = Http::Utility::parseAuthority(headers.Host()->value().getStringView());
-          if (!parsed_authority.is_ip_address_) {
-            callbacks_->streamInfo().filterState()->setData(Network::UpstreamServerName::key(),
-                                                           std::make_unique<Network::UpstreamServerName>(parsed_authority.host_),
-                                                           StreamInfo::FilterState::StateType::Mutable);
-          }
-          callbacks_->streamInfo().filterState()->setData(Network::UpstreamSubjectAltNames::key(),
-                                                         std::make_unique<Network::UpstreamSubjectAltNames>(std::vector<std::string>{std::string(parsed_authority.host_)}),
-                                                         StreamInfo::FilterState::StateType::Mutable);
-        }
-      }
-
       // Fill in the log entry
       log_entry_.InitFromRequest(policy_name, *option,
                                  callbacks_->streamInfo(), headers);
