@@ -30,7 +30,7 @@ class Config : public Cilium::PolicyResolver,
 
   // PolicyResolver
   uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
-  const std::shared_ptr<const PolicyInstance> getPolicy(const std::string&) const override;
+  const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const override;
 
   virtual bool getMetadata(Network::ConnectionSocket &socket);
 

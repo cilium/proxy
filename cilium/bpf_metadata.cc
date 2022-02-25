@@ -158,8 +158,17 @@ uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
   return id;
 }
 
-const std::shared_ptr<const PolicyInstance> Config::getPolicy(const std::string& pod_ip) const {
-  return npmap_->GetPolicyInstance(pod_ip);
+const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) const {
+  auto& policy = npmap_->GetPolicyInstance(pod_ip);
+  if (policy == nullptr) {
+    // Allow all traffic for egress without a policy when 'egress_mark_source_endpoint_id_' is true.
+    // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
+    // Ingress (which is implemented as an egress listener!).
+    if (!is_ingress_ && egress_mark_source_endpoint_id_) {
+      return npmap_->AllowAllEgressPolicy;
+    }
+  }
+  return policy;
 }
 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
@@ -256,8 +265,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Cilium filters.
   uint32_t mark = 0;
   if (!npmap_->is_sidecar_) {
-    if (egress_mark_source_endpoint_id_) {
-      // Mark with source endpoint ID
+    // Mark with source endpoint ID if requested and available
+    if (egress_mark_source_endpoint_id_ && policy->getEndpointID() != 0) {
       mark = 0x0900 | policy->getEndpointID() << 16;
     } else {
       // Mark with source identity
