@@ -163,6 +163,22 @@ void AccessLog::Entry::InitFromRequest(const std::string& policy_name,
   ::cilium::HttpLogEntry* http_entry = entry_.mutable_http();
   http_entry->set_http_protocol(proto);
 
+  UpdateFromRequest(destination_identity, dst_address, headers);
+}
+
+void AccessLog::Entry::UpdateFromRequest(uint32_t destination_identity,
+					 const Network::Address::InstanceConstSharedPtr& dst_address,
+					 const Http::RequestHeaderMap& headers) {
+  // Destination may have changed
+  entry_.set_destination_security_id(destination_identity);
+  if (dst_address != nullptr) {
+    entry_.set_destination_address(dst_address->asString());
+  }
+
+  ::cilium::HttpLogEntry* http_entry = entry_.mutable_http();
+  // Remove headers logged for the request, as they may have changed
+  http_entry->clear_headers();
+
   // request headers
   headers.iterate(
       [http_entry](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {

@@ -29,6 +29,9 @@ class AccessLog : Logger::Loggable<Logger::Id::router> {
                          const Network::Address::InstanceConstSharedPtr& destination_address,
                          const StreamInfo::StreamInfo&,
                          const Http::RequestHeaderMap&);
+    void UpdateFromRequest(uint32_t destination_identity,
+			   const Network::Address::InstanceConstSharedPtr& destination_address,
+			   const Http::RequestHeaderMap&);
     void UpdateFromResponse(const Http::ResponseHeaderMap&, TimeSource&);
 
     void InitFromConnection(const std::string& policy_name, bool ingress,
