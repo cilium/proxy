@@ -54,6 +54,39 @@ class AllowPortNetworkPolicyRule : public PortPolicy {
 
 PortPolicyConstSharedPtr allowPortNetworkPolicyRule = std::make_shared<AllowPortNetworkPolicyRule>();
 
+// Allow-all Egress policy
+class AllowAllEgressPolicyInstanceImpl : public PolicyInstance {
+ public:
+  AllowAllEgressPolicyInstanceImpl() {}
+
+  bool Allowed(bool ingress, uint32_t, uint64_t,
+	       Envoy::Http::RequestHeaderMap&,
+	       Cilium::AccessLog::Entry&) const override {
+    return ingress ? false : true;
+  }
+  
+  const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint32_t, uint64_t) const override {
+    return ingress ? nullptr : allowPortNetworkPolicyRule;
+  }
+
+  bool useProxylib(bool, uint32_t, uint64_t,
+		   std::string&) const override {
+    return false;
+  }
+
+  const std::string& conntrackName() const override {
+    return empty_string;
+  }
+
+  uint32_t getEndpointID() const override {
+    return 0;
+  }
+
+private:
+  static const std::string empty_string;
+};
+const std::string AllowAllEgressPolicyInstanceImpl::empty_string = "";
+
 class PolicyInstanceImpl : public PolicyInstance {
  public:
   PolicyInstanceImpl(const NetworkPolicyMap& parent, uint64_t hash,
@@ -702,7 +735,7 @@ NetworkPolicyMap::GetPolicyInstanceImpl(
   return it->second;
 }
 
-const std::shared_ptr<const PolicyInstance> NetworkPolicyMap::GetPolicyInstance(
+const PolicyInstanceConstSharedPtr NetworkPolicyMap::GetPolicyInstance(
     const std::string& endpoint_policy_name) const {
   return GetPolicyInstanceImpl(endpoint_policy_name);
 }
@@ -821,6 +854,8 @@ void NetworkPolicyMap::onConfigUpdateFailed(
   // config.
   ENVOY_LOG(debug, "Network Policy Update failed, keeping existing policy.");
 }
+
+PolicyInstanceConstSharedPtr NetworkPolicyMap::AllowAllEgressPolicy = std::make_shared<AllowAllEgressPolicyInstanceImpl>();
 
 }  // namespace Cilium
 }  // namespace Envoy

@@ -61,6 +61,8 @@ class PolicyInstance {
 
   virtual uint32_t getEndpointID() const PURE;
 };
+using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
+
 
 class PolicyInstanceImpl;
 
@@ -96,8 +98,10 @@ class NetworkPolicyMap : public Singleton::Instance,
     startSubscription();
   }
 
-  const std::shared_ptr<const PolicyInstance> GetPolicyInstance(
+  const PolicyInstanceConstSharedPtr GetPolicyInstance(
       const std::string& endpoint_policy_name) const;
+
+  static PolicyInstanceConstSharedPtr AllowAllEgressPolicy;
 
   bool exists(const std::string& endpoint_policy_name) const {
     return GetPolicyInstanceImpl(endpoint_policy_name).get() != nullptr;
