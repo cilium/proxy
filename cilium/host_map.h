@@ -56,7 +56,13 @@ I masked(I addr, unsigned int plen) {
   return plen == 0 ? I(0) : addr & ~hton((I(1) << (PLEN_MAX - plen)) - 1);
 };
 
-enum ID : uint64_t { UNKNOWN = 0, WORLD = 2 };
+enum ID : uint64_t {
+  UNKNOWN = 0,
+  WORLD = 2,
+  // LocalIdentityFlag is the bit in the numeric identity that identifies
+  // a numeric identity to have local scope
+  LocalIdentityFlag = 1 << 24,
+};
 
 class PolicyHostMap : public Singleton::Instance,
                       public Config::SubscriptionCallbacks,
