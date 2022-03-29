@@ -229,13 +229,14 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Use original source address with L7 LB for local endpoint sources as policy
   // enforcement after the proxy depends on it. Otherwise
   // only use the original source address if permitted and the destination is not
-  // in the same node and is not classified as WORLD.
+  // in the same node, is not a locally allocated identity, and is not classified as WORLD.
   //
   // NOTE: Both of these options (egress_mark_source_endpoint_id_ and
   // may_use_original_source_address_) are only used for egress, so the local
   // endpoint is the source, and the other node is the destination.
   if ((egress_mark_source_endpoint_id_ && policy->getEndpointID() != 0) ||
       (may_use_original_source_address_ &&
+       !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
        destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
     socket.addOptions(
         Network::SocketOptionFactory::buildIpTransparentOptions());
