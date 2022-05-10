@@ -12,7 +12,8 @@ namespace Envoy {
 const std::string BASIC_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
-  name: '{{ ntop_ip_loopback_address }}'
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
   endpoint_id: 3
   ingress_per_port_policies:
   - port: {0}
@@ -85,7 +86,8 @@ resources:
 const std::string HEADER_ACTION_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
-  name: '{{ ntop_ip_loopback_address }}'
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
   endpoint_id: 3
   ingress_per_port_policies:
   - port: {0}
@@ -774,7 +776,8 @@ TEST_P(CiliumIntegrationEgressTest, L3DeniedPath) {
 const std::string L34_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
-  name: '{{ ntop_ip_loopback_address }}'
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
   endpoint_id: 3
   egress_per_port_policies:
   - port: {0}

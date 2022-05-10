@@ -9,7 +9,8 @@ namespace Envoy {
 const std::string TCP_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
-  name: '{{ ntop_ip_loopback_address }}'
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
   - port: {0}
@@ -28,7 +29,7 @@ CiliumTcpIntegrationTest::CiliumTcpIntegrationTest(const std::string& config)
       accessLogServer_(
           TestEnvironment::unixDomainSocketPath("access_log.sock")) {
   enableHalfClose(true);
-#if 0
+#if 1
   for (Logger::Logger& logger : Logger::Registry::loggers()) {
     logger.setLevel(spdlog::level::trace);
   }

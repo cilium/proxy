@@ -696,7 +696,6 @@ NetworkPolicyMap::NetworkPolicyMap(
     Server::Configuration::FactoryContext& context)
     : tls_map(context.threadLocal()),
       validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
-      resource_decoder_(validation_visitor_, "name"),
       transport_socket_factory_context_(
           context.getTransportSocketFactoryContext()),
       local_ip_str_(context.localInfo().address()->ip()->addressAsString()),
@@ -719,7 +718,7 @@ NetworkPolicyMap::NetworkPolicyMap(
   subscription_ =
       subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
                 context.clusterManager(), context.mainThreadDispatcher(),
-                context.api().randomGenerator(), *scope_, *this, resource_decoder_);
+                context.api().randomGenerator(), *scope_, *this, *this);
 }
 
 static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{
@@ -727,8 +726,8 @@ static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{
 
 const std::shared_ptr<const PolicyInstanceImpl>&
 NetworkPolicyMap::GetPolicyInstanceImpl(
-    const std::string& endpoint_policy_name) const {
-  auto it = tls_map->policies_.find(endpoint_policy_name);
+    const std::string& endpoint_ip) const {
+  auto it = tls_map->policies_.find(endpoint_ip);
   if (it == tls_map->policies_.end()) {
     return null_instance_impl;
   }
@@ -736,8 +735,8 @@ NetworkPolicyMap::GetPolicyInstanceImpl(
 }
 
 const PolicyInstanceConstSharedPtr NetworkPolicyMap::GetPolicyInstance(
-    const std::string& endpoint_policy_name) const {
-  return GetPolicyInstanceImpl(endpoint_policy_name);
+    const std::string& endpoint_ip) const {
+  return GetPolicyInstanceImpl(endpoint_ip);
 }
 
 void NetworkPolicyMap::pause() {
@@ -770,13 +769,18 @@ void NetworkPolicyMap::onConfigUpdate(
     ENVOY_LOG(debug,
               "Received Network Policy for endpoint {} in onConfigUpdate() "
               "version {}",
-              config.name(), version_info);
-    keeps.insert(config.name());
+              config.endpoint_id(), version_info);
+    if (config.endpoint_ips().size() == 0) {
+      throw EnvoyException("Network Policy has no endpoint ips");
+    }
+    for (const auto& endpoint_ip : config.endpoint_ips()) {
+      keeps.insert(endpoint_ip);
+    }
     ct_maps_to_keep.insert(config.conntrack_map_name());
 
     // First find the old config to figure out if an update is needed.
     const uint64_t new_hash = MessageUtil::hash(config);
-    const auto& old_policy = GetPolicyInstanceImpl(config.name());
+    const auto& old_policy = GetPolicyInstanceImpl(config.endpoint_ips()[0]);
     if (old_policy && old_policy->hash_ == new_hash &&
         Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_,
                                                    config)) {
@@ -831,9 +835,11 @@ void NetworkPolicyMap::onConfigUpdate(
 	  npmap->policies_.erase(policy_name);
 	}
 	for (const auto& new_policy : *to_be_added) {
-	  ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}",
-		    new_policy->policy_proto_.name());
-	  npmap->policies_[new_policy->policy_proto_.name()] = new_policy;
+	  for (const auto& endpoint_ip : new_policy->policy_proto_.endpoint_ips()) {
+	    ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}",
+		      endpoint_ip);
+	    npmap->policies_[endpoint_ip] = new_policy;
+	  }
 	}
       },
       // Delete old cts when all threads have updated their policies,
