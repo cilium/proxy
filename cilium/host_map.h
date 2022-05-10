@@ -212,8 +212,7 @@ class PolicyHostMap : public Singleton::Instance,
                             const EnvoyException* e) override;
 
   // Config::OpaqueResourceDecoder
-  ProtobufTypes::MessagePtr decodeResource(
-      const ProtobufWkt::Any& resource) override {
+  ProtobufTypes::MessagePtr decodeResource(const ProtobufWkt::Any& resource) override {
     auto typed_message = std::make_unique<cilium::NetworkPolicyHosts>();
     // If the Any is a synthetic empty message (e.g. because the resource field
     // was not set in Resource, this might be empty, so we shouldn't decode.

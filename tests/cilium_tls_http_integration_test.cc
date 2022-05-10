@@ -135,7 +135,8 @@ static_resources:
 const std::string BASIC_TLS_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
-  name: '{{ ntop_ip_loopback_address }}'
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
   - port: {0}

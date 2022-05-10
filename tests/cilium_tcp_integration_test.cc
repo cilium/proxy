@@ -367,7 +367,8 @@ static_resources:
 const std::string TCP_POLICY_LINEPARSER_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
-  name: '{{ ntop_ip_loopback_address }}'
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
   - port: {0}
@@ -610,7 +611,8 @@ static_resources:
 const std::string TCP_POLICY_BLOCKPARSER_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
-  name: '{{ ntop_ip_loopback_address }}'
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
   - port: {0}
