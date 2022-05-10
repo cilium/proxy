@@ -7,6 +7,7 @@
 #include "cilium/grpc_subscription.h"
 #include "source/common/common/matchers.h"
 #include "source/common/config/utility.h"
+#include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h"
 
 namespace Envoy {
@@ -82,10 +83,32 @@ class AllowAllEgressPolicyInstanceImpl : public PolicyInstance {
     return 0;
   }
 
+  const IPAddressPair& getEndpointIPs() const override {
+    return empty_ips;
+  }
+
 private:
   static const std::string empty_string;
+  static const IPAddressPair empty_ips;
 };
 const std::string AllowAllEgressPolicyInstanceImpl::empty_string = "";
+const IPAddressPair AllowAllEgressPolicyInstanceImpl::empty_ips{};
+
+IPAddressPair::IPAddressPair(const cilium::NetworkPolicy& proto) {
+  for (const auto& ipAddr: proto.endpoint_ips()) {
+    auto ip = Network::Utility::parseInternetAddressNoThrow(ipAddr);
+    if (ip) {
+      switch (ip->ip()->version()) {
+      case Network::Address::IpVersion::v4:
+	ipv4_ = std::move(ip);
+	break;
+      case Network::Address::IpVersion::v6:
+	ipv6_ = std::move(ip);
+	break;
+      }
+    }
+  }
+}
 
 class PolicyInstanceImpl : public PolicyInstance {
  public:
@@ -95,6 +118,7 @@ class PolicyInstanceImpl : public PolicyInstance {
         endpoint_id_(proto.endpoint_id()),
         hash_(hash),
         policy_proto_(proto),
+        endpoint_ips_(proto),
         ingress_(parent, policy_proto_.ingress_per_port_policies()),
         egress_(parent, policy_proto_.egress_per_port_policies()) {}
 
@@ -679,11 +703,16 @@ class PolicyInstanceImpl : public PolicyInstance {
     return endpoint_id_;
   }
 
+  const IPAddressPair& getEndpointIPs() const override {
+    return endpoint_ips_;
+  }
+
  public:
   std::string conntrack_map_name_;
   uint32_t endpoint_id_;
   uint64_t hash_;
   const cilium::NetworkPolicy policy_proto_;
+  const IPAddressPair endpoint_ips_;
 
  private:
   const PortNetworkPolicy ingress_;

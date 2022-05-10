@@ -41,6 +41,15 @@ class PortPolicy {
 };
 using PortPolicyConstSharedPtr = std::shared_ptr<const PortPolicy>;
 
+class IPAddressPair {
+public:
+  IPAddressPair() {};
+  IPAddressPair(const cilium::NetworkPolicy& proto);
+
+  Network::Address::InstanceConstSharedPtr ipv4_{};
+  Network::Address::InstanceConstSharedPtr ipv6_{};
+};
+  
 class PolicyInstance {
  public:
   virtual ~PolicyInstance() = default;
@@ -60,6 +69,8 @@ class PolicyInstance {
   virtual const std::string& conntrackName() const PURE;
 
   virtual uint32_t getEndpointID() const PURE;
+
+  virtual const IPAddressPair& getEndpointIPs() const PURE;
 };
 using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
 

@@ -72,6 +72,19 @@ class SocketMarkOption : public Network::Socket::Option,
     }
 
     Network::Address::InstanceConstSharedPtr source_address = original_source_address_;
+    if (!source_address && (ipv4_source_address_ || ipv6_source_address_)) {
+      // Select source address based on the socket address family
+      auto ipVersion = socket.ipVersion();
+      if (!ipVersion.has_value()) {
+	ENVOY_LOG(critical,
+		  "Socket address family is not available, can not choose source address");
+	return false;
+      }
+      source_address = ipv6_source_address_;
+      if (*ipVersion == Network::Address::IpVersion::v4) {
+	source_address = ipv4_source_address_;
+      }
+    }
     if (source_address) {
       // Allow reuse of the original source address. This may by needed for
       // retries to not fail on "address already in use" when using a specific
@@ -84,18 +97,6 @@ class SocketMarkOption : public Network::Socket::Option,
 		  "Failed to set socket option SO_REUSEADDR: {}",
 		  Envoy::errorDetails(status.errno_));
 	return false;
-      }
-    } else if (ipv4_source_address_ || ipv6_source_address_) {
-      // Select source address based on the socket address family
-      auto ipVersion = socket.ipVersion();
-      if (!ipVersion.has_value()) {
-	ENVOY_LOG(critical,
-		  "Socket address family is not available, can not choose source address");
-	return false;
-      }
-      source_address = ipv6_source_address_;
-      if (*ipVersion == Network::Address::IpVersion::v4) {
-	source_address = ipv4_source_address_;
       }
     }
 

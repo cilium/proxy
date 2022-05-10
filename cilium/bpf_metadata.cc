@@ -10,6 +10,7 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/fmt.h"
 #include "source/common/common/utility.h"
+#include "source/common/network/address_impl.h"
 #include "source/common/network/socket_option_factory.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/registry/registry.h"
@@ -236,26 +237,62 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     destination_identity = resolvePolicyId(dip);
   }
 
-  // Use original source address with L7 LB for local endpoint sources as policy
-  // enforcement after the proxy depends on it. Otherwise
-  // only use the original source address if permitted and the destination is not
-  // in the same node, is not a locally allocated identity, and is not classified as WORLD.
+  Network::Address::InstanceConstSharedPtr ipv4_source_address = ipv4_source_address_;
+  Network::Address::InstanceConstSharedPtr ipv6_source_address = ipv6_source_address_;
+
+  // Use original source address with L7 LB for local endpoint sources as policy enforcement after
+  // the proxy depends on it (i.e., for "east/west" LB). As L7 LB does not use the original
+  // destination, there is a possibility of a 5-tuple collision if the same source pod is
+  // communicating with the same backends on same destination port directly, maybe via some other,
+  // non-L7 LB service. We keep the original source port number to not allocate random source ports
+  // for the source pod in the host networking namespace that could then blackhole existing
+  // connections between the source pod and the backend. This means that the L7 LB backend
+  // connection may fail in case of a 5-tuple collision that the host networking namespace is aware
+  // of.
   //
   // NOTE: Both of these options (egress_mark_source_endpoint_id_ and
   // may_use_original_source_address_) are only used for egress, so the local
   // endpoint is the source, and the other node is the destination.
-  if (!((egress_mark_source_endpoint_id_ && policy->getEndpointID() != 0) ||
-      (may_use_original_source_address_ &&
-       !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
-       destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip)))) {
+  if (egress_mark_source_endpoint_id_ && policy->getEndpointID() != 0) {
+    // Use original source address for Ingress/CEC for a local source EP
+    const auto& ips = policy->getEndpointIPs();
+    if (ips.ipv4_ && ips.ipv6_) {
+      // Give precedence to locally configured source addresses when both are configured,
+      // as in this case the upstream connection may go to either IPv4 or IPv6 and the
+      // source address must match that version.
+      // Keep the original source address for the matching version, create a new source IP
+      // for the other version with the same port number as in the other version. Hopefully the 5-tuple will be unique. A bind and
+      switch (sip->version()) {
+      case Network::Address::IpVersion::v4: {
+	ipv4_source_address = src_address;
+	sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(ips.ipv6_->sockAddr());
+	sa6.sin6_port = sip->port();
+	ipv6_source_address = std::make_shared<Network::Address::Ipv6Instance>(sa6);
+      }
+	break;
+      case Network::Address::IpVersion::v6: {
+	ipv6_source_address = src_address;
+	sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(ips.ipv4_->sockAddr());
+	sa4.sin_port = sip->port();
+	ipv4_source_address = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
+      }
+	break;
+      }
+      src_address = nullptr;
+    }
+  // Otherwise only use the original source address if permitted and the destination is not in the
+  // same node, is not a locally allocated identity, and is not classified as WORLD.
+  //
+  } else if (!(may_use_original_source_address_ &&
+	       !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
+	       destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
     // Original source address is not used
     src_address = nullptr;
   }
 
   // Add transparent options if either original or explicitly set source address is used
-  if (src_address || ipv4_source_address_ || ipv6_source_address_) {
-    socket.addOptions(
-        Network::SocketOptionFactory::buildIpTransparentOptions());
+  if (src_address || ipv4_source_address || ipv6_source_address) {
+    socket.addOptions(Network::SocketOptionFactory::buildIpTransparentOptions());
   }
   
   // Add metadata for policy based listener filter chain matching.
@@ -296,7 +333,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
       policy, mark, source_identity, is_ingress_, dip->port(),
-      std::move(pod_ip), src_address, ipv4_source_address_, ipv6_source_address_,
+      std::move(pod_ip), std::move(src_address),
+      std::move(ipv4_source_address), std::move(ipv6_source_address),
       shared_from_this()));
   return true;
 }
