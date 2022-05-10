@@ -21,4 +21,11 @@ message BpfMetadata {
   // upstream connections. This is needed for L7 LB listeners. Only valid for
   // egress.
   bool egress_mark_source_endpoint_id = 4;
+
+  // Source address to be used whenever the original source address is not used.
+  // Either ipv4_source_address or ipv6_source_address depending on the address
+  // family of the destination address. If left empty, and no Envoy Cluster Bind
+  // Config is provided, the source address will be picked by the local IP stack.
+  string ipv4_source_address = 5;
+  string ipv6_source_address = 6;
 }

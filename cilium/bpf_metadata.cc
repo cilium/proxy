@@ -98,10 +98,20 @@ Config::Config(const ::cilium::BpfMetadata& config,
                Server::Configuration::ListenerFactoryContext& context)
     : is_ingress_(config.is_ingress()),
       may_use_original_source_address_(config.may_use_original_source_address()),
-      egress_mark_source_endpoint_id_(config.egress_mark_source_endpoint_id())
+      egress_mark_source_endpoint_id_(config.egress_mark_source_endpoint_id()),
+      ipv4_source_address_(Network::Utility::parseInternetAddressNoThrow(config.ipv4_source_address())),
+      ipv6_source_address_(Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address()))
 {
   if (egress_mark_source_endpoint_id_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: egress_mark_source_endpoint_id may not be set with is_ingress");
+  }
+  if ((ipv4_source_address_ && ipv4_source_address_->ip()->version() != Network::Address::IpVersion::v4) ||
+      (!ipv4_source_address_ && config.ipv4_source_address().length() > 0)) {
+    throw EnvoyException(fmt::format("cilium.bpf_metadata: ipv4_source_address is not an IPv4 address: {}", config.ipv4_source_address()));
+  }
+  if ((ipv6_source_address_ && ipv6_source_address_->ip()->version() != Network::Address::IpVersion::v6) ||
+      (!ipv6_source_address_ && config.ipv6_source_address().length() > 0)) {
+    throw EnvoyException(fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}", config.ipv6_source_address()));
   }
   // Note: all instances use the bpf root of the first filter with non-empty
   // bpf_root instantiated! Only try opening bpf maps if bpf root is explicitly
@@ -234,16 +244,20 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // NOTE: Both of these options (egress_mark_source_endpoint_id_ and
   // may_use_original_source_address_) are only used for egress, so the local
   // endpoint is the source, and the other node is the destination.
-  if ((egress_mark_source_endpoint_id_ && policy->getEndpointID() != 0) ||
+  if (!((egress_mark_source_endpoint_id_ && policy->getEndpointID() != 0) ||
       (may_use_original_source_address_ &&
        !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
-       destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
-    socket.addOptions(
-        Network::SocketOptionFactory::buildIpTransparentOptions());
-  } else {
+       destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip)))) {
+    // Original source address is not used
     src_address = nullptr;
   }
 
+  // Add transparent options if either original or explicitly set source address is used
+  if (src_address || ipv4_source_address_ || ipv6_source_address_) {
+    socket.addOptions(
+        Network::SocketOptionFactory::buildIpTransparentOptions());
+  }
+  
   // Add metadata for policy based listener filter chain matching.
   // This requires the TLS inspector, if used, to run before us.
   // Note: This requires egress policy be known before upstream host selection,
@@ -282,7 +296,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
       policy, mark, source_identity, is_ingress_, dip->port(),
-      std::move(pod_ip), src_address, shared_from_this()));
+      std::move(pod_ip), src_address, ipv4_source_address_, ipv6_source_address_,
+      shared_from_this()));
   return true;
 }
 

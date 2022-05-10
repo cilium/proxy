@@ -37,6 +37,8 @@ class Config : public Cilium::PolicyResolver,
   bool is_ingress_;
   bool may_use_original_source_address_;
   bool egress_mark_source_endpoint_id_;
+  Network::Address::InstanceConstSharedPtr ipv4_source_address_;
+  Network::Address::InstanceConstSharedPtr ipv6_source_address_;
 
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
   Cilium::CtMapSharedPtr ct_maps_{};
