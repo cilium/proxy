@@ -23,11 +23,15 @@ class SocketMarkOption : public Network::Socket::Option,
                          public Logger::Loggable<Logger::Id::filter> {
  public:
   SocketMarkOption(uint32_t mark, uint32_t identity, bool ingress,
-                   Network::Address::InstanceConstSharedPtr src_address)
+                   Network::Address::InstanceConstSharedPtr original_source_address,
+                   Network::Address::InstanceConstSharedPtr ipv4_source_address,
+                   Network::Address::InstanceConstSharedPtr ipv6_source_address)
       : identity_(identity),
         mark_(mark),
         ingress_(ingress),
-        src_address_(std::move(src_address)) {}
+        original_source_address_(std::move(original_source_address)),
+        ipv4_source_address_(std::move(ipv4_source_address)),
+        ipv6_source_address_(std::move(ipv6_source_address)) {}
 
   absl::optional<Network::Socket::Option::Details> getOptionDetails(
       const Network::Socket&,
@@ -67,10 +71,12 @@ class SocketMarkOption : public Network::Socket::Option,
       }
     }
 
-    // Allow reuse of the original source address. This may by needed for
-    // retries to not fail on "address already in use" when using a specific
-    // source address and port.
-    if (src_address_) {
+    Network::Address::InstanceConstSharedPtr source_address = original_source_address_;
+    if (source_address) {
+      // Allow reuse of the original source address. This may by needed for
+      // retries to not fail on "address already in use" when using a specific
+      // source address and port.
+
       uint32_t one = 1;
       auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
       if (status.return_value_ < 0) {
@@ -79,14 +85,30 @@ class SocketMarkOption : public Network::Socket::Option,
 		  Envoy::errorDetails(status.errno_));
 	return false;
       }
-      socket.connectionInfoProvider().setLocalAddress(src_address_);
+    } else if (ipv4_source_address_ || ipv6_source_address_) {
+      // Select source address based on the socket address family
+      auto ipVersion = socket.ipVersion();
+      if (!ipVersion.has_value()) {
+	ENVOY_LOG(critical,
+		  "Socket address family is not available, can not choose source address");
+	return false;
+      }
+      source_address = ipv6_source_address_;
+      if (*ipVersion == Network::Address::IpVersion::v4) {
+	source_address = ipv4_source_address_;
+      }
     }
 
     ENVOY_LOG(trace,
               "Set socket ({}) option SO_MARK to {:x} (magic mark: {:x}, id: "
               "{}, cluster: {}), src: {}",
               socket.ioHandle().fdDoNotUse(), mark_, mark_ & 0xff00, mark_ >> 16,
-              mark_ & 0xff, src_address_ ? src_address_->asString() : "");
+              mark_ & 0xff, source_address ? source_address->asString() : "");
+
+    if (source_address) {
+      socket.connectionInfoProvider().setLocalAddress(std::move(source_address));
+    }
+
     return true;
   }
 
@@ -105,13 +127,13 @@ class SocketMarkOption : public Network::Socket::Option,
     // source address, we do not need to also add the source security ID to the
     // hash key. Note that since the identity is 3 bytes it will not collide
     // with neither an IPv4 nor IPv6 address.
-    if (src_address_) {
-      if (src_address_->ip()->version() == Network::Address::IpVersion::v4) {
-        uint32_t raw_address = src_address_->ip()->ipv4()->address();
+    if (original_source_address_) {
+      if (original_source_address_->ip()->version() == Network::Address::IpVersion::v4) {
+        uint32_t raw_address = original_source_address_->ip()->ipv4()->address();
         addressIntoVector(key, raw_address);
-      } else if (src_address_->ip()->version() ==
+      } else if (original_source_address_->ip()->version() ==
                  Network::Address::IpVersion::v6) {
-        absl::uint128 raw_address = src_address_->ip()->ipv6()->address();
+        absl::uint128 raw_address = original_source_address_->ip()->ipv6()->address();
         addressIntoVector(key, raw_address);
       }
     } else {
@@ -128,7 +150,13 @@ class SocketMarkOption : public Network::Socket::Option,
   uint32_t identity_;
   uint32_t mark_;
   bool ingress_;
-  Network::Address::InstanceConstSharedPtr src_address_;
+  Network::Address::InstanceConstSharedPtr original_source_address_;
+  // Version specific source addresses are only used if original source address is not used.
+  // Selection is made based on the socket domain, which is selected based on the destination
+  // address. This makes sure we don't try to bind IPv4 or IPv6 source address to a socket
+  // connecting to IPv6 or IPv4 address, respectively.
+  Network::Address::InstanceConstSharedPtr ipv4_source_address_;
+  Network::Address::InstanceConstSharedPtr ipv6_source_address_;
 };
 
 class SocketOption : public SocketMarkOption {
@@ -136,9 +164,11 @@ class SocketOption : public SocketMarkOption {
   SocketOption(PolicyInstanceConstSharedPtr policy, uint32_t mark,
                uint32_t source_identity,
                bool ingress, uint16_t port, std::string&& pod_ip,
-               Network::Address::InstanceConstSharedPtr src_address,
+               Network::Address::InstanceConstSharedPtr original_source_address,
+               Network::Address::InstanceConstSharedPtr ipv4_source_address,
+               Network::Address::InstanceConstSharedPtr ipv6_source_address,
                const std::shared_ptr<PolicyResolver>& policy_id_resolver)
-      : SocketMarkOption(mark, source_identity, ingress, src_address),
+    : SocketMarkOption(mark, source_identity, ingress, original_source_address, ipv4_source_address, ipv6_source_address),
         initial_policy_(policy),
         port_(port),
         pod_ip_(std::move(pod_ip)),
@@ -146,9 +176,12 @@ class SocketOption : public SocketMarkOption {
     ENVOY_LOG(
         debug,
         "Cilium SocketOption(): source_identity: {}, "
-        "ingress: {}, port: {}, pod_ip: {}, src_address: {}, mark: {}",
+        "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {}",
         identity_, ingress_, port_, pod_ip_,
-        src_address_ ? src_address_->asString() : "", mark_);
+        original_source_address_ ? original_source_address_->asString() : "",
+        ipv4_source_address_ ? ipv4_source_address_->asString() : "",
+        ipv6_source_address_ ? ipv6_source_address_->asString() : "",
+        mark_);
   }
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
