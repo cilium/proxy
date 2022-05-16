@@ -20,12 +20,7 @@ class AllowPortNetworkPolicyRule : public PortPolicy {
  public:
   AllowPortNetworkPolicyRule() {};
 
-  bool Matches(uint64_t) const override {
-    return true;
-  }
-
-  bool Matches(uint64_t, Envoy::Http::RequestHeaderMap&,
-               Cilium::AccessLog::Entry&) const {
+  bool Matches(absl::string_view, uint64_t) const override {
     return true;
   }
 
@@ -409,6 +404,13 @@ class PolicyInstanceImpl : public PolicyInstance {
             parent.transport_socket_factory_context_.scope(),
             *client_config_);
       }
+      for (const auto& sni : rule.server_names()) {
+        ENVOY_LOG(
+            trace,
+            "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}",
+            sni, name_);
+        allowed_snis_.emplace(sni);
+      }
       if (rule.has_http_rules()) {
         for (const auto& http_rule : rule.http_rules().http_rules()) {
           if (http_rule.header_matches_size() > 0) {
@@ -432,7 +434,7 @@ class PolicyInstanceImpl : public PolicyInstance {
       manager_.removeContext(client_context_);
     }
 
-    bool Matches(uint64_t remote_id) const override {
+    bool Matches(uint64_t remote_id) const {
       // Remote ID must match if we have any.
       if (allowed_remotes_.size() > 0) {
         auto search = allowed_remotes_.find(remote_id);
@@ -441,6 +443,20 @@ class PolicyInstanceImpl : public PolicyInstance {
         }
       }
       return true;
+    }
+
+    bool Matches(absl::string_view sni, uint64_t remote_id) const override {
+      // sni must match if we have any
+      if (allowed_snis_.size() > 0) {
+        if (sni.length() == 0) {
+          return false;
+        }
+        auto search = allowed_snis_.find(sni);
+        if (search == allowed_snis_.end()) {
+          return false;
+        }
+      }
+      return Matches(remote_id);
     }
 
     bool Matches(uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers,
@@ -540,6 +556,8 @@ class PolicyInstanceImpl : public PolicyInstance {
     std::string name_;
     std::unordered_set<uint64_t>
         allowed_remotes_;  // Everyone allowed if empty.
+    // Use std::less<> to allow heterogeneous lookups (with string_view).
+    std::set<std::string, std::less<>> allowed_snis_;  // All SNIs allowed if empty.
     std::vector<HttpNetworkPolicyRule>
         http_rules_;  // Allowed if empty, but remote is checked first.
     bool have_header_matches_{false};

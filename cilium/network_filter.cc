@@ -107,14 +107,18 @@ Network::FilterStatus Instance::onNewConnection() {
       ENVOY_CONN_LOG(warn, "cilium.network: Cilium Socket Option not found", conn);
       return false;
     }
-      
+
+    const auto sni = conn.requestedServerName();
+    if (sni != "") {
+      ENVOY_CONN_LOG(trace, "cilium.network: SNI: {}", conn, sni);
+    }
+
     // Pass metadata from tls_inspector to the filterstate, if any & not already
     // set via upstream cluster config, but not in a sidecar, which have no mark
     if (option->mark_ != 0) {
       auto have_sni = stream_info.filterState()->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
       auto have_san = stream_info.filterState()->hasData<Network::UpstreamSubjectAltNames>(Network::UpstreamSubjectAltNames::key());
       if (!have_sni || !have_san) {
-        const auto sni = conn.requestedServerName();
         if (sni != "") {
           stream_info.filterState()->setData(Network::UpstreamServerName::key(),
                                              std::make_unique<Network::UpstreamServerName>(sni),
@@ -153,7 +157,7 @@ Network::FilterStatus Instance::onNewConnection() {
       return false;
     }
 
-    if (!port_policy_->Matches(option->ingress_ ? option->identity_ : destination_identity)) {
+    if (!port_policy_->Matches(sni, option->ingress_ ? option->identity_ : destination_identity)) {
       // Connection not allowed by policy
       ENVOY_CONN_LOG(warn, "cilium.network: Policy DENY on id: {} port: {}",
                      conn, option->ingress_ ? option->identity_ : destination_identity, destination_port);
