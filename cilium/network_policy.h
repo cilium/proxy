@@ -29,10 +29,9 @@ class PortPolicy {
 
   virtual bool useProxylib(std::string& l7_proto) const PURE;
 
-  virtual bool Matches(uint64_t remote_id) const PURE;
+  virtual bool Matches(absl::string_view sni, uint64_t remote_id) const PURE;
 
-  virtual bool allowed(
-      const envoy::config::core::v3::Metadata& metadata) const PURE;
+  virtual bool allowed(const envoy::config::core::v3::Metadata& metadata) const PURE;
 
   virtual const Ssl::ContextConfig& getServerTlsContextConfig() const PURE;
   virtual Ssl::ContextSharedPtr getServerTlsContext() const PURE;
