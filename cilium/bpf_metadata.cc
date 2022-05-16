@@ -300,7 +300,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Add metadata for policy based listener filter chain matching.
   // This requires the TLS inspector, if used, to run before us.
   // Note: This requires egress policy be known before upstream host selection,
-  // so this feature only works with the original destionation cluster.
+  // so this feature only works with the original destination cluster.
   // This means that L7 LB does not work with the experimental Envoy Metadata
   // based policies (e.g., with MongoDB or MySQL filters).
   std::string l7proto;
