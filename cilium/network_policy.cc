@@ -400,7 +400,7 @@ class PolicyInstanceImpl : public PolicyInstance {
                              "more than one server name in rule ",
                              name_));
           }
-          context_config.set_sni(config.server_names(1));
+          context_config.set_sni(config.server_names(0));
         }
         client_config_ = std::make_unique<
             Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
