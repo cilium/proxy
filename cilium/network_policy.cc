@@ -293,12 +293,12 @@ class PolicyInstanceImpl : public PolicyInstance {
 
     bool matches(const envoy::config::core::v3::Metadata& metadata) const {
       // All matchers must be satisfied for the rule to match
-      int i = 0;
+      int i = 0; // Only used for trace-level debug
       for (const auto& metadata_matcher : metadata_matchers_) {
         ENVOY_LOG(trace,
                   "L7NetworkPolicyRule::matches(): checking rule {} against "
                   "metadata {}",
-                  matchers_[i].DebugString(), metadata.DebugString());
+                  matchers_[i++].DebugString(), metadata.DebugString());
         if (!metadata_matcher.match(metadata)) {
           return false;
         }
