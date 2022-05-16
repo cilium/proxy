@@ -124,6 +124,9 @@ message PortNetworkPolicyRule {
   // TLS.
   TLSContext upstream_tls_context = 4;
 
+  // Optional allowed SNIs in TLS handshake.
+  repeated string server_names = 6;
+
   // Optional L7 protocol parser name. This is only used if the parser is not
   // one of the well knows ones. If specified, the l7 parser having this name
   // needs to be built in to libcilium.so.
