@@ -17,7 +17,7 @@ EXTENSIONS = {
     #
 
     # "envoy.clusters.aggregate":                         "//source/extensions/clusters/aggregate:cluster",
-    # "envoy.clusters.dynamic_forward_proxy":             "//source/extensions/clusters/dynamic_forward_proxy:cluster",
+    "envoy.clusters.dynamic_forward_proxy":             "//source/extensions/clusters/dynamic_forward_proxy:cluster",
     # "envoy.clusters.redis":                             "//source/extensions/clusters/redis:redis_cluster",
 
     #
@@ -79,7 +79,7 @@ EXTENSIONS = {
     # "envoy.filters.http.composite":                     "//source/extensions/filters/http/composite:config",
     # "envoy.filters.http.csrf":                          "//source/extensions/filters/http/csrf:config",
     # "envoy.filters.http.decompressor":                  "//source/extensions/filters/http/decompressor:config",
-    # "envoy.filters.http.dynamic_forward_proxy":         "//source/extensions/filters/http/dynamic_forward_proxy:config",
+    "envoy.filters.http.dynamic_forward_proxy":         "//source/extensions/filters/http/dynamic_forward_proxy:config",
     # "envoy.filters.http.dynamo":                        "//source/extensions/filters/http/dynamo:config",
     "envoy.filters.http.ext_authz":                     "//source/extensions/filters/http/ext_authz:config",
     # "envoy.filters.http.ext_proc":                      "//source/extensions/filters/http/ext_proc:config",
@@ -95,15 +95,15 @@ EXTENSIONS = {
     # "envoy.filters.http.jwt_authn":                     "//source/extensions/filters/http/jwt_authn:config",
     # Disabled by default
     # "envoy.filters.http.kill_request":                  "//source/extensions/filters/http/kill_request:kill_request_config",
-    # "envoy.filters.http.local_ratelimit":               "//source/extensions/filters/http/local_ratelimit:config",
+    "envoy.filters.http.local_ratelimit":               "//source/extensions/filters/http/local_ratelimit:config",
     # "envoy.filters.http.lua":                           "//source/extensions/filters/http/lua:config",
     # "envoy.filters.http.oauth2":                        "//source/extensions/filters/http/oauth2:config",
     # "envoy.filters.http.on_demand":                     "//source/extensions/filters/http/on_demand:config",
     # "envoy.filters.http.original_src":                  "//source/extensions/filters/http/original_src:config",
-    # "envoy.filters.http.ratelimit":                     "//source/extensions/filters/http/ratelimit:config",
+    "envoy.filters.http.ratelimit":                     "//source/extensions/filters/http/ratelimit:config",
     # "envoy.filters.http.rbac":                          "//source/extensions/filters/http/rbac:config",
     "envoy.filters.http.router":                        "//source/extensions/filters/http/router:config",
-    # "envoy.filters.http.set_metadata":                  "//source/extensions/filters/http/set_metadata:config",
+    "envoy.filters.http.set_metadata":                  "//source/extensions/filters/http/set_metadata:config",
     # "envoy.filters.http.tap":                           "//source/extensions/filters/http/tap:config",
     # "envoy.filters.http.wasm":                          "//source/extensions/filters/http/wasm:config",
     # "envoy.filters.http.stateful_session":              "//source/extensions/filters/http/stateful_session:config",
@@ -127,22 +127,22 @@ EXTENSIONS = {
     #
 
     # "envoy.filters.network.client_ssl_auth":                      "//source/extensions/filters/network/client_ssl_auth:config",
-    # "envoy.filters.network.connection_limit":                     "//source/extensions/filters/network/connection_limit:config",
+    "envoy.filters.network.connection_limit":                     "//source/extensions/filters/network/connection_limit:config",
     # "envoy.filters.network.direct_response":                      "//source/extensions/filters/network/direct_response:config",
     # "envoy.filters.network.dubbo_proxy":                          "//source/extensions/filters/network/dubbo_proxy:config",
     # "envoy.filters.network.echo":                                 "//source/extensions/filters/network/echo:config",
     "envoy.filters.network.ext_authz":                            "//source/extensions/filters/network/ext_authz:config",
     "envoy.filters.network.http_connection_manager":              "//source/extensions/filters/network/http_connection_manager:config",
-    # "envoy.filters.network.local_ratelimit":                      "//source/extensions/filters/network/local_ratelimit:config",
+    "envoy.filters.network.local_ratelimit":                      "//source/extensions/filters/network/local_ratelimit:config",
     "envoy.filters.network.mongo_proxy":                          "//source/extensions/filters/network/mongo_proxy:config",
     "envoy.filters.network.mysql_proxy":                          "//contrib/mysql_proxy/filters/network/source:config",
-    # "envoy.filters.network.ratelimit":                            "//source/extensions/filters/network/ratelimit:config",
+    "envoy.filters.network.ratelimit":                            "//source/extensions/filters/network/ratelimit:config",
     # "envoy.filters.network.rbac":                                 "//source/extensions/filters/network/rbac:config",
     # "envoy.filters.network.redis_proxy":                          "//source/extensions/filters/network/redis_proxy:config",
     "envoy.filters.network.tcp_proxy":                            "//source/extensions/filters/network/tcp_proxy:config",
     # "envoy.filters.network.thrift_proxy":                         "//source/extensions/filters/network/thrift_proxy:config",
-    # "envoy.filters.network.sni_cluster":                          "//source/extensions/filters/network/sni_cluster:config",
-    # "envoy.filters.network.sni_dynamic_forward_proxy":            "//source/extensions/filters/network/sni_dynamic_forward_proxy:config",
+    "envoy.filters.network.sni_cluster":                          "//source/extensions/filters/network/sni_cluster:config",
+    "envoy.filters.network.sni_dynamic_forward_proxy":            "//source/extensions/filters/network/sni_dynamic_forward_proxy:config",
     # "envoy.filters.network.wasm":                                 "//source/extensions/filters/network/wasm:config",
     # "envoy.filters.network.zookeeper_proxy":                      "//source/extensions/filters/network/zookeeper_proxy:config",
 
@@ -234,8 +234,8 @@ EXTENSIONS = {
     # Http Upstreams (excepting envoy.upstreams.http.generic which is hard-coded into the build so not registered here)
     #
 
-    # "envoy.upstreams.http.http":                        "//source/extensions/upstreams/http/http:config",
-    # "envoy.upstreams.http.tcp":                         "//source/extensions/upstreams/http/tcp:config",
+    "envoy.upstreams.http.http":                        "//source/extensions/upstreams/http/http:config",
+    "envoy.upstreams.http.tcp":                         "//source/extensions/upstreams/http/tcp:config",
 
     #
     # Watchdog actions
