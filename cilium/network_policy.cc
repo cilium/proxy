@@ -318,7 +318,8 @@ class PolicyInstanceImpl : public PolicyInstance {
    public:
     PortNetworkPolicyRule(const NetworkPolicyMap& parent,
                           const cilium::PortNetworkPolicyRule& rule)
-        : name_(rule.name()), l7_proto_(rule.l7_proto()) {
+      : manager_(parent.transport_socket_factory_context_.sslContextManager()),
+	name_(rule.name()), l7_proto_(rule.l7_proto()) {
       for (const auto& remote : rule.remote_policies()) {
         ENVOY_LOG(
             trace,
@@ -364,11 +365,9 @@ class PolicyInstanceImpl : public PolicyInstance {
         server_config_ = std::make_unique<
             Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
             context_config, parent.transport_socket_factory_context_);
-        server_context_ =
-            parent.transport_socket_factory_context_.sslContextManager()
-                .createSslServerContext(
-                    parent.transport_socket_factory_context_.scope(),
-                    *server_config_, server_names_, nullptr);
+        server_context_ = manager_.createSslServerContext(
+            parent.transport_socket_factory_context_.scope(),
+            *server_config_, server_names_);
       }
       if (rule.has_upstream_tls_context()) {
         auto config = rule.upstream_tls_context();
@@ -406,11 +405,9 @@ class PolicyInstanceImpl : public PolicyInstance {
         client_config_ = std::make_unique<
             Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
             context_config, parent.transport_socket_factory_context_);
-        client_context_ =
-            parent.transport_socket_factory_context_.sslContextManager()
-                .createSslClientContext(
-                    parent.transport_socket_factory_context_.scope(),
-                    *client_config_, nullptr);
+        client_context_ = manager_.createSslClientContext(
+            parent.transport_socket_factory_context_.scope(),
+            *client_config_);
       }
       if (rule.has_http_rules()) {
         for (const auto& http_rule : rule.http_rules().http_rules()) {
@@ -429,6 +426,10 @@ class PolicyInstanceImpl : public PolicyInstance {
           l7_allow_rules_.emplace_back(l7_rule);
         }
       }
+    }
+    ~PortNetworkPolicyRule() {
+      manager_.removeContext(server_context_);
+      manager_.removeContext(client_context_);
     }
 
     bool Matches(uint64_t remote_id) const override {
@@ -528,6 +529,7 @@ class PolicyInstanceImpl : public PolicyInstance {
       return client_context_;
     }
 
+    Envoy::Ssl::ContextManager& manager_;
     Ssl::ServerContextConfigPtr server_config_;
     std::vector<std::string> server_names_;
     Ssl::ServerContextSharedPtr server_context_;
