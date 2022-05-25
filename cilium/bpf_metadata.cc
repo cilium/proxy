@@ -52,8 +52,10 @@ class BpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
 
 /**
  * Static registration for the bpf metadata filter. @see RegisterFactory.
+ * Versioning started from 1.1.0 for Cilium version 1.12.0.
  */
-REGISTER_FACTORY(BpfMetadataConfigFactory, NamedListenerFilterConfigFactory);
+REGISTER_FACTORY(BpfMetadataConfigFactory,
+		 NamedListenerFilterConfigFactory){FACTORY_VERSION(1, 1, 0, {{}})};
 
 }  // namespace Configuration
 }  // namespace Server
