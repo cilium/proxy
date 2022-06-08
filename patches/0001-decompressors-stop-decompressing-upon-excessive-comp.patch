@@ -1,0 +1,335 @@
+From 232e314fd08d1f7d48e786843e2cafbe3c1578da Mon Sep 17 00:00:00 2001
+From: Pradeep Rao <pcrao@google.com>
+Date: Fri, 20 May 2022 19:01:58 +0000
+Subject: [PATCH 1/4] decompressors: stop decompressing upon excessive
+ compression ratio (#733)
+
+commit 1f6ff7d0ef5adaaca3b00f17db38a0f327fb133f
+Author: Pradeep Rao <pcrao@google.com>
+Date:   Thu May 19 18:27:11 2022 +0000
+
+    Fix release notes.
+
+    Signed-off-by: Pradeep Rao <pcrao@google.com>
+
+commit f1cda77410934fe9a192cedfd4d0cbfd31390642
+Author: Pradeep Rao <pcrao@google.com>
+Date:   Thu May 12 17:05:49 2022 +0000
+
+    decompressors: stop decompressing upon excessive compression ratio (#733)
+
+    Signed-off-by: Pradeep Rao <pcrao@google.com>
+
+Signed-off-by: Pradeep Rao <pcrao@google.com>
+---
+ docs/root/version_history/current.rst         |  1 -
+ source/common/runtime/runtime_features.cc     |  1 +
+ .../compression/brotli/common/base.cc         |  7 ++---
+ .../compression/brotli/common/base.h          |  3 ++-
+ .../compression/brotli/decompressor/BUILD     |  1 +
+ .../decompressor/brotli_decompressor_impl.cc  | 21 ++++++++++++++-
+ .../extensions/compression/gzip/common/base.h |  1 -
+ .../compression/gzip/decompressor/BUILD       |  1 +
+ .../decompressor/zlib_decompressor_impl.cc    | 24 +++++++++++++++++
+ .../brotli_decompressor_impl_test.cc          | 26 +++++++++++++++++++
+ .../compression/gzip/compressor_fuzz_test.cc  |  6 +++--
+ .../zlib_decompressor_impl_test.cc            | 25 ++++++++++++++++++
+ 12 files changed, 108 insertions(+), 9 deletions(-)
+
+diff --git a/docs/root/version_history/current.rst b/docs/root/version_history/current.rst
+index 6e81bc2e08..320e83043c 100644
+--- a/docs/root/version_history/current.rst
++++ b/docs/root/version_history/current.rst
+@@ -15,7 +15,6 @@ Bug Fixes
+ ---------
+ *Changes expected to improve the state of the world and are unlikely to have negative effects*
+ 
+-Removed Config or Runtime
+ -------------------------
+ *Normally occurs at the end of the* :ref:`deprecation period <deprecated>`
+ 
+diff --git a/source/common/runtime/runtime_features.cc b/source/common/runtime/runtime_features.cc
+index c8b106acf5..f7ba9addea 100644
+--- a/source/common/runtime/runtime_features.cc
++++ b/source/common/runtime/runtime_features.cc
+@@ -61,6 +61,7 @@ constexpr const char* runtime_features[] = {
+     "envoy.reloadable_features.correct_scheme_and_xfp",
+     "envoy.reloadable_features.correctly_validate_alpn",
+     "envoy.reloadable_features.disable_tls_inspector_injection",
++    "envoy.reloadable_features.enable_compression_bomb_protection",
+     "envoy.reloadable_features.fix_added_trailers",
+     "envoy.reloadable_features.grpc_bridge_stats_disabled",
+     "envoy.reloadable_features.handle_stream_reset_during_hcm_encoding",
+diff --git a/source/extensions/compression/brotli/common/base.cc b/source/extensions/compression/brotli/common/base.cc
+index fd36412496..edbd9be90d 100644
+--- a/source/extensions/compression/brotli/common/base.cc
++++ b/source/extensions/compression/brotli/common/base.cc
+@@ -6,9 +6,10 @@ namespace Compression {
+ namespace Brotli {
+ namespace Common {
+ 
+-BrotliContext::BrotliContext(const uint32_t chunk_size)
+-    : chunk_size_{chunk_size}, chunk_ptr_{std::make_unique<uint8_t[]>(chunk_size)}, next_in_{},
+-      next_out_{chunk_ptr_.get()}, avail_in_{0}, avail_out_{chunk_size} {}
++BrotliContext::BrotliContext(uint32_t chunk_size, uint32_t max_output_size)
++    : max_output_size_{max_output_size}, chunk_size_{chunk_size},
++      chunk_ptr_{std::make_unique<uint8_t[]>(chunk_size)}, next_in_{}, next_out_{chunk_ptr_.get()},
++      avail_in_{0}, avail_out_{chunk_size} {}
+ 
+ void BrotliContext::updateOutput(Buffer::Instance& output_buffer) {
+   if (avail_out_ == 0) {
+diff --git a/source/extensions/compression/brotli/common/base.h b/source/extensions/compression/brotli/common/base.h
+index fed019c9a2..929081c6ef 100644
+--- a/source/extensions/compression/brotli/common/base.h
++++ b/source/extensions/compression/brotli/common/base.h
+@@ -12,11 +12,12 @@ namespace Common {
+ 
+ // Keeps a `Brotli` compression stream's state.
+ struct BrotliContext {
+-  BrotliContext(const uint32_t chunk_size);
++  BrotliContext(uint32_t chunk_size, uint32_t max_output_size = 0);
+ 
+   void updateOutput(Buffer::Instance& output_buffer);
+   void finalizeOutput(Buffer::Instance& output_buffer);
+ 
++  const uint32_t max_output_size_;
+   const uint32_t chunk_size_;
+   std::unique_ptr<uint8_t[]> chunk_ptr_;
+   const uint8_t* next_in_;
+diff --git a/source/extensions/compression/brotli/decompressor/BUILD b/source/extensions/compression/brotli/decompressor/BUILD
+index 252eb0e072..18155bfaae 100644
+--- a/source/extensions/compression/brotli/decompressor/BUILD
++++ b/source/extensions/compression/brotli/decompressor/BUILD
+@@ -19,6 +19,7 @@ envoy_cc_library(
+         "//envoy/stats:stats_interface",
+         "//envoy/stats:stats_macros",
+         "//source/common/buffer:buffer_lib",
++        "//source/common/runtime:runtime_features_lib",
+         "//source/extensions/compression/brotli/common:brotli_base_lib",
+     ],
+ )
+diff --git a/source/extensions/compression/brotli/decompressor/brotli_decompressor_impl.cc b/source/extensions/compression/brotli/decompressor/brotli_decompressor_impl.cc
+index adc2dbb9c7..eb1bb144ba 100644
+--- a/source/extensions/compression/brotli/decompressor/brotli_decompressor_impl.cc
++++ b/source/extensions/compression/brotli/decompressor/brotli_decompressor_impl.cc
+@@ -2,12 +2,24 @@
+ 
+ #include <memory>
+ 
++#include "source/common/runtime/runtime_features.h"
++
+ namespace Envoy {
+ namespace Extensions {
+ namespace Compression {
+ namespace Brotli {
+ namespace Decompressor {
+ 
++namespace {
++
++// How many times the output buffer is allowed to be bigger than the input
++// buffer. This value is used to detect compression bombs.
++// TODO(rojkov): Re-design the Decompressor interface to handle compression
++// bombs gracefully instead of this quick solution.
++constexpr uint32_t MaxInflateRatio = 100;
++
++} // namespace
++
+ BrotliDecompressorImpl::BrotliDecompressorImpl(Stats::Scope& scope, const std::string& stats_prefix,
+                                                const uint32_t chunk_size,
+                                                const bool disable_ring_buffer_reallocation)
+@@ -22,7 +34,7 @@ BrotliDecompressorImpl::BrotliDecompressorImpl(Stats::Scope& scope, const std::s
+ 
+ void BrotliDecompressorImpl::decompress(const Buffer::Instance& input_buffer,
+                                         Buffer::Instance& output_buffer) {
+-  Common::BrotliContext ctx(chunk_size_);
++  Common::BrotliContext ctx(chunk_size_, MaxInflateRatio * input_buffer.length());
+ 
+   for (const Buffer::RawSlice& input_slice : input_buffer.getRawSlices()) {
+     ctx.avail_in_ = input_slice.len_;
+@@ -58,6 +70,13 @@ bool BrotliDecompressorImpl::process(Common::BrotliContext& ctx, Buffer::Instanc
+     return false;
+   }
+ 
++  if (Runtime::runtimeFeatureEnabled(
++          "envoy.reloadable_features.enable_compression_bomb_protection") &&
++      (output_buffer.length() > ctx.max_output_size_)) {
++    stats_.brotli_error_.inc();
++    return false;
++  }
++
+   ctx.updateOutput(output_buffer);
+ 
+   return true;
+diff --git a/source/extensions/compression/gzip/common/base.h b/source/extensions/compression/gzip/common/base.h
+index f8b89cb253..4f427fb909 100644
+--- a/source/extensions/compression/gzip/common/base.h
++++ b/source/extensions/compression/gzip/common/base.h
+@@ -12,7 +12,6 @@ namespace Zlib {
+ /**
+  * Shared code between the compressor and the decompressor.
+  */
+-// TODO(junr03): move to extensions tree once the compressor side is moved to extensions.
+ class Base {
+ public:
+   Base(uint64_t chunk_size, std::function<void(z_stream*)> zstream_deleter);
+diff --git a/source/extensions/compression/gzip/decompressor/BUILD b/source/extensions/compression/gzip/decompressor/BUILD
+index 13939fdcbf..2090f49bcd 100644
+--- a/source/extensions/compression/gzip/decompressor/BUILD
++++ b/source/extensions/compression/gzip/decompressor/BUILD
+@@ -21,6 +21,7 @@ envoy_cc_library(
+         "//source/common/buffer:buffer_lib",
+         "//source/common/common:assert_lib",
+         "//source/common/common:minimal_logger_lib",
++        "//source/common/runtime:runtime_features_lib",
+         "//source/extensions/compression/gzip/common:zlib_base_lib",
+     ],
+ )
+diff --git a/source/extensions/compression/gzip/decompressor/zlib_decompressor_impl.cc b/source/extensions/compression/gzip/decompressor/zlib_decompressor_impl.cc
+index 966730c238..0932638315 100644
+--- a/source/extensions/compression/gzip/decompressor/zlib_decompressor_impl.cc
++++ b/source/extensions/compression/gzip/decompressor/zlib_decompressor_impl.cc
+@@ -7,6 +7,7 @@
+ #include "envoy/common/exception.h"
+ 
+ #include "source/common/common/assert.h"
++#include "source/common/runtime/runtime_features.h"
+ 
+ #include "absl/container/fixed_array.h"
+ 
+@@ -16,6 +17,16 @@ namespace Compression {
+ namespace Gzip {
+ namespace Decompressor {
+ 
++namespace {
++
++// How many times the output buffer is allowed to be bigger than the size of
++// accumulated input. This value is used to detect compression bombs.
++// TODO(rojkov): Re-design the Decompressor interface to handle compression
++// bombs gracefully instead of this quick solution.
++constexpr uint64_t MaxInflateRatio = 100;
++
++} // namespace
++
+ ZlibDecompressorImpl::ZlibDecompressorImpl(Stats::Scope& scope, const std::string& stats_prefix)
+     : ZlibDecompressorImpl(scope, stats_prefix, 4096) {}
+ 
+@@ -43,6 +54,8 @@ void ZlibDecompressorImpl::init(int64_t window_bits) {
+ 
+ void ZlibDecompressorImpl::decompress(const Buffer::Instance& input_buffer,
+                                       Buffer::Instance& output_buffer) {
++  uint64_t limit = MaxInflateRatio * input_buffer.length();
++
+   for (const Buffer::RawSlice& input_slice : input_buffer.getRawSlices()) {
+     zstream_ptr_->avail_in = input_slice.len_;
+     zstream_ptr_->next_in = static_cast<Bytef*>(input_slice.mem_);
+@@ -50,6 +63,17 @@ void ZlibDecompressorImpl::decompress(const Buffer::Instance& input_buffer,
+       if (zstream_ptr_->avail_out == 0) {
+         updateOutput(output_buffer);
+       }
++
++      if (Runtime::runtimeFeatureEnabled(
++              "envoy.reloadable_features.enable_compression_bomb_protection") &&
++          (output_buffer.length() > limit)) {
++        stats_.zlib_data_error_.inc();
++        ENVOY_LOG(trace,
++                  "excessive decompression ratio detected: output "
++                  "size {} for input size {}",
++                  output_buffer.length(), input_buffer.length());
++        return;
++      }
+     }
+   }
+ 
+diff --git a/test/extensions/compression/brotli/decompressor/brotli_decompressor_impl_test.cc b/test/extensions/compression/brotli/decompressor/brotli_decompressor_impl_test.cc
+index c03884f35f..57102b7e83 100644
+--- a/test/extensions/compression/brotli/decompressor/brotli_decompressor_impl_test.cc
++++ b/test/extensions/compression/brotli/decompressor/brotli_decompressor_impl_test.cc
+@@ -25,6 +25,32 @@ protected:
+   static constexpr uint32_t default_input_size{796};
+ };
+ 
++// Detect excessive compression ratio by compressing a long whitespace string
++// into a very small chunk of data and decompressing it again.
++TEST_F(BrotliDecompressorImplTest, DetectExcessiveCompressionRatio) {
++  const absl::string_view ten_whitespaces = "          ";
++  Brotli::Compressor::BrotliCompressorImpl compressor{
++      default_quality,
++      default_window_bits,
++      default_input_block_bits,
++      false,
++      Brotli::Compressor::BrotliCompressorImpl::EncoderMode::Default,
++      4096};
++  Buffer::OwnedImpl buffer;
++
++  for (int i = 0; i < 1000; i++) {
++    buffer.add(ten_whitespaces);
++  }
++
++  compressor.compress(buffer, Envoy::Compression::Compressor::State::Finish);
++
++  Buffer::OwnedImpl output_buffer;
++  Stats::IsolatedStoreImpl stats_store{};
++  BrotliDecompressorImpl decompressor{stats_store, "test.", 16, false};
++  decompressor.decompress(buffer, output_buffer);
++  EXPECT_EQ(1, stats_store.counterFromString("test.brotli_error").value());
++}
++
+ // Exercises compression and decompression by compressing some data, decompressing it and then
+ // comparing compressor's input/checksum with decompressor's output/checksum.
+ TEST_F(BrotliDecompressorImplTest, CompressAndDecompress) {
+diff --git a/test/extensions/compression/gzip/compressor_fuzz_test.cc b/test/extensions/compression/gzip/compressor_fuzz_test.cc
+index 73c592cb1f..c745abb7a9 100644
+--- a/test/extensions/compression/gzip/compressor_fuzz_test.cc
++++ b/test/extensions/compression/gzip/compressor_fuzz_test.cc
+@@ -71,8 +71,10 @@ DEFINE_FUZZER(const uint8_t* buf, size_t len) {
+                                                : Envoy::Compression::Compressor::State::Flush);
+     decompressor.decompress(buffer, full_output);
+   }
+-  RELEASE_ASSERT(full_input.toString() == full_output.toString(), "");
+-  RELEASE_ASSERT(compressor.checksum() == decompressor.checksum(), "");
++  if (stats_store.counterFromString("test.zlib_data_error").value() == 0) {
++    RELEASE_ASSERT(full_input.toString() == full_output.toString(), "");
++    RELEASE_ASSERT(compressor.checksum() == decompressor.checksum(), "");
++  }
+ }
+ 
+ } // namespace Fuzz
+diff --git a/test/extensions/compression/gzip/decompressor/zlib_decompressor_impl_test.cc b/test/extensions/compression/gzip/decompressor/zlib_decompressor_impl_test.cc
+index 0346118a2b..b895415f88 100644
+--- a/test/extensions/compression/gzip/decompressor/zlib_decompressor_impl_test.cc
++++ b/test/extensions/compression/gzip/decompressor/zlib_decompressor_impl_test.cc
+@@ -122,6 +122,31 @@ TEST_F(ZlibDecompressorImplTest, CallingChecksum) {
+   ASSERT_EQ(0, decompressor.decompression_error_);
+ }
+ 
++// Detect excessive compression ratio by compressing a long whitespace string
++// into a very small chunk of data and decompressing it again.
++TEST_F(ZlibDecompressorImplTest, DetectExcessiveCompressionRatio) {
++  const absl::string_view ten_whitespaces = "          ";
++  Buffer::OwnedImpl buffer;
++  Extensions::Compression::Gzip::Compressor::ZlibCompressorImpl compressor;
++  compressor.init(
++      Extensions::Compression::Gzip::Compressor::ZlibCompressorImpl::CompressionLevel::Standard,
++      Extensions::Compression::Gzip::Compressor::ZlibCompressorImpl::CompressionStrategy::Standard,
++      gzip_window_bits, memory_level);
++
++  for (int i = 0; i < 1000; i++) {
++    buffer.add(ten_whitespaces);
++  }
++
++  compressor.compress(buffer, Envoy::Compression::Compressor::State::Finish);
++
++  Buffer::OwnedImpl output_buffer;
++  Stats::IsolatedStoreImpl stats_store{};
++  ZlibDecompressorImpl decompressor{stats_store, "test."};
++  decompressor.init(gzip_window_bits);
++  decompressor.decompress(buffer, output_buffer);
++  ASSERT_EQ(stats_store.counterFromString("test.zlib_data_error").value(), 1);
++}
++
+ // Exercises compression and decompression by compressing some data, decompressing it and then
+ // comparing compressor's input/checksum with decompressor's output/checksum.
+ TEST_F(ZlibDecompressorImplTest, CompressAndDecompress) {
+-- 
+2.36.1.124.g0e6072fb45-goog
+
