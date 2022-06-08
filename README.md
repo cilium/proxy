@@ -222,6 +222,7 @@ rm -r go/envoy/*
 make api
 ```
 
+
 `rm` is needed to clean up API files that are no longer generated for
 Envoy. **Do not** remove files at `go/cilium/` as some of them are not
 automatically generated!
