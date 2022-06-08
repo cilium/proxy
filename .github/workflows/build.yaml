@@ -43,6 +43,20 @@ jobs:
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
+          echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
+
+      - name: PR Multi-arch build & push of image builder
+        uses: docker/build-push-action@v2
+        id: docker_build_ci_builder
+        with:
+          context: .
+          file: ./Dockerfile.builder
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=local,src=/tmp/buildx-cache
+          cache-to: type=local,dest=/tmp/buildx-cache,mode=max
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-dev:bazel-${{ github.event.pull_request.head.sha }}
+
       - name: PR Multi-arch build & push of cilium-envoy
         uses: docker/build-push-action@v2
         id: docker_build_ci
