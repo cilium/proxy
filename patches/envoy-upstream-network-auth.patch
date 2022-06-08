@@ -221,7 +221,7 @@ index 879731609..6ff42ffa4 100644
 +  void addUpstreamCallback(const UpstreamCallback& cb) {
 +    decoder_filter_upstream_cbs_.emplace_back(cb);
 +  }
-+    
++
 +  bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr host,
 +				StreamInfo::StreamInfo& stream_info) {
 +    bool accept = true;
@@ -250,7 +250,7 @@ index 9adb05a4b..60252a0b8 100644
 +                               nullptr, absl::nullopt, absl::string_view());
 +    return Http::FilterHeadersStatus::StopIteration;
 +  }
-+  
++
    hedging_params_ = FilterUtility::finalHedgingParams(*route_entry_, headers);
  
    timeout_ = FilterUtility::finalTimeout(*route_entry_, headers, !config_.suppress_envoy_headers_,

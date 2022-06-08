@@ -44,7 +44,7 @@ index 6e6cad73a..ef15aa183 100644
 + * The callback is called right befere the request is encoded on the already connected
 + * upstream connection. At this stage all header manipulations in the Envoy configuration
 + * have been performed so that the callback may inspect the final headers.
-+ * 
++ *
 + * UpstreamCallback may not be called if a local reply is issued instead or forwarding
 + * the request.
 + *
@@ -62,7 +62,7 @@ index 6e6cad73a..ef15aa183 100644
                                          StreamInfo::StreamInfo&) PURE;
 +
 +  /*
-+   * Adds the given callback to be executed later via 
++   * Adds the given callback to be executed later via
 +   */
 +  virtual void addUpstreamCallback(const UpstreamCallback& cb) PURE;
 +
@@ -102,7 +102,7 @@ index a952d772e..663b9d2af 100644
 +void FilterManager::addUpstreamCallback(const UpstreamCallback& cb) {
 +  decoder_filter_upstream_cbs_.emplace_back(cb);
 +}
-+  
++
 +bool FilterManager::iterateUpstreamCallbacks(Http::RequestHeaderMap& headers,
 +                                             StreamInfo::StreamInfo& upstream_info) {
 +  bool accept = true;
@@ -177,7 +177,7 @@ index 725054b32..c08dbadb9 100644
 +                                        nullptr, absl::nullopt, absl::string_view());
 +    return;
 +  }
-+  
++
    const Http::Status status =
        upstream_->encodeHeaders(*parent_.downstreamHeaders(), shouldSendEndStream());
    calling_encode_headers_ = false;
