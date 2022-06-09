@@ -2,7 +2,7 @@
 
 [Envoy proxy](https://github.com/envoyproxy/envoy) for Cilium with
 minimal Envoy extensions and Cilium policy enforcement filters. Cilium
-uses this as it's host proxy for enforcing HTTP and other L7 policies
+uses this as its host proxy for enforcing HTTP and other L7 policies
 as specified in [network
 policies](https://docs.cilium.io/en/latest/concepts/kubernetes/policy/#k8s-policy)
 for the cluster. Cilium proxy is distributed within the Cilium images.
