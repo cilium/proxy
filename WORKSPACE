@@ -10,7 +10,7 @@ workspace(name = "cilium")
 ENVOY_PROJECT = "envoyproxy"
 ENVOY_REPO = "envoy"
 
-# https://github.com/envoyproxy/envoy/tree/v1.21.2
+# https://github.com/envoyproxy/envoy/tree/v1.21.3
 # NOTE: Update version number to file 'ENVOY_VERSION' to keep test and build docker images
 # for different versions.
 ENVOY_SHA = "8c8c75fe7a2d3d2844da1de4cf66b09abf8e8227"
