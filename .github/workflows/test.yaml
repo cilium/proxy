@@ -53,7 +53,7 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:test-${{ env.ENVOY_VERSION }}-archive-latest
+            BUILDER_IMAGE=quay.io/cilium/cilium-envoy-builder:test-master-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           cache-from: type=local,src=/tmp/buildx-cache
           push: false
