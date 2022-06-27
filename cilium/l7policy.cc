@@ -162,6 +162,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(
       if (allowed_) {
 	// Log as a forwarded request
 	config_->Log(log_entry_, ::cilium::EntryType::Request);
+	request_logged_ = true;
       }
     } else {
       ENVOY_LOG(debug,
@@ -176,11 +177,19 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(
 
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(
     Http::ResponseHeaderMap& headers, bool) {
-  log_entry_.UpdateFromResponse(headers, config_->time_source_);
   auto logType = ::cilium::EntryType::Response;
-  if (!allowed_ && headers.Status()->value() == "403") {
-    logType = ::cilium::EntryType::Denied;
-    config_->stats_.access_denied_.inc();
+  if (!allowed_) {
+    if (headers.Status()->value() == "403") {
+      logType = ::cilium::EntryType::Denied;
+      config_->stats_.access_denied_.inc();
+    } else if (!request_logged_) {
+      // Log request if not already logged. This is needed as we no longer log request headers with
+      // responses.
+      logType = ::cilium::EntryType::Request;
+      request_logged_ = true;
+    }
+  } else {
+    log_entry_.UpdateFromResponse(headers, config_->time_source_);
   }
   config_->Log(log_entry_, logType);
   return Http::FilterHeadersStatus::Continue;

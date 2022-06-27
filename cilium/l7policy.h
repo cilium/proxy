@@ -96,6 +96,7 @@ private:
   Http::StreamDecoderFilterCallbacks* callbacks_;
 
   bool allowed_ = false;
+  bool request_logged_ = false;
   AccessLog::Entry log_entry_;
 };
 
