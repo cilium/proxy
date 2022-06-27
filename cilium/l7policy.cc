@@ -147,7 +147,8 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(
     uint32_t destination_port = dip->port();
     uint32_t destination_identity = option->resolvePolicyId(dip);
 
-    // Fill in the log entry
+    // Update the log entry with the chosen destination address and current headers, as remaining
+    // filters and/or upstream may have altered headers.
     log_entry_.UpdateFromRequest(destination_identity, dst_address, headers);
 
     const auto& policy = option->getPolicy();
@@ -176,13 +177,28 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(
 
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(
     Http::ResponseHeaderMap& headers, bool) {
-  log_entry_.UpdateFromResponse(headers, config_->time_source_);
-  auto logType = ::cilium::EntryType::Response;
-  if (!allowed_ && headers.Status()->value() == "403") {
-    logType = ::cilium::EntryType::Denied;
-    config_->stats_.access_denied_.inc();
+  // Accepted & forwaded requests are logged by the upstream callback. Requests can remain unlogged
+  // if they are not accepted or any other error happens and upstream callback is never called.
+  // Logging the (locally generated) response is not enough as we no longer log request headers with
+  // responses.
+  if (!allowed_) {
+    // Request was not yet logged. Log it so that the headers get logged.
+    // Default logging local errors as "forwarded".
+    // The response log will contain the locally generated HTTP error code.
+    auto logType = ::cilium::EntryType::Request;
+
+    if (headers.Status()->value() == "403") {
+      // Log as a denied request.
+      logType = ::cilium::EntryType::Denied;
+      config_->stats_.access_denied_.inc();
+    }
+    config_->Log(log_entry_, logType);
   }
-  config_->Log(log_entry_, logType);
+
+  // Log the response
+  log_entry_.UpdateFromResponse(headers, config_->time_source_);
+  config_->Log(log_entry_, ::cilium::EntryType::Response);
+  
   return Http::FilterHeadersStatus::Continue;
 }
 
