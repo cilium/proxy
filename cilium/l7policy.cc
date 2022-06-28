@@ -102,7 +102,6 @@ void AccessFilter::onDestroy() {}
 
 Http::FilterHeadersStatus AccessFilter::decodeHeaders(
     Http::RequestHeaderMap& headers, bool) {
-  headers.remove(Http::Headers::get().EnvoyOriginalDstHost);
   const auto& conn = callbacks_->connection();
 
   if (!conn) {
