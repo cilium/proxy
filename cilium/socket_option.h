@@ -22,13 +22,14 @@ public:
 class SocketMarkOption : public Network::Socket::Option,
                          public Logger::Loggable<Logger::Id::filter> {
  public:
-  SocketMarkOption(uint32_t mark, uint32_t identity, bool ingress,
+  SocketMarkOption(uint32_t mark, uint32_t identity, bool ingress, bool l7LB,
                    Network::Address::InstanceConstSharedPtr original_source_address,
                    Network::Address::InstanceConstSharedPtr ipv4_source_address,
                    Network::Address::InstanceConstSharedPtr ipv6_source_address)
       : identity_(identity),
         mark_(mark),
         ingress_(ingress),
+	isL7LB_(l7LB),
         original_source_address_(std::move(original_source_address)),
         ipv4_source_address_(std::move(ipv4_source_address)),
         ipv6_source_address_(std::move(ipv6_source_address)) {}
@@ -148,9 +149,15 @@ class SocketMarkOption : public Network::Socket::Option,
 
   bool isSupported() const override { return true; }
 
+  // isL7LB returns 'true' if policy enforcement should be done on the basis of the upstream destination address.
+  bool policyUseUpstreamDestinationAddress() const {
+    return isL7LB_;
+  }
+
   uint32_t identity_;
   uint32_t mark_;
   bool ingress_;
+  bool isL7LB_;
   Network::Address::InstanceConstSharedPtr original_source_address_;
   // Version specific source addresses are only used if original source address is not used.
   // Selection is made based on the socket domain, which is selected based on the destination
@@ -164,12 +171,12 @@ class SocketOption : public SocketMarkOption {
  public:
   SocketOption(PolicyInstanceConstSharedPtr policy, uint32_t mark,
                uint32_t source_identity,
-               bool ingress, uint16_t port, std::string&& pod_ip,
+               bool ingress, bool l7LB, uint16_t port, std::string&& pod_ip,
                Network::Address::InstanceConstSharedPtr original_source_address,
                Network::Address::InstanceConstSharedPtr ipv4_source_address,
                Network::Address::InstanceConstSharedPtr ipv6_source_address,
                const std::shared_ptr<PolicyResolver>& policy_id_resolver)
-    : SocketMarkOption(mark, source_identity, ingress, original_source_address, ipv4_source_address, ipv6_source_address),
+    : SocketMarkOption(mark, source_identity, ingress, l7LB, original_source_address, ipv4_source_address, ipv6_source_address),
         initial_policy_(policy),
         port_(port),
         pod_ip_(std::move(pod_ip)),
