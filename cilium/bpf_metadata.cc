@@ -323,10 +323,12 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Pass the metadata to an Envoy socket option we can retrieve later in other
   // Cilium filters.
   uint32_t mark = 0;
+  bool isL7LB = false;
   if (!npmap_->is_sidecar_) {
     // Mark with source endpoint ID if requested and available
     if (egress_mark_source_endpoint_id_ && policy->getEndpointID() != 0) {
       mark = 0x0900 | policy->getEndpointID() << 16;
+      isL7LB = true;
     } else {
       // Mark with source identity
       uint32_t cluster_id = (source_identity >> 16) & 0xFF;
@@ -335,7 +337,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     }
   }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, mark, source_identity, is_ingress_, dip->port(),
+      policy, mark, source_identity, is_ingress_, isL7LB, dip->port(),
       std::move(pod_ip), std::move(src_address),
       std::move(ipv4_source_address), std::move(ipv6_source_address),
       shared_from_this()));

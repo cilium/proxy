@@ -134,7 +134,9 @@ Network::FilterStatus Instance::onNewConnection() {
     uint32_t destination_identity = 0;
     uint32_t destination_port = option->port_;
 
-    Network::Address::InstanceConstSharedPtr dst_address = host->address();
+    Network::Address::InstanceConstSharedPtr dst_address =
+      option->policyUseUpstreamDestinationAddress() ?
+      host->address() : stream_info.downstreamAddressProvider().localAddress();
     if (nullptr == dst_address) {
       ENVOY_LOG(warn, "cilium.network (egress): No destination address ");
       return false;
