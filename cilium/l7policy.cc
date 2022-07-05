@@ -131,8 +131,13 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(
   // This callback is never called if upstream connection fails
   callbacks_->addUpstreamCallback([this, option](Http::RequestHeaderMap& headers,
 						 StreamInfo::StreamInfo& stream_info) -> bool {
-    // Destination may have changed due to upstream routing and load balancing
-    const Network::Address::InstanceConstSharedPtr& dst_address = stream_info.upstreamInfo()->upstreamHost()->address();
+    // Destination may have changed due to upstream routing and load balancing.
+    // Use original destination address for policy enforcement when not L7 LB, even if the actual
+    // destination may have chanegd. This can happen with custom Envoy Listeners.
+    const Network::Address::InstanceConstSharedPtr& dst_address =
+      option->isL7LB()
+      ? stream_info.upstreamInfo()->upstreamHost()->address()
+      : callbacks_->streamInfo().downstreamAddressProvider().localAddress();
 
     if (nullptr == dst_address) {
       ENVOY_LOG(warn, "cilium.l7policy: No destination address");

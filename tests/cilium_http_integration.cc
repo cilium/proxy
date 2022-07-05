@@ -10,7 +10,7 @@ CiliumHttpIntegrationTest::CiliumHttpIntegrationTest(const std::string& config)
     : HttpIntegrationTest(Http::CodecClient::Type::HTTP1, GetParam(), config),
       accessLogServer_(
           TestEnvironment::unixDomainSocketPath("access_log.sock")) {
-#if 0
+#if 1
   for (Logger::Logger& logger : Logger::Registry::loggers()) {
     logger.setLevel(spdlog::level::trace);
   }

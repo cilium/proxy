@@ -147,6 +147,11 @@ class SocketMarkOption : public Network::Socket::Option,
 
   bool isSupported() const override { return true; }
 
+  // isL7LB returns 'true' if policy enforcement should be done on the basis of the upstream destination address.
+  bool isL7LB() const {
+    return (mark_ & 0xFFFF) == 0x0900;
+  }
+
   uint32_t identity_;
   uint32_t mark_;
   bool ingress_;
