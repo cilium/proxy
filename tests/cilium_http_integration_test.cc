@@ -40,8 +40,8 @@ resources:
         - headers:
           - name: ':method'
             exact_match: 'PUT'
-         - name: ':path'
-           exact_match: '/public/opinions'
+          - name: ':path'
+            exact_match: '/public/opinions'
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:
@@ -666,7 +666,7 @@ class CiliumIntegrationPortTest : public CiliumIntegrationTest {
     : CiliumIntegrationTest() {}
 
   std::string testPolicyFmt() {
-    return TestEnvironment::substitute(BASIC_POLICY_fmt, GetParam()) + R"EOF(  - port: {0}
+    return TestEnvironment::substitute(BASIC_POLICY_fmt + R"EOF(  - port: {0}
     rules:
     - remote_policies: [ 2 ]
       http_rules:
@@ -676,7 +676,7 @@ class CiliumIntegrationPortTest : public CiliumIntegrationTest {
             safe_regex_match:
               google_re2: {{}}
               regex: '/only-2-allowed'
-)EOF";
+)EOF", GetParam());
   }
 };
 
@@ -698,7 +698,7 @@ TEST_P(CiliumIntegrationPortTest, DuplicatePort) {
   uint64_t status;
   ASSERT_TRUE(absl::SimpleAtoi(
       response->headers().Status()->value().getStringView(), &status));
-  EXPECT_EQ(403, status);
+  EXPECT_EQ(500, status);
 }
 
 class CiliumIntegrationEgressTest : public CiliumIntegrationTest {

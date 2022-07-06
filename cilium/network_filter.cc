@@ -145,12 +145,8 @@ Network::FilterStatus Instance::onNewConnection() {
       destination_identity = option->resolvePolicyId(dip);
     }
 
-    if (!option->initial_policy_) {
-      ENVOY_CONN_LOG(warn, "cilium.network: No network policy for pod {}", conn, option->pod_ip_);
-      return false;
-    }
-    port_policy_ = option->initial_policy_->findPortPolicy(option->ingress_, destination_port,
-							   option->ingress_ ? option->identity_ : destination_identity);
+    port_policy_ = option->policy_->findPortPolicy(option->ingress_, destination_port,
+						   option->ingress_ ? option->identity_ : destination_identity);
     if (port_policy_ == nullptr) {
       ENVOY_CONN_LOG(warn, "cilium.network: Policy NOT FOUND for id: {} port: {}",
                      conn, option->ingress_ ? option->identity_ : destination_identity, destination_port);

@@ -16,7 +16,6 @@ public:
   virtual ~PolicyResolver() = default;
 
   virtual uint32_t resolvePolicyId(const Network::Address::Ip*) const PURE;
-  virtual const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const PURE;
 };
 
 class SocketMarkOption : public Network::Socket::Option,
@@ -170,7 +169,7 @@ class SocketOption : public SocketMarkOption {
                Network::Address::InstanceConstSharedPtr ipv6_source_address,
                const std::shared_ptr<PolicyResolver>& policy_id_resolver)
     : SocketMarkOption(mark, source_identity, ingress, original_source_address, ipv4_source_address, ipv6_source_address),
-        initial_policy_(policy),
+        policy_(policy),
         port_(port),
         pod_ip_(std::move(pod_ip)),
         policy_id_resolver_(policy_id_resolver) {
@@ -183,17 +182,14 @@ class SocketOption : public SocketMarkOption {
         ipv4_source_address_ ? ipv4_source_address_->asString() : "",
         ipv6_source_address_ ? ipv6_source_address_->asString() : "",
         mark_);
+    ASSERT(policy_ != nullptr);
   }
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
     return policy_id_resolver_->resolvePolicyId(ip);
   }
 
-  const PolicyInstanceConstSharedPtr getPolicy() const {
-    return policy_id_resolver_->getPolicy(pod_ip_);
-  }
- 
-  const PolicyInstanceConstSharedPtr initial_policy_;
+  const PolicyInstanceConstSharedPtr policy_; // Never NULL
   uint16_t port_;
   std::string pod_ip_;
 private:
