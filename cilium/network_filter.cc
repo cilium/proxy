@@ -109,6 +109,9 @@ Network::FilterStatus Instance::onNewConnection() {
     }
 
     const auto sni = conn.requestedServerName();
+    if (sni != "") {
+      ENVOY_CONN_LOG(trace, "cilium.network: SNI: {}", conn, sni);
+    }
 
     // Pass metadata from tls_inspector to the filterstate, if any & not already
     // set via upstream cluster config, but not in a sidecar, which have no mark
