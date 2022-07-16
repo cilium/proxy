@@ -54,7 +54,7 @@ void AccessLog::Close() {
   logs_mutex.unlock();
 }
 
-AccessLog::AccessLog(std::string path) : path_(path), fd_(-1), open_count_(1) {}
+AccessLog::AccessLog(std::string path) : path_(path), fd_(-1), open_count_(1), errno_(0) {}
 
 AccessLog::~AccessLog() {}
 
@@ -258,45 +258,61 @@ void AccessLog::Entry::UpdateFromResponse(
 
 void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
   ::cilium::LogEntry& entry = entry__.entry_;
+  int tries = 2;
 
   entry.set_entry_type(entry_type);
 
-  if (Connect()) {
-    // encode protobuf
-    std::string msg;
-    entry.SerializeToString(&msg);
-    ssize_t length = msg.length();
-    Thread::LockGuard guard(fd_mutex_);
+  // encode protobuf
+  std::string msg;
+  entry.SerializeToString(&msg);
+  ssize_t length = msg.length();
+
+  Thread::LockGuard guard(fd_mutex_);
+  while (tries-- > 0 && guarded_connect()) {
     ssize_t sent =
         ::send(fd_, msg.data(), length, MSG_DONTWAIT | MSG_EOR | MSG_NOSIGNAL);
-    if (sent == length) {
-      ENVOY_LOG(trace, "Cilium access log msg sent: {}", entry.DebugString());
-      return;
-    }
+
     if (sent == -1) {
-      ENVOY_LOG(debug, "Cilium access log send failed: {}",
-                Envoy::errorDetails(errno));
-    } else {
+      errno_ = errno;
+      continue; // retry
+    }
+    if (sent < length) {
       ENVOY_LOG(debug, "Cilium access log send truncated by {} bytes.",
                 length - sent);
     }
+    // trace level logs when message was sent
+    ENVOY_LOG(trace, "Cilium access log msg sent: {}", entry.DebugString());
+    return;
   }
-  // Log the message in Envoy logs if it could not be sent to Cilium
-  ENVOY_LOG(debug, "Cilium access log msg: {}", entry.DebugString());
+  // Log the message in Envoy logs at debug level if it could not be sent to Cilium
+  ENVOY_LOG(debug, "Cilium access log send failed ({}) msg: {}", errno_, entry.DebugString());
 }
 
 bool AccessLog::Connect() {
   Thread::LockGuard guard(fd_mutex_);
+  return guarded_connect();
+}
+
+bool AccessLog::guarded_connect() {
   if (fd_ != -1) {
-    return true;
+    if (errno_ == 0) {
+      return true;
+    }
+    ENVOY_LOG(debug, "Cilium access log resetting socket due to error: {}",
+	      Envoy::errorDetails(errno_));
+    ::close(fd_);
+    fd_ = -1;
   }
+
   if (path_.length() == 0) {
     return false;
   }
 
+  errno_ = 0;
   fd_ = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
   if (fd_ == -1) {
-    ENVOY_LOG(error, "Can't create socket: {}", Envoy::errorDetails(errno));
+    errno_ = errno;
+    ENVOY_LOG(error, "Can't create socket: {}", Envoy::errorDetails(errno_));
     return false;
   }
 
@@ -304,8 +320,9 @@ bool AccessLog::Connect() {
   strncpy(addr.sun_path, path_.c_str(), sizeof(addr.sun_path) - 1);
   if (::connect(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) ==
       -1) {
+    errno_ = errno;    
     ENVOY_LOG(warn, "Connect to {} failed: {}", path_,
-              Envoy::errorDetails(errno));
+              Envoy::errorDetails(errno_));
     ::close(fd_);
     fd_ = -1;
     return false;
