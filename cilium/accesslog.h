@@ -56,11 +56,13 @@ class AccessLog : Logger::Loggable<Logger::Id::router> {
   AccessLog(std::string path);
 
   bool Connect();
+  bool guarded_connect();
 
   const std::string path_;
   Thread::MutexBasicLockable fd_mutex_;
   int fd_ ABSL_GUARDED_BY(fd_mutex_);
   int open_count_ ABSL_GUARDED_BY(fd_mutex_);
+  int errno_ ABSL_GUARDED_BY(fd_mutex_);
 };
 
 typedef std::unique_ptr<AccessLog> AccessLogPtr;
