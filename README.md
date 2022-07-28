@@ -136,7 +136,7 @@ significantly. To do this you should update Envoy version in
 `ENVOY_VERSION` and supply `NO_CACHE=1` on the make line, e.g.:
 
 ```
-ARCH=multi NO_CACHE=1 BUILDER_ARCHIVE_TAG=envoy-X.Y.Z-archive make docker-builder-archive
+ARCH=multi NO_CACHE=1 BUILDER_ARCHIVE_TAG=master-archive-latest make docker-builder-archive
 ```
 
 
