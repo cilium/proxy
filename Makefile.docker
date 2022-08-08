@@ -100,8 +100,8 @@ BRANCH_TAG := $(shell echo $(BRANCH_NAME) | tr -c '[:alnum:]_.\n-' '-')
 BUILDER_IMAGE_OPTS ?=
 
 # target for builder archive
-BUILDER_ARCHIVE_TAG ?= $(ENVOY_VERSION)-archive-latest
-TESTS_ARCHIVE_TAG ?= test-$(ENVOY_VERSION)-archive-latest
+BUILDER_ARCHIVE_TAG ?= master-archive-latest
+TESTS_ARCHIVE_TAG ?= test-master-archive-latest
 
 ifndef NO_CACHE
   ifndef BUILDER_IMAGE
@@ -192,6 +192,7 @@ ifeq ($(BRANCH_TAG),"master")
   DOCKER_IMAHE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)
 else
   DOCKER_IMAGE_ENVOY_TAGS ?= -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(BRANCH_TAG)$(IMAGE_ARCH)
+  DOCKER_IMAGE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)
 endif
 
 .PHONY: docker-image-envoy
