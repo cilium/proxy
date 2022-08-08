@@ -33,6 +33,8 @@ http_archive(
         "@//patches:unreferenced-parameters.patch",
         "@//patches:envoy-upstream-network-auth.patch",
         "@//patches:envoy-upstream-http-auth.patch",
+        "@//patches:ishalfcloseenabled.patch",
+        "@//patches:tcp-proxy-receive-before-connect.patch",
     ],
     sha256 = ENVOY_SHA256,
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,

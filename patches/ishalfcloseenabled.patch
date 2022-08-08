@@ -1,0 +1,104 @@
+diff --git a/envoy/network/connection.h b/envoy/network/connection.h
+index e6560b6dc0..0b5ac4cea8 100644
+--- a/envoy/network/connection.h
++++ b/envoy/network/connection.h
+@@ -128,7 +128,7 @@ public:
+   /**
+    * @return true if half-close semantics are enabled, false otherwise.
+    */
+-  virtual bool isHalfCloseEnabled() PURE;
++  virtual bool isHalfCloseEnabled() const PURE;
+ 
+   /**
+    * Close the connection.
+diff --git a/source/common/network/connection_impl.h b/source/common/network/connection_impl.h
+index 7743d1839c..9228233dcf 100644
+--- a/source/common/network/connection_impl.h
++++ b/source/common/network/connection_impl.h
+@@ -65,7 +65,7 @@ public:
+   // Network::Connection
+   void addBytesSentCallback(BytesSentCb cb) override;
+   void enableHalfClose(bool enabled) override;
+-  bool isHalfCloseEnabled() override { return enable_half_close_; }
++  bool isHalfCloseEnabled() const override { return enable_half_close_; }
+   void close(ConnectionCloseType type) final;
+   std::string nextProtocol() const override { return transport_socket_->protocol(); }
+   void noDelay(bool enable) override;
+diff --git a/source/common/network/happy_eyeballs_connection_impl.cc b/source/common/network/happy_eyeballs_connection_impl.cc
+index ad567834cb..ad4532959f 100644
+--- a/source/common/network/happy_eyeballs_connection_impl.cc
++++ b/source/common/network/happy_eyeballs_connection_impl.cc
+@@ -106,7 +106,7 @@ void HappyEyeballsConnectionImpl::enableHalfClose(bool enabled) {
+   }
+ }
+ 
+-bool HappyEyeballsConnectionImpl::isHalfCloseEnabled() {
++bool HappyEyeballsConnectionImpl::isHalfCloseEnabled() const {
+   return connections_[0]->isHalfCloseEnabled();
+ }
+ 
+diff --git a/source/common/network/happy_eyeballs_connection_impl.h b/source/common/network/happy_eyeballs_connection_impl.h
+index 8deea41a9e..356f7c62f0 100644
+--- a/source/common/network/happy_eyeballs_connection_impl.h
++++ b/source/common/network/happy_eyeballs_connection_impl.h
+@@ -70,7 +70,7 @@ public:
+   absl::optional<std::chrono::milliseconds> lastRoundTripTime() const override;
+ 
+   // Simple getters which always delegate to the first connection in connections_.
+-  bool isHalfCloseEnabled() override;
++  bool isHalfCloseEnabled() const override;
+   std::string nextProtocol() const override;
+   // Note, this might change before connect finishes.
+   ConnectionInfoSetter& connectionInfoSetter() override;
+diff --git a/source/common/quic/quic_filter_manager_connection_impl.cc b/source/common/quic/quic_filter_manager_connection_impl.cc
+index 0828233c46..42f4876a0e 100644
+--- a/source/common/quic/quic_filter_manager_connection_impl.cc
++++ b/source/common/quic/quic_filter_manager_connection_impl.cc
+@@ -52,7 +52,7 @@ void QuicFilterManagerConnectionImpl::enableHalfClose(bool enabled) {
+   RELEASE_ASSERT(!enabled, "Quic connection doesn't support half close.");
+ }
+ 
+-bool QuicFilterManagerConnectionImpl::isHalfCloseEnabled() {
++bool QuicFilterManagerConnectionImpl::isHalfCloseEnabled() const {
+   // Quic doesn't support half close.
+   return false;
+ }
+diff --git a/source/common/quic/quic_filter_manager_connection_impl.h b/source/common/quic/quic_filter_manager_connection_impl.h
+index f2df2ee48a..640b8151df 100644
+--- a/source/common/quic/quic_filter_manager_connection_impl.h
++++ b/source/common/quic/quic_filter_manager_connection_impl.h
+@@ -48,7 +48,7 @@ public:
+     IS_ENVOY_BUG("unexpected call to addBytesSentCallback");
+   }
+   void enableHalfClose(bool enabled) override;
+-  bool isHalfCloseEnabled() override;
++  bool isHalfCloseEnabled() const override;
+   void close(Network::ConnectionCloseType type) override;
+   Event::Dispatcher& dispatcher() override { return dispatcher_; }
+   std::string nextProtocol() const override { return EMPTY_STRING; }
+diff --git a/source/server/api_listener_impl.h b/source/server/api_listener_impl.h
+index 310f469d68..9e71511134 100644
+--- a/source/server/api_listener_impl.h
++++ b/source/server/api_listener_impl.h
+@@ -116,7 +116,7 @@ protected:
+         IS_ENVOY_BUG("Unexpected function call");
+       }
+       void enableHalfClose(bool) override { IS_ENVOY_BUG("Unexpected function call"); }
+-      bool isHalfCloseEnabled() override {
++      bool isHalfCloseEnabled() const override {
+         IS_ENVOY_BUG("Unexpected function call");
+         return false;
+       }
+diff --git a/test/mocks/network/connection.h b/test/mocks/network/connection.h
+index deb5f92407..0750dbbb4e 100644
+--- a/test/mocks/network/connection.h
++++ b/test/mocks/network/connection.h
+@@ -54,7 +54,7 @@ public:
+   MOCK_METHOD(void, addReadFilter, (ReadFilterSharedPtr filter));                                  \
+   MOCK_METHOD(void, removeReadFilter, (ReadFilterSharedPtr filter));                               \
+   MOCK_METHOD(void, enableHalfClose, (bool enabled));                                              \
+-  MOCK_METHOD(bool, isHalfCloseEnabled, ());                                                       \
++  MOCK_METHOD(bool, isHalfCloseEnabled, (), (const));                                              \
+   MOCK_METHOD(void, close, (ConnectionCloseType type));                                            \
+   MOCK_METHOD(Event::Dispatcher&, dispatcher, ());                                                 \
+   MOCK_METHOD(uint64_t, id, (), (const));                                                          \

@@ -194,6 +194,9 @@ Network::FilterStatus Instance::onNewConnection() {
 
 Network::FilterStatus Instance::onData(Buffer::Instance& data,
                                        bool end_stream) {
+  ENVOY_LOG(trace, "cilium.network: onData {} bytes, end_stream: {}",
+	    data.length(), end_stream);
+
   if (should_buffer_) {
     // Buffer data until upstream is selected and policy resolved
     buffer_.move(data);
