@@ -101,6 +101,23 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "websocket_lib",
+    srcs = [
+        "websocket.cc",
+    ],
+    hdrs = [
+        "websocket.h",
+    ],
+    repository = "@envoy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cilium/api:websocket_cc_proto",
+        "@envoy//source/common/common:hex_lib",
+        "@envoy//source/common/http:utility_lib",
+    ],
+)
+
+envoy_cc_library(
     name = "accesslog_lib",
     srcs = [
         "accesslog.cc",

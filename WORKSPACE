@@ -33,6 +33,7 @@ http_archive(
         "@//patches:unreferenced-parameters.patch",
         "@//patches:envoy-upstream-network-auth.patch",
         "@//patches:envoy-upstream-http-auth.patch",
+        "@//patches:websocket.patch",
     ],
     sha256 = ENVOY_SHA256,
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,

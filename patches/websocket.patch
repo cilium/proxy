@@ -1,0 +1,262 @@
+diff --git a/source/common/crypto/utility.h b/source/common/crypto/utility.h
+index 2dbc4427e8..072a16795d 100644
+--- a/source/common/crypto/utility.h
++++ b/source/common/crypto/utility.h
+@@ -31,6 +31,13 @@ class Utility {
+ public:
+   virtual ~Utility() = default;
+ 
++  /**
++   * Computes the SHA-1 digest of a buffer.
++   * @param buffer the buffer.
++   * @return a vector of bytes for the computed digest.
++   */
++  virtual std::vector<uint8_t> getSha1Digest(const Buffer::Instance& buffer) PURE;
++
+   /**
+    * Computes the SHA-256 digest of a buffer.
+    * @param buffer the buffer.
+diff --git a/source/common/crypto/utility_impl.cc b/source/common/crypto/utility_impl.cc
+index 684347236c..750f2a8164 100644
+--- a/source/common/crypto/utility_impl.cc
++++ b/source/common/crypto/utility_impl.cc
+@@ -11,6 +11,20 @@ namespace Envoy {
+ namespace Common {
+ namespace Crypto {
+ 
++std::vector<uint8_t> UtilityImpl::getSha1Digest(const Buffer::Instance& buffer) {
++  std::vector<uint8_t> digest(SHA_DIGEST_LENGTH);
++  bssl::ScopedEVP_MD_CTX ctx;
++  auto rc = EVP_DigestInit(ctx.get(), EVP_sha1());
++  RELEASE_ASSERT(rc == 1, "Failed to init digest context");
++  for (const auto& slice : buffer.getRawSlices()) {
++    rc = EVP_DigestUpdate(ctx.get(), slice.mem_, slice.len_);
++    RELEASE_ASSERT(rc == 1, "Failed to update digest");
++  }
++  rc = EVP_DigestFinal(ctx.get(), digest.data(), nullptr);
++  RELEASE_ASSERT(rc == 1, "Failed to finalize digest");
++  return digest;
++}
++
+ std::vector<uint8_t> UtilityImpl::getSha256Digest(const Buffer::Instance& buffer) {
+   std::vector<uint8_t> digest(SHA256_DIGEST_LENGTH);
+   bssl::ScopedEVP_MD_CTX ctx;
+diff --git a/source/common/crypto/utility_impl.h b/source/common/crypto/utility_impl.h
+index 3f18ac436b..98580b49ab 100644
+--- a/source/common/crypto/utility_impl.h
++++ b/source/common/crypto/utility_impl.h
+@@ -12,6 +12,7 @@ namespace Crypto {
+ 
+ class UtilityImpl : public Envoy::Common::Crypto::Utility {
+ public:
++  std::vector<uint8_t> getSha1Digest(const Buffer::Instance& buffer) override;
+   std::vector<uint8_t> getSha256Digest(const Buffer::Instance& buffer) override;
+   std::vector<uint8_t> getSha256Hmac(const std::vector<uint8_t>& key,
+                                      absl::string_view message) override;
+diff --git a/source/common/router/config_impl.cc b/source/common/router/config_impl.cc
+index 1bc216a8b5..65a7199e35 100644
+--- a/source/common/router/config_impl.cc
++++ b/source/common/router/config_impl.cc
+@@ -534,7 +534,8 @@ RouteEntryImplBase::RouteEntryImplBase(const VirtualHostImpl& vhost,
+     if (!success) {
+       throw EnvoyException(absl::StrCat("Duplicate upgrade ", upgrade_config.upgrade_type()));
+     }
+-    if (upgrade_config.upgrade_type() == Http::Headers::get().MethodValues.Connect) {
++    if (upgrade_config.upgrade_type() == Http::Headers::get().MethodValues.Connect ||
++	absl::AsciiStrToLower(upgrade_config.upgrade_type()) == Http::Headers::get().UpgradeValues.WebSocket) {
+       connect_config_ = upgrade_config.connect_config();
+     } else if (upgrade_config.has_connect_config()) {
+       throw EnvoyException(absl::StrCat("Non-CONNECT upgrade type ", upgrade_config.upgrade_type(),
+diff --git a/source/common/router/router.cc b/source/common/router/router.cc
+index 89bbf4122e..523f46a9e8 100644
+--- a/source/common/router/router.cc
++++ b/source/common/router/router.cc
+@@ -739,6 +739,7 @@ Filter::createConnPool(Upstream::ThreadLocalCluster& thread_local_cluster) {
+ 
+   bool should_tcp_proxy = false;
+ 
++  ENVOY_STREAM_LOG(debug, "connectConfig has value: {}", *callbacks_, route_entry_->connectConfig().has_value());
+   if (route_entry_->connectConfig().has_value()) {
+     auto method = downstream_headers_->getMethodValue();
+     should_tcp_proxy = (method == Http::Headers::get().MethodValues.Connect);
+@@ -747,6 +748,14 @@ Filter::createConnPool(Upstream::ThreadLocalCluster& thread_local_cluster) {
+     if (!should_tcp_proxy && route_entry_->connectConfig().value().allow_post()) {
+       should_tcp_proxy = (method == Http::Headers::get().MethodValues.Post);
+     }
++
++    // Allow GET on WebSocket for proxying raw TCP
++    if (!should_tcp_proxy) {
++      auto upgrade = absl::AsciiStrToLower(downstream_headers_->getUpgradeValue());
++      ENVOY_STREAM_LOG(debug, "checking for WebSocket upgrade: {}, method: {}", *callbacks_, upgrade, method);
++      should_tcp_proxy = (upgrade == Http::Headers::get().UpgradeValues.WebSocket &&
++			  method == Http::Headers::get().MethodValues.Get);
++    }
+   }
+   return factory->createGenericConnPool(thread_local_cluster, should_tcp_proxy, *route_entry_,
+                                         callbacks_->streamInfo().protocol(), this);
+diff --git a/source/common/router/upstream_request.cc b/source/common/router/upstream_request.cc
+index c08dbadb94..bbcf02199b 100644
+--- a/source/common/router/upstream_request.cc
++++ b/source/common/router/upstream_request.cc
+@@ -517,7 +517,8 @@ void UpstreamRequest::onPoolReady(
+                                         nullptr, absl::nullopt, absl::string_view());
+     return;
+   }
+-  
++
++  ENVOY_STREAM_LOG(debug, "calling upstream encodeHeaders()", *parent_.callbacks());
+   const Http::Status status =
+       upstream_->encodeHeaders(*parent_.downstreamHeaders(), shouldSendEndStream());
+   calling_encode_headers_ = false;
+diff --git a/source/extensions/upstreams/http/generic/BUILD b/source/extensions/upstreams/http/generic/BUILD
+index 759f4626f2..ef4dea7a26 100644
+--- a/source/extensions/upstreams/http/generic/BUILD
++++ b/source/extensions/upstreams/http/generic/BUILD
+@@ -18,6 +18,7 @@ envoy_cc_extension(
+     ],
+     visibility = ["//visibility:public"],
+     deps = [
++        "//source/common/common:minimal_logger_lib",
+         "//source/extensions/upstreams/http/http:upstream_request_lib",
+         "//source/extensions/upstreams/http/tcp:upstream_request_lib",
+         "@envoy_api//envoy/extensions/upstreams/http/generic/v3:pkg_cc_proto",
+diff --git a/source/extensions/upstreams/http/generic/config.cc b/source/extensions/upstreams/http/generic/config.cc
+index b2b02e28ac..7c765b8f04 100644
+--- a/source/extensions/upstreams/http/generic/config.cc
++++ b/source/extensions/upstreams/http/generic/config.cc
+@@ -14,6 +14,7 @@ Router::GenericConnPoolPtr GenericGenericConnPoolFactory::createGenericConnPool(
+     const Router::RouteEntry& route_entry,
+     absl::optional<Envoy::Http::Protocol> downstream_protocol,
+     Upstream::LoadBalancerContext* ctx) const {
++  ENVOY_LOG(debug, "createGenericConnPool: is_connect: {}", is_connect);
+   if (is_connect) {
+     auto ret = std::make_unique<Upstreams::Http::Tcp::TcpConnPool>(
+         thread_local_cluster, is_connect, route_entry, downstream_protocol, ctx);
+diff --git a/source/extensions/upstreams/http/generic/config.h b/source/extensions/upstreams/http/generic/config.h
+index 62f9d72602..3924e9daa6 100644
+--- a/source/extensions/upstreams/http/generic/config.h
++++ b/source/extensions/upstreams/http/generic/config.h
+@@ -4,6 +4,8 @@
+ #include "envoy/registry/registry.h"
+ #include "envoy/router/router.h"
+ 
++#include "source/common/common/logger.h"
++
+ namespace Envoy {
+ namespace Extensions {
+ namespace Upstreams {
+@@ -13,7 +15,7 @@ namespace Generic {
+ /**
+  * Config registration for the GenericConnPool. * @see Router::GenericConnPoolFactory
+  */
+-class GenericGenericConnPoolFactory : public Router::GenericConnPoolFactory {
++class GenericGenericConnPoolFactory : public Logger::Loggable<Logger::Id::upstream>, public Router::GenericConnPoolFactory {
+ public:
+   std::string name() const override { return "envoy.filters.connection_pools.http.generic"; }
+   std::string category() const override { return "envoy.upstreams"; }
+diff --git a/source/extensions/upstreams/http/tcp/BUILD b/source/extensions/upstreams/http/tcp/BUILD
+index 869c0ee5ec..1f94e67d78 100644
+--- a/source/extensions/upstreams/http/tcp/BUILD
++++ b/source/extensions/upstreams/http/tcp/BUILD
+@@ -38,8 +38,10 @@ envoy_cc_library(
+         "//envoy/http:filter_interface",
+         "//envoy/upstream:upstream_interface",
+         "//source/common/common:assert_lib",
++        "//source/common/common:base64_lib",
+         "//source/common/common:minimal_logger_lib",
+         "//source/common/common:utility_lib",
++        "//source/common/crypto:utility_lib",
+         "//source/common/http:codes_lib",
+         "//source/common/http:header_map_lib",
+         "//source/common/http:headers_lib",
+diff --git a/source/extensions/upstreams/http/tcp/upstream_request.cc b/source/extensions/upstreams/http/tcp/upstream_request.cc
+index 914e346d19..60e6acee08 100644
+--- a/source/extensions/upstreams/http/tcp/upstream_request.cc
++++ b/source/extensions/upstreams/http/tcp/upstream_request.cc
+@@ -3,10 +3,14 @@
+ #include <cstdint>
+ #include <memory>
+ 
++#include "envoy/http/codes.h"
+ #include "envoy/upstream/upstream.h"
+ 
+ #include "source/common/common/assert.h"
++#include "source/common/common/base64.h"
++#include "source/common/common/enum_to_int.h"
+ #include "source/common/common/utility.h"
++#include "source/common/crypto/utility.h"
+ #include "source/common/http/codes.h"
+ #include "source/common/http/header_map_impl.h"
+ #include "source/common/http/headers.h"
+@@ -40,13 +44,18 @@ TcpUpstream::TcpUpstream(Router::UpstreamToDownstream* upstream_request,
+ }
+ 
+ void TcpUpstream::encodeData(Buffer::Instance& data, bool end_stream) {
++  // TODO: Strip WebSocket framing, if terminating websocket
++  // - detect Control frames and respond according to RFC 6455
++  //   - using upstream_request_->decodeData()
+   upstream_conn_data_->connection().write(data, end_stream);
+ }
+ 
+-Envoy::Http::Status TcpUpstream::encodeHeaders(const Envoy::Http::RequestHeaderMap&,
++Envoy::Http::Status TcpUpstream::encodeHeaders(const Envoy::Http::RequestHeaderMap& downstream_headers,
+                                                bool end_stream) {
+   // Headers should only happen once, so use this opportunity to add the proxy
+   // proto header, if configured.
++  ENVOY_LOG(debug, "calling upstreamTcpUpstream::encodeHeaders()");
++
+   ASSERT(upstream_request_->routeEntry().connectConfig().has_value());
+   Buffer::OwnedImpl data;
+   auto& connect_config = upstream_request_->routeEntry().connectConfig().value();
+@@ -64,6 +73,29 @@ Envoy::Http::Status TcpUpstream::encodeHeaders(const Envoy::Http::RequestHeaderM
+   Envoy::Http::ResponseHeaderMapPtr headers{
+       Envoy::Http::createHeaderMap<Envoy::Http::ResponseHeaderMapImpl>(
+           {{Envoy::Http::Headers::get().Status, "200"}})};
++
++  ENVOY_LOG(debug, "calling upstreamTcpUpstream::encodeHeaders(): Checking for WebSocket");
++
++  auto connection = downstream_headers.getConnectionValue();
++  auto upgrade = downstream_headers.getUpgradeValue();
++  if (absl::AsciiStrToLower(connection) == Envoy::Http::Headers::get().ConnectionValues.Upgrade &&
++      absl::AsciiStrToLower(upgrade) == Envoy::Http::Headers::get().UpgradeValues.WebSocket) {
++    std::string hash;
++    auto websocket_key = downstream_headers.get(Envoy::Http::LowerCaseString("sec-websocket-key"));
++    if (!websocket_key.empty()) {
++      Buffer::OwnedImpl buf(websocket_key[0]->value().getStringView());
++      buf.add("258EAFA5-E914-47DA-95CA-C5AB0DC85B11"); // RFC 6455
++
++      auto sha1 = Envoy::Common::Crypto::UtilitySingleton::get().getSha1Digest(buf);
++      hash = Base64::encode(reinterpret_cast<char*>(sha1.data()), sha1.size());
++    }
++    ENVOY_LOG(debug, "calling upstreamTcpUpstream::encodeHeaders(): Using hash {}", hash);
++    headers->setStatus(enumToInt(Envoy::Http::Code::SwitchingProtocols)); // 101
++    headers->setReferenceConnection(connection);
++    headers->setReferenceUpgrade(upgrade);
++    headers->addCopy(Envoy::Http::LowerCaseString("sec-websocket-accept"), hash);
++  }
++
+   upstream_request_->decodeHeaders(std::move(headers), false);
+   return Envoy::Http::okStatus();
+ }
+@@ -86,6 +118,7 @@ void TcpUpstream::resetStream() {
+ }
+ 
+ void TcpUpstream::onUpstreamData(Buffer::Instance& data, bool end_stream) {
++  // Add WebSocket framing to the incoming TCP data
+   upstream_request_->decodeData(data, end_stream);
+ }
+ 
+diff --git a/source/extensions/upstreams/http/tcp/upstream_request.h b/source/extensions/upstreams/http/tcp/upstream_request.h
+index 51f5ed688b..ec1224b9cb 100644
+--- a/source/extensions/upstreams/http/tcp/upstream_request.h
++++ b/source/extensions/upstreams/http/tcp/upstream_request.h
+@@ -64,7 +64,8 @@ private:
+   Router::GenericConnectionPoolCallbacks* callbacks_{};
+ };
+ 
+-class TcpUpstream : public Router::GenericUpstream,
++class TcpUpstream : public Logger::Loggable<Logger::Id::upstream>,
++		    public Router::GenericUpstream,
+                     public Envoy::Tcp::ConnectionPool::UpstreamCallbacks {
+ public:
+   TcpUpstream(Router::UpstreamToDownstream* upstream_request,

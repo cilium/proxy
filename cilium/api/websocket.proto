@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
+
+package cilium;
+
+message WebSocket {
+  // The expected host (:authority) header value that must match, if any.
+  string host = 1;
+
+  // The expected path value that must match, if any.
+  string path = 2;
+
+  // Expected sec-websocket-key, if any.
+  string key = 3;
+
+  // The expected version, if any.
+  string version = 4;
+
+  // The expected origin value. If empty, the origin header may not be present.
+  string origin = 5;
+}
