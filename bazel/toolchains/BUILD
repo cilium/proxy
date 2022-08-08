@@ -12,6 +12,8 @@ filegroup(
     visibility = ["//visibility:private"],
 )
 
+filegroup(name = "empty")
+
 cc_toolchain(
     name = "gcc_aarch64_linux_cc_toolchain",
     all_files = ":gcc_aarch64_linux_toolchain_files",

@@ -27,6 +27,12 @@ api_cc_py_proto_library(
     visibility = ["//visibility:public"],
 )
 
+api_cc_py_proto_library(
+    name = "websocket",
+    srcs = ["websocket.proto"],
+    visibility = ["//visibility:public"],
+)
+
 envoy_proto_library(
     name = "accesslog_proto",
     srcs = ["accesslog.proto"],

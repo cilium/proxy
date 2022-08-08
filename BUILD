@@ -63,6 +63,7 @@ envoy_cc_binary(
         "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
         "//cilium:l7policy_lib",
+        "//cilium:websocket_lib",
         "//cilium:tls_wrapper_lib",
         "@envoy//source/exe:envoy_main_entry_lib",
     ],
