@@ -155,3 +155,48 @@ envoy_cc_test(
         "//cilium:network_filter_lib",
     ],
 )
+
+envoy_cc_test(
+    name = "cilium_websocket_decap_integration_test",
+    srcs = ["cilium_websocket_decap_integration_test.cc"],
+    data = [
+        "//proxylib:libcilium.so",
+    ],
+    repository = "@envoy",
+    deps = [
+        ":cilium_http_integration_lib",
+        "//cilium:bpf_metadata_lib",
+        "//cilium:websocket_lib",
+        "//cilium:network_filter_lib",
+    ],
+)
+
+envoy_cc_test(
+    name = "cilium_websocket_codec_integration_test",
+    srcs = ["cilium_websocket_codec_integration_test.cc"],
+    data = [
+        "//proxylib:libcilium.so",
+    ],
+    repository = "@envoy",
+    deps = [
+        ":cilium_tcp_integration_lib",
+        "//cilium:bpf_metadata_lib",
+        "//cilium:websocket_lib",
+        "//cilium:network_filter_lib",
+    ],
+)
+
+envoy_cc_test(
+    name = "cilium_websocket_encap_integration_test",
+    srcs = ["cilium_websocket_encap_integration_test.cc"],
+    data = [
+        "//proxylib:libcilium.so",
+    ],
+    repository = "@envoy",
+    deps = [
+        ":cilium_tcp_integration_lib",
+        "//cilium:bpf_metadata_lib",
+        "//cilium:network_filter_lib",
+        "//cilium:websocket_lib",
+    ],
+)

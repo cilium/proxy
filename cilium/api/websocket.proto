@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
+
+package cilium;
+
+import "google/protobuf/duration.proto";
+import "validate/validate.proto";
+
+message WebSocketClient {
+  // Path to the unix domain socket for the cilium access log, if any.
+  string access_log_path = 1;
+
+  // Host header value, required.
+  string host = 2 [(validate.rules).string.min_bytes = 2];
+
+  // Path value. Defaults to "/".
+  string path = 3;
+
+  // sec-websocket-key value to use, defaults to a random key.
+  string key = 4;
+
+  // Websocket version, defaults to "13".
+  string version = 5;
+
+  // Origin header, if any.
+  string origin = 6;
+
+  // Websocket handshake timeout, default is 5 seconds.
+  google.protobuf.Duration handshake_timeout = 7;
+
+  // ping interval, default is 0 (disabled).
+  // Connection is assumed dead if response is not received before the next ping is to be sent.
+  google.protobuf.Duration ping_interval = 8;
+
+  // ping only on when idle on both directions.
+  // ping_interval must be non-zero when this is true.
+  bool ping_when_idle = 9;
+}
+
+message WebSocketServer {
+  // Path to the unix domain socket for the cilium access log, if any.
+  string access_log_path = 1;
+
+  // Expected host header value, if any.
+  string host = 2;
+
+  // Expected path value, if any.
+  string path = 3;
+
+  // sec-websocket-key value to expect, if any.
+  string key = 4;
+
+  // Websocket version, ignored if omitted.
+  string version = 5;
+
+  // Origin header, if any. Origin header is not allowed if omitted.
+  string origin = 6;
+
+  // Websocket handshake timeout, default is 5 seconds.
+  google.protobuf.Duration handshake_timeout = 7;
+
+  // ping interval, default is 0 (disabled).
+  // Connection is assumed dead if response is not received before the next ping is to be sent.
+  google.protobuf.Duration ping_interval = 8;
+
+  // ping only on when idle on both directions.
+  // ping_interval must be non-zero when this is true.
+  bool ping_when_idle = 9;
+}
