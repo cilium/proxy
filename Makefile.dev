@@ -27,21 +27,21 @@ all: precheck envoy-default
 api: force-non-root Makefile.api envoy-deps-fastbuild
 	$(MAKE) -f Makefile.api all
 
-envoy-deps-fastbuild: $(COMPILER_DEP)
+envoy-deps-fastbuild: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-deps $(BAZEL_FILTER)
 
-envoy-default: $(COMPILER_DEP)
+envoy-default: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 debug: envoy-debug
 
-envoy-debug: $(COMPILER_DEP)
+envoy-debug: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c dbg //:cilium-envoy $(BAZEL_FILTER)
 
-$(CHECK_FORMAT): force-non-root
+$(CHECK_FORMAT): force-non-root SOURCE_VERSION
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:check_format.py
 
 veryclean: force-non-root clean
@@ -69,10 +69,10 @@ proxylib/libcilium.so:
 	fi
 
 # Run tests without debug by default.
-tests: proxylib/libcilium.so force-non-root
+tests: proxylib/libcilium.so force-non-root SOURCE_VERSION
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
-debug-tests: proxylib/libcilium.so force-non-root
+debug-tests: proxylib/libcilium.so force-non-root SOURCE_VERSION
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c debug $(BAZEL_TEST_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c debug $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
