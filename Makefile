@@ -73,11 +73,11 @@ clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-10
 	bazel/setup_clang.sh /usr/lib/llvm-10
 	echo "build --config=clang" >> $@
 
-envoy-deps-release: $(COMPILER_DEP)
+envoy-deps-release: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy-deps $(BAZEL_FILTER)
 
-bazel-bin/cilium-envoy: $(COMPILER_DEP)
+bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy $(BAZEL_FILTER)
 
@@ -101,12 +101,12 @@ clean: force
 	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
 
 .PHONY: envoy-test-deps
-envoy-test-deps: $(COMPILER_DEP) proxylib/libcilium.so
+envoy-test-deps: $(COMPILER_DEP) proxylib/libcilium.so SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build --build_tests_only $(BAZEL_BUILD_OPTS) --config=release -c fastbuild $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
 .PHONY: envoy-tests
-envoy-tests: $(COMPILER_DEP) proxylib/libcilium.so
+envoy-tests: $(COMPILER_DEP) proxylib/libcilium.so SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) --config=release -c fastbuild $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 ifdef COPY_CACHE_EXT
