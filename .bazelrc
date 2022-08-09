@@ -7,7 +7,7 @@
 import %workspace%/envoy.bazelrc
 
 # Overrides workspace_status_command
-build --workspace_status_command=tools/get_workspace_status
+build --workspace_status_command="bash tools/get_workspace_status"
 build:remote --remote_timeout=7200
 
 # Enable path normalization by default.
@@ -26,3 +26,5 @@ build:release --fission=dbg
 
 # Always use toolchain
 build --crosstool_top=//bazel/toolchains:toolchain
+
+build --define manual_stamp=manual_stamp
