@@ -22,11 +22,14 @@ ifdef ARCH
 endif
 
 DOCKER_DEV_ACCOUNT ?= quay.io/cilium
-CACHE_REF ?= docker.io/cilium/cilium-dev:cilium-envoy-cache
+# CACHE_REF ?= docker.io/cilium/cilium-dev:cilium-envoy-cache
+CACHE_REF ?=
 DOCKER_BUILD_OPTS ?=
 DOCKER_CACHE_OPTS ?=
 ifndef NO_CACHE
-  DOCKER_CACHE_OPTS += --cache-from=$(CACHE_REF)
+  ifneq ($(CACHE_REF),)
+    DOCKER_CACHE_OPTS += --cache-from=$(CACHE_REF)
+  endif
 endif
 ifdef DOCKER_BUILDX
   DOCKER := $(DOCKER) buildx
@@ -57,18 +60,7 @@ ifdef DOCKER_BUILDX
     endif
     DOCKER_BUILD_OPTS += $(DOCKER_PLATFORMS)
     ifdef CACHE_PUSH
-      ifeq ($(subst true,1,$(CACHE_PUSH)),1)
-        ifneq ($(findstring type=local,$(CACHE_REF)),)
-          CACHE_TO_REF := $(subst src=,dest=,$(CACHE_REF))
-	else ifneq ($(findstring type=registry,$(CACHE_REF)),)
-          CACHE_TO_REF := $(CACHE_REF)
-	else
-          CACHE_TO_REF := type=registry,ref=$(CACHE_REF)
-	endif
-      else
-        CACHE_TO_REF := $(CACHE_PUSH)
-      endif
-      DOCKER_CACHE_OPTS += --cache-to=$(CACHE_TO_REF),mode=max
+      DOCKER_CACHE_OPTS += --cache-to=$(CACHE_PUSH),mode=max
     endif
   endif
   $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
