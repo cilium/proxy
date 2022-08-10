@@ -79,6 +79,8 @@ file_sep +=
 map_sep := ,M
 GO_MAPPINGS := $(patsubst %/,%,$(map_sep)$(subst $(file_sep),$(map_sep),$(RAW_GO_MAPPINGS)))
 
+export PATH:=$(HOME)/go/bin:$(PATH)
+
 all: godeps cilium-go-targets
 
 .PHONY: envoy-go-targets
