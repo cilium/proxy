@@ -726,6 +726,13 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
       data.move(handshake_buffer_);
       handshake_sent_ = true;
       config_->Log(log_entry_, ::cilium::EntryType::Request);
+
+      ENVOY_CONN_LOG(trace, "Enabling websocket handshake timeout at {} ms",
+		     callbacks_->connection(), handshake_timeout_.count());
+      handshake_timer_ = callbacks_->connection().dispatcher().createTimer([this]() {
+	closeOnError("websocket handshake timed out");
+      });
+      handshake_timer_->enableTimer(handshake_timeout_);
     }
     return Network::FilterStatus::Continue;
   }
@@ -919,6 +926,8 @@ Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream)
       return Network::FilterStatus::Continue; // Need more data
     }
 
+    handshake_timer_->disableTimer();
+
     // Include the header separator
     size_t msg_size = pos + header_separator.length();
     ResponseParser parser;
@@ -960,6 +969,40 @@ Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream)
 
     // Kick write on the other direction
     callbacks_->injectReadDataToFilterChain(encoded_buffer_, encode_end_stream_);
+
+    // Start ping timer
+    ENVOY_CONN_LOG(trace, "Enabling websocket PING timer at {} ms",
+		   callbacks_->connection(), ping_interval_.count());
+    ping_timer_ = callbacks_->connection().dispatcher().createTimer([this]() {
+      if (!encode_end_stream_) {
+	char count_buffer[StringUtil::MIN_ITOA_OUT_LEN];
+	const uint32_t count_len = StringUtil::itoa(count_buffer, StringUtil::MIN_ITOA_OUT_LEN,
+						    ping_count_++);
+
+	Buffer::OwnedImpl ping(reinterpret_cast<void*>(count_buffer), count_len);
+	encode_opcode_ = OPCODE_PING;
+	auto ret = onData(ping, false);
+	if (ret == Network::FilterStatus::Continue) {
+	  ENVOY_CONN_LOG(trace, "Injecting websocket PING {}",
+			 callbacks_->connection(), ping_count_);
+	  callbacks_->injectReadDataToFilterChain(ping, false);
+	} else {
+	  ENVOY_CONN_LOG(trace, "Encoding websocket PING failed",
+			 callbacks_->connection());
+	}
+	encode_opcode_ = config_->data_opcode_; // back to default opcode for data
+
+	if (ping_timer_ != nullptr && ping_interval_.count()) {
+	  uint64_t interval_ms = ping_interval_.count();
+	  const uint64_t jitter_percent_mod = ping_interval_jitter_percent_ * interval_ms / 100;
+	  if (jitter_percent_mod > 0) {
+	    interval_ms += config_->random_.random() % jitter_percent_mod;
+	  }
+	  ping_timer_->enableTimer(std::chrono::milliseconds(interval_ms));
+	}
+      }
+    });
+    ping_timer_->enableTimer(ping_interval_);
 
     return Network::FilterStatus::Continue;
   }

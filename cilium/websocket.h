@@ -9,6 +9,7 @@
 
 #include "envoy/event/dispatcher.h"
 #include "envoy/event/schedulable_cb.h"
+#include "envoy/event/timer.h"
 #include "envoy/common/random_generator.h"
 #include "envoy/server/filter_config.h"
 #include "envoy/stats/stats_macros.h"
@@ -70,7 +71,14 @@ typedef std::shared_ptr<Config> ConfigSharedPtr;
 
 class Instance : public Network::Filter, Logger::Loggable<Logger::Id::filter> {
  public:
-  Instance(const ConfigSharedPtr& config) : config_(config), encode_opcode_(config->data_opcode_) {}
+  Instance(const ConfigSharedPtr& config) :
+    config_(config),
+    handshake_timer_(nullptr),
+    handshake_timeout_(std::chrono::seconds(60)),
+    ping_timer_(nullptr),
+    ping_interval_(std::chrono::seconds(10)),
+    ping_interval_jitter_percent_(15.0),
+    encode_opcode_(config->data_opcode_) {}
 
   // Network::ReadFilter
   Network::FilterStatus onData(Buffer::Instance&, bool end_stream) override;
@@ -86,8 +94,14 @@ private:
   Network::FilterStatus closeOnError(const char *msg);
 
   const ConfigSharedPtr config_;
+  Event::TimerPtr handshake_timer_;
+  std::chrono::milliseconds handshake_timeout_;
+  Event::TimerPtr ping_timer_;
+  std::chrono::milliseconds ping_interval_;
+  uint32_t ping_interval_jitter_percent_;
+  uint64_t ping_count_{0};
+
   Network::ReadFilterCallbacks* callbacks_{nullptr};
-  Event::SchedulableCallbackPtr handshake_cb_{nullptr};
 
   bool handshake_sent_{false};
   bool accepted_{false};
