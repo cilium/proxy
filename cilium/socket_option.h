@@ -10,6 +10,7 @@ namespace Envoy {
 namespace Cilium {
 
 class PolicyInstance;
+using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
 
 class PolicyResolver {
 public:

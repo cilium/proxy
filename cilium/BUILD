@@ -108,11 +108,16 @@ envoy_cc_library(
     hdrs = [
         "websocket.h",
     ],
+    external_deps = ["http_parser"],
     repository = "@envoy",
     visibility = ["//visibility:public"],
     deps = [
+        "//cilium:accesslog_lib",
+        "//cilium:socket_option_lib",
         "//cilium/api:websocket_cc_proto",
+        "@envoy//source/common/common:base64_lib",
         "@envoy//source/common/common:hex_lib",
+        "@envoy//source/common/crypto:utility_lib",
         "@envoy//source/common/http:utility_lib",
     ],
 )

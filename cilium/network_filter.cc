@@ -180,7 +180,7 @@ Network::FilterStatus Instance::onNewConnection() {
       } else { // no Go parser, initialize logging for metadata based access control
 	log_entry_.InitFromConnection(policy_name, option->ingress_, option->identity_,
 				      stream_info.downstreamAddressProvider().remoteAddress(),
-				      destination_identity, dst_address);
+				      destination_identity, dst_address, &config_->time_source_);
       }
     }
     should_buffer_ = false;
@@ -192,6 +192,8 @@ Network::FilterStatus Instance::onNewConnection() {
 
 Network::FilterStatus Instance::onData(Buffer::Instance& data,
                                        bool end_stream) {
+  ENVOY_LOG(trace, "cilium.network: onData");
+
   if (should_buffer_) {
     // Buffer data until upstream is selected and policy resolved
     buffer_.move(data);
@@ -233,8 +235,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data,
   } else if (port_policy_ != nullptr && !l7proto_.empty()) {
     const auto& metadata = conn.streamInfo().dynamicMetadata();
     bool changed = log_entry_.UpdateFromMetadata(
-        l7proto_, metadata.filter_metadata().at(l7proto_),
-        config_->time_source_);
+        l7proto_, metadata.filter_metadata().at(l7proto_));
 
     if (!port_policy_->allowed(metadata)) {
       conn.close(Network::ConnectionCloseType::NoFlush);

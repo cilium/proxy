@@ -38,10 +38,10 @@ class AccessLog : Logger::Loggable<Logger::Id::router> {
 			    uint32_t source_identity,
 			    const Network::Address::InstanceConstSharedPtr& source_address,
                             uint32_t destination_identity,
-                            const Network::Address::InstanceConstSharedPtr& destination_address);
+                            const Network::Address::InstanceConstSharedPtr& destination_address,
+			    TimeSource* time_source);
     bool UpdateFromMetadata(const std::string& l7proto,
-                            const ProtobufWkt::Struct& metadata,
-                            TimeSource& time_source);
+                            const ProtobufWkt::Struct& metadata);
 
     ::cilium::LogEntry entry_{};
   };

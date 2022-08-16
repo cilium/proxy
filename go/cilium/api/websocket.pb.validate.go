@@ -57,6 +57,8 @@ func (m *WebSocket) validate(all bool) error {
 
 	var errors []error
 
+	// no validation rules for AccessLogPath
+
 	// no validation rules for Host
 
 	// no validation rules for Path
