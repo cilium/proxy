@@ -1,4 +1,3 @@
-#syntax=docker/dockerfile:1.2
 # 
 # BUILDER_BASE is a multi-platform image with all the build tools
 #
