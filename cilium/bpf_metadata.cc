@@ -295,6 +295,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Add transparent options if either original or explicitly set source address is used
   if (src_address || ipv4_source_address || ipv6_source_address) {
     socket.addOptions(Network::SocketOptionFactory::buildIpTransparentOptions());
+    socket.addOptions(Network::SocketOptionFactory::buildReusePortOptions());
   }
   
   // Add metadata for policy based listener filter chain matching.
