@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Pull proxylib/libcilium.so
         run: |
-          docker create -ti --name cilium-proxylib quay.io/cilium/cilium-ci:latest bash
+          docker create -ti --name cilium-proxylib quay.io/cilium/cilium:stable bash
           docker cp -L cilium-proxylib:/usr/lib/libcilium.so proxylib/libcilium.so
           docker rm -fv cilium-proxylib
       - name: Prep for build
