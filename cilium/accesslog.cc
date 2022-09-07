@@ -73,7 +73,8 @@ void AccessLog::Entry::InitFromConnection(const std::string& policy_name,
                                           uint32_t source_identity,
                                           const Network::Address::InstanceConstSharedPtr& source_address,
                                           uint32_t destination_identity,
-                                          const Network::Address::InstanceConstSharedPtr& destination_address) {
+                                          const Network::Address::InstanceConstSharedPtr& destination_address,
+                                          TimeSource* time_source) {
   entry_.set_policy_name(policy_name);
   entry_.set_is_ingress(ingress);
   entry_.set_source_security_id(source_identity);
@@ -86,17 +87,18 @@ void AccessLog::Entry::InitFromConnection(const std::string& policy_name,
   if (destination_address != nullptr) {
     entry_.set_destination_address(destination_address->asString());
   }
+
+  if (time_source) {
+    auto time = time_source->systemTime();
+    entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                             time.time_since_epoch())
+                             .count());
+  }
 }
 
 bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
-                                          const ProtobufWkt::Struct& metadata,
-                                          TimeSource& time_source) {
+                                          const ProtobufWkt::Struct& metadata) {
   bool changed = false;
-
-  auto time = time_source.systemTime();
-  entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                           time.time_since_epoch())
-                           .count());
 
   auto l7entry = entry_.mutable_generic_l7();
   if (l7entry->proto() != l7proto) {
@@ -140,7 +142,7 @@ void AccessLog::Entry::InitFromRequest(const std::string& policy_name,
                                        const Network::Address::InstanceConstSharedPtr& dst_address,
 				       const StreamInfo::StreamInfo& info,
                                        const Http::RequestHeaderMap& headers) {
-  InitFromConnection(policy_name, ingress, source_identity, src_address, destination_identity, dst_address);
+  InitFromConnection(policy_name, ingress, source_identity, src_address, destination_identity, dst_address, nullptr);
 
   auto time = info.startTime();
   entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
@@ -170,7 +172,9 @@ void AccessLog::Entry::UpdateFromRequest(uint32_t destination_identity,
 					 const Network::Address::InstanceConstSharedPtr& dst_address,
 					 const Http::RequestHeaderMap& headers) {
   // Destination may have changed
-  entry_.set_destination_security_id(destination_identity);
+  if (destination_identity != 0) {
+    entry_.set_destination_security_id(destination_identity);
+  }
   if (dst_address != nullptr) {
     entry_.set_destination_address(dst_address->asString());
   }
