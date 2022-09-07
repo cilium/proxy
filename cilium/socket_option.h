@@ -183,6 +183,7 @@ class SocketOption : public SocketMarkOption {
         ipv4_source_address_ ? ipv4_source_address_->asString() : "",
         ipv6_source_address_ ? ipv6_source_address_->asString() : "",
         mark_);
+    ASSERT(initial_policy_ != nullptr);
   }
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
@@ -193,7 +194,7 @@ class SocketOption : public SocketMarkOption {
     return policy_id_resolver_->getPolicy(pod_ip_);
   }
  
-  const PolicyInstanceConstSharedPtr initial_policy_;
+  const PolicyInstanceConstSharedPtr initial_policy_; // Never NULL
   uint16_t port_;
   std::string pod_ip_;
 private:

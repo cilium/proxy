@@ -29,6 +29,19 @@ TestConfig::~TestConfig() {
   npmap.reset();
 }
 
+const PolicyInstanceConstSharedPtr TestConfig::getPolicy(const std::string& pod_ip) const {
+  auto& policy = npmap->GetPolicyInstance(pod_ip);
+  if (policy == nullptr) {
+    // Allow all traffic for egress without a policy when 'egress_mark_source_endpoint_id_' is true.
+    // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
+    // Ingress (which is implemented as an egress listener!).
+    if (!is_ingress_ && egress_mark_source_endpoint_id_) {
+      return npmap->AllowAllEgressPolicy;
+    }
+  }
+  return policy;
+}
+
 bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   // fake setting the local address. It remains the same as required by the test
   // infra, but it will be marked as restored as required by the original_dst
@@ -56,7 +69,13 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
     pod_ip = socket.connectionInfoProvider().localAddress()->ip()->addressAsString();
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
-  auto policy = npmap_->GetPolicyInstance(pod_ip);
+  auto policy = getPolicy(pod_ip);
+  if (policy == nullptr) {
+    ENVOY_LOG_MISC(warn, "cilium.bpf_metadata ({}): No policy found for {}",
+              is_ingress_ ? "ingress" : "egress", pod_ip);
+    return false;
+  }
+
   auto port = original_dst_address->ip()->port();
 
   // Set metadata for policy based listener filter chain matching
