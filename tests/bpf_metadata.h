@@ -32,6 +32,7 @@ class TestConfig : public Config {
   ~TestConfig();
 
   bool getMetadata(Network::ConnectionSocket& socket) override;
+  const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const override;
 };
 
 class TestInstance : public Instance {

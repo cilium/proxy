@@ -36,8 +36,7 @@ class SslSocketWrapper : public Network::TransportSocket {
     // configuration
     const auto option =
         Cilium::GetSocketOption(callbacks.connection().socketOptions());
-    if (option && option->initial_policy_) {
-
+    if (option) {
       // Resolve the destination security ID and port
       uint32_t destination_identity = 0;
       uint32_t destination_port = option->port_;
