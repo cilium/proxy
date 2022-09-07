@@ -344,6 +344,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   Network::ConnectionSocket& socket = cb.socket();
+  // Cilium socket option is not set if this fails, which causes 500 response from our l7policy
+  // filter. Our integration tests depend on this.
   config_->getMetadata(socket);
 
   // Set socket options for linger and keepalive (5 minutes).

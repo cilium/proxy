@@ -698,7 +698,7 @@ TEST_P(CiliumIntegrationPortTest, DuplicatePort) {
   uint64_t status;
   ASSERT_TRUE(absl::SimpleAtoi(
       response->headers().Status()->value().getStringView(), &status));
-  EXPECT_EQ(403, status);
+  EXPECT_EQ(500, status);
 }
 
 class CiliumIntegrationEgressTest : public CiliumIntegrationTest {
