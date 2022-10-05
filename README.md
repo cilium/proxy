@@ -82,8 +82,8 @@ to `default`.
 ### Using custom pre-compiled Envoy dependencies
 
 Docker build uses cached Bazel artifacts from
-`quay.io/cilium/cilium-envoy-builder:envoy-master-archive-latest` by
-default. You can overrride this by defining `BUILDER_IMAGE=<ref>`:
+`quay.io/cilium/cilium-envoy-builder:master-archive-latest` by
+default. You can override this by defining `BUILDER_IMAGE=<ref>`:
 
 ```
 ARCH=multi BUILDER_IMAGE=docker.io/me/cilium-envoy-archive make docker-image-envoy
