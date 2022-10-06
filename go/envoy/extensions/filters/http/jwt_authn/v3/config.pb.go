@@ -49,17 +49,17 @@ const _ = proto.ProtoPackageIsVersion4
 //
 // .. code-block:: yaml
 //
-//     issuer: https://example.com
-//     audiences:
-//     - bookstore_android.apps.googleusercontent.com
-//     - bookstore_web.apps.googleusercontent.com
-//     remote_jwks:
-//       http_uri:
-//         uri: https://example.com/.well-known/jwks.json
-//         cluster: example_jwks_cluster
-//         timeout: 1s
-//       cache_duration:
-//         seconds: 300
+//	issuer: https://example.com
+//	audiences:
+//	- bookstore_android.apps.googleusercontent.com
+//	- bookstore_web.apps.googleusercontent.com
+//	remote_jwks:
+//	  http_uri:
+//	    uri: https://example.com/.well-known/jwks.json
+//	    cluster: example_jwks_cluster
+//	    timeout: 1s
+//	  cache_duration:
+//	    seconds: 300
 //
 // [#next-free-field: 15]
 type JwtProvider struct {
@@ -86,7 +86,6 @@ type JwtProvider struct {
 	//
 	// Example: https://securetoken.google.com
 	// Example: 1234567-compute@developer.gserviceaccount.com
-	//
 	Issuer string `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
 	// The list of JWT `audiences <https://tools.ietf.org/html/rfc7519#section-4.1.3>`_ are
 	// allowed to access. A JWT containing any of these audiences will be accepted. If not specified,
@@ -96,15 +95,15 @@ type JwtProvider struct {
 	//
 	// .. code-block:: yaml
 	//
-	//     audiences:
-	//     - bookstore_android.apps.googleusercontent.com
-	//     - bookstore_web.apps.googleusercontent.com
-	//
+	//	audiences:
+	//	- bookstore_android.apps.googleusercontent.com
+	//	- bookstore_web.apps.googleusercontent.com
 	Audiences []string `protobuf:"bytes,2,rep,name=audiences,proto3" json:"audiences,omitempty"`
 	// `JSON Web Key Set (JWKS) <https://tools.ietf.org/html/rfc7517#appendix-A>`_ is needed to
 	// validate signature of a JWT. This field specifies where to fetch JWKS.
 	//
 	// Types that are assignable to JwksSourceSpecifier:
+	//
 	//	*JwtProvider_RemoteJwks
 	//	*JwtProvider_LocalJwks
 	JwksSourceSpecifier isJwtProvider_JwksSourceSpecifier `protobuf_oneof:"jwks_source_specifier"`
@@ -119,7 +118,7 @@ type JwtProvider struct {
 	// 1. The Authorization header using the `Bearer schema
 	// <https://tools.ietf.org/html/rfc6750#section-2.1>`_. Example::
 	//
-	//    Authorization: Bearer <token>.
+	//	Authorization: Bearer <token>.
 	//
 	// 2. `access_token <https://tools.ietf.org/html/rfc6750#section-2.3>`_ query parameter.
 	//
@@ -130,13 +129,12 @@ type JwtProvider struct {
 	//
 	// .. code-block:: yaml
 	//
-	//   from_headers:
-	//   - name: x-goog-iap-jwt-assertion
+	//	from_headers:
+	//	- name: x-goog-iap-jwt-assertion
 	//
 	// can be used to extract token from header::
 	//
-	//   ``x-goog-iap-jwt-assertion: <JWT>``.
-	//
+	//	``x-goog-iap-jwt-assertion: <JWT>``.
 	FromHeaders []*JwtHeader `protobuf:"bytes,6,rep,name=from_headers,json=fromHeaders,proto3" json:"from_headers,omitempty"`
 	// JWT is sent in a query parameter. `jwt_params` represents the query parameter names.
 	//
@@ -144,13 +142,12 @@ type JwtProvider struct {
 	//
 	// .. code-block:: yaml
 	//
-	//   from_params:
-	//   - jwt_token
+	//	from_params:
+	//	- jwt_token
 	//
 	// The JWT format in query parameter is::
 	//
-	//    /path?jwt_token=<JWT>
-	//
+	//	/path?jwt_token=<JWT>
 	FromParams []string `protobuf:"bytes,7,rep,name=from_params,json=fromParams,proto3" json:"from_params,omitempty"`
 	// JWT is sent in a cookie. `from_cookies` represents the cookie names to extract from.
 	//
@@ -158,16 +155,15 @@ type JwtProvider struct {
 	//
 	// .. code-block:: yaml
 	//
-	//   from_cookies:
-	//   - auth-token
+	//	from_cookies:
+	//	- auth-token
 	//
 	// Then JWT will be extracted from `auth-token` cookie in the request.
-	//
 	FromCookies []string `protobuf:"bytes,13,rep,name=from_cookies,json=fromCookies,proto3" json:"from_cookies,omitempty"`
 	// This field specifies the header name to forward a successfully verified JWT payload to the
 	// backend. The forwarded data is::
 	//
-	//    base64url_encoded(jwt_payload_in_JSON)
+	//	base64url_encoded(jwt_payload_in_JSON)
 	//
 	// If it is not specified, the payload will not be forwarded.
 	ForwardPayloadHeader string `protobuf:"bytes,8,opt,name=forward_payload_header,json=forwardPayloadHeader,proto3" json:"forward_payload_header,omitempty"`
@@ -188,28 +184,27 @@ type JwtProvider struct {
 	//
 	// .. code-block:: yaml
 	//
-	//   envoy.filters.http.jwt_authn:
-	//     my_payload:
-	//       iss: https://example.com
-	//       sub: test@example.com
-	//       aud: https://example.com
-	//       exp: 1501281058
-	//
+	//	envoy.filters.http.jwt_authn:
+	//	  my_payload:
+	//	    iss: https://example.com
+	//	    sub: test@example.com
+	//	    aud: https://example.com
+	//	    exp: 1501281058
 	PayloadInMetadata string `protobuf:"bytes,9,opt,name=payload_in_metadata,json=payloadInMetadata,proto3" json:"payload_in_metadata,omitempty"`
 	// If not empty, similar to :ref:`payload_in_metadata <envoy_v3_api_field_extensions.filters.http.jwt_authn.v3.JwtProvider.payload_in_metadata>`,
 	// a successfully verified JWT header will be written to :ref:`Dynamic State <arch_overview_data_sharing_between_filters>`
-	// as an entry (``protobuf::Struct``) in **envoy.filters.http.jwt_authn** *namespace* with the
+	// as an entry (“protobuf::Struct“) in **envoy.filters.http.jwt_authn** *namespace* with the
 	// value of this field as the key.
 	//
-	// For example, if ``header_in_metadata`` is *my_header*:
+	// For example, if “header_in_metadata“ is *my_header*:
 	//
 	// .. code-block:: yaml
 	//
-	//   envoy.filters.http.jwt_authn:
-	//     my_header:
-	//       alg: JWT
-	//       kid: EF71iSaosbC5C4tC6Syq1Gm647M
-	//       alg: PS256
+	//	envoy.filters.http.jwt_authn:
+	//	  my_header:
+	//	    alg: JWT
+	//	    kid: EF71iSaosbC5C4tC6Syq1Gm647M
+	//	    alg: PS256
 	//
 	// When the metadata has **envoy.filters.http.jwt_authn** entry already (for example if
 	// :ref:`payload_in_metadata <envoy_v3_api_field_extensions.filters.http.jwt_authn.v3.JwtProvider.payload_in_metadata>`
@@ -217,23 +212,23 @@ type JwtProvider struct {
 	//
 	// .. code-block:: yaml
 	//
-	//   envoy.filters.http.jwt_authn:
-	//     my_payload:
-	//       iss: https://example.com
-	//       sub: test@example.com
-	//       aud: https://example.com
-	//       exp: 1501281058
-	//     my_header:
-	//       alg: JWT
-	//       kid: EF71iSaosbC5C4tC6Syq1Gm647M
-	//       alg: PS256
+	//	envoy.filters.http.jwt_authn:
+	//	  my_payload:
+	//	    iss: https://example.com
+	//	    sub: test@example.com
+	//	    aud: https://example.com
+	//	    exp: 1501281058
+	//	  my_header:
+	//	    alg: JWT
+	//	    kid: EF71iSaosbC5C4tC6Syq1Gm647M
+	//	    alg: PS256
 	//
 	// .. warning::
-	//   Using the same key name for :ref:`header_in_metadata <envoy_v3_api_field_extensions.filters.http.jwt_authn.v3.JwtProvider.payload_in_metadata>`
-	//   and :ref:`payload_in_metadata <envoy_v3_api_field_extensions.filters.http.jwt_authn.v3.JwtProvider.payload_in_metadata>`
-	//   is not suggested due to potential override of existing entry, while it is not enforced during
-	//   config validation.
 	//
+	//	Using the same key name for :ref:`header_in_metadata <envoy_v3_api_field_extensions.filters.http.jwt_authn.v3.JwtProvider.payload_in_metadata>`
+	//	and :ref:`payload_in_metadata <envoy_v3_api_field_extensions.filters.http.jwt_authn.v3.JwtProvider.payload_in_metadata>`
+	//	is not suggested due to potential override of existing entry, while it is not enforced during
+	//	config validation.
 	HeaderInMetadata string `protobuf:"bytes,14,opt,name=header_in_metadata,json=headerInMetadata,proto3" json:"header_in_metadata,omitempty"`
 	// Specify the clock skew in seconds when verifying JWT time constraint,
 	// such as `exp`, and `nbf`. If not specified, default is 60 seconds.
@@ -392,14 +387,13 @@ type JwtProvider_RemoteJwks struct {
 	//
 	// .. code-block:: yaml
 	//
-	//    remote_jwks:
-	//      http_uri:
-	//        uri: https://www.googleapis.com/oauth2/v1/certs
-	//        cluster: jwt.www.googleapis.com|443
-	//        timeout: 1s
-	//      cache_duration:
-	//        seconds: 300
-	//
+	//	remote_jwks:
+	//	  http_uri:
+	//	    uri: https://www.googleapis.com/oauth2/v1/certs
+	//	    cluster: jwt.www.googleapis.com|443
+	//	    timeout: 1s
+	//	  cache_duration:
+	//	    seconds: 300
 	RemoteJwks *RemoteJwks `protobuf:"bytes,3,opt,name=remote_jwks,json=remoteJwks,proto3,oneof"`
 }
 
@@ -411,16 +405,15 @@ type JwtProvider_LocalJwks struct {
 	//
 	// .. code-block:: yaml
 	//
-	//    local_jwks:
-	//      filename: /etc/envoy/jwks/jwks1.txt
+	//	local_jwks:
+	//	  filename: /etc/envoy/jwks/jwks1.txt
 	//
 	// Example: inline_string
 	//
 	// .. code-block:: yaml
 	//
-	//    local_jwks:
-	//      inline_string: ACADADADADA
-	//
+	//	local_jwks:
+	//	  inline_string: ACADADADADA
 	LocalJwks *v3.DataSource `protobuf:"bytes,4,opt,name=local_jwks,json=localJwks,proto3,oneof"`
 }
 
@@ -487,11 +480,10 @@ type RemoteJwks struct {
 	//
 	// .. code-block:: yaml
 	//
-	//    http_uri:
-	//      uri: https://www.googleapis.com/oauth2/v1/certs
-	//      cluster: jwt.www.googleapis.com|443
-	//      timeout: 1s
-	//
+	//	http_uri:
+	//	  uri: https://www.googleapis.com/oauth2/v1/certs
+	//	  cluster: jwt.www.googleapis.com|443
+	//	  timeout: 1s
 	HttpUri *v3.HttpUri `protobuf:"bytes,1,opt,name=http_uri,json=httpUri,proto3" json:"http_uri,omitempty"`
 	// Duration after which the cached JWKS should be expired. If not specified, default cache
 	// duration is 5 minutes.
@@ -501,16 +493,15 @@ type RemoteJwks struct {
 	//
 	// If this feature is not enabled:
 	//
-	// * The Jwks is fetched on-demand when the requests come. During the fetching, first
-	//   few requests are paused until the Jwks is fetched.
-	// * Each worker thread fetches its own Jwks since Jwks cache is per worker thread.
+	//   - The Jwks is fetched on-demand when the requests come. During the fetching, first
+	//     few requests are paused until the Jwks is fetched.
+	//   - Each worker thread fetches its own Jwks since Jwks cache is per worker thread.
 	//
 	// If this feature is enabled:
 	//
-	// * Fetched Jwks is done in the main thread before the listener is activated. Its fetched
-	//   Jwks can be used by all worker threads. Each worker thread doesn't need to fetch its own.
-	// * Jwks is ready when the requests come, not need to wait for the Jwks fetching.
-	//
+	//   - Fetched Jwks is done in the main thread before the listener is activated. Its fetched
+	//     Jwks can be used by all worker threads. Each worker thread doesn't need to fetch its own.
+	//   - Jwks is ready when the requests come, not need to wait for the Jwks fetching.
 	AsyncFetch *JwksAsyncFetch `protobuf:"bytes,3,opt,name=async_fetch,json=asyncFetch,proto3" json:"async_fetch,omitempty"`
 	// Retry policy for fetching Jwks. optional. turned off by default.
 	//
@@ -518,29 +509,26 @@ type RemoteJwks struct {
 	//
 	// .. code-block:: yaml
 	//
-	//   retry_policy:
-	//     retry_back_off:
-	//       base_interval: 0.01s
-	//       max_interval: 20s
-	//     num_retries: 10
+	//	retry_policy:
+	//	  retry_back_off:
+	//	    base_interval: 0.01s
+	//	    max_interval: 20s
+	//	  num_retries: 10
 	//
 	// will yield a randomized truncated exponential backoff policy with an initial delay of 10ms
 	// 10 maximum attempts spaced at most 20s seconds.
 	//
 	// .. code-block:: yaml
 	//
-	//   retry_policy:
-	//     num_retries:1
+	//	retry_policy:
+	//	  num_retries:1
 	//
 	// uses the default :ref:`retry backoff strategy <envoy_v3_api_msg_config.core.v3.BackoffStrategy>`.
 	// with the default base interval is 1000 milliseconds. and the default maximum interval of 10 times the base interval.
 	//
 	// if num_retries is omitted, the default is to allow only one retry.
 	//
-	//
 	// If enabled, the retry policy will apply to all Jwks fetching approaches, e.g. on demand or asynchronously in background.
-	//
-	//
 	RetryPolicy *v3.RetryPolicy `protobuf:"bytes,4,opt,name=retry_policy,json=retryPolicy,proto3" json:"retry_policy,omitempty"`
 }
 
@@ -782,56 +770,56 @@ func (x *ProviderWithAudiences) GetAudiences() []string {
 //
 // .. code-block:: yaml
 //
-//  # Example 1: not required with an empty message
+//	# Example 1: not required with an empty message
 //
-//  # Example 2: require A
-//  provider_name: provider-A
+//	# Example 2: require A
+//	provider_name: provider-A
 //
-//  # Example 3: require A or B
-//  requires_any:
-//    requirements:
-//      - provider_name: provider-A
-//      - provider_name: provider-B
+//	# Example 3: require A or B
+//	requires_any:
+//	  requirements:
+//	    - provider_name: provider-A
+//	    - provider_name: provider-B
 //
-//  # Example 4: require A and B
-//  requires_all:
-//    requirements:
-//      - provider_name: provider-A
-//      - provider_name: provider-B
+//	# Example 4: require A and B
+//	requires_all:
+//	  requirements:
+//	    - provider_name: provider-A
+//	    - provider_name: provider-B
 //
-//  # Example 5: require A and (B or C)
-//  requires_all:
-//    requirements:
-//      - provider_name: provider-A
-//      - requires_any:
-//        requirements:
-//          - provider_name: provider-B
-//          - provider_name: provider-C
+//	# Example 5: require A and (B or C)
+//	requires_all:
+//	  requirements:
+//	    - provider_name: provider-A
+//	    - requires_any:
+//	      requirements:
+//	        - provider_name: provider-B
+//	        - provider_name: provider-C
 //
-//  # Example 6: require A or (B and C)
-//  requires_any:
-//    requirements:
-//      - provider_name: provider-A
-//      - requires_all:
-//        requirements:
-//          - provider_name: provider-B
-//          - provider_name: provider-C
+//	# Example 6: require A or (B and C)
+//	requires_any:
+//	  requirements:
+//	    - provider_name: provider-A
+//	    - requires_all:
+//	      requirements:
+//	        - provider_name: provider-B
+//	        - provider_name: provider-C
 //
-//  # Example 7: A is optional (if token from A is provided, it must be valid, but also allows
-//  missing token.)
-//  requires_any:
-//    requirements:
-//    - provider_name: provider-A
-//    - allow_missing: {}
+//	# Example 7: A is optional (if token from A is provided, it must be valid, but also allows
+//	missing token.)
+//	requires_any:
+//	  requirements:
+//	  - provider_name: provider-A
+//	  - allow_missing: {}
 //
-//  # Example 8: A is optional and B is required.
-//  requires_all:
-//    requirements:
-//    - requires_any:
-//        requirements:
-//        - provider_name: provider-A
-//        - allow_missing: {}
-//    - provider_name: provider-B
+//	# Example 8: A is optional and B is required.
+//	requires_all:
+//	  requirements:
+//	  - requires_any:
+//	      requirements:
+//	      - provider_name: provider-A
+//	      - allow_missing: {}
+//	  - provider_name: provider-B
 //
 // [#next-free-field: 7]
 type JwtRequirement struct {
@@ -840,6 +828,7 @@ type JwtRequirement struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to RequiresType:
+	//
 	//	*JwtRequirement_ProviderName
 	//	*JwtRequirement_ProviderAndAudiences
 	//	*JwtRequirement_RequiresAny
@@ -1089,8 +1078,8 @@ func (x *JwtRequirementAndList) GetRequirements() []*JwtRequirement {
 //
 // .. code-block:: yaml
 //
-//    - match:
-//        prefix: /healthz
+//   - match:
+//     prefix: /healthz
 //
 // In above example, "requires" field is empty for /healthz prefix match,
 // it means that requests matching the path prefix don't require JWT authentication.
@@ -1099,9 +1088,9 @@ func (x *JwtRequirementAndList) GetRequirements() []*JwtRequirement {
 //
 // .. code-block:: yaml
 //
-//    - match:
-//        prefix: /
-//      requires: { provider_name: provider-A }
+//   - match:
+//     prefix: /
+//     requires: { provider_name: provider-A }
 //
 // In above example, all requests matched the path prefix require jwt authentication
 // from "provider-A".
@@ -1117,14 +1106,14 @@ type RequirementRule struct {
 	//
 	// .. code-block:: yaml
 	//
-	//    match:
-	//      prefix: /
-	//
+	//	match:
+	//	  prefix: /
 	Match *v31.RouteMatch `protobuf:"bytes,1,opt,name=match,proto3" json:"match,omitempty"`
 	// Specify a Jwt requirement.
 	// If not specified, Jwt verification is disabled.
 	//
 	// Types that are assignable to RequirementType:
+	//
 	//	*RequirementRule_Requires
 	//	*RequirementRule_RequirementName
 	RequirementType isRequirementRule_RequirementType `protobuf_oneof:"requirement_type"`
@@ -1219,12 +1208,12 @@ func (*RequirementRule_RequirementName) isRequirementRule_RequirementType() {}
 //
 // .. code-block:: yaml
 //
-//    name: jwt_selector
-//    requires:
-//      issuer_1:
-//        provider_name: issuer1
-//      issuer_2:
-//        provider_name: issuer2
+//	name: jwt_selector
+//	requires:
+//	  issuer_1:
+//	    provider_name: issuer1
+//	  issuer_2:
+//	    provider_name: issuer2
 //
 // If a filter set "jwt_selector" with "issuer_1" to FilterState for a request,
 // jwt_authn filter will use JwtRequirement{"provider_name": "issuer1"} to verify.
@@ -1292,41 +1281,41 @@ func (x *FilterStateRule) GetRequires() map[string]*JwtRequirement {
 //
 // .. code-block:: yaml
 //
-//   providers:
-//      provider1:
-//        issuer: issuer1
-//        audiences:
-//        - audience1
-//        - audience2
-//        remote_jwks:
-//          http_uri:
-//            uri: https://example.com/.well-known/jwks.json
-//            cluster: example_jwks_cluster
-//            timeout: 1s
-//      provider2:
-//        issuer: issuer2
-//        local_jwks:
-//          inline_string: jwks_string
+//	providers:
+//	   provider1:
+//	     issuer: issuer1
+//	     audiences:
+//	     - audience1
+//	     - audience2
+//	     remote_jwks:
+//	       http_uri:
+//	         uri: https://example.com/.well-known/jwks.json
+//	         cluster: example_jwks_cluster
+//	         timeout: 1s
+//	   provider2:
+//	     issuer: issuer2
+//	     local_jwks:
+//	       inline_string: jwks_string
 //
-//   rules:
-//      # Not jwt verification is required for /health path
-//      - match:
-//          prefix: /health
+//	rules:
+//	   # Not jwt verification is required for /health path
+//	   - match:
+//	       prefix: /health
 //
-//      # Jwt verification for provider1 is required for path prefixed with "prefix"
-//      - match:
-//          prefix: /prefix
-//        requires:
-//          provider_name: provider1
+//	   # Jwt verification for provider1 is required for path prefixed with "prefix"
+//	   - match:
+//	       prefix: /prefix
+//	     requires:
+//	       provider_name: provider1
 //
-//      # Jwt verification for either provider1 or provider2 is required for all other requests.
-//      - match:
-//          prefix: /
-//        requires:
-//          requires_any:
-//            requirements:
-//              - provider_name: provider1
-//              - provider_name: provider2
+//	   # Jwt verification for either provider1 or provider2 is required for all other requests.
+//	   - match:
+//	       prefix: /
+//	     requires:
+//	       requires_any:
+//	         requirements:
+//	           - provider_name: provider1
+//	           - provider_name: provider2
 //
 // [#next-free-field: 6]
 type JwtAuthentication struct {
@@ -1338,52 +1327,50 @@ type JwtAuthentication struct {
 	//
 	// .. code-block:: yaml
 	//
-	//   providers:
-	//     provider1:
-	//        issuer: issuer1
-	//        audiences:
-	//        - audience1
-	//        - audience2
-	//        remote_jwks:
-	//          http_uri:
-	//            uri: https://example.com/.well-known/jwks.json
-	//            cluster: example_jwks_cluster
-	//            timeout: 1s
-	//      provider2:
-	//        issuer: provider2
-	//        local_jwks:
-	//          inline_string: jwks_string
-	//
+	//	providers:
+	//	  provider1:
+	//	     issuer: issuer1
+	//	     audiences:
+	//	     - audience1
+	//	     - audience2
+	//	     remote_jwks:
+	//	       http_uri:
+	//	         uri: https://example.com/.well-known/jwks.json
+	//	         cluster: example_jwks_cluster
+	//	         timeout: 1s
+	//	   provider2:
+	//	     issuer: provider2
+	//	     local_jwks:
+	//	       inline_string: jwks_string
 	Providers map[string]*JwtProvider `protobuf:"bytes,1,rep,name=providers,proto3" json:"providers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Specifies requirements based on the route matches. The first matched requirement will be
 	// applied. If there are overlapped match conditions, please put the most specific match first.
 	//
-	// Examples
+	// # Examples
 	//
 	// .. code-block:: yaml
 	//
-	//   rules:
-	//     - match:
-	//         prefix: /healthz
-	//     - match:
-	//         prefix: /baz
-	//       requires:
-	//         provider_name: provider1
-	//     - match:
-	//         prefix: /foo
-	//       requires:
-	//         requires_any:
-	//           requirements:
-	//             - provider_name: provider1
-	//             - provider_name: provider2
-	//     - match:
-	//         prefix: /bar
-	//       requires:
-	//         requires_all:
-	//           requirements:
-	//             - provider_name: provider1
-	//             - provider_name: provider2
-	//
+	//	rules:
+	//	  - match:
+	//	      prefix: /healthz
+	//	  - match:
+	//	      prefix: /baz
+	//	    requires:
+	//	      provider_name: provider1
+	//	  - match:
+	//	      prefix: /foo
+	//	    requires:
+	//	      requires_any:
+	//	        requirements:
+	//	          - provider_name: provider1
+	//	          - provider_name: provider2
+	//	  - match:
+	//	      prefix: /bar
+	//	    requires:
+	//	      requires_all:
+	//	        requirements:
+	//	          - provider_name: provider1
+	//	          - provider_name: provider2
 	Rules []*RequirementRule `protobuf:"bytes,2,rep,name=rules,proto3" json:"rules,omitempty"`
 	// This message specifies Jwt requirements based on stream_info.filterState.
 	// Other HTTP filters can use it to specify Jwt requirements dynamically.
@@ -1474,6 +1461,7 @@ type PerRouteConfig struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to RequirementSpecifier:
+	//
 	//	*PerRouteConfig_Disabled
 	//	*PerRouteConfig_RequirementName
 	RequirementSpecifier isPerRouteConfig_RequirementSpecifier `protobuf_oneof:"requirement_specifier"`

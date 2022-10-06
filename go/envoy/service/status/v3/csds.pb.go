@@ -235,13 +235,15 @@ type PerXdsConfig struct {
 	// is, xDS clients should always dump the most recent accepted xDS config.
 	//
 	// .. attention::
-	//   This field is deprecated. Use :ref:`ClientResourceStatus
-	//   <envoy_v3_api_enum_admin.v3.ClientResourceStatus>` for per-resource
-	//   config status instead.
+	//
+	//	This field is deprecated. Use :ref:`ClientResourceStatus
+	//	<envoy_v3_api_enum_admin.v3.ClientResourceStatus>` for per-resource
+	//	config status instead.
 	//
 	// Deprecated: Do not use.
 	ClientStatus ClientConfigStatus `protobuf:"varint,7,opt,name=client_status,json=clientStatus,proto3,enum=envoy.service.status.v3.ClientConfigStatus" json:"client_status,omitempty"`
 	// Types that are assignable to PerXdsConfig:
+	//
 	//	*PerXdsConfig_ListenerConfig
 	//	*PerXdsConfig_ClusterConfig
 	//	*PerXdsConfig_RouteConfig

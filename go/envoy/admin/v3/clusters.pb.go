@@ -102,11 +102,11 @@ type ClusterStatus struct {
 	//
 	// Note: this field may be omitted in any of the three following cases:
 	//
-	// 1. There were not enough hosts with enough request volume to proceed with success rate based
-	//    outlier ejection.
-	// 2. The threshold is computed to be < 0 because a negative value implies that there was no
-	//    threshold for that interval.
-	// 3. Outlier detection is not enabled for this cluster.
+	//  1. There were not enough hosts with enough request volume to proceed with success rate based
+	//     outlier ejection.
+	//  2. The threshold is computed to be < 0 because a negative value implies that there was no
+	//     threshold for that interval.
+	//  3. Outlier detection is not enabled for this cluster.
 	SuccessRateEjectionThreshold *v3.Percent `protobuf:"bytes,3,opt,name=success_rate_ejection_threshold,json=successRateEjectionThreshold,proto3" json:"success_rate_ejection_threshold,omitempty"`
 	// Mapping from host address to the host's current status.
 	HostStatuses []*HostStatus `protobuf:"bytes,4,rep,name=host_statuses,json=hostStatuses,proto3" json:"host_statuses,omitempty"`
@@ -120,11 +120,11 @@ type ClusterStatus struct {
 	//
 	// Note: this field may be omitted in any of the three following cases:
 	//
-	// 1. There were not enough hosts with enough request volume to proceed with success rate based
-	//    outlier ejection.
-	// 2. The threshold is computed to be < 0 because a negative value implies that there was no
-	//    threshold for that interval.
-	// 3. Outlier detection is not enabled for this cluster.
+	//  1. There were not enough hosts with enough request volume to proceed with success rate based
+	//     outlier ejection.
+	//  2. The threshold is computed to be < 0 because a negative value implies that there was no
+	//     threshold for that interval.
+	//  3. Outlier detection is not enabled for this cluster.
 	LocalOriginSuccessRateEjectionThreshold *v3.Percent `protobuf:"bytes,5,opt,name=local_origin_success_rate_ejection_threshold,json=localOriginSuccessRateEjectionThreshold,proto3" json:"local_origin_success_rate_ejection_threshold,omitempty"`
 	// :ref:`Circuit breaking <arch_overview_circuit_break>` settings of the cluster.
 	CircuitBreakers *v31.CircuitBreakers `protobuf:"bytes,6,opt,name=circuit_breakers,json=circuitBreakers,proto3" json:"circuit_breakers,omitempty"`

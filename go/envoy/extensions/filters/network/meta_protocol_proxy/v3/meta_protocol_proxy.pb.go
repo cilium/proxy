@@ -41,6 +41,7 @@ type MetaProtocolProxy struct {
 	// The application protocol built on top of the meta protocol proxy.
 	ApplicationProtocol *ApplicationProtocol `protobuf:"bytes,2,opt,name=application_protocol,json=applicationProtocol,proto3" json:"application_protocol,omitempty"`
 	// Types that are assignable to RouteSpecifier:
+	//
 	//	*MetaProtocolProxy_Rds
 	//	*MetaProtocolProxy_RouteConfig
 	RouteSpecifier isMetaProtocolProxy_RouteSpecifier `protobuf_oneof:"route_specifier"`

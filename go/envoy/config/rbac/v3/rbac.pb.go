@@ -101,43 +101,52 @@ func (RBAC_Action) EnumDescriptor() ([]byte, []int) {
 //
 // Here is an example of RBAC configuration. It has two policies:
 //
-// * Service account "cluster.local/ns/default/sa/admin" has full access to the service, and so
-//   does "cluster.local/ns/default/sa/superuser".
+//   - Service account "cluster.local/ns/default/sa/admin" has full access to the service, and so
+//     does "cluster.local/ns/default/sa/superuser".
 //
-// * Any user can read ("GET") the service at paths with prefix "/products", so long as the
-//   destination port is either 80 or 443.
+//   - Any user can read ("GET") the service at paths with prefix "/products", so long as the
+//     destination port is either 80 or 443.
 //
-//  .. code-block:: yaml
+//     .. code-block:: yaml
 //
-//   action: ALLOW
-//   policies:
+//     action: ALLOW
+//     policies:
 //     "service-admin":
-//       permissions:
-//         - any: true
-//       principals:
-//         - authenticated:
-//             principal_name:
-//               exact: "cluster.local/ns/default/sa/admin"
-//         - authenticated:
-//             principal_name:
-//               exact: "cluster.local/ns/default/sa/superuser"
-//     "product-viewer":
-//       permissions:
-//           - and_rules:
-//               rules:
-//                 - header:
-//                     name: ":method"
-//                     string_match:
-//                       exact: "GET"
-//                 - url_path:
-//                     path: { prefix: "/products" }
-//                 - or_rules:
-//                     rules:
-//                       - destination_port: 80
-//                       - destination_port: 443
-//       principals:
-//         - any: true
+//     permissions:
 //
+//   - any: true
+//     principals:
+//
+//   - authenticated:
+//     principal_name:
+//     exact: "cluster.local/ns/default/sa/admin"
+//
+//   - authenticated:
+//     principal_name:
+//     exact: "cluster.local/ns/default/sa/superuser"
+//     "product-viewer":
+//     permissions:
+//
+//   - and_rules:
+//     rules:
+//
+//   - header:
+//     name: ":method"
+//     string_match:
+//     exact: "GET"
+//
+//   - url_path:
+//     path: { prefix: "/products" }
+//
+//   - or_rules:
+//     rules:
+//
+//   - destination_port: 80
+//
+//   - destination_port: 443
+//     principals:
+//
+//   - any: true
 type RBAC struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -148,15 +157,14 @@ type RBAC struct {
 	//
 	// Actions:
 	//
-	//  * ALLOW: Allows the request if and only if there is a policy that matches
-	//    the request.
-	//  * DENY: Allows the request if and only if there are no policies that
-	//    match the request.
-	//  * LOG: Allows all requests. If at least one policy matches, the dynamic
-	//    metadata key `access_log_hint` is set to the value `true` under the shared
-	//    key namespace 'envoy.common'. If no policies match, it is set to `false`.
-	//    Other actions do not modify this key.
-	//
+	//   - ALLOW: Allows the request if and only if there is a policy that matches
+	//     the request.
+	//   - DENY: Allows the request if and only if there are no policies that
+	//     match the request.
+	//   - LOG: Allows all requests. If at least one policy matches, the dynamic
+	//     metadata key `access_log_hint` is set to the value `true` under the shared
+	//     key namespace 'envoy.common'. If no policies match, it is set to `false`.
+	//     Other actions do not modify this key.
 	Action RBAC_Action `protobuf:"varint,1,opt,name=action,proto3,enum=envoy.config.rbac.v3.RBAC_Action" json:"action,omitempty"`
 	// Maps from policy name to policy. A match occurs when at least one policy matches the request.
 	// The policies are evaluated in lexicographic order of the policy name.
@@ -306,6 +314,7 @@ type Permission struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Rule:
+	//
 	//	*Permission_AndRules
 	//	*Permission_OrRules
 	//	*Permission_Any
@@ -509,18 +518,18 @@ type Permission_RequestedServerName struct {
 	//
 	// .. attention::
 	//
-	//   The behavior of this field may be affected by how Envoy is configured
-	//   as explained below.
+	//	The behavior of this field may be affected by how Envoy is configured
+	//	as explained below.
 	//
-	//   * If the :ref:`TLS Inspector <config_listener_filters_tls_inspector>`
-	//     filter is not added, and if a `FilterChainMatch` is not defined for
-	//     the :ref:`server name
-	//     <envoy_v3_api_field_config.listener.v3.FilterChainMatch.server_names>`,
-	//     a TLS connection's requested SNI server name will be treated as if it
-	//     wasn't present.
+	//	* If the :ref:`TLS Inspector <config_listener_filters_tls_inspector>`
+	//	  filter is not added, and if a `FilterChainMatch` is not defined for
+	//	  the :ref:`server name
+	//	  <envoy_v3_api_field_config.listener.v3.FilterChainMatch.server_names>`,
+	//	  a TLS connection's requested SNI server name will be treated as if it
+	//	  wasn't present.
 	//
-	//   * A :ref:`listener filter <arch_overview_listener_filters>` may
-	//     overwrite a connection's requested server name within Envoy.
+	//	* A :ref:`listener filter <arch_overview_listener_filters>` may
+	//	  overwrite a connection's requested server name within Envoy.
 	//
 	// Please refer to :ref:`this FAQ entry <faq_how_to_setup_sni>` to learn to
 	// setup SNI.
@@ -566,6 +575,7 @@ type Principal struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Identifier:
+	//
 	//	*Principal_AndIds
 	//	*Principal_OrIds
 	//	*Principal_Any

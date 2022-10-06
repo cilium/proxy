@@ -37,6 +37,7 @@ type RouteAction struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to ClusterSpecifier:
+	//
 	//	*RouteAction_Cluster
 	//	*RouteAction_WeightedClusters
 	ClusterSpecifier isRouteAction_ClusterSpecifier `protobuf_oneof:"cluster_specifier"`

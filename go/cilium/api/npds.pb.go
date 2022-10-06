@@ -425,6 +425,7 @@ type PortNetworkPolicyRule struct {
 	// All rules on any given port must have the same type of L7 rules!
 	//
 	// Types that are assignable to L7:
+	//
 	//	*PortNetworkPolicyRule_HttpRules
 	//	*PortNetworkPolicyRule_KafkaRules
 	//	*PortNetworkPolicyRule_L7Rules

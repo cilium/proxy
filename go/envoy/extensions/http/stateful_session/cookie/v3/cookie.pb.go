@@ -43,7 +43,7 @@ const _ = proto.ProtoPackageIsVersion4
 //
 // .. code-block:: none
 //
-//     cookie: sticky-host="MS4yLjMuNDo4MA=="
+//	cookie: sticky-host="MS4yLjMuNDo4MA=="
 //
 // When processing the upstream response, if `1.2.3.4:80` is indeed the final choice the extension
 // does nothing. If `1.2.3.4:80` is not the final choice, the new selected host will be used to
