@@ -99,13 +99,14 @@ type GrpcJsonTranscoder struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to DescriptorSet:
+	//
 	//	*GrpcJsonTranscoder_ProtoDescriptor
 	//	*GrpcJsonTranscoder_ProtoDescriptorBin
 	DescriptorSet isGrpcJsonTranscoder_DescriptorSet `protobuf_oneof:"descriptor_set"`
 	// A list of strings that
 	// supplies the fully qualified service names (i.e. "package_name.service_name") that
-	// the transcoder will translate. If the service name doesn't exist in ``proto_descriptor``,
-	// Envoy will fail at startup. The ``proto_descriptor`` may contain more services than
+	// the transcoder will translate. If the service name doesn't exist in “proto_descriptor“,
+	// Envoy will fail at startup. The “proto_descriptor“ may contain more services than
 	// the service names specified here, but they won't be translated.
 	//
 	// By default, the filter will pass through requests that do not map to any specified services.
@@ -130,77 +131,77 @@ type GrpcJsonTranscoder struct {
 	//
 	// .. code-block:: proto
 	//
-	//     service Bookstore {
-	//       rpc GetShelf(GetShelfRequest) returns (Shelf) {
-	//         option (google.api.http) = {
-	//           get: "/shelves/{shelf}"
-	//         };
-	//       }
-	//     }
+	//	service Bookstore {
+	//	  rpc GetShelf(GetShelfRequest) returns (Shelf) {
+	//	    option (google.api.http) = {
+	//	      get: "/shelves/{shelf}"
+	//	    };
+	//	  }
+	//	}
 	//
-	//     message GetShelfRequest {
-	//       int64 shelf = 1;
-	//     }
+	//	message GetShelfRequest {
+	//	  int64 shelf = 1;
+	//	}
 	//
-	//     message Shelf {}
+	//	message Shelf {}
 	//
-	// The request ``/shelves/100?foo=bar`` will not be mapped to ``GetShelf``` because variable
-	// binding for ``foo`` is not defined. Adding ``foo`` to ``ignored_query_parameters`` will allow
-	// the same request to be mapped to ``GetShelf``.
+	// The request “/shelves/100?foo=bar“ will not be mapped to “GetShelf``` because variable
+	// binding for “foo“ is not defined. Adding “foo“ to “ignored_query_parameters“ will allow
+	// the same request to be mapped to “GetShelf“.
 	IgnoredQueryParameters []string `protobuf:"bytes,6,rep,name=ignored_query_parameters,json=ignoredQueryParameters,proto3" json:"ignored_query_parameters,omitempty"`
-	// Whether to route methods without the ``google.api.http`` option.
+	// Whether to route methods without the “google.api.http“ option.
 	//
 	// Example :
 	//
 	// .. code-block:: proto
 	//
-	//     package bookstore;
+	//	package bookstore;
 	//
-	//     service Bookstore {
-	//       rpc GetShelf(GetShelfRequest) returns (Shelf) {}
-	//     }
+	//	service Bookstore {
+	//	  rpc GetShelf(GetShelfRequest) returns (Shelf) {}
+	//	}
 	//
-	//     message GetShelfRequest {
-	//       int64 shelf = 1;
-	//     }
+	//	message GetShelfRequest {
+	//	  int64 shelf = 1;
+	//	}
 	//
-	//     message Shelf {}
+	//	message Shelf {}
 	//
-	// The client could ``post`` a json body ``{"shelf": 1234}`` with the path of
-	// ``/bookstore.Bookstore/GetShelfRequest`` to call ``GetShelfRequest``.
+	// The client could “post“ a json body “{"shelf": 1234}“ with the path of
+	// “/bookstore.Bookstore/GetShelfRequest“ to call “GetShelfRequest“.
 	AutoMapping bool `protobuf:"varint,7,opt,name=auto_mapping,json=autoMapping,proto3" json:"auto_mapping,omitempty"`
 	// Whether to ignore query parameters that cannot be mapped to a corresponding
 	// protobuf field. Use this if you cannot control the query parameters and do
-	// not know them beforehand. Otherwise use ``ignored_query_parameters``.
+	// not know them beforehand. Otherwise use “ignored_query_parameters“.
 	// Defaults to false.
 	IgnoreUnknownQueryParameters bool `protobuf:"varint,8,opt,name=ignore_unknown_query_parameters,json=ignoreUnknownQueryParameters,proto3" json:"ignore_unknown_query_parameters,omitempty"`
 	// Whether to convert gRPC status headers to JSON.
-	// When trailer indicates a gRPC error and there was no HTTP body, take ``google.rpc.Status``
-	// from the ``grpc-status-details-bin`` header and use it as JSON body.
-	// If there was no such header, make ``google.rpc.Status`` out of the ``grpc-status`` and
-	// ``grpc-message`` headers.
-	// The error details types must be present in the ``proto_descriptor``.
+	// When trailer indicates a gRPC error and there was no HTTP body, take “google.rpc.Status“
+	// from the “grpc-status-details-bin“ header and use it as JSON body.
+	// If there was no such header, make “google.rpc.Status“ out of the “grpc-status“ and
+	// “grpc-message“ headers.
+	// The error details types must be present in the “proto_descriptor“.
 	//
 	// For example, if an upstream server replies with headers:
 	//
 	// .. code-block:: none
 	//
-	//     grpc-status: 5
-	//     grpc-status-details-bin:
-	//         CAUaMwoqdHlwZS5nb29nbGVhcGlzLmNvbS9nb29nbGUucnBjLlJlcXVlc3RJbmZvEgUKA3ItMQ
+	//	grpc-status: 5
+	//	grpc-status-details-bin:
+	//	    CAUaMwoqdHlwZS5nb29nbGVhcGlzLmNvbS9nb29nbGUucnBjLlJlcXVlc3RJbmZvEgUKA3ItMQ
 	//
-	// The ``grpc-status-details-bin`` header contains a base64-encoded protobuf message
-	// ``google.rpc.Status``. It will be transcoded into:
+	// The “grpc-status-details-bin“ header contains a base64-encoded protobuf message
+	// “google.rpc.Status“. It will be transcoded into:
 	//
 	// .. code-block:: none
 	//
-	//     HTTP/1.1 404 Not Found
-	//     content-type: application/json
+	//	HTTP/1.1 404 Not Found
+	//	content-type: application/json
 	//
-	//     {"code":5,"details":[{"@type":"type.googleapis.com/google.rpc.RequestInfo","requestId":"r-1"}]}
+	//	{"code":5,"details":[{"@type":"type.googleapis.com/google.rpc.RequestInfo","requestId":"r-1"}]}
 	//
-	// In order to transcode the message, the ``google.rpc.RequestInfo`` type from
-	// the ``google/rpc/error_details.proto`` should be included in the configured
+	// In order to transcode the message, the “google.rpc.RequestInfo“ type from
+	// the “google/rpc/error_details.proto“ should be included in the configured
 	// :ref:`proto descriptor set <config_grpc_json_generate_proto_descriptor_set>`.
 	ConvertGrpcStatus bool `protobuf:"varint,9,opt,name=convert_grpc_status,json=convertGrpcStatus,proto3" json:"convert_grpc_status,omitempty"`
 	// URL unescaping policy.
@@ -228,13 +229,13 @@ type GrpcJsonTranscoder struct {
 	// This includes requests with unknown query parameters, unregister paths, etc.
 	//
 	// Set these options to enable strict HTTP request validation, resulting in the transcoder rejecting
-	// such requests with a ``HTTP 4xx``. See each individual option for more details on the validation.
+	// such requests with a “HTTP 4xx“. See each individual option for more details on the validation.
 	// gRPC requests will still silently pass through without transcoding.
 	//
 	// The benefit is a proper error message to the downstream.
 	// If the upstream is a gRPC server, it cannot handle the passed-through HTTP requests and will reset
 	// the TCP connection. The downstream will then
-	// receive a ``HTTP 503 Service Unavailable`` due to the upstream connection reset.
+	// receive a “HTTP 503 Service Unavailable“ due to the upstream connection reset.
 	// This incorrect error message may conflict with other Envoy components, such as retry policies.
 	RequestValidationOptions *GrpcJsonTranscoder_RequestValidationOptions `protobuf:"bytes,11,opt,name=request_validation_options,json=requestValidationOptions,proto3" json:"request_validation_options,omitempty"`
 }
@@ -409,7 +410,7 @@ type GrpcJsonTranscoder_PrintOptions struct {
 	// as strings. Defaults to false.
 	AlwaysPrintEnumsAsInts bool `protobuf:"varint,3,opt,name=always_print_enums_as_ints,json=alwaysPrintEnumsAsInts,proto3" json:"always_print_enums_as_ints,omitempty"`
 	// Whether to preserve proto field names. By default protobuf will
-	// generate JSON field names using the ``json_name`` option, or lower camel case,
+	// generate JSON field names using the “json_name“ option, or lower camel case,
 	// in that order. Setting this flag will preserve the original field names. Defaults to false.
 	PreserveProtoFieldNames bool `protobuf:"varint,4,opt,name=preserve_proto_field_names,json=preserveProtoFieldNames,proto3" json:"preserve_proto_field_names,omitempty"`
 }
@@ -482,11 +483,11 @@ type GrpcJsonTranscoder_RequestValidationOptions struct {
 	// By default, a request that cannot be mapped to any specified gRPC
 	// :ref:`services <envoy_v3_api_field_extensions.filters.http.grpc_json_transcoder.v3.GrpcJsonTranscoder.services>`
 	// will pass-through this filter.
-	// When set to true, the request will be rejected with a ``HTTP 404 Not Found``.
+	// When set to true, the request will be rejected with a “HTTP 404 Not Found“.
 	RejectUnknownMethod bool `protobuf:"varint,1,opt,name=reject_unknown_method,json=rejectUnknownMethod,proto3" json:"reject_unknown_method,omitempty"`
 	// By default, a request with query parameters that cannot be mapped to the gRPC request message
 	// will pass-through this filter.
-	// When set to true, the request will be rejected with a ``HTTP 400 Bad Request``.
+	// When set to true, the request will be rejected with a “HTTP 400 Bad Request“.
 	//
 	// The fields
 	// :ref:`ignore_unknown_query_parameters <envoy_v3_api_field_extensions.filters.http.grpc_json_transcoder.v3.GrpcJsonTranscoder.ignore_unknown_query_parameters>`

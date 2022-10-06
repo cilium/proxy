@@ -43,6 +43,7 @@ type OAuth2Credentials struct {
 	// Configures how the secret token should be created.
 	//
 	// Types that are assignable to TokenFormation:
+	//
 	//	*OAuth2Credentials_HmacSecret
 	TokenFormation isOAuth2Credentials_TokenFormation `protobuf_oneof:"token_formation"`
 	// The cookie names used in OAuth filters flow.
@@ -324,11 +325,11 @@ type OAuth2Credentials_CookieNames struct {
 	// client and returns an authorization token back to the OAuth filter, no matter what format
 	// that token is, if :ref:`forward_bearer_token <envoy_v3_api_field_extensions.filters.http.oauth2.v3.OAuth2Config.forward_bearer_token>`
 	// is set to true the filter will send over the bearer token as a cookie with this name to the
-	// upstream. Defaults to ``BearerToken``.
+	// upstream. Defaults to “BearerToken“.
 	BearerToken string `protobuf:"bytes,1,opt,name=bearer_token,json=bearerToken,proto3" json:"bearer_token,omitempty"`
-	// Cookie name to hold OAuth HMAC value. Defaults to ``OauthHMAC``.
+	// Cookie name to hold OAuth HMAC value. Defaults to “OauthHMAC“.
 	OauthHmac string `protobuf:"bytes,2,opt,name=oauth_hmac,json=oauthHmac,proto3" json:"oauth_hmac,omitempty"`
-	// Cookie name to hold OAuth expiry value. Defaults to ``OauthExpires``.
+	// Cookie name to hold OAuth expiry value. Defaults to “OauthExpires“.
 	OauthExpires string `protobuf:"bytes,3,opt,name=oauth_expires,json=oauthExpires,proto3" json:"oauth_expires,omitempty"`
 }
 

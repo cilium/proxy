@@ -110,6 +110,7 @@ type DnsFilterConfig_ServerContextConfig struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to ConfigSource:
+	//
 	//	*DnsFilterConfig_ServerContextConfig_InlineDnsTable
 	//	*DnsFilterConfig_ServerContextConfig_ExternalDnsTable
 	ConfigSource isDnsFilterConfig_ServerContextConfig_ConfigSource `protobuf_oneof:"config_source"`

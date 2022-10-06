@@ -58,8 +58,8 @@ type Compressor struct {
 	//
 	// .. attention::
 	//
-	//    To avoid interfering with other compression filters in the same chain use this option in
-	//    the filter closest to the upstream.
+	//	To avoid interfering with other compression filters in the same chain use this option in
+	//	the filter closest to the upstream.
 	//
 	// Deprecated: Do not use.
 	RemoveAcceptEncodingHeader bool `protobuf:"varint,4,opt,name=remove_accept_encoding_header,json=removeAcceptEncodingHeader,proto3" json:"remove_accept_encoding_header,omitempty"`
@@ -79,14 +79,14 @@ type Compressor struct {
 	//
 	// .. attention::
 	//
-	//    If the field is not empty then the duplicate deprecated fields of the `Compressor` message,
-	//    such as `content_length`, `content_type`, `disable_on_etag_header`,
-	//    `remove_accept_encoding_header` and `runtime_enabled`, are ignored.
+	//	If the field is not empty then the duplicate deprecated fields of the `Compressor` message,
+	//	such as `content_length`, `content_type`, `disable_on_etag_header`,
+	//	`remove_accept_encoding_header` and `runtime_enabled`, are ignored.
 	//
-	//    Also all the statistics related to response compression will be rooted in
-	//    `<stat_prefix>.compressor.<compressor_library.name>.<compressor_library_stat_prefix>.response.*`
-	//    instead of
-	//    `<stat_prefix>.compressor.<compressor_library.name>.<compressor_library_stat_prefix>.*`.
+	//	Also all the statistics related to response compression will be rooted in
+	//	`<stat_prefix>.compressor.<compressor_library.name>.<compressor_library_stat_prefix>.response.*`
+	//	instead of
+	//	`<stat_prefix>.compressor.<compressor_library.name>.<compressor_library_stat_prefix>.*`.
 	ResponseDirectionConfig *Compressor_ResponseDirectionConfig `protobuf:"bytes,8,opt,name=response_direction_config,json=responseDirectionConfig,proto3" json:"response_direction_config,omitempty"`
 }
 
@@ -319,8 +319,8 @@ type Compressor_ResponseDirectionConfig struct {
 	//
 	// .. attention::
 	//
-	//    To avoid interfering with other compression filters in the same chain use this option in
-	//    the filter closest to the upstream.
+	//	To avoid interfering with other compression filters in the same chain use this option in
+	//	the filter closest to the upstream.
 	RemoveAcceptEncodingHeader bool `protobuf:"varint,3,opt,name=remove_accept_encoding_header,json=removeAcceptEncodingHeader,proto3" json:"remove_accept_encoding_header,omitempty"`
 }
 

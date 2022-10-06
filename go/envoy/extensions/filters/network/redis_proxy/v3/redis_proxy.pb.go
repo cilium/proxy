@@ -167,20 +167,20 @@ type RedisProxy struct {
 	//
 	// .. code-block:: yaml
 	//
-	//    prefix_routes:
-	//      routes:
-	//        - prefix: "ab"
-	//          cluster: "cluster_a"
-	//        - prefix: "abc"
-	//          cluster: "cluster_b"
+	//	prefix_routes:
+	//	  routes:
+	//	    - prefix: "ab"
+	//	      cluster: "cluster_a"
+	//	    - prefix: "abc"
+	//	      cluster: "cluster_b"
 	//
 	// When using the above routes, the following prefixes would be sent to:
 	//
-	// * ``get abc:users`` would retrieve the key 'abc:users' from cluster_b.
-	// * ``get ab:users`` would retrieve the key 'ab:users' from cluster_a.
-	// * ``get z:users`` would return a NoUpstreamHost error. A :ref:`catch-all
-	//   route<envoy_v3_api_field_extensions.filters.network.redis_proxy.v3.RedisProxy.PrefixRoutes.catch_all_route>`
-	//   would have retrieved the key from that cluster instead.
+	//   - “get abc:users“ would retrieve the key 'abc:users' from cluster_b.
+	//   - “get ab:users“ would retrieve the key 'ab:users' from cluster_a.
+	//   - “get z:users“ would return a NoUpstreamHost error. A :ref:`catch-all
+	//     route<envoy_v3_api_field_extensions.filters.network.redis_proxy.v3.RedisProxy.PrefixRoutes.catch_all_route>`
+	//     would have retrieved the key from that cluster instead.
 	//
 	// See the :ref:`configuration section
 	// <arch_overview_redis_configuration>` of the architecture overview for recommendations on
@@ -203,22 +203,22 @@ type RedisProxy struct {
 	//
 	// .. code-block:: yaml
 	//
-	//    faults:
-	//    - fault_type: ERROR
-	//      fault_enabled:
-	//        default_value:
-	//          numerator: 10
-	//          denominator: HUNDRED
-	//        runtime_key: "bogus_key"
-	//        commands:
-	//        - GET
-	//      - fault_type: DELAY
-	//        fault_enabled:
-	//          default_value:
-	//            numerator: 10
-	//            denominator: HUNDRED
-	//          runtime_key: "bogus_key"
-	//        delay: 2s
+	//	faults:
+	//	- fault_type: ERROR
+	//	  fault_enabled:
+	//	    default_value:
+	//	      numerator: 10
+	//	      denominator: HUNDRED
+	//	    runtime_key: "bogus_key"
+	//	    commands:
+	//	    - GET
+	//	  - fault_type: DELAY
+	//	    fault_enabled:
+	//	      default_value:
+	//	        numerator: 10
+	//	        denominator: HUNDRED
+	//	      runtime_key: "bogus_key"
+	//	    delay: 2s
 	//
 	// See the :ref:`fault injection section
 	// <config_network_filters_redis_proxy_fault_injection>` for more information on how to configure this.

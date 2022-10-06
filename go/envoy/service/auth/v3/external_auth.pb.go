@@ -90,7 +90,7 @@ type DeniedHttpResponse struct {
 	unknownFields protoimpl.UnknownFields
 
 	// This field allows the authorization service to send an HTTP response status code to the
-	// downstream client. If not set, Envoy sends ``403 Forbidden`` HTTP status code by default.
+	// downstream client. If not set, Envoy sends “403 Forbidden“ HTTP status code by default.
 	Status *v3.HttpStatus `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
 	// This field allows the authorization service to send HTTP response headers
 	// to the downstream client. Note that the :ref:`append field in HeaderValueOption <envoy_v3_api_field_config.core.v3.HeaderValueOption.append>` defaults to
@@ -183,7 +183,7 @@ type OkHttpResponse struct {
 	//
 	// When using the HTTP service this must instead be set by the HTTP
 	// authorization service as a comma separated list like so:
-	// ``x-envoy-auth-headers-to-remove: one-auth-header, another-auth-header``.
+	// “x-envoy-auth-headers-to-remove: one-auth-header, another-auth-header“.
 	HeadersToRemove []string `protobuf:"bytes,5,rep,name=headers_to_remove,json=headersToRemove,proto3" json:"headers_to_remove,omitempty"`
 	// This field has been deprecated in favor of :ref:`CheckResponse.dynamic_metadata
 	// <envoy_v3_api_field_service.auth.v3.CheckResponse.dynamic_metadata>`. Until it is removed,
@@ -288,13 +288,14 @@ type CheckResponse struct {
 
 	// Status `OK` allows the request. Any other status indicates the request should be denied, and
 	// for HTTP filter, if not overridden by :ref:`denied HTTP response status <envoy_v3_api_field_service.auth.v3.DeniedHttpResponse.status>`
-	// Envoy sends ``403 Forbidden`` HTTP status code by default.
+	// Envoy sends “403 Forbidden“ HTTP status code by default.
 	Status *status.Status `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
 	// An message that contains HTTP response attributes. This message is
 	// used when the authorization service needs to send custom responses to the
 	// downstream client or, to modify/add request headers being dispatched to the upstream.
 	//
 	// Types that are assignable to HttpResponse:
+	//
 	//	*CheckResponse_DeniedResponse
 	//	*CheckResponse_OkResponse
 	HttpResponse isCheckResponse_HttpResponse `protobuf_oneof:"http_response"`

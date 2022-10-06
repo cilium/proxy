@@ -39,14 +39,14 @@ type RouteConfiguration struct {
 	// The name of the route configuration. Reserved for future use in asynchronous route discovery.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The interface name of the service. Wildcard interface are supported in the suffix or prefix form.
-	// e.g. ``*.methods.add`` will match ``com.dev.methods.add``, ``com.prod.methods.add``, etc.
-	// ``com.dev.methods.*`` will match ``com.dev.methods.add``, ``com.dev.methods.update``, etc.
-	// Special wildcard ``*`` matching any interface.
+	// e.g. “*.methods.add“ will match “com.dev.methods.add“, “com.prod.methods.add“, etc.
+	// “com.dev.methods.*“ will match “com.dev.methods.add“, “com.dev.methods.update“, etc.
+	// Special wildcard “*“ matching any interface.
 	//
 	// .. note::
 	//
-	//  The wildcard will not match the empty string.
-	//  e.g. ``*.methods.add`` will match ``com.dev.methods.add`` but not ``.methods.add``.
+	//	The wildcard will not match the empty string.
+	//	e.g. ``*.methods.add`` will match ``com.dev.methods.add`` but not ``.methods.add``.
 	Interface string `protobuf:"bytes,2,opt,name=interface,proto3" json:"interface,omitempty"`
 	// Which group does the interface belong to.
 	Group string `protobuf:"bytes,3,opt,name=group,proto3" json:"group,omitempty"`
@@ -247,6 +247,7 @@ type RouteAction struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to ClusterSpecifier:
+	//
 	//	*RouteAction_Cluster
 	//	*RouteAction_WeightedClusters
 	ClusterSpecifier isRouteAction_ClusterSpecifier `protobuf_oneof:"cluster_specifier"`
@@ -392,6 +393,7 @@ type MethodMatch_ParameterMatchSpecifier struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to ParameterMatchSpecifier:
+	//
 	//	*MethodMatch_ParameterMatchSpecifier_ExactMatch
 	//	*MethodMatch_ParameterMatchSpecifier_RangeMatch
 	ParameterMatchSpecifier isMethodMatch_ParameterMatchSpecifier_ParameterMatchSpecifier `protobuf_oneof:"parameter_match_specifier"`
@@ -469,8 +471,8 @@ type MethodMatch_ParameterMatchSpecifier_RangeMatch struct {
 	//
 	// Examples:
 	//
-	// * For range [-10,0), route will match for header value -1, but not for 0,
-	//   "somestring", 10.9, "-1somestring"
+	//   - For range [-10,0), route will match for header value -1, but not for 0,
+	//     "somestring", 10.9, "-1somestring"
 	RangeMatch *v32.Int64Range `protobuf:"bytes,4,opt,name=range_match,json=rangeMatch,proto3,oneof"`
 }
 
