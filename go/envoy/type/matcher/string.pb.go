@@ -36,6 +36,7 @@ type StringMatcher struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to MatchPattern:
+	//
 	//	*StringMatcher_Exact
 	//	*StringMatcher_Prefix
 	//	*StringMatcher_Suffix
@@ -170,13 +171,14 @@ type StringMatcher_Regex struct {
 	//
 	// Examples:
 	//
-	// * The regex ``\d{3}`` matches the value *123*
-	// * The regex ``\d{3}`` does not match the value *1234*
-	// * The regex ``\d{3}`` does not match the value *123.456*
+	// * The regex “\d{3}“ matches the value *123*
+	// * The regex “\d{3}“ does not match the value *1234*
+	// * The regex “\d{3}“ does not match the value *123.456*
 	//
 	// .. attention::
-	//   This field has been deprecated in favor of `safe_regex` as it is not safe for use with
-	//   untrusted input in all cases.
+	//
+	//	This field has been deprecated in favor of `safe_regex` as it is not safe for use with
+	//	untrusted input in all cases.
 	//
 	// Deprecated: Do not use.
 	Regex string `protobuf:"bytes,4,opt,name=regex,proto3,oneof"`

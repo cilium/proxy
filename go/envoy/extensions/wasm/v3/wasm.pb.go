@@ -188,7 +188,7 @@ type VmConfig struct {
 	// warming state.
 	NackOnCodeCacheMiss bool `protobuf:"varint,6,opt,name=nack_on_code_cache_miss,json=nackOnCodeCacheMiss,proto3" json:"nack_on_code_cache_miss,omitempty"`
 	// Specifies environment variables to be injected to this VM which will be available through
-	// WASI's ``environ_get`` and ``environ_get_sizes`` system calls. Note that these functions are mostly implicitly
+	// WASI's “environ_get“ and “environ_get_sizes“ system calls. Note that these functions are mostly implicitly
 	// called in your language's standard library, so you do not need to call them directly and you can access to env
 	// vars just like when you do on native platforms.
 	// Warning: Envoy rejects the configuration if there's conflict of key space.
@@ -352,6 +352,7 @@ type PluginConfig struct {
 	// Configuration for finding or starting VM.
 	//
 	// Types that are assignable to Vm:
+	//
 	//	*PluginConfig_VmConfig
 	Vm isPluginConfig_Vm `protobuf_oneof:"vm"`
 	// Filter/service configuration used to configure or reconfigure a plugin

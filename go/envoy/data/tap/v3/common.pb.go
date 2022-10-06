@@ -34,6 +34,7 @@ type Body struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to BodyType:
+	//
 	//	*Body_AsBytes
 	//	*Body_AsString
 	BodyType isBody_BodyType `protobuf_oneof:"body_type"`

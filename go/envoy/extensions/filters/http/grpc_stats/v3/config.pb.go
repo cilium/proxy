@@ -38,6 +38,7 @@ type FilterConfig struct {
 	// counts.
 	EmitFilterState bool `protobuf:"varint,1,opt,name=emit_filter_state,json=emitFilterState,proto3" json:"emit_filter_state,omitempty"`
 	// Types that are assignable to PerMethodStatSpecifier:
+	//
 	//	*FilterConfig_IndividualMethodStatsAllowlist
 	//	*FilterConfig_StatsForAllMethods
 	PerMethodStatSpecifier isFilterConfig_PerMethodStatSpecifier `protobuf_oneof:"per_method_stat_specifier"`
@@ -136,15 +137,17 @@ type FilterConfig_StatsForAllMethods struct {
 	// service/method granularity is not needed, or if each cluster only receives a single method.
 	//
 	// .. attention::
-	//   This option is only safe if all clients are trusted. If this option is enabled
-	//   with untrusted clients, the clients could cause unbounded growth in the number of stats in
-	//   Envoy, using unbounded memory and potentially slowing down stats pipelines.
+	//
+	//	This option is only safe if all clients are trusted. If this option is enabled
+	//	with untrusted clients, the clients could cause unbounded growth in the number of stats in
+	//	Envoy, using unbounded memory and potentially slowing down stats pipelines.
 	//
 	// .. attention::
-	//   If neither `individual_method_stats_allowlist` nor `stats_for_all_methods` is set, the
-	//   behavior will default to `stats_for_all_methods=false`. This default value is changed due
-	//   to the previous value being deprecated. This behavior can be changed with runtime override
-	//   `envoy.deprecated_features.grpc_stats_filter_enable_stats_for_all_methods_by_default`.
+	//
+	//	If neither `individual_method_stats_allowlist` nor `stats_for_all_methods` is set, the
+	//	behavior will default to `stats_for_all_methods=false`. This default value is changed due
+	//	to the previous value being deprecated. This behavior can be changed with runtime override
+	//	`envoy.deprecated_features.grpc_stats_filter_enable_stats_for_all_methods_by_default`.
 	StatsForAllMethods *wrapperspb.BoolValue `protobuf:"bytes,3,opt,name=stats_for_all_methods,json=statsForAllMethods,proto3,oneof"`
 }
 

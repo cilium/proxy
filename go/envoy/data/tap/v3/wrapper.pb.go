@@ -35,6 +35,7 @@ type TraceWrapper struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Trace:
+	//
 	//	*TraceWrapper_HttpBufferedTrace
 	//	*TraceWrapper_HttpStreamedTraceSegment
 	//	*TraceWrapper_SocketBufferedTrace

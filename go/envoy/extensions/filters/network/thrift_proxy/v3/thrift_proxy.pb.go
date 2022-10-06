@@ -281,6 +281,7 @@ type ThriftFilter struct {
 	// filters for further documentation.
 	//
 	// Types that are assignable to ConfigType:
+	//
 	//	*ThriftFilter_TypedConfig
 	ConfigType isThriftFilter_ConfigType `protobuf_oneof:"config_type"`
 }

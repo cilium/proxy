@@ -109,19 +109,19 @@ type ProcessingRequest struct {
 	// or asynchronous mode. The choice of synchronous or asynchronous mode
 	// can be set in the filter configuration, and defaults to false.
 	//
-	// * A value of "false" indicates that the server must respond
-	//   to this message by either sending back a matching ProcessingResponse message,
-	//   or by closing the stream.
-	// * A value of "true" indicates that the server must not respond to this
-	//   message, although it may still close the stream to indicate that no more messages
-	//   are needed.
-	//
+	//   - A value of "false" indicates that the server must respond
+	//     to this message by either sending back a matching ProcessingResponse message,
+	//     or by closing the stream.
+	//   - A value of "true" indicates that the server must not respond to this
+	//     message, although it may still close the stream to indicate that no more messages
+	//     are needed.
 	AsyncMode bool `protobuf:"varint,1,opt,name=async_mode,json=asyncMode,proto3" json:"async_mode,omitempty"`
 	// Each request message will include one of the following sub-messages. Which
 	// ones are set for a particular HTTP request/response depend on the
 	// processing mode.
 	//
 	// Types that are assignable to Request:
+	//
 	//	*ProcessingRequest_RequestHeaders
 	//	*ProcessingRequest_ResponseHeaders
 	//	*ProcessingRequest_RequestBody
@@ -294,6 +294,7 @@ type ProcessingResponse struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Response:
+	//
 	//	*ProcessingResponse_RequestHeaders
 	//	*ProcessingResponse_ResponseHeaders
 	//	*ProcessingResponse_RequestBody
@@ -1113,6 +1114,7 @@ type BodyMutation struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Mutation:
+	//
 	//	*BodyMutation_Body
 	//	*BodyMutation_ClearBody
 	Mutation isBodyMutation_Mutation `protobuf_oneof:"mutation"`

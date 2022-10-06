@@ -35,7 +35,7 @@ const _ = proto.ProtoPackageIsVersion4
 //
 // .. code-block:: cpp
 //
-//   ("<descriptor_key>", "<expression_value>")
+//	("<descriptor_key>", "<expression_value>")
 type Descriptor struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -47,6 +47,7 @@ type Descriptor struct {
 	// By default, the rate limit is not applied when an expression produces an error.
 	SkipIfError bool `protobuf:"varint,2,opt,name=skip_if_error,json=skipIfError,proto3" json:"skip_if_error,omitempty"`
 	// Types that are assignable to ExprSpecifier:
+	//
 	//	*Descriptor_Text
 	//	*Descriptor_Parsed
 	ExprSpecifier isDescriptor_ExprSpecifier `protobuf_oneof:"expr_specifier"`

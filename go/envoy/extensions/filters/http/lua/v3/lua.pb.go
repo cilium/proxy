@@ -46,15 +46,14 @@ type Lua struct {
 	//
 	// .. code-block:: yaml
 	//
-	//   source_codes:
-	//     hello.lua:
-	//       inline_string: |
-	//         function envoy_on_response(response_handle)
-	//           -- Do something.
-	//         end
-	//     world.lua:
-	//       filename: /etc/lua/world.lua
-	//
+	//	source_codes:
+	//	  hello.lua:
+	//	    inline_string: |
+	//	      function envoy_on_response(response_handle)
+	//	        -- Do something.
+	//	      end
+	//	  world.lua:
+	//	    filename: /etc/lua/world.lua
 	SourceCodes map[string]*v3.DataSource `protobuf:"bytes,2,rep,name=source_codes,json=sourceCodes,proto3" json:"source_codes,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 }
 
@@ -110,6 +109,7 @@ type LuaPerRoute struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Override:
+	//
 	//	*LuaPerRoute_Disabled
 	//	*LuaPerRoute_Name
 	//	*LuaPerRoute_SourceCode
