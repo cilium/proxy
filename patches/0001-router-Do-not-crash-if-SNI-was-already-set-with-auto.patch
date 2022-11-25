@@ -1,0 +1,57 @@
+From 7c85b6e57936845f41aa7ac242a90fc09bd22b93 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Sat, 26 Nov 2022 13:43:53 +0200
+Subject: [PATCH] router: Do not crash if SNI was already set with auto_sni
+
+Catch the exception thrown due to SNI or SAN already been set, maybe by
+some filter, when processing the auto_sni option to prevent Envoy crash
+due to un-catched exception.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ source/common/router/router.cc | 26 +++++++++++++++++---------
+ 1 file changed, 17 insertions(+), 9 deletions(-)
+
+diff --git a/source/common/router/router.cc b/source/common/router/router.cc
+index 16a2316c0b..42f7b624dd 100644
+--- a/source/common/router/router.cc
++++ b/source/common/router/router.cc
+@@ -556,18 +556,26 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
+     absl::string_view sni_value = parsed_authority.host_;
+ 
+     if (should_set_sni && upstream_http_protocol_options.value().auto_sni()) {
+-      callbacks_->streamInfo().filterState()->setData(
+-          Network::UpstreamServerName::key(),
+-          std::make_unique<Network::UpstreamServerName>(sni_value),
+-          StreamInfo::FilterState::StateType::Mutable);
++      try {
++        callbacks_->streamInfo().filterState()->setData(
++            Network::UpstreamServerName::key(),
++            std::make_unique<Network::UpstreamServerName>(sni_value),
++            StreamInfo::FilterState::StateType::Mutable);
++      } catch (const EnvoyException& e) {
++        ENVOY_STREAM_LOG(debug, "could not set sni: {}", *callbacks_, e.what());
++      }
+     }
+ 
+     if (upstream_http_protocol_options.value().auto_san_validation()) {
+-      callbacks_->streamInfo().filterState()->setData(
+-          Network::UpstreamSubjectAltNames::key(),
+-          std::make_unique<Network::UpstreamSubjectAltNames>(
+-              std::vector<std::string>{std::string(sni_value)}),
+-          StreamInfo::FilterState::StateType::Mutable);
++      try {
++        callbacks_->streamInfo().filterState()->setData(
++            Network::UpstreamSubjectAltNames::key(),
++            std::make_unique<Network::UpstreamSubjectAltNames>(
++                std::vector<std::string>{std::string(sni_value)}),
++            StreamInfo::FilterState::StateType::Mutable);
++      } catch (const EnvoyException& e) {
++        ENVOY_STREAM_LOG(debug, "could not set subject alt name: {}", *callbacks_, e.what());
++      }
+     }
+   }
+ 
+-- 
+2.36.0
+

@@ -95,40 +95,43 @@ Network::FilterStatus Instance::onNewConnection() {
     should_buffer_ = true;
   }
 
-  callbacks_->addUpstreamCallback([this](
+  auto& conn = callbacks_->connection();
+  const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
+  const auto option = Cilium::GetSocketOption(socketOptions);
+
+  if (!option) {
+    ENVOY_CONN_LOG(warn, "cilium.network: Cilium Socket Option not found", conn);
+    return Network::FilterStatus::StopIteration;
+  }
+
+  // Pass SNI before the upstream callback so that it is available when upstream connection is
+  // initialized.
+  const auto sni = conn.requestedServerName();
+  if (sni != "") {
+    ENVOY_CONN_LOG(trace, "cilium.network: SNI: {}", conn, sni);
+  }
+
+  // Pass metadata from tls_inspector to the filterstate, if any & not already
+  // set via upstream cluster config, but not in a sidecar, which have no mark
+  if (sni != "" && option->mark_ != 0) {
+    auto filterState = conn.streamInfo().filterState();
+    auto have_sni = filterState->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
+    auto have_san = filterState->hasData<Network::UpstreamSubjectAltNames>(Network::UpstreamSubjectAltNames::key());
+    if (!have_sni && !have_san) {
+      filterState->setData(Network::UpstreamServerName::key(),
+			   std::make_unique<Network::UpstreamServerName>(sni),
+			   StreamInfo::FilterState::StateType::Mutable);
+      filterState->setData(Network::UpstreamSubjectAltNames::key(),
+			   std::make_unique<Network::UpstreamSubjectAltNames>(std::vector<std::string>{std::string(sni)}),
+			   StreamInfo::FilterState::StateType::Mutable);
+    }
+  }
+
+  callbacks_->addUpstreamCallback([this, option, sni](
             Upstream::HostDescriptionConstSharedPtr host,
             StreamInfo::StreamInfo& stream_info) -> bool {
-    ENVOY_LOG(debug, "cilium.network: in upstream callback");
+    ENVOY_LOG(trace, "cilium.network: in upstream callback");
     auto& conn = callbacks_->connection();
-    const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-    const auto option = Cilium::GetSocketOption(socketOptions);
-
-    if (!option) {
-      ENVOY_CONN_LOG(warn, "cilium.network: Cilium Socket Option not found", conn);
-      return false;
-    }
-
-    const auto sni = conn.requestedServerName();
-    if (sni != "") {
-      ENVOY_CONN_LOG(trace, "cilium.network: SNI: {}", conn, sni);
-    }
-
-    // Pass metadata from tls_inspector to the filterstate, if any & not already
-    // set via upstream cluster config, but not in a sidecar, which have no mark
-    if (option->mark_ != 0) {
-      auto have_sni = stream_info.filterState()->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
-      auto have_san = stream_info.filterState()->hasData<Network::UpstreamSubjectAltNames>(Network::UpstreamSubjectAltNames::key());
-      if (!have_sni || !have_san) {
-        if (sni != "") {
-          stream_info.filterState()->setData(Network::UpstreamServerName::key(),
-                                             std::make_unique<Network::UpstreamServerName>(sni),
-                                             StreamInfo::FilterState::StateType::Mutable);
-          stream_info.filterState()->setData(Network::UpstreamSubjectAltNames::key(),
-                                             std::make_unique<Network::UpstreamSubjectAltNames>(std::vector<std::string>{std::string(sni)}),
-                                             StreamInfo::FilterState::StateType::Mutable);
-        }
-      }
-    }
 
     // Resolve the destination security ID and port
     uint32_t destination_identity = 0;

@@ -35,6 +35,7 @@ http_archive(
         "@//patches:envoy-upstream-http-auth.patch",
         "@//patches:ishalfcloseenabled.patch",
         "@//patches:tcp-proxy-receive-before-connect.patch",
+        "@//patches:0001-router-Do-not-crash-if-SNI-was-already-set-with-auto.patch",
     ],
     sha256 = ENVOY_SHA256,
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
