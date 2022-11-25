@@ -80,10 +80,18 @@ class SslSocketWrapper : public Network::TransportSocket {
 
           // Set the callbacks
           ssl_socket_->setTransportSocketCallbacks(callbacks);
-        }
+        } else {
+	  ENVOY_LOG_MISC(warn,
+			 "cilium.tls_wrapper: Could not get {} TLS context for port {}!",
+			 state_ == Extensions::TransportSockets::Tls::InitialState::Client ? "client" : "server", 
+			 destination_port);
+	}
+      } else {
+	ENVOY_LOG_MISC(warn,
+		       "cilium.tls_wrapper: Policy not found for port {}!", destination_port);
       }
     } else if (!option) {
-      ENVOY_LOG_MISC(debug,
+      ENVOY_LOG_MISC(warn,
                      "cilium.tls_wrapper: Cilium socket option not found!");
     }
   }
