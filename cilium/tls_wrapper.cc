@@ -2,9 +2,10 @@
 
 #include "cilium/network_policy.h"
 #include "cilium/socket_option.h"
-#include "source/common/protobuf/utility.h"
 #include "envoy/extensions/transport_sockets/tls/v3/cert.pb.h"
 #include "envoy/extensions/transport_sockets/tls/v3/cert.pb.validate.h"
+#include "source/common/network/raw_buffer_socket.h"
+#include "source/common/protobuf/utility.h"
 #include "source/extensions/transport_sockets/tls/context_config_impl.h"
 #include "source/extensions/transport_sockets/tls/ssl_socket.h"
 #include "source/server/transport_socket_config_impl.h"
@@ -74,18 +75,19 @@ class SslSocketWrapper : public Network::TransportSocket {
                   : port_policy->getServerTlsContextConfig();
 
           // create the underlying SslSocket
-          ssl_socket_ =
+          socket_ =
               std::make_unique<Extensions::TransportSockets::Tls::SslSocket>(
                   std::move(ctx), state_, transport_socket_options_, config.createHandshaker());
-
-          // Set the callbacks
-          ssl_socket_->setTransportSocketCallbacks(callbacks);
         } else {
-	  ENVOY_LOG_MISC(warn,
-			 "cilium.tls_wrapper: Could not get {} TLS context for port {}!",
+	  ENVOY_LOG_MISC(debug,
+			 "cilium.tls_wrapper: Could not get {} TLS context for port {}, defaulting to raw socket",
 			 state_ == Extensions::TransportSockets::Tls::InitialState::Client ? "client" : "server", 
 			 destination_port);
+          // default to a RawBufferSocket
+          socket_ = std::make_unique<Network::RawBufferSocket>();
 	}
+	// Set the callbacks
+	socket_->setTransportSocketCallbacks(callbacks);	  
       } else {
 	ENVOY_LOG_MISC(warn,
 		       "cilium.tls_wrapper: Policy not found for port {}!", destination_port);
@@ -96,48 +98,48 @@ class SslSocketWrapper : public Network::TransportSocket {
     }
   }
   std::string protocol() const override {
-    return ssl_socket_ ? ssl_socket_->protocol() : EMPTY_STRING;
+    return socket_ ? socket_->protocol() : EMPTY_STRING;
   }
   absl::string_view failureReason() const override {
-    return ssl_socket_ ? ssl_socket_->failureReason() : NotReadyReason;
+    return socket_ ? socket_->failureReason() : NotReadyReason;
   }
   bool canFlushClose() override {
-    return ssl_socket_ ? ssl_socket_->canFlushClose() : true;
+    return socket_ ? socket_->canFlushClose() : true;
   }
   void closeSocket(Network::ConnectionEvent type) override {
-    if (ssl_socket_) {
-      ssl_socket_->closeSocket(type);
+    if (socket_) {
+      socket_->closeSocket(type);
     }
   }
   Network::IoResult doRead(Buffer::Instance& buffer) override {
-    if (ssl_socket_) {
-      return ssl_socket_->doRead(buffer);
+    if (socket_) {
+      return socket_->doRead(buffer);
     }
     return {Network::PostIoAction::Close, 0, false};
   }
   Network::IoResult doWrite(Buffer::Instance& buffer,
                             bool end_stream) override {
-    if (ssl_socket_) {
-      return ssl_socket_->doWrite(buffer, end_stream);
+    if (socket_) {
+      return socket_->doWrite(buffer, end_stream);
     }
     return {Network::PostIoAction::Close, 0, false};
   }
   void onConnected() override {
-    if (ssl_socket_) {
-      ssl_socket_->onConnected();
+    if (socket_) {
+      socket_->onConnected();
     }
   }
   Ssl::ConnectionInfoConstSharedPtr ssl() const override {
-    return ssl_socket_ ? ssl_socket_->ssl() : nullptr;
+    return socket_ ? socket_->ssl() : nullptr;
   }
   bool startSecureTransport() override {
-    return ssl_socket_ ? ssl_socket_->startSecureTransport() : false;
+    return socket_ ? socket_->startSecureTransport() : false;
   }
 
  private:
   Extensions::TransportSockets::Tls::InitialState state_;
   const Network::TransportSocketOptionsConstSharedPtr transport_socket_options_;
-  SslSocketPtr ssl_socket_;
+  Network::TransportSocketPtr socket_;
 };
 
 class ClientSslSocketFactory : public Network::TransportSocketFactory {
