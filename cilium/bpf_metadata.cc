@@ -187,7 +187,7 @@ const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr src_address = socket.connectionInfoProvider().remoteAddress();
   const auto sip = src_address->ip();
-  const auto& dst_address = socket.connectionInfoProvider().localAddress();
+  const auto dst_address = socket.ioHandle().localAddress();
   const auto dip = dst_address->ip();
 
   if (!sip || !dip) {
