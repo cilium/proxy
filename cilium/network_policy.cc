@@ -545,6 +545,50 @@ class PolicyInstanceImpl : public PolicyInstance {
       return client_context_;
     }
 
+    std::string string() const {
+      std::string res;
+      res += "name: " + name_;
+      if (l7_proto_ != "") {
+	res += ", l7proto: " + l7_proto_;
+      }
+      bool first = true;
+      res += ", remotes: ";
+      for (auto r: allowed_remotes_) {
+	if (!first)
+	  res += ",";
+	res += std::to_string(r);
+	first = false;
+      }
+      first = true;
+      res += ", snis: ";
+      for (auto s: allowed_snis_) {
+	if (!first)
+	  res += ",";
+	res += s;
+	first = false;
+      }	
+      if (http_rules_.size() > 0)
+	res += ", " + std::to_string(http_rules_.size()) + " http rules";
+      if (l7_allow_rules_.size() > 0)
+	res += ", " + std::to_string(l7_allow_rules_.size()) + " l7 allow rules";
+      if (l7_deny_rules_.size() > 0)
+	res += ", " + std::to_string(l7_deny_rules_.size()) + " l7 deny rules";
+
+      if (server_config_)
+	res += ", server config";
+      if (server_names_.size() > 0)
+	res += ", " + std::to_string(server_names_.size()) + " server names";
+      if (server_context_)
+	res += ", server context";
+
+      if (client_config_)
+	res += ", client config";
+      if (client_context_)
+	res += ", client context";
+
+      return res;
+    }
+
     Envoy::Ssl::ContextManager& manager_;
     Ssl::ServerContextConfigPtr server_config_;
     std::vector<std::string> server_names_;
@@ -617,7 +661,26 @@ class PolicyInstanceImpl : public PolicyInstance {
           return rule;
         }
       }
+      ENVOY_LOG(trace,
+		"Cilium L7 findPortPolicy(): policy for remote_id %d not found", remote_id);
       return nullptr;
+    }
+
+    std::string string() const {
+      bool first = true;
+      std::string res;
+      for (auto r: rules_) {
+	if (!first)
+	  res += "; ";
+	res += r->string();
+	first = false;
+      }
+      if (have_header_matches_)
+	res += "; have header matches";
+      else
+	res += "; no header matches";
+
+      return res;
     }
 
     std::vector<PortNetworkPolicyRuleConstSharedPtr>
@@ -677,14 +740,27 @@ class PolicyInstanceImpl : public PolicyInstance {
                                                   uint64_t remote_id) const {
       auto it = rules_.find(port);
       if (it != rules_.end()) {
-        return it->second.findPortPolicy(remote_id);
+        auto ret = it->second.findPortPolicy(remote_id);
+	if (ret == nullptr)
+	  goto dump_state;
+	return ret;
       }
+      ENVOY_LOG(trace, "Cilium L7 findPortPolicy(): no policy for port %d found", port);
       // Check for any rules that wildcard the port
       // Note: Wildcard port makes no sense for an L7 policy, but the policy
       // could be a L3/L4 policy as well.
       it = rules_.find(0);
       if (it != rules_.end()) {
-        return it->second.findPortPolicy(remote_id);
+        auto ret = it->second.findPortPolicy(remote_id);
+	if (ret == nullptr)
+	  goto dump_state;
+	return ret;
+      }
+      ENVOY_LOG(trace, "Cilium L7 findPortPolicy(): no policy for wildcard port found");
+    dump_state:
+      ENVOY_LOG(trace, "Cilium L7 findPortPolicy(): port policy is nullptr");
+      for (auto p: rules_) {
+	ENVOY_LOG(trace, "Cilium L7 findPortPolicy(): port %d: %s", p.first, p.second.string());
       }
       return nullptr;
     }
