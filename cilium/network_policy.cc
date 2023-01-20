@@ -7,6 +7,7 @@
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h"
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
 #include "cilium/api/npds.pb.validate.h"
@@ -50,21 +51,38 @@ Extensions::TransportSockets::Tls::ClientContextConfigImpl*
 PortPolicyConstSharedPtr allowPortNetworkPolicyRule =
     std::make_shared<AllowPortNetworkPolicyRule>();
 
+namespace {
+// PortRangeCompare returns true if both ends of range 'a' are less than the
+// corresponding ends of range 'b'. std::less compares 'pair.second' only if the
+// first elements are equal, which does not work for range lookups, where we
+// look with a pair where both elements have the same value of interest.
+//
+// NOTE: This relies on the invariant that in any given range R, R.first <= R.second.
+// We do not test for this here, but this must be enforced when creating the ranges!
+struct PortRangeCompare {
+  bool operator()(const std::pair<uint16_t, uint16_t>& a,
+                  const std::pair<uint16_t, uint16_t>& b) const {
+    // For a range pair first <= second; less if a is completely below b
+    return a.second < b.first;
+  }
+};
+} // namespace
+
 // Allow-all Egress policy
 class AllowAllEgressPolicyInstanceImpl : public PolicyInstance {
 public:
   AllowAllEgressPolicyInstanceImpl() {}
 
-  bool Allowed(bool ingress, uint32_t, uint64_t, Envoy::Http::RequestHeaderMap&,
+  bool Allowed(bool ingress, uint16_t, uint64_t, Envoy::Http::RequestHeaderMap&,
                Cilium::AccessLog::Entry&) const override {
     return ingress ? false : true;
   }
 
-  const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint32_t, uint64_t) const override {
+  const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint16_t, uint64_t) const override {
     return ingress ? nullptr : allowPortNetworkPolicyRule;
   }
 
-  bool useProxylib(bool, uint32_t, uint64_t, std::string&) const override { return false; }
+  bool useProxylib(bool, uint16_t, uint64_t, std::string&) const override { return false; }
 
   const std::string& conntrackName() const override { return empty_string; }
 
@@ -564,12 +582,37 @@ protected:
         // Only TCP supported for HTTP
         if (it.protocol() == envoy::config::core::v3::SocketAddress::TCP) {
           // Port may be zero, which matches any port.
+          uint16_t port = it.port();
+          // End port may be zero, which means no range
+          uint16_t end_port = it.end_port();
+          if (end_port < port) {
+            if (end_port != 0) {
+              throw EnvoyException(fmt::format(
+                  "PortNetworkPolicy: Invalid port range, end port is less than port {}-{}", port,
+                  end_port));
+            }
+            end_port = port;
+          }
+          if (port == 0 && end_port > 0) {
+            throw EnvoyException(fmt::format(
+                "PortNetworkPolicy: Invalid port range including the wildcard zero port {}-{}",
+                port, end_port));
+          }
           ENVOY_LOG(trace,
                     "Cilium L7 PortNetworkPolicy(): installing TCP policy for "
-                    "port {}",
-                    it.port());
-          if (!rules_.emplace(it.port(), PortNetworkPolicyRules(parent, it.rules())).second) {
-            throw EnvoyException("PortNetworkPolicy: Duplicate port number");
+                    "port range {}-{}",
+                    port, end_port);
+          if (!rules_
+                   .emplace(std::make_pair(port, end_port),
+                            PortNetworkPolicyRules(parent, it.rules()))
+                   .second) {
+            if (port == end_port) {
+              throw EnvoyException(
+                  fmt::format("PortNetworkPolicy: Duplicate port number {}", port));
+            } else {
+              throw EnvoyException(
+                  fmt::format("PortNetworkPolicy: Overlapping port range {}-{}", port, end_port));
+            }
           }
         } else {
           ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): NOT installing non-TCP policy");
@@ -577,9 +620,24 @@ protected:
       }
     }
 
-    bool Matches(uint32_t port, uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+    typedef absl::btree_map<std::pair<uint16_t, uint16_t>, PortNetworkPolicyRules, PortRangeCompare>
+        PolicyMap;
+
+    PolicyMap::const_iterator find(uint16_t port) const {
+      std::pair<uint16_t, uint16_t> p = {port, port};
+      auto it = rules_.find(p);
+      if (it != rules_.end()) {
+        const auto& range = it->first;
+        if (port >= range.first && port <= range.second) {
+          return it;
+        }
+      }
+      return rules_.end();
+    }
+
+    bool Matches(uint16_t port, uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                  Cilium::AccessLog::Entry& log_entry) const {
-      auto it = rules_.find(port);
+      auto it = find(port);
       if (it != rules_.end()) {
         if (it->second.Matches(remote_id, headers, log_entry)) {
           return true;
@@ -588,7 +646,7 @@ protected:
       // Check for any rules that wildcard the port
       // Note: Wildcard port makes no sense for an L7 policy, but the policy
       // could be a L3/L4 policy as well.
-      it = rules_.find(0);
+      it = find(0);
       if (it != rules_.end()) {
         if (it->second.Matches(remote_id, headers, log_entry)) {
           return true;
@@ -597,39 +655,39 @@ protected:
       return false;
     }
 
-    const PortPolicyConstSharedPtr findPortPolicy(uint32_t port, uint64_t remote_id) const {
-      auto it = rules_.find(port);
+    const PortPolicyConstSharedPtr findPortPolicy(uint16_t port, uint64_t remote_id) const {
+      auto it = find(port);
       if (it != rules_.end()) {
         return it->second.findPortPolicy(remote_id);
       }
       // Check for any rules that wildcard the port
       // Note: Wildcard port makes no sense for an L7 policy, but the policy
       // could be a L3/L4 policy as well.
-      it = rules_.find(0);
+      it = find(0);
       if (it != rules_.end()) {
         return it->second.findPortPolicy(remote_id);
       }
       return nullptr;
     }
 
-    absl::node_hash_map<uint32_t, PortNetworkPolicyRules> rules_;
+    PolicyMap rules_;
   };
 
 public:
-  bool Allowed(bool ingress, uint32_t port, uint64_t remote_id,
+  bool Allowed(bool ingress, uint16_t port, uint64_t remote_id,
                Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const override {
     return ingress ? ingress_.Matches(port, remote_id, headers, log_entry)
                    : egress_.Matches(port, remote_id, headers, log_entry);
   }
 
-  const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint32_t port,
+  const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint16_t port,
                                                 uint64_t remote_id) const override {
     return ingress ? ingress_.findPortPolicy(port, remote_id)
                    : egress_.findPortPolicy(port, remote_id);
   }
 
-  bool useProxylib(bool ingress, uint32_t port, uint64_t remote_id,
+  bool useProxylib(bool ingress, uint16_t port, uint64_t remote_id,
                    std::string& l7_proto) const override {
     const auto& port_policy = findPortPolicy(ingress, port, remote_id);
     if (port_policy != nullptr) {

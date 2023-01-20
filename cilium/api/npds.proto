@@ -77,6 +77,9 @@ message PortNetworkPolicy {
   // If 0, all destination L4 port numbers are matched by this predicate.
   uint32 port = 1 [(validate.rules).uint32.lte = 65535];
 
+  // The end of the destination port range, if non-zero.
+  uint32 end_port = 4 [(validate.rules).uint32.lte = 65535];
+
   // The flows' L4 transport protocol.
   // Required.
   envoy.config.core.v3.SocketAddress.Protocol protocol = 2;
