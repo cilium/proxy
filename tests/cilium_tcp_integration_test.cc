@@ -331,12 +331,14 @@ resources:
   - '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
-  - port: {0}
+  - port: 1
+    end_port: {0}
     rules:
     - remote_policies: [ 1 ]
       l7_proto: "test.lineparser"
   egress_per_port_policies:
-  - port: {0}
+  - port: 1
+    end_port: {0}
     rules:
     - remote_policies: [ 1 ]
       l7_proto: "test.lineparser"
@@ -558,12 +560,14 @@ resources:
   - '{{ ntop_ip_loopback_address }}'
   policy: 3
   ingress_per_port_policies:
-  - port: {0}
+  - port: 1
+    end_port: 65535
     rules:
     - remote_policies: [ 1 ]
       l7_proto: "test.blockparser"
   egress_per_port_policies:
-  - port: {0}
+  - port: 1
+    end_port: 65535
     rules:
     - remote_policies: [ 1 ]
       l7_proto: "test.blockparser"

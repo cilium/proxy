@@ -87,6 +87,16 @@ envoy_cc_test_library(
 )
 
 envoy_cc_test(
+    name = "cilium_network_policy_test",
+    srcs = ["cilium_network_policy_test.cc"],
+    repository = "@envoy",
+    deps = [
+        "//cilium:network_policy_lib",
+        "@envoy//test/mocks/server:factory_context_mocks",
+    ],
+)
+
+envoy_cc_test(
     name = "accesslog_test",
     srcs = ["accesslog_test.cc"],
     repository = "@envoy",

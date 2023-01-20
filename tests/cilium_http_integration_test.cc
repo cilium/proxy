@@ -664,6 +664,45 @@ TEST_P(CiliumIntegrationPortTest, DuplicatePort) {
   EXPECT_EQ(500, status);
 }
 
+class CiliumIntegrationPortRangeTest : public CiliumIntegrationTest {
+public:
+  CiliumIntegrationPortRangeTest() : CiliumIntegrationTest() {}
+
+  std::string testPolicyFmt() {
+    return TestEnvironment::substitute(BASIC_POLICY_fmt + R"EOF(  - end_port: {0}
+    rules:
+    - remote_policies: [ 2 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            safe_regex_match:
+              google_re2: {{}}
+              regex: '/only-2-allowed'
+)EOF",
+                                       GetParam());
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationPortRangeTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+
+TEST_P(CiliumIntegrationPortRangeTest, InvalidRange) {
+  initialize();
+
+  // This would normally be allowed, but since the policy fails, everything will
+  // be rejected.
+  Http::TestRequestHeaderMapImpl headers = {
+      {":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}};
+  codec_client_ = makeHttpConnection(lookupPort("http"));
+  auto response = codec_client_->makeHeaderOnlyRequest(headers);
+  ASSERT_TRUE(response->waitForEndStream());
+
+  uint64_t status;
+  ASSERT_TRUE(absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status));
+  EXPECT_EQ(500, status);
+}
+
 class CiliumIntegrationEgressTest : public CiliumIntegrationTest {
 public:
   CiliumIntegrationEgressTest()
@@ -728,6 +767,7 @@ resources:
   endpoint_id: 3
   egress_per_port_policies:
   - port: {0}
+    end_port: {0}
     rules:
     - remote_policies: [ 42 ]
 )EOF";
