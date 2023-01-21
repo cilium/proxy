@@ -12,6 +12,7 @@ jobs:
       - name: Add swap
         run: |
           set -x
+          lsb_release -a
           file="/mnt/swapfile"
           sudo swapoff "${file}"
           sudo fallocate -l 8G "${file}"
@@ -22,21 +23,23 @@ jobs:
           free -m
           df -h
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325
+        with:
+          version: v0.9.1
       - name: Cache Docker layers
-        uses: actions/cache@v2
+        uses: actions/cache@58c146cc91c5b9e778e71775dfe9bf1442ad9a12
         with:
           path: /tmp/buildx-cache
           key: docker-cache-${{ github.head_ref }}
           restore-keys: docker-cache-master
       - name: Login to quay.io
-        uses: docker/login-action@v1
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
           password: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
       - name: Checkout PR
-        uses: actions/checkout@v2
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Prep for build
@@ -44,7 +47,7 @@ jobs:
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
       - name: PR Multi-arch build & push of cilium-envoy
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@37abcedcc1da61a57767b7588cb9d03eb57e28b3
         id: docker_build_ci
         with:
           context: .

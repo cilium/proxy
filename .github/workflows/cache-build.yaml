@@ -18,6 +18,7 @@ jobs:
       - name: Add swap
         run: |
           set -x
+          lsb_release -a
           file="/mnt/swapfile"
           sudo swapoff "${file}"
           sudo fallocate -l 8G "${file}"
@@ -28,15 +29,17 @@ jobs:
           free -m
           df -h
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325
+        with:
+          version: v0.9.1
       - name: Login to quay.io
-        uses: docker/login-action@v1
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_ENVOY_USERNAME }}
           password: ${{ secrets.QUAY_ENVOY_PASSWORD }}
       - name: Checkout PR
-        uses: actions/checkout@v2
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8
       - name: Pull proxylib/libcilium.so
         run: |
           docker create -ti --name cilium-proxylib quay.io/cilium/cilium:stable bash
@@ -47,7 +50,7 @@ jobs:
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
       - name: Update integration test archive on amd64
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@37abcedcc1da61a57767b7588cb9d03eb57e28b3
         id: docker_tests_ci_build
         with:
           context: .
@@ -60,14 +63,14 @@ jobs:
           push: true
           tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-master-archive-latest
       - name: Cache Docker layers
-        uses: actions/cache@v2
+        uses: actions/cache@58c146cc91c5b9e778e71775dfe9bf1442ad9a12
         with:
           path: /tmp/buildx-cache
           key: docker-cache-tests
       - name: Clear cache
         run: rm -rf /tmp/buildx-cache/*
       - name: Run integration tests on amd64 to update docker cache
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@37abcedcc1da61a57767b7588cb9d03eb57e28b3
         id: docker_tests_ci_cache_update
         with:
           context: .
@@ -96,21 +99,23 @@ jobs:
           free -m
           df -h
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325
+        with:
+          version: v0.9.1
       - name: Login to quay.io
-        uses: docker/login-action@v1
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_ENVOY_USERNAME }}
           password: ${{ secrets.QUAY_ENVOY_PASSWORD }}
       - name: Checkout PR
-        uses: actions/checkout@v2
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8
       - name: Prep for build
         run: |
           echo "${{ github.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
       - name: Multi-arch build & push of build artifact archive
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@37abcedcc1da61a57767b7588cb9d03eb57e28b3
         with:
           context: .
           file: ./Dockerfile
@@ -122,7 +127,7 @@ jobs:
           push: true
           tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:master-archive-latest
       - name: Cache Docker layers
-        uses: actions/cache@v2
+        uses: actions/cache@58c146cc91c5b9e778e71775dfe9bf1442ad9a12
         with:
           path: /tmp/buildx-cache
           key: docker-cache-master
@@ -131,7 +136,7 @@ jobs:
           rm -rf /tmp/buildx-cache/*
           docker buildx prune -f
       - name: Multi-arch build & push master latest
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@37abcedcc1da61a57767b7588cb9d03eb57e28b3
         id: docker_build_cd
         with:
           context: .
