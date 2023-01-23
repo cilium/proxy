@@ -16,7 +16,7 @@ include Makefile.defs
 
 # COMPILER_DEP:=clang.bazelrc
 
-ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy bazel-bin/cilium-envoy-deps
+ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy
 ENVOY_TESTS = bazel-bin/tests/*_test
 
 SHELL=/bin/bash -o pipefail
@@ -73,10 +73,6 @@ clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-10
 	bazel/setup_clang.sh /usr/lib/llvm-10
 	echo "build --config=clang" >> $@
 
-envoy-deps-release: $(COMPILER_DEP) SOURCE_VERSION
-	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy-deps $(BAZEL_FILTER)
-
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy $(BAZEL_FILTER)
@@ -95,7 +91,7 @@ ifdef COPY_CACHE_EXT
   endif
 endif
 
-# Remove the binaries and linkstamp to get fresh version SHA for the next build
+# Remove the binaries
 clean: force
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
 	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
