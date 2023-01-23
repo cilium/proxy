@@ -24,12 +24,8 @@ BUILDIFIER ?= buildifier
 
 all: precheck envoy-default
 
-api: force-non-root Makefile.api envoy-deps-fastbuild
+api: force-non-root Makefile.api envoy-default
 	$(MAKE) -f Makefile.api all
-
-envoy-deps-fastbuild: $(COMPILER_DEP) SOURCE_VERSION
-	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-deps $(BAZEL_FILTER)
 
 envoy-default: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
