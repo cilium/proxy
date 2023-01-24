@@ -24,7 +24,12 @@ BUILDIFIER ?= buildifier
 
 all: precheck envoy-default
 
-api: force-non-root Makefile.api envoy-default
+# @envoy_api//:v3_protos must be built before invoking Makefile.api
+API_DEPS = @envoy_api//:v3_protos
+PROTOC_SED = "s/ *Outputs: \[\(.*bin\/external\/com_google_protobuf\/protoc\)\]/\1/p"
+api: force-non-root Makefile.api install-bazel
+	bazel build $(API_DEPS)
+	PROTOC=`bazel aquery 'deps($(API_DEPS), 1)' | sed -n $(PROTOC_SED)` \
 	$(MAKE) -f Makefile.api all
 
 envoy-default: $(COMPILER_DEP) SOURCE_VERSION
