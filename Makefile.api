@@ -14,7 +14,7 @@
 
 include Makefile.quiet
 
-# Depends on Envoy dependencies, Envoy must be built first
+# Depends on Envoy dependencies, Envoy API & protoc must be built first
 
 PROTOC ?= bazel-out/host/bin/external/com_google_protobuf/protoc
 
@@ -88,7 +88,7 @@ envoy-go-targets: $(ENVOY_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api
 	$(QUIET)set -e; \
 	for path in $(ENVOY_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --go_opt=module=github.com/cilium/proxy/go --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) --validate_opt=module=github.com/envoyproxy/go-control-plane $${path}*.proto; \
+		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT)" --go_opt=module=github.com/cilium/proxy/go "--validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)" --validate_opt=module=github.com/envoyproxy/go-control-plane $${path}*.proto; \
 	done
 
 .PHONY: contrib-go-targets
@@ -96,7 +96,7 @@ contrib-go-targets: $(CONTRIB_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.ap
 	$(QUIET)set -e; \
 	for path in $(CONTRIB_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --go_opt=module=github.com/cilium/proxy/go --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)/contrib/envoy --validate_opt=module=github.com/envoyproxy/go-control-plane/envoy $${path}*.proto; \
+		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT)" --go_opt=module=github.com/cilium/proxy/go "--validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)/contrib/envoy" --validate_opt=module=github.com/envoyproxy/go-control-plane/envoy $${path}*.proto; \
 	done
 
 .PHONY: cilium-go-targets
@@ -104,7 +104,7 @@ cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api 
 	$(QUIET)set -e; \
 	for path in $(CILIUM_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) --go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT) --go_opt=module=github.com/cilium/proxy/go --validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT) --validate_opt=module=github.com/cilium/proxy/go $${path}*.proto; \
+		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT)" --go_opt=module=github.com/cilium/proxy/go "--validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)" --validate_opt=module=github.com/cilium/proxy/go $${path}*.proto; \
 	done
 
 godeps:
