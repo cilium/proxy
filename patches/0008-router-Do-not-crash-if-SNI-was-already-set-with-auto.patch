@@ -1,7 +1,8 @@
-From 7c85b6e57936845f41aa7ac242a90fc09bd22b93 Mon Sep 17 00:00:00 2001
+From 5bbeb45990b49e6b8d088e0fbd4898478d08ae49 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Sat, 26 Nov 2022 13:43:53 +0200
-Subject: [PATCH] router: Do not crash if SNI was already set with auto_sni
+Subject: [PATCH 08/11] router: Do not crash if SNI was already set with
+ auto_sni
 
 Catch the exception thrown due to SNI or SAN already been set, maybe by
 some filter, when processing the auto_sni option to prevent Envoy crash
@@ -13,10 +14,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  1 file changed, 17 insertions(+), 9 deletions(-)
 
 diff --git a/source/common/router/router.cc b/source/common/router/router.cc
-index 16a2316c0b..42f7b624dd 100644
+index 6d2107af2a..ec5c6a34d2 100644
 --- a/source/common/router/router.cc
 +++ b/source/common/router/router.cc
-@@ -556,18 +556,26 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
+@@ -540,18 +540,26 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
      absl::string_view sni_value = parsed_authority.host_;
  
      if (should_set_sni && upstream_http_protocol_options.value().auto_sni()) {

@@ -204,7 +204,7 @@ public:
 
   unsigned int status() {
     ENVOY_LOG(trace, "websocket: http_parser got status: {}",
-	      parser_.status_code);
+	      static_cast<unsigned int>(parser_.status_code));
     return parser_.status_code;
   }
 

@@ -1,0 +1,87 @@
+From 09301767b0bc95232ac5f50d0607a09929cbf800 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Fri, 27 Jan 2023 14:45:03 +0200
+Subject: [PATCH 10/11] header_map: Ignore uninitialized error on
+ absl::InlinedVector
+
+Header map uses abseil InlinedVector, the default constructor of which
+leaves it's internal 'data_' union uninitialized, presumably by
+design. Suppress this compiler error due to this:
+
+    inlined from 'Envoy::Http::HeaderString::HeaderString()' at external/envoy/source/common/http/header_map_impl.cc:62:32:
+external/com_google_absl/absl/container/internal/inlined_vector.h:448:5: error: '<unnamed>.absl::InlinedVector<char, 128, std::allocator<char> >::storage_.absl::inlined_vector_internal::Storage<char, 128, std::allocator<char> >::data_' is used uninitialized [-Werror=uninitialized]
+  448 |     data_ = other_storage.data_;
+      |     ^~~~~
+external/envoy/source/common/http/header_map_impl.cc: In constructor 'Envoy::Http::HeaderString::HeaderString()':
+external/envoy/source/common/http/header_map_impl.cc:62:59: note: '<anonymous>' declared here
+   62 | HeaderString::HeaderString() : buffer_(InlineHeaderVector()) {
+      |                                                           ^
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ bazel/abseil2.patch    | 36 ++++++++++++++++++++++++++++++++++++
+ bazel/repositories.bzl |  5 ++++-
+ 2 files changed, 40 insertions(+), 1 deletion(-)
+ create mode 100644 bazel/abseil2.patch
+
+diff --git a/bazel/abseil2.patch b/bazel/abseil2.patch
+new file mode 100644
+index 0000000000..c0c1ae875b
+--- /dev/null
++++ b/bazel/abseil2.patch
+@@ -0,0 +1,36 @@
++From 333bd9b552f0ee8e82fce560ed1ef9bcfc138c46 Mon Sep 17 00:00:00 2001
++From: Jarno Rajahalme <jarno@isovalent.com>
++Date: Fri, 27 Jan 2023 15:24:15 +0200
++Subject: [PATCH] memcpy: Only copy data_ if allocated or size > 0
++
++Do not copy data_ if not allocated or if size == 0. While copying empty
++inlined data is harmless, the data_ being copied from may be
++uninitialized, resulting into a compiler warning like this:
++
++external/com_google_absl/absl/container/internal/inlined_vector.h:448:5: error: '<unnamed>.absl::InlinedVector<char, 128, std::allocator<char> >::storage_.absl::inlined_vector_internal::Storage<char, 128, std::allocator<char> >::data_' is used uninitialized [-Werror=uninitialized]
++  448 |     data_ = other_storage.data_;
++      |     ^~~~~
++
++Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
++---
++ absl/container/internal/inlined_vector.h | 4 +++-
++ 1 file changed, 3 insertions(+), 1 deletion(-)
++
++diff --git a/absl/container/internal/inlined_vector.h b/absl/container/internal/inlined_vector.h
++index 2baf26f3..3f3b5be4 100644
++--- a/absl/container/internal/inlined_vector.h
+++++ b/absl/container/internal/inlined_vector.h
++@@ -445,7 +445,9 @@ class Storage {
++                           other_storage.GetIsAllocated());
++ 
++     GetSizeAndIsAllocated() = other_storage.GetSizeAndIsAllocated();
++-    data_ = other_storage.data_;
+++    if (GetSizeAndIsAllocated()) {
+++      data_ = other_storage.data_;
+++    }
++   }
++ 
++   void DeallocateIfAllocated() {
++-- 
++2.36.0
++
+diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl
+index 2f7bd562de..be2b50b7e4 100644
+--- a/bazel/repositories.bzl
++++ b/bazel/repositories.bzl
+@@ -651,7 +651,10 @@ def _com_google_googletest():
+ def _com_google_absl():
+     external_http_archive(
+         name = "com_google_absl",
+-        patches = ["@envoy//bazel:abseil.patch"],
++        patches = [
++            "@envoy//bazel:abseil.patch",
++            "@envoy//bazel:abseil2.patch"
++        ],
+         patch_args = ["-p1"],
+     )
+     native.bind(
+-- 
+2.36.0
+

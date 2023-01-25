@@ -1,8 +1,25 @@
+From fb9dfb51b6675506e2dccfc8783cba36f8124586 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Wed, 21 Sep 2022 18:48:03 +0300
+Subject: [PATCH 06/11] connection: Make isHalfCloseEnabled const
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ envoy/network/connection.h                                | 2 +-
+ source/common/network/connection_impl.h                   | 2 +-
+ source/common/network/happy_eyeballs_connection_impl.cc   | 2 +-
+ source/common/network/happy_eyeballs_connection_impl.h    | 2 +-
+ source/common/quic/quic_filter_manager_connection_impl.cc | 2 +-
+ source/common/quic/quic_filter_manager_connection_impl.h  | 2 +-
+ source/server/api_listener_impl.h                         | 2 +-
+ test/mocks/network/connection.h                           | 2 +-
+ 8 files changed, 8 insertions(+), 8 deletions(-)
+
 diff --git a/envoy/network/connection.h b/envoy/network/connection.h
-index e6560b6dc0..0b5ac4cea8 100644
+index 3cbada199d..1b8a8af456 100644
 --- a/envoy/network/connection.h
 +++ b/envoy/network/connection.h
-@@ -128,7 +128,7 @@ public:
+@@ -129,7 +129,7 @@ public:
    /**
     * @return true if half-close semantics are enabled, false otherwise.
     */
@@ -12,7 +29,7 @@ index e6560b6dc0..0b5ac4cea8 100644
    /**
     * Close the connection.
 diff --git a/source/common/network/connection_impl.h b/source/common/network/connection_impl.h
-index 7743d1839c..9228233dcf 100644
+index cfdb2482a2..ba6df8b8f5 100644
 --- a/source/common/network/connection_impl.h
 +++ b/source/common/network/connection_impl.h
 @@ -65,7 +65,7 @@ public:
@@ -25,7 +42,7 @@ index 7743d1839c..9228233dcf 100644
    std::string nextProtocol() const override { return transport_socket_->protocol(); }
    void noDelay(bool enable) override;
 diff --git a/source/common/network/happy_eyeballs_connection_impl.cc b/source/common/network/happy_eyeballs_connection_impl.cc
-index ad567834cb..ad4532959f 100644
+index c6dc14da14..5c286a80cb 100644
 --- a/source/common/network/happy_eyeballs_connection_impl.cc
 +++ b/source/common/network/happy_eyeballs_connection_impl.cc
 @@ -106,7 +106,7 @@ void HappyEyeballsConnectionImpl::enableHalfClose(bool enabled) {
@@ -38,11 +55,11 @@ index ad567834cb..ad4532959f 100644
  }
  
 diff --git a/source/common/network/happy_eyeballs_connection_impl.h b/source/common/network/happy_eyeballs_connection_impl.h
-index 8deea41a9e..356f7c62f0 100644
+index e314927f72..b2e44a0e79 100644
 --- a/source/common/network/happy_eyeballs_connection_impl.h
 +++ b/source/common/network/happy_eyeballs_connection_impl.h
-@@ -70,7 +70,7 @@ public:
-   absl::optional<std::chrono::milliseconds> lastRoundTripTime() const override;
+@@ -72,7 +72,7 @@ public:
+   absl::optional<uint64_t> congestionWindowInBytes() const override;
  
    // Simple getters which always delegate to the first connection in connections_.
 -  bool isHalfCloseEnabled() override;
@@ -51,7 +68,7 @@ index 8deea41a9e..356f7c62f0 100644
    // Note, this might change before connect finishes.
    ConnectionInfoSetter& connectionInfoSetter() override;
 diff --git a/source/common/quic/quic_filter_manager_connection_impl.cc b/source/common/quic/quic_filter_manager_connection_impl.cc
-index 0828233c46..42f4876a0e 100644
+index 26d48eb50c..2f88407fc3 100644
 --- a/source/common/quic/quic_filter_manager_connection_impl.cc
 +++ b/source/common/quic/quic_filter_manager_connection_impl.cc
 @@ -52,7 +52,7 @@ void QuicFilterManagerConnectionImpl::enableHalfClose(bool enabled) {
@@ -64,10 +81,10 @@ index 0828233c46..42f4876a0e 100644
    return false;
  }
 diff --git a/source/common/quic/quic_filter_manager_connection_impl.h b/source/common/quic/quic_filter_manager_connection_impl.h
-index f2df2ee48a..640b8151df 100644
+index a205ed1846..ae7515b4d8 100644
 --- a/source/common/quic/quic_filter_manager_connection_impl.h
 +++ b/source/common/quic/quic_filter_manager_connection_impl.h
-@@ -48,7 +48,7 @@ public:
+@@ -49,7 +49,7 @@ public:
      IS_ENVOY_BUG("unexpected call to addBytesSentCallback");
    }
    void enableHalfClose(bool enabled) override;
@@ -77,7 +94,7 @@ index f2df2ee48a..640b8151df 100644
    Event::Dispatcher& dispatcher() override { return dispatcher_; }
    std::string nextProtocol() const override { return EMPTY_STRING; }
 diff --git a/source/server/api_listener_impl.h b/source/server/api_listener_impl.h
-index 310f469d68..9e71511134 100644
+index 49e6a83071..1c1d774d8c 100644
 --- a/source/server/api_listener_impl.h
 +++ b/source/server/api_listener_impl.h
 @@ -116,7 +116,7 @@ protected:
@@ -90,7 +107,7 @@ index 310f469d68..9e71511134 100644
          return false;
        }
 diff --git a/test/mocks/network/connection.h b/test/mocks/network/connection.h
-index deb5f92407..0750dbbb4e 100644
+index d86f6f6775..4ce8a8d175 100644
 --- a/test/mocks/network/connection.h
 +++ b/test/mocks/network/connection.h
 @@ -54,7 +54,7 @@ public:
@@ -102,3 +119,6 @@ index deb5f92407..0750dbbb4e 100644
    MOCK_METHOD(void, close, (ConnectionCloseType type));                                            \
    MOCK_METHOD(Event::Dispatcher&, dispatcher, ());                                                 \
    MOCK_METHOD(uint64_t, id, (), (const));                                                          \
+-- 
+2.36.0
+

@@ -1,0 +1,38 @@
+From 3b51eae635f7e277074b970b8c3c8d85359bf5b1 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Fri, 27 Jan 2023 13:21:34 +0200
+Subject: [PATCH 09/11] tcmalloc: Update for arm64 support arm64 builds fail
+ due to invalid flag output constraint being used:
+
+  error: unknown 'asm' flag output '=@ccbe'
+
+Update to tcmalloc master that has this fixed.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ bazel/repository_locations.bzl | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/bazel/repository_locations.bzl b/bazel/repository_locations.bzl
+index ae568f87fb..b37e8d531c 100644
+--- a/bazel/repository_locations.bzl
++++ b/bazel/repository_locations.bzl
+@@ -254,12 +254,12 @@ REPOSITORY_LOCATIONS_SPEC = dict(
+         project_name = "tcmalloc",
+         project_desc = "Fast, multi-threaded malloc implementation",
+         project_url = "https://github.com/google/tcmalloc",
+-        version = "a08f5483182f41ce626e3f66662966342bb448fa",
+-        sha256 = "a3bd1b414ca534b5975187132f9a7ca6e392bc2c6379bb14bf096f403035a6c6",
++        version = "e417bfa95505911554d6392263f85dfe6f5d8eef",
++        sha256 = "7e2506568b222ddc1e4df4c9855e4e1e9906cb3ac4c6c7978b1d25577fd7131b",
+         strip_prefix = "tcmalloc-{version}",
+         urls = ["https://github.com/google/tcmalloc/archive/{version}.tar.gz"],
+         use_category = ["dataplane_core", "controlplane"],
+-        release_date = "2022-04-07",
++        release_date = "2023-01-24",
+         cpe = "N/A",
+     ),
+     com_github_gperftools_gperftools = dict(
+-- 
+2.36.0
+

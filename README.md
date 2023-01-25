@@ -22,7 +22,7 @@ supported.  Container builds produce container images by
 default. These images can not be run by themselves as they do not
 contain the required runtime dependencies. To run the Cilium proxy the
 binary `/usr/bin/cilium-envoy` needs to be copied from the image to a
-compatible runtime environment, such as Ubuntu 18.04 or 20.04.
+compatible runtime environment, such as Ubuntu 20.04, or 22.04.
 
 The provided container build tools work on both Linux and macOS.
 

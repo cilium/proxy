@@ -128,8 +128,8 @@ std::shared_ptr<const Cilium::PolicyHostMap> createHostMap(
             std::make_shared<Cilium::PolicyHostMap>(context.threadLocal());
         auto subscription =
             std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-                context.mainThreadDispatcher(), path, *map, *map, stats,
-                ProtobufMessage::getNullValidationVisitor(), context.api());
+		context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path),
+		*map, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
         map->startSubscription(std::move(subscription));
         return map;
       });
@@ -153,8 +153,8 @@ std::shared_ptr<const Cilium::NetworkPolicyMap> createPolicyMap(
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
         auto subscription =
             std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-                context.mainThreadDispatcher(), path, *map, *map, stats,
-                ProtobufMessage::getNullValidationVisitor(), context.api());
+		context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path),
+		*map, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
         map->startSubscription(std::move(subscription));
         return map;
       });

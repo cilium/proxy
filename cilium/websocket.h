@@ -65,21 +65,8 @@ class Instance : public Network::Filter,
     config_->Log(log_entry_, ::cilium::EntryType::Response);
   }
 
-  void injectEncoded(Buffer::Instance& data, bool end_stream) override {
-    if (config_->client_) {
-      callbacks_->injectReadDataToFilterChain(data, end_stream);
-    } else {
-      write_callbacks_->injectWriteDataToFilterChain(data, end_stream);
-    }
-  }
-
-  void injectDecoded(Buffer::Instance& data, bool end_stream) override {
-    if (config_->client_) {
-      write_callbacks_->injectWriteDataToFilterChain(data, end_stream);
-    } else {
-      callbacks_->injectReadDataToFilterChain(data, end_stream);
-    }
-  }
+  void injectEncoded(Buffer::Instance& data, bool end_stream) override;
+  void injectDecoded(Buffer::Instance& data, bool end_stream) override;
 
   void setOriginalDestinationAddress(const Network::Address::InstanceConstSharedPtr& orig_dst) override {
     callbacks_->connection().connectionInfoSetter().restoreLocalAddress(orig_dst);

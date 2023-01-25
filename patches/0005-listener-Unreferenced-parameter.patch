@@ -1,11 +1,9 @@
-From a0de125c5afb181eac04d93a21a3da62776dad6c Mon Sep 17 00:00:00 2001
+From e81e24384de44672c29e4b771aa97d86a947b368 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
-Date: Sat, 8 Jan 2022 11:06:29 +0200
-Subject: [PATCH] envoy: Note unreferenced parameter
+Date: Wed, 25 Jan 2023 11:28:27 +0200
+Subject: [PATCH 05/11] listener: Unreferenced parameter
 
-Fix build error:
-
-external/envoy/source/server/active_tcp_listener.cc:45:40: error: unused variable 'chain' [-Werror=unused-variable]
+Add UNREFERENCED_PARAMETER() for unreferenced 'chain'.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
@@ -13,10 +11,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  1 file changed, 1 insertion(+)
 
 diff --git a/source/server/active_tcp_listener.cc b/source/server/active_tcp_listener.cc
-index 3e0f850c9..2f4c07536 100644
+index 78b435c0aa..e586150b5d 100644
 --- a/source/server/active_tcp_listener.cc
 +++ b/source/server/active_tcp_listener.cc
-@@ -43,6 +43,7 @@ ActiveTcpListener::~ActiveTcpListener() {
+@@ -45,6 +45,7 @@ ActiveTcpListener::~ActiveTcpListener() {
    }
  
    for (auto& [chain, active_connections] : connections_by_context_) {
@@ -25,5 +23,5 @@ index 3e0f850c9..2f4c07536 100644
      auto& connections = active_connections->connections_;
      while (!connections.empty()) {
 -- 
-2.34.0
+2.36.0
 

@@ -163,8 +163,8 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   auto seen_data_len = data.length();
 
   response->waitForBodyData(7);
-  absl::string_view resp = response->body().substr(0, 7);
-  ASSERT_EQ(resp, "\x82\x5" "world");
+  absl::string_view resp = response->body();
+  ASSERT_EQ(resp.substr(0, 7), "\x82\x5" "world");
   response->clearBody();
 
   // Send multiple frames back-to-back
@@ -181,8 +181,8 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   ASSERT_TRUE(fake_upstream_connection->write("bar"));
 
   response->waitForBodyData(5);
-  resp = response->body().substr(0, 5);
-  ASSERT_EQ(resp, "\x82\x3" "bar");
+  resp = response->body();
+  ASSERT_EQ(resp.substr(0, 5), "\x82\x3" "bar");
   response->clearBody();
 
   // Bigger size formats & multiple responses.
@@ -203,10 +203,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   response->waitForBodyData(5);
   ASSERT_TRUE(fake_upstream_connection->write("bar"));
   response->waitForBodyData(10);
-  resp = response->body().substr(0, 5);
-  ASSERT_EQ(resp, "\x82\x3" "foo");
-  resp = response->body().substr(5, 5);
-  ASSERT_EQ(resp, "\x82\x3" "bar");
+  resp = response->body();
+  ASSERT_EQ(resp.substr(0, 5), "\x82\x3" "foo");
+  ASSERT_EQ(resp.substr(5, 5), "\x82\x3" "bar");
   response->clearBody();
 
   // 64-bit size format
@@ -225,8 +224,8 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
   response->waitForBodyData(7);
-  resp = response->body().substr(0, 7);
-  ASSERT_EQ(resp, "\x82\x5" "hello");
+  resp = response->body();
+  ASSERT_EQ(resp.substr(0, 7), "\x82\x5" "hello");
   response->clearBody();
 
   // Gaps within a frame
@@ -253,8 +252,8 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   seen_data_len = data.length();
 
   response->waitForBodyData(7);
-  resp = response->body().substr(0, 7);
-  ASSERT_EQ(resp, "\x82\x5" "bar42");
+  resp = response->body();
+  ASSERT_EQ(resp.substr(0, 7), "\x82\x5" "bar42");
   response->clearBody();
 
   // Masked frames
@@ -279,9 +278,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   ASSERT_TRUE(fake_upstream_connection->write(msg));
 
   response->waitForBodyData(16);
-  resp = response->body().substr(0, 16);
-
-  ASSERT_EQ(resp, "\x82\xe" "heello there\r\n");
+  ASSERT_EQ(response->body().length(), 16);
+  resp = response->body();
+  ASSERT_EQ(resp.substr(0, 16), "\x82\xe" "heello there\r\n");
   response->clearBody();
   
   // 2nd masked frame
@@ -322,9 +321,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   ASSERT_TRUE(fake_upstream_connection->write(msg2));
 
   response->waitForBodyData(15);
-  resp = response->body().substr(0, 15);
+  resp = response->body();
 
-  ASSERT_EQ(resp, "\x82\xd" "hello there\r\n");
+  ASSERT_EQ(resp.substr(0, 15), "\x82\xd" "hello there\r\n");
   response->clearBody();
   
   // Close
