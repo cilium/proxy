@@ -9,6 +9,11 @@ jobs:
     name: Build and push multi-arch images
     runs-on: ubuntu-20.04
     steps:
+      - name: Install packages
+        run: |
+          set -x
+          sudo apt update
+          sudo apt install -y mount
       - name: Add swap
         run: |
           set -x
