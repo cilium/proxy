@@ -5,15 +5,12 @@
 # Keep envoy.bazelrc up-to-date by run:
 # curl -sSL https://raw.githubusercontent.com/envoyproxy/envoy-wasm/master/.bazelrc > envoy.bazelrc
 import %workspace%/envoy.bazelrc
-
-# Overrides workspace_status_command
-build --workspace_status_command="bash tools/get_workspace_status"
+build --platform_mappings=
 build:remote --remote_timeout=7200
 
 # Enable path normalization by default.
 # See: https://github.com/envoyproxy/envoy/pull/6519
 build --define path_normalization_by_default=true
-test --define path_normalization_by_default=true
 
 # release builds are optimized
 build:release -c opt
@@ -28,3 +25,6 @@ build:release --fission=dbg
 build --crosstool_top=//bazel/toolchains:toolchain
 
 build --define manual_stamp=manual_stamp
+
+# Can't use tcmalloc as it does not compile with GCC 9 that we use for cross-compilation
+build --define tcmalloc=gperftools

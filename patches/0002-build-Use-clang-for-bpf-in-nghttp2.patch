@@ -1,7 +1,7 @@
-From ea8a119c2c5bb1ff5541ba9b4acac14726fc8f07 Mon Sep 17 00:00:00 2001
+From 2922994c3112a17e1e4d1a3c18d8aeff1ebe0f3e Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Tue, 18 Jan 2022 01:55:01 +0200
-Subject: [PATCH] build: Use clang for bpf in nghttp2
+Subject: [PATCH 02/11] build: Use clang for bpf in nghttp2
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
@@ -12,7 +12,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 
 diff --git a/bazel/foreign_cc/nghttp2-clang-for-bpf.patch b/bazel/foreign_cc/nghttp2-clang-for-bpf.patch
 new file mode 100644
-index 000000000..ab2de6b3e
+index 0000000000..ab2de6b3e8
 --- /dev/null
 +++ b/bazel/foreign_cc/nghttp2-clang-for-bpf.patch
 @@ -0,0 +1,32 @@
@@ -49,10 +49,10 @@ index 000000000..ab2de6b3e
 +2.34.1
 +
 diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl
-index c57673998..61d95eefd 100644
+index 0914e41b01..2f7bd562de 100644
 --- a/bazel/repositories.bzl
 +++ b/bazel/repositories.bzl
-@@ -491,7 +491,10 @@ def _com_github_nghttp2_nghttp2():
+@@ -534,7 +534,10 @@ def _com_github_nghttp2_nghttp2():
          # This patch cannot be picked up due to ABI rules. Discussion at;
          # https://github.com/nghttp2/nghttp2/pull/1395
          # https://github.com/envoyproxy/envoy/pull/8572#discussion_r334067786
@@ -65,5 +65,5 @@ index c57673998..61d95eefd 100644
      native.bind(
          name = "nghttp2",
 -- 
-2.34.1
+2.36.0
 

@@ -30,16 +30,15 @@ TypeUrlToServiceMap* buildTypeUrlToServiceMap() {
   // since DescriptorPool doesn't support iterating over all descriptors, due
   // its lazy load design, see
   // https://www.mail-archive.com/protobuf@googlegroups.com/msg04540.html.
-  for (const std::string& service_name : {
+  for (absl::string_view name : {
            "cilium.NetworkPolicyDiscoveryService",
            "cilium.NetworkPolicyHostsDiscoveryService",
        }) {
     const auto* service_desc =
-        Protobuf::DescriptorPool::generated_pool()->FindServiceByName(
-            service_name);
+      Protobuf::DescriptorPool::generated_pool()->FindServiceByName(std::string(name));
     // TODO(htuch): this should become an ASSERT once all v3 descriptors are
     // linked in.
-    ASSERT(service_desc != nullptr, fmt::format("{} missing", service_name));
+    ASSERT(service_desc != nullptr, fmt::format("{} missing", name));
     ASSERT(service_desc->options().HasExtension(envoy::annotations::resource));
     const std::string resource_type_url =
         Grpc::Common::typeUrl(service_desc->options()
@@ -71,6 +70,17 @@ TypeUrlToServiceMap& typeUrlToServiceMap() {
       buildTypeUrlToServiceMap();
   return *type_url_to_service_map;
 }
+
+class NopConfigValidatorsImpl : public Envoy::Config::CustomConfigValidators {
+public:
+  NopConfigValidatorsImpl() {}
+
+  void executeValidators(absl::string_view,
+			 const std::vector<Envoy::Config::DecodedResourcePtr>&) override {}
+  void executeValidators(absl::string_view,
+			 const std::vector<Envoy::Config::DecodedResourcePtr>&,
+			 const Protobuf::RepeatedPtrField<std::string>&) override {}
+};
 
 }  // namespace
 
@@ -111,6 +121,10 @@ std::unique_ptr<Config::GrpcSubscriptionImpl> subscribe(
   Config::SubscriptionStats stats = Config::Utility::generateStats(scope);
   Envoy::Config::SubscriptionOptions options;
 
+  // No-op custom validators
+  Envoy::Config::CustomConfigValidatorsPtr nop_config_validators =
+    std::make_unique<NopConfigValidatorsImpl>();
+
   return std::make_unique<Config::GrpcSubscriptionImpl>(
       std::make_shared<Config::GrpcMuxImpl>(
           local_info,
@@ -120,7 +134,8 @@ std::unique_ptr<Config::GrpcSubscriptionImpl> subscribe(
           dispatcher, sotwGrpcMethod(type_url),
           random, scope,
           Config::Utility::parseRateLimitSettings(api_config_source),
-          api_config_source.set_node_on_first_message_only()),
+          api_config_source.set_node_on_first_message_only(),
+	  std::move(nop_config_validators)),
       callbacks, resource_decoder, stats, type_url, dispatcher,
       std::chrono::milliseconds(0) /* no initial fetch timeout */,
       /*is_aggregated*/ false, options);
