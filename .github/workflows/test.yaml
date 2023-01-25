@@ -19,7 +19,7 @@ jobs:
           set -x
           lsb_release -a
           file="/mnt/swapfile"
-          sudo swapoff "${file}"
+          sudo swapoff "${file}" || true
           sudo fallocate -l 8G "${file}"
           sudo chmod 600 "${file}"
           sudo mkswap "${file}"
