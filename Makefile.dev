@@ -32,7 +32,7 @@ api: force-non-root Makefile.api install-bazel
 	PROTOC=`bazel aquery 'deps($(API_DEPS), 1)' | sed -n $(PROTOC_SED)` \
 	$(MAKE) -f Makefile.api all
 
-envoy-default: $(COMPILER_DEP) SOURCE_VERSION
+envoy-default: $(COMPILER_DEP) SOURCE_VERSION install-bazel
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
