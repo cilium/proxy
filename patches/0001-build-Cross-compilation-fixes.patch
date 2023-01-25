@@ -1,7 +1,7 @@
-From 5e0d4647760e8e690ff29622137225dbda2b0bf9 Mon Sep 17 00:00:00 2001
+From 2042f66eda6d2408bbd36c48ca9adb60f827093a Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 10 Jan 2022 14:51:49 +0200
-Subject: [PATCH] build: Cross-compilation fixes
+Subject: [PATCH 01/11] build: Cross-compilation fixes
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
@@ -10,7 +10,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  2 files changed, 18 insertions(+), 7 deletions(-)
 
 diff --git a/bazel/envoy_build_system.bzl b/bazel/envoy_build_system.bzl
-index f48ebe705..a682b2ad7 100644
+index f48ebe7056..a682b2ad78 100644
 --- a/bazel/envoy_build_system.bzl
 +++ b/bazel/envoy_build_system.bzl
 @@ -101,7 +101,6 @@ def envoy_cmake(
@@ -34,10 +34,10 @@ index f48ebe705..a682b2ad7 100644
          postfix_script = pf,
          **kwargs
 diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index 4d3a28166..dfda5fca0 100644
+index 6c59c4266d..5c33aacb0f 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
-@@ -16,6 +16,8 @@ configure_make(
+@@ -25,6 +25,8 @@ configure_make(
          "--disable-libunwind",
      ] + select({
          "//bazel:apple": ["AR=/usr/bin/ar"],
@@ -46,7 +46,7 @@ index 4d3a28166..dfda5fca0 100644
          "//conditions:default": [],
      }),
      lib_source = "@com_github_gperftools_gperftools//:all",
-@@ -75,6 +77,14 @@ configure_make(
+@@ -84,6 +86,14 @@ configure_make(
          "//bazel:asan_build": {"ENVOY_CONFIG_ASAN": "1"},
          "//bazel:msan_build": {"ENVOY_CONFIG_MSAN": "1"},
          "//bazel:windows_dbg_build": {"WINDOWS_DBG_BUILD": "debug"},
@@ -61,7 +61,7 @@ index 4d3a28166..dfda5fca0 100644
          "//conditions:default": {},
      }),
      lib_source = "@com_github_luajit_luajit//:all",
-@@ -95,6 +105,14 @@ configure_make(
+@@ -104,6 +114,14 @@ configure_make(
          # TODO(htuch): Remove when #6084 is fixed
          "//bazel:asan_build": {"ENVOY_CONFIG_ASAN": "1"},
          "//bazel:msan_build": {"ENVOY_CONFIG_MSAN": "1"},
@@ -76,7 +76,7 @@ index 4d3a28166..dfda5fca0 100644
          "//conditions:default": {},
      }),
      lib_source = "@com_github_moonjit_moonjit//:all",
-@@ -184,7 +202,6 @@ envoy_cmake(
+@@ -263,7 +281,6 @@ envoy_cmake(
          "CMAKE_CXX_COMPILER_FORCED": "on",
      },
      defines = ["CURL_STATICLIB"],
@@ -85,5 +85,5 @@ index 4d3a28166..dfda5fca0 100644
      out_static_libs = select({
          "//bazel:windows_x86_64": ["libcurl.lib"],
 -- 
-2.34.1
+2.36.0
 

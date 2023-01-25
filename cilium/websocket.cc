@@ -176,6 +176,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
       codec_->decode(data, end_stream);
     }
   }
+  // codec passes the data on via injectEncoded()/injectDecoded(), data is now empty
   return Network::FilterStatus::StopIteration;
 }
 
@@ -189,7 +190,24 @@ Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream)
       codec_->encode(data, end_stream);
     }
   }
+  // codec passes the data on via injectEncoded()/injectDecoded(), data is now empty
   return Network::FilterStatus::StopIteration;
+}
+
+void Instance::injectEncoded(Buffer::Instance& data, bool end_stream) {
+  if (config_->client_) {
+    callbacks_->injectReadDataToFilterChain(data, end_stream);
+  } else {
+    write_callbacks_->injectWriteDataToFilterChain(data, end_stream);
+  }
+}
+
+void Instance::injectDecoded(Buffer::Instance& data, bool end_stream) {
+  if (config_->client_) {
+    write_callbacks_->injectWriteDataToFilterChain(data, end_stream);
+  } else {
+    callbacks_->injectReadDataToFilterChain(data, end_stream);
+  }
 }
 
 void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {

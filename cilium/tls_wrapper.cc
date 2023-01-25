@@ -106,6 +106,10 @@ class SslSocketWrapper : public Network::TransportSocket {
   bool canFlushClose() override {
     return socket_ ? socket_->canFlushClose() : true;
   }
+
+  // Override if need to intercept client socket connect() call.
+  // Api::SysCallIntResult connect(Network::ConnectionSocket& socket) override
+
   void closeSocket(Network::ConnectionEvent type) override {
     if (socket_) {
       socket_->closeSocket(type);
@@ -135,14 +139,20 @@ class SslSocketWrapper : public Network::TransportSocket {
   bool startSecureTransport() override {
     return socket_ ? socket_->startSecureTransport() : false;
   }
-
+  void configureInitialCongestionWindow(uint64_t bandwidth_bits_per_sec,
+					std::chrono::microseconds rtt) override {
+    if (socket_) {
+      socket_->configureInitialCongestionWindow(bandwidth_bits_per_sec, rtt);
+    }
+  }
+  
  private:
   Extensions::TransportSockets::Tls::InitialState state_;
   const Network::TransportSocketOptionsConstSharedPtr transport_socket_options_;
   Network::TransportSocketPtr socket_;
 };
 
-class ClientSslSocketFactory : public Network::TransportSocketFactory {
+class ClientSslSocketFactory : public Network::CommonTransportSocketFactory {
  public:
   Network::TransportSocketPtr createTransportSocket(
       Network::TransportSocketOptionsConstSharedPtr options) const override {
@@ -151,10 +161,9 @@ class ClientSslSocketFactory : public Network::TransportSocketFactory {
   }
 
   bool implementsSecureTransport() const override { return true; }
-  bool usesProxyProtocolOptions() const override { return false; }
 };
 
-class ServerSslSocketFactory : public Network::TransportSocketFactory {
+class ServerSslSocketFactory : public Network::CommonTransportSocketFactory {
  public:
   Network::TransportSocketPtr createTransportSocket(
       Network::TransportSocketOptionsConstSharedPtr options) const override {
@@ -163,7 +172,6 @@ class ServerSslSocketFactory : public Network::TransportSocketFactory {
   }
 
   bool implementsSecureTransport() const override { return true; }
-  bool usesProxyProtocolOptions() const override { return false; }
 };
 
 }  // namespace
