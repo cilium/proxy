@@ -1,7 +1,7 @@
 # 
 # BUILDER_BASE is a multi-platform image with all the build tools
 #
-ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:bazel-4.2.1@sha256:276e98a3d74571eab05553787c1b6108d94027ad12820c483a1086f6c4813469
+ARG BUILDER_BASE=docker.io/sayboras/cilium-envoy-builder:bazel-5.1.1
 
 #
 # BUILDER_IMAGE defaults to the result of the first stage below,

@@ -21,7 +21,7 @@ ifdef ARCH
   DOCKER_BUILDX:=1
 endif
 
-DOCKER_DEV_ACCOUNT ?= quay.io/cilium
+DOCKER_DEV_ACCOUNT ?= docker.io/sayboras
 # CACHE_REF ?= docker.io/cilium/cilium-dev:cilium-envoy-cache
 CACHE_REF ?=
 DOCKER_BUILD_OPTS ?=
