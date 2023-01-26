@@ -24,7 +24,7 @@ RUN apt-get update && \
       # Envoy Build dependencies
       autoconf \
       automake \
-      clang-10 \
+      clang-11 \
       cmake \
       coreutils \
       curl \
@@ -33,8 +33,8 @@ RUN apt-get update && \
       git \
       libc6-dev \
       libtool \
-      lld-10 \
-      llvm-10-dev \
+      lld-11 \
+      llvm-11-dev \
       make \
       ninja-build \
       patch \
@@ -46,7 +46,7 @@ RUN apt-get update && \
       zip && \
     apt-get purge --auto-remove && \
     apt-get clean && \
-    ln /usr/bin/clang-10 /usr/bin/clang && ln /usr/bin/clang++-10 /usr/bin/clang++ && ln /usr/bin/lld-10 /usr/bin/lld && \
+    ln /usr/bin/clang-11 /usr/bin/clang && ln /usr/bin/clang++-11 /usr/bin/clang++ && ln /usr/bin/lld-11 /usr/bin/lld && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /cilium/proxy
