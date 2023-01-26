@@ -56,7 +56,7 @@ class AccessLog : Logger::Loggable<Logger::Id::router> {
   AccessLog(std::string path);
 
   bool Connect();
-  bool guarded_connect();
+  bool guarded_connect() ABSL_EXCLUSIVE_LOCKS_REQUIRED(fd_mutex_);
 
   const std::string path_;
   Thread::MutexBasicLockable fd_mutex_;
