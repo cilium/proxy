@@ -35,18 +35,21 @@ class AllowPortNetworkPolicyRule : public PortPolicy {
   }
 
   const Ssl::ContextConfig& getServerTlsContextConfig() const override {
-    return *Ssl::ServerContextConfigPtr{nullptr}; // not used
+    return *empty_context_config; // not used
   }
   Ssl::ContextSharedPtr getServerTlsContext() const override {
     return nullptr;
   }
   const Ssl::ContextConfig& getClientTlsContextConfig() const override {
-    return *Ssl::ClientContextConfigPtr{nullptr}; // not used
+    return *empty_context_config; // not used
   }
   Ssl::ContextSharedPtr getClientTlsContext() const override {
     return nullptr;
   }
+private:
+  static Extensions::TransportSockets::Tls::ClientContextConfigImpl* empty_context_config;
 };
+Extensions::TransportSockets::Tls::ClientContextConfigImpl* AllowPortNetworkPolicyRule::empty_context_config{nullptr};
 
 PortPolicyConstSharedPtr allowPortNetworkPolicyRule = std::make_shared<AllowPortNetworkPolicyRule>();
 
