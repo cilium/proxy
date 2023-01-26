@@ -10,11 +10,11 @@ workspace(name = "cilium")
 ENVOY_PROJECT = "envoyproxy"
 ENVOY_REPO = "envoy"
 
-# https://github.com/envoyproxy/envoy/tree/v1.21.5
+# https://github.com/envoyproxy/envoy/tree/v1.22.6
 # NOTE: Update version number to file 'ENVOY_VERSION' to keep test and build docker images
 # for different versions.
-ENVOY_SHA = "cc694c969eddd2ea57c229db3264652aa95e7ad2"
-ENVOY_SHA256 = "ce2883d60294f8725fe0d4c2446a55176694a953a09d67829d68e38df10894d6"
+ENVOY_SHA = "28872e81f4842f6b5f56ebc1c1586ed64312bb32"
+ENVOY_SHA256 = "186f5e5b4b155347bbc1400a1a5762820e2ab2272203e83c23d79111b9069e37"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
