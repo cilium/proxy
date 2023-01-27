@@ -27,4 +27,4 @@ build --crosstool_top=//bazel/toolchains:toolchain
 build --define manual_stamp=manual_stamp
 
 # Can't use tcmalloc as it does not compile with GCC 9 that we use for cross-compilation
-build --define tcmalloc=gperftools
+# build --define tcmalloc=gperftools

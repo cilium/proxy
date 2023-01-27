@@ -3,13 +3,7 @@
 # Also note that if build fails due to C++ internal error or similar,
 # it is possible that the image build needs more RAM than available by
 # default on non-Linux docker installs.
-#
-# Using Ubuntu 18.04 as base, as building with 20.04 will result in a
-# cilium-envoy binary that fails to run on 18.04 due to the glibc
-# being 2.27, while 2.28 and/or 2.29 is required. This will also
-# affect Istio sidecar compatibility, so we should keep the builder at
-# Ubuntu 18.04 for now.
-FROM docker.io/library/ubuntu:20.04 as base
+FROM docker.io/library/ubuntu:22.04 as base
 LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
 # Setup TimeZone to prevent tzdata package asking for it interactively
@@ -38,8 +32,8 @@ RUN apt-get update && \
       make \
       ninja-build \
       patch \
-      python \
       python3 \
+      python-is-python3 \
       unzip \
       virtualenv \
       wget \
