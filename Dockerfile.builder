@@ -33,6 +33,7 @@ RUN apt-get update && \
       git \
       libc6-dev \
       libtool \
+      libicu-dev \
       lld-10 \
       llvm-10-dev \
       make \
