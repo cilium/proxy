@@ -7,7 +7,7 @@ jobs:
   tests:
     timeout-minutes: 360
     name: Run integration tests on amd64
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Install packages
         run: |
@@ -34,7 +34,7 @@ jobs:
       - name: Enable Docker IPv6
         run: |
           modprobe -v ipv6
-          sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json
+          sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json || echo '{ "ipv6": true, "fixed-cidr-v6": "fd00::/80" }' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
       - name: Cache Docker layers
         uses: actions/cache@58c146cc91c5b9e778e71775dfe9bf1442ad9a12
