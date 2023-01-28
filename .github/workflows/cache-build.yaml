@@ -8,7 +8,7 @@ jobs:
   test-cache-refresh:
     timeout-minutes: 360
     name: Build test cache and push images
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Install packages
         run: |
@@ -35,7 +35,7 @@ jobs:
       - name: Enable Docker IPv6
         run: |
           modprobe -v ipv6
-          sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json
+          sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json || echo '{ "ipv6": true, "fixed-cidr-v6": "fd00::/80" }' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
       - name: Login to quay.io
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
