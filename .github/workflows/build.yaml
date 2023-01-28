@@ -7,7 +7,7 @@ jobs:
   build-and-push-prs:
     timeout-minutes: 360
     name: Build and push multi-arch images
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Install packages
         run: |
