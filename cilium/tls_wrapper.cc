@@ -100,6 +100,7 @@ class SslSocketWrapper : public Network::TransportSocket {
   std::string protocol() const override {
     return socket_ ? socket_->protocol() : EMPTY_STRING;
   }
+  void configureInitialCongestionWindow(uint64_t, std::chrono::microseconds) {}
   absl::string_view failureReason() const override {
     return socket_ ? socket_->failureReason() : NotReadyReason;
   }
@@ -142,7 +143,7 @@ class SslSocketWrapper : public Network::TransportSocket {
   Network::TransportSocketPtr socket_;
 };
 
-class ClientSslSocketFactory : public Network::TransportSocketFactory {
+class ClientSslSocketFactory : public Network::CommonTransportSocketFactory {
  public:
   Network::TransportSocketPtr createTransportSocket(
       Network::TransportSocketOptionsConstSharedPtr options) const override {
@@ -151,10 +152,10 @@ class ClientSslSocketFactory : public Network::TransportSocketFactory {
   }
 
   bool implementsSecureTransport() const override { return true; }
-  bool usesProxyProtocolOptions() const override { return false; }
+  void configureInitialCongestionWindow(uint64_t, std::chrono::microseconds) {}
 };
 
-class ServerSslSocketFactory : public Network::TransportSocketFactory {
+class ServerSslSocketFactory : public Network::CommonTransportSocketFactory {
  public:
   Network::TransportSocketPtr createTransportSocket(
       Network::TransportSocketOptionsConstSharedPtr options) const override {
@@ -163,7 +164,7 @@ class ServerSslSocketFactory : public Network::TransportSocketFactory {
   }
 
   bool implementsSecureTransport() const override { return true; }
-  bool usesProxyProtocolOptions() const override { return false; }
+  void configureInitialCongestionWindow(uint64_t, std::chrono::microseconds) {}
 };
 
 }  // namespace
