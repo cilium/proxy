@@ -203,9 +203,9 @@ public:
   }
 
   unsigned int status() {
-    ENVOY_LOG(trace, "websocket: http_parser got status: {}",
-	      parser_.status_code);
-    return parser_.status_code;
+    unsigned int code = parser_.status_code;
+    ENVOY_LOG(trace, "websocket: http_parser got status: {}", code);
+    return code;
   }
 
 protected:
