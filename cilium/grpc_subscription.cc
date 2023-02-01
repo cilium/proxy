@@ -120,7 +120,8 @@ std::unique_ptr<Config::GrpcSubscriptionImpl> subscribe(
           dispatcher, sotwGrpcMethod(type_url),
           random, scope,
           Config::Utility::parseRateLimitSettings(api_config_source),
-          api_config_source.set_node_on_first_message_only()),
+          api_config_source.set_node_on_first_message_only(),
+          nullptr),
       callbacks, resource_decoder, stats, type_url, dispatcher,
       std::chrono::milliseconds(0) /* no initial fetch timeout */,
       /*is_aggregated*/ false, options);
