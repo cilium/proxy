@@ -41,7 +41,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  14 files changed, 115 insertions(+)
 
 diff --git a/envoy/http/filter.h b/envoy/http/filter.h
-index 3c4602069..6e6cad73a 100644
+index da1b579dd6..d67178857e 100644
 --- a/envoy/http/filter.h
 +++ b/envoy/http/filter.h
 @@ -624,6 +624,14 @@ public:
@@ -60,7 +60,7 @@ index 3c4602069..6e6cad73a 100644
  
  /**
 diff --git a/envoy/network/filter.h b/envoy/network/filter.h
-index 16a5de4c2..fbd8de49e 100644
+index d0fa799982..3572469ecb 100644
 --- a/envoy/network/filter.h
 +++ b/envoy/network/filter.h
 @@ -110,6 +110,22 @@ public:
@@ -106,10 +106,10 @@ index 16a5de4c2..fbd8de49e 100644
  
  /**
 diff --git a/envoy/tcp/upstream.h b/envoy/tcp/upstream.h
-index aeb711a08..3fce432b6 100644
+index 40b65fd458..5a2114eeeb 100644
 --- a/envoy/tcp/upstream.h
 +++ b/envoy/tcp/upstream.h
-@@ -32,6 +32,11 @@ public:
+@@ -51,6 +51,11 @@ public:
     * @param callbacks callbacks to communicate stream failure or creation on.
     */
    virtual void newStream(GenericConnectionPoolCallbacks& callbacks) PURE;
@@ -122,10 +122,10 @@ index aeb711a08..3fce432b6 100644
  
  // An API for the UpstreamRequest to get callbacks from either an HTTP or TCP
 diff --git a/source/common/http/async_client_impl.h b/source/common/http/async_client_impl.h
-index 6888ddaa2..d4ec87d72 100644
+index e68856ade3..5ee3d555b7 100644
 --- a/source/common/http/async_client_impl.h
 +++ b/source/common/http/async_client_impl.h
-@@ -326,6 +326,10 @@ private:
+@@ -335,6 +335,10 @@ private:
    const Network::Connection* connection() override { return nullptr; }
    Event::Dispatcher& dispatcher() override { return parent_.dispatcher_; }
    void resetStream() override;
@@ -137,12 +137,12 @@ index 6888ddaa2..d4ec87d72 100644
    Router::RouteConstSharedPtr route(const Router::RouteCallback&) override { return nullptr; }
    void setRoute(Router::RouteConstSharedPtr) override {}
 diff --git a/source/common/http/conn_manager_impl.h b/source/common/http/conn_manager_impl.h
-index 11e59f4d6..0fdb6a604 100644
+index 7724620de2..114ee3c931 100644
 --- a/source/common/http/conn_manager_impl.h
 +++ b/source/common/http/conn_manager_impl.h
-@@ -289,6 +289,11 @@ private:
-       return connection_manager_.enable_internal_redirects_with_body_;
-     }
+@@ -285,6 +285,11 @@ private:
+     Tracing::Config& tracingConfig() override;
+     const ScopeTrackedObject& scope() override;
  
 +    bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr host,
 +				  StreamInfo::StreamInfo& stream_info) const override {
@@ -153,10 +153,10 @@ index 11e59f4d6..0fdb6a604 100644
  
      // Updates the snapped_route_config_ (by reselecting scoped route configuration), if a scope is
 diff --git a/source/common/http/filter_manager.cc b/source/common/http/filter_manager.cc
-index c435fb229..a952d772e 100644
+index 5f0671be37..ac3acb4257 100644
 --- a/source/common/http/filter_manager.cc
 +++ b/source/common/http/filter_manager.cc
-@@ -1444,6 +1444,12 @@ bool FilterManager::createFilterChain() {
+@@ -1459,6 +1459,12 @@ bool FilterManager::createFilterChain() {
    return !upgrade_rejected;
  }
  
@@ -170,7 +170,7 @@ index c435fb229..a952d772e 100644
    // If this is called it means the call to requestDataTooLarge() was a
    // streaming call, or a 413 would have been sent.
 diff --git a/source/common/http/filter_manager.h b/source/common/http/filter_manager.h
-index 06de03b77..eb32a1dc7 100644
+index 80df07ecb1..14e8ef4603 100644
 --- a/source/common/http/filter_manager.h
 +++ b/source/common/http/filter_manager.h
 @@ -300,6 +300,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
@@ -183,10 +183,10 @@ index 06de03b77..eb32a1dc7 100644
    StreamDecoderFilterSharedPtr handle_;
    bool is_grpc_request_{};
  };
-@@ -582,6 +585,12 @@ public:
-    * Returns whether internal redirects with request bodies is enabled.
+@@ -577,6 +580,12 @@ public:
+    * Returns the tracked scope to use for this stream.
     */
-   virtual bool enableInternalRedirectsWithBody() const PURE;
+   virtual const ScopeTrackedObject& scope() PURE;
 +
 +  /**
 +   * Returns whether connection to the selected upstream host is allowed.
@@ -197,7 +197,7 @@ index 06de03b77..eb32a1dc7 100644
  
  /**
 diff --git a/source/common/network/filter_manager_impl.h b/source/common/network/filter_manager_impl.h
-index 879731609..6ff42ffa4 100644
+index 8797316093..6ff42ffa43 100644
 --- a/source/common/network/filter_manager_impl.h
 +++ b/source/common/network/filter_manager_impl.h
 @@ -130,6 +130,13 @@ private:
@@ -236,10 +236,10 @@ index 879731609..6ff42ffa4 100644
    const Socket& socket_;
    Upstream::HostDescriptionConstSharedPtr host_description_;
 diff --git a/source/common/router/router.cc b/source/common/router/router.cc
-index 9adb05a4b..60252a0b8 100644
+index 641023a5ae..6d2107af2a 100644
 --- a/source/common/router/router.cc
 +++ b/source/common/router/router.cc
-@@ -632,6 +632,14 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
+@@ -610,6 +610,14 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
      return Http::FilterHeadersStatus::StopIteration;
    }
  
@@ -255,12 +255,12 @@ index 9adb05a4b..60252a0b8 100644
  
    timeout_ = FilterUtility::finalTimeout(*route_entry_, headers, !config_.suppress_envoy_headers_,
 diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
-index 4ce38e576..fb00aae10 100644
+index a42116ab1e..70427be439 100644
 --- a/source/common/tcp_proxy/tcp_proxy.cc
 +++ b/source/common/tcp_proxy/tcp_proxy.cc
-@@ -423,6 +423,13 @@ bool Filter::maybeTunnel(Upstream::ThreadLocalCluster& cluster) {
-   generic_conn_pool_ = factory->createGenericConnPool(cluster, config_->tunnelingConfig(), this,
-                                                       *upstream_callbacks_);
+@@ -468,6 +468,13 @@ bool Filter::maybeTunnel(Upstream::ThreadLocalCluster& cluster) {
+   generic_conn_pool_ = factory->createGenericConnPool(cluster, config_->tunnelingConfigHelper(),
+                                                       this, *upstream_callbacks_);
    if (generic_conn_pool_) {
 +    bool accepted = read_callbacks_->iterateUpstreamCallbacks(generic_conn_pool_->host(), getStreamInfo());
 +    if (!accepted) {
@@ -273,10 +273,10 @@ index 4ce38e576..fb00aae10 100644
      connect_attempts_++;
      getStreamInfo().setAttemptCount(connect_attempts_);
 diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
-index 22a49739c..5257a9243 100644
+index 1fdca8cb75..c64bec9776 100644
 --- a/source/common/tcp_proxy/tcp_proxy.h
 +++ b/source/common/tcp_proxy/tcp_proxy.h
-@@ -328,6 +328,7 @@ protected:
+@@ -419,6 +419,7 @@ protected:
      NoHealthyUpstream,
      ResourceLimitExceeded,
      NoRoute,
@@ -285,10 +285,10 @@ index 22a49739c..5257a9243 100644
  
    // Callbacks for different error and success states during connection establishment
 diff --git a/source/common/tcp_proxy/upstream.cc b/source/common/tcp_proxy/upstream.cc
-index 4fdb83854..cc0746b29 100644
+index 0c695857e3..402d254ad9 100644
 --- a/source/common/tcp_proxy/upstream.cc
 +++ b/source/common/tcp_proxy/upstream.cc
-@@ -174,6 +174,10 @@ void TcpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
+@@ -173,6 +173,10 @@ void TcpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
    }
  }
  
@@ -299,7 +299,7 @@ index 4fdb83854..cc0746b29 100644
  void TcpConnPool::onPoolFailure(ConnectionPool::PoolFailureReason reason, absl::string_view,
                                  Upstream::HostDescriptionConstSharedPtr host) {
    upstream_handle_ = nullptr;
-@@ -231,6 +235,10 @@ void HttpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
+@@ -233,6 +237,10 @@ void HttpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
    }
  }
  
@@ -311,7 +311,7 @@ index 4fdb83854..cc0746b29 100644
                                   Upstream::HostDescriptionConstSharedPtr host) {
    upstream_handle_ = nullptr;
 diff --git a/source/common/tcp_proxy/upstream.h b/source/common/tcp_proxy/upstream.h
-index fbae213d5..f85a3b324 100644
+index 5aef2b4ef3..25e839c3d9 100644
 --- a/source/common/tcp_proxy/upstream.h
 +++ b/source/common/tcp_proxy/upstream.h
 @@ -26,6 +26,7 @@ public:
@@ -322,7 +322,7 @@ index fbae213d5..f85a3b324 100644
  
    // Tcp::ConnectionPool::Callbacks
    void onPoolFailure(ConnectionPool::PoolFailureReason reason,
-@@ -57,6 +58,7 @@ public:
+@@ -54,6 +55,7 @@ public:
  
    // GenericConnPool
    void newStream(GenericConnectionPoolCallbacks& callbacks) override;
@@ -331,7 +331,7 @@ index fbae213d5..f85a3b324 100644
    // Http::ConnectionPool::Callbacks,
    void onPoolFailure(ConnectionPool::PoolFailureReason reason,
 diff --git a/source/server/api_listener_impl.h b/source/server/api_listener_impl.h
-index 9d401fa27..9992cc07a 100644
+index 13bd63e3fe..49e6a83071 100644
 --- a/source/server/api_listener_impl.h
 +++ b/source/server/api_listener_impl.h
 @@ -73,6 +73,9 @@ protected:
@@ -345,5 +345,5 @@ index 9d401fa27..9992cc07a 100644
      // Synthetic class that acts as a stub for the connection backing the
      // Network::ReadFilterCallbacks.
 -- 
-2.34.1
+2.39.1
 
