@@ -31,7 +31,7 @@ RUN apt-get update && \
       llvm-11-dev \
       make \
       ninja-build \
-      patch \
+      patch patchelf \
       python3 \
       python-is-python3 \
       unzip \
