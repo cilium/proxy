@@ -1,7 +1,7 @@
-From 8d568566ea31b4f58294969148439415ad380c5c Mon Sep 17 00:00:00 2001
+From 421389d742e170107b58db297009021a2192ef3f Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 24 Jan 2022 15:40:28 +0200
-Subject: [PATCH 03/11] network: Add callback for upstream authorization
+Subject: [PATCH 1/7] network: Add callback for upstream authorization
 
 Add new ReadFilterCallbacks addUpstreamCallback() and
 iterateUpstreamCallbacks(). Network filters can add callbacks using

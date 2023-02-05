@@ -1,7 +1,7 @@
-From fb9dfb51b6675506e2dccfc8783cba36f8124586 Mon Sep 17 00:00:00 2001
+From 92487390f714a1ef6ec41d7e42e0f8c4bfd4546a Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Wed, 21 Sep 2022 18:48:03 +0300
-Subject: [PATCH 06/11] connection: Make isHalfCloseEnabled const
+Subject: [PATCH 3/7] connection: Make isHalfCloseEnabled const
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---

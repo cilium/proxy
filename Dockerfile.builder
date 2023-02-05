@@ -3,7 +3,7 @@
 # Also note that if build fails due to C++ internal error or similar,
 # it is possible that the image build needs more RAM than available by
 # default on non-Linux docker installs.
-FROM docker.io/library/ubuntu:22.04 as base
+FROM docker.io/library/ubuntu:20.04 as base
 LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
 # Setup TimeZone to prevent tzdata package asking for it interactively
@@ -12,35 +12,22 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
+      ca-certificates \
       # Multi-arch cross-compilation packages
       gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu \
       gcc-x86-64-linux-gnu g++-x86-64-linux-gnu libc6-dev-amd64-cross binutils-x86-64-linux-gnu \
-      # Envoy Build dependencies
-      autoconf \
-      automake \
-      clang-11 \
-      cmake \
-      coreutils \
-      curl \
-      g++ \
-      gcc \
-      git \
       libc6-dev \
-      libtool \
-      lld-11 \
-      llvm-11-dev \
-      make \
-      ninja-build \
-      patch patchelf \
-      python3 \
-      python-is-python3 \
-      unzip \
-      virtualenv \
-      wget \
-      zip && \
+      # Envoy Build dependencies
+      autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf \
+      python3 python-is-python3 unzip virtualenv wget zip && \
+    wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
+    echo "deb http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main" >> /etc/apt/sources.list && \
+    echo "deb-src http://apt.llvm.org/focal/ llvm-toolchain-focal-15 main" >> /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+      clang-15 clang-tools-15 lldb-15 lld-15 clang-format-15 libc++-15-dev libc++abi-15-dev && \
     apt-get purge --auto-remove && \
     apt-get clean && \
-    ln /usr/bin/clang-11 /usr/bin/clang && ln /usr/bin/clang++-11 /usr/bin/clang++ && ln /usr/bin/lld-11 /usr/bin/lld && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 WORKDIR /cilium/proxy
