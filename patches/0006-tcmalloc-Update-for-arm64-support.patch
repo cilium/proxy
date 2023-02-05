@@ -1,8 +1,8 @@
-From 3b51eae635f7e277074b970b8c3c8d85359bf5b1 Mon Sep 17 00:00:00 2001
+From afa52df4a5ea962298f4f60921818947b0497262 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 27 Jan 2023 13:21:34 +0200
-Subject: [PATCH 09/11] tcmalloc: Update for arm64 support arm64 builds fail
- due to invalid flag output constraint being used:
+Subject: [PATCH 6/7] tcmalloc: Update for arm64 support arm64 builds fail due
+ to invalid flag output constraint being used:
 
   error: unknown 'asm' flag output '=@ccbe'
 

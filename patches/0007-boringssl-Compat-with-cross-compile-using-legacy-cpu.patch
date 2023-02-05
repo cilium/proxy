@@ -1,0 +1,133 @@
+From 1cb45792426ffef0c5ea7e09e6d219e0e1351ae4 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Fri, 27 Jan 2023 22:13:31 +0200
+Subject: [PATCH 7/7] boringssl: Compat with cross-compile using legacy
+ cpu-flag
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ bazel/0001-Remove-unused-variable.patch       | 43 +++++++++++++++++++
+ ...ype-cpu-flag-to-detect-target-platfo.patch | 43 +++++++++++++++++++
+ bazel/repositories.bzl                        |  6 ++-
+ 3 files changed, 91 insertions(+), 1 deletion(-)
+ create mode 100644 bazel/0001-Remove-unused-variable.patch
+ create mode 100644 bazel/0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch
+
+diff --git a/bazel/0001-Remove-unused-variable.patch b/bazel/0001-Remove-unused-variable.patch
+new file mode 100644
+index 0000000000..f5b95af7e7
+--- /dev/null
++++ b/bazel/0001-Remove-unused-variable.patch
+@@ -0,0 +1,43 @@
++From 85f4d71d5eac3818d56338db3c846ad8b0c51347 Mon Sep 17 00:00:00 2001
++From: Jarno Rajahalme <jarno@isovalent.com>
++Date: Sun, 5 Feb 2023 16:54:22 +0200
++Subject: [PATCH 1/2] Remove unused variable
++
++[ upstream commit af34f6460f0bf99dc267818f02b2936f60a30de7 ]
++
++Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
++---
++ src/crypto/x509/t_x509.c | 6 +-----
++ 1 file changed, 1 insertion(+), 5 deletions(-)
++
++diff --git a/src/crypto/x509/t_x509.c b/src/crypto/x509/t_x509.c
++index 10a7cad60..21d872df1 100644
++--- a/src/crypto/x509/t_x509.c
+++++ b/src/crypto/x509/t_x509.c
++@@ -323,9 +323,7 @@ int X509_signature_print(BIO *bp, const X509_ALGOR *sigalg,
++ int X509_NAME_print(BIO *bp, const X509_NAME *name, int obase)
++ {
++     char *s, *c, *b;
++-    int ret = 0, l, i;
++-
++-    l = 80 - 2 - obase;
+++    int ret = 0, i;
++ 
++     b = X509_NAME_oneline(name, NULL, 0);
++     if (!b)
++@@ -352,12 +350,10 @@ int X509_NAME_print(BIO *bp, const X509_NAME *name, int obase)
++                 if (BIO_write(bp, ", ", 2) != 2)
++                     goto err;
++             }
++-            l--;
++         }
++         if (*s == '\0')
++             break;
++         s++;
++-        l--;
++     }
++ 
++     ret = 1;
++-- 
++2.36.0
++
+diff --git a/bazel/0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch b/bazel/0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch
+new file mode 100644
+index 0000000000..3216395c2e
+--- /dev/null
++++ b/bazel/0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch
+@@ -0,0 +1,43 @@
++From df443d32e2352030f09e45cb5d9112cb36b7c02d Mon Sep 17 00:00:00 2001
++From: Jarno Rajahalme <jarno@isovalent.com>
++Date: Fri, 27 Jan 2023 20:35:17 +0200
++Subject: [PATCH 2/2] bazel: Use old-stype cpu-flag to detect target platform
++
++Needed for compatibility with cilium/proxy toolchains.
++
++Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
++---
++ BUILD | 10 ++++++----
++ 1 file changed, 6 insertions(+), 4 deletions(-)
++
++diff --git a/BUILD b/BUILD
++index cfa695a44..915ac1c27 100644
++--- a/BUILD
+++++ b/BUILD
++@@ -38,17 +38,19 @@ exports_files(["LICENSE"])
++ config_setting(
++     name = "linux_aarch64",
++     constraint_values = [
++-        "@platforms//os:linux",
++-        "@platforms//cpu:aarch64",
+++#        "@platforms//os:linux",
+++#        "@platforms//cpu:aarch64",
++     ],
+++    values = {"cpu": "aarch64"},
++ )
++ 
++ config_setting(
++     name = "linux_x86_64",
++     constraint_values = [
++-        "@platforms//os:linux",
++-        "@platforms//cpu:x86_64",
+++#        "@platforms//os:linux",
+++#        "@platforms//cpu:x86_64",
++     ],
+++    values = {"cpu": "k8"},
++ )
++ 
++ config_setting(
++-- 
++2.36.0
++
+diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl
+index 0914e41b01..3ef80540b6 100644
+--- a/bazel/repositories.bzl
++++ b/bazel/repositories.bzl
+@@ -257,7 +257,11 @@ def _boringssl():
+     external_http_archive(
+         name = "boringssl",
+         patch_args = ["-p1"],
+-        patches = ["@envoy//bazel:boringssl_static.patch"],
++        patches = [
++            "@envoy//bazel:boringssl_static.patch",
++            "@envoy//bazel:0001-Remove-unused-variable.patch",
++            "@envoy//bazel:0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch"
++	],
+     )
+ 
+ def _boringssl_fips():
+-- 
+2.36.0
+

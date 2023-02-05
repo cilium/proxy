@@ -1,8 +1,7 @@
-From 5bbeb45990b49e6b8d088e0fbd4898478d08ae49 Mon Sep 17 00:00:00 2001
+From 47a6f1655885abbe7531eaa0466959086b18d3ba Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Sat, 26 Nov 2022 13:43:53 +0200
-Subject: [PATCH 08/11] router: Do not crash if SNI was already set with
- auto_sni
+Subject: [PATCH 5/7] router: Do not crash if SNI was already set with auto_sni
 
 Catch the exception thrown due to SNI or SAN already been set, maybe by
 some filter, when processing the auto_sni option to prevent Envoy crash

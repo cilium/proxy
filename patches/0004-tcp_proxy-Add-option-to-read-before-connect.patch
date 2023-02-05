@@ -1,7 +1,7 @@
-From 8f7a283164515f1d941e59d3a782ed68d7d8c91f Mon Sep 17 00:00:00 2001
+From dad8f9352d8d05e0ad34e8f7b95e422a2da5c4fe Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Tue, 27 Sep 2022 15:51:46 +0300
-Subject: [PATCH 07/11] tcp_proxy: Add option to read before connect
+Subject: [PATCH 4/7] tcp_proxy: Add option to read before connect
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---

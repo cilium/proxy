@@ -1,7 +1,7 @@
-From e3a0af1adfbab03546bba14e8a74549fe253bf75 Mon Sep 17 00:00:00 2001
+From a7e2a15a3750a290e3fc53cf4547da3f1fd37ab8 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 21 Jan 2022 15:42:00 +0200
-Subject: [PATCH 04/11] upstream: Add callback for upstream authorization
+Subject: [PATCH 2/7] upstream: Add callback for upstream authorization
 
 Add new StreamDecoderFilterCallbacks addUpstreamCallback() and
 iterateUpstreamCallbacks(). Decoder filters can add callbacks using
