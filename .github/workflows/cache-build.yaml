@@ -8,26 +8,8 @@ jobs:
   test-cache-refresh:
     timeout-minutes: 360
     name: Build test cache and push images
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest-64-cores-256gb
     steps:
-      - name: Install packages
-        run: |
-          set -x
-          sudo apt update
-          sudo apt install -y mount
-      - name: Add swap
-        run: |
-          set -x
-          lsb_release -a
-          file="/mnt/swapfile"
-          sudo swapoff "${file}" || true
-          sudo fallocate -l 8G "${file}"
-          sudo chmod 600 "${file}"
-          sudo mkswap "${file}"
-          sudo swapon "${file}"
-          sudo swapon -s
-          free -m
-          df -h
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325
         with:
@@ -89,25 +71,8 @@ jobs:
   build-cache-and-push-images:
     timeout-minutes: 360
     name: Build cache and push images
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest-64-cores-256gb
     steps:
-      - name: Install packages
-        run: |
-          set -x
-          sudo apt update
-          sudo apt install -y mount
-      - name: Add swap
-        run: |
-          set -x
-          file="/mnt/swapfile"
-          sudo swapoff "${file}" || true
-          sudo fallocate -l 8G "${file}"
-          sudo chmod 600 "${file}"
-          sudo mkswap "${file}"
-          sudo swapon "${file}"
-          sudo swapon -s
-          free -m
-          df -h
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325
         with:
