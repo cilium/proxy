@@ -72,17 +72,17 @@ else
   SUDO=sudo
 endif
 
-/usr/lib/llvm-11:
-	sudo apt install clang-11 llvm-11-dev
+/usr/lib/llvm-15:
+	$(SUDO) apt install clang-15 llvm-15-dev
 
-/usr/lib/lld-11:
-	sudo apt install lld-11
+/usr/lib/lld-15:
+	$(SUDO) apt install lld-15
 
-/usr/lib/clang-format-11:
-	sudo apt install clang-format-11
+/usr/lib/clang-format-15:
+	$(SUDO) apt install clang-format-15
 
-clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-11 /usr/lib/lld-11 /usr/lib/clang-format-11
-	bazel/setup_clang.sh /usr/lib/llvm-11
+clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-15 /usr/lib/lld-15 /usr/lib/clang-format-15
+	bazel/setup_clang.sh /usr/lib/llvm-15
 	echo "build --config=clang" >> $@
 
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION

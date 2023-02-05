@@ -240,7 +240,7 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
         std::vector<std::string>{});
   }
 
-  std::string testPolicyFmt() {
+  std::string testPolicyFmt() override {
     return TestEnvironment::substitute(BASIC_TLS_POLICY_fmt, GetParam());
   }
 
