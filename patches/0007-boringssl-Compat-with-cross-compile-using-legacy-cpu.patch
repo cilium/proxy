@@ -1,4 +1,4 @@
-From 1cb45792426ffef0c5ea7e09e6d219e0e1351ae4 Mon Sep 17 00:00:00 2001
+From 37e35306aee00da03db5a4b4dfe90a8db2de7d20 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 27 Jan 2023 22:13:31 +0200
 Subject: [PATCH 7/7] boringssl: Compat with cross-compile using legacy
@@ -8,8 +8,8 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
  bazel/0001-Remove-unused-variable.patch       | 43 +++++++++++++++++++
  ...ype-cpu-flag-to-detect-target-platfo.patch | 43 +++++++++++++++++++
- bazel/repositories.bzl                        |  6 ++-
- 3 files changed, 91 insertions(+), 1 deletion(-)
+ bazel/repositories.bzl                        |  2 +
+ 3 files changed, 88 insertions(+)
  create mode 100644 bazel/0001-Remove-unused-variable.patch
  create mode 100644 bazel/0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch
 
@@ -112,22 +112,18 @@ index 0000000000..3216395c2e
 +2.36.0
 +
 diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl
-index 0914e41b01..3ef80540b6 100644
+index 676b79f4f3..f748fe423b 100644
 --- a/bazel/repositories.bzl
 +++ b/bazel/repositories.bzl
-@@ -257,7 +257,11 @@ def _boringssl():
-     external_http_archive(
-         name = "boringssl",
-         patch_args = ["-p1"],
--        patches = ["@envoy//bazel:boringssl_static.patch"],
-+        patches = [
-+            "@envoy//bazel:boringssl_static.patch",
+@@ -260,6 +260,8 @@ def _boringssl():
+         patches = [
+             "@envoy//bazel:boringssl_static.patch",
+             "@envoy//bazel:boringssl_CVE-2023-0286.patch",
 +            "@envoy//bazel:0001-Remove-unused-variable.patch",
 +            "@envoy//bazel:0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch"
-+	],
+         ],
      )
  
- def _boringssl_fips():
 -- 
 2.36.0
 
