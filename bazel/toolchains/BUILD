@@ -1,34 +1,33 @@
 load("@rules_cc//cc:defs.bzl", "cc_toolchain", "cc_toolchain_suite")
 load(":cc_toolchain_config.bzl", "cc_toolchain_config")
 
-filegroup(
-    name = "gcc_aarch64_linux_toolchain_files",
-    srcs = glob([
-        "aarch64-none-linux-gnu/**",
-        "libexec/**",
-        "lib/gcc/aarch64-none-linux-gnu/**",
-        "include/**",
-    ]),
-    visibility = ["//visibility:private"],
-)
-
+# Using platform-provided files
 filegroup(name = "empty")
 
+toolchain(
+    name = "aarch64_linux_cc_toolchain",
+    toolchain = ":clang_aarch64_linux_cc_toolchain",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+    target_compatible_with = [
+        "@platforms//cpu:aarch64",
+	"@platforms//os:linux",
+    ],
+    exec_compatible_with = ["@platforms//os:linux"],
+)
+
 cc_toolchain(
-    name = "gcc_aarch64_linux_cc_toolchain",
-    all_files = ":gcc_aarch64_linux_toolchain_files",
-    compiler_files = ":gcc_aarch64_linux_toolchain_files",
+    name = "clang_aarch64_linux_cc_toolchain",
+    all_files = ":empty",
+    compiler_files = ":empty",
     dwp_files = ":empty",
-    linker_files = ":gcc_aarch64_linux_toolchain_files",
-    objcopy_files = ":gcc_aarch64_linux_toolchain_files",
-    strip_files = ":gcc_aarch64_linux_toolchain_files",
-    supports_param_files = 1,
-    toolchain_config = ":gcc_aarch64_linux_toolchain_config",
-    toolchain_identifier = "aarch64-linux-gnu",
+    linker_files = ":empty",
+    objcopy_files = ":empty",
+    strip_files = ":empty",
+    toolchain_config = ":clang_aarch64_linux_toolchain_config",
 )
 
 cc_toolchain_config(
-    name = "gcc_aarch64_linux_toolchain_config",
+    name = "clang_aarch64_linux_toolchain_config",
     abi_libc_version = "aarch64",
     abi_version = "aarch64",
     compile_flags = [
@@ -103,32 +102,30 @@ cc_toolchain_config(
     # builtin_sysroot = "/sysroot",
 )
 
-filegroup(
-    name = "gcc_x86_64_linux_toolchain_files",
-    srcs = glob([
-        "x86_64-none-linux-gnu/**",
-        "libexec/**",
-        "lib/gcc/x86_64-none-linux-gnu/**",
-        "include/**",
-    ]),
-    visibility = ["//visibility:private"],
-)
+toolchain(
+    name = "x86_64_linux_cc_toolchain",
+    toolchain = ":clang_x86_64_linux_cc_toolchain",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+    target_compatible_with = [
+        "@platforms//cpu:x86_64",
+	"@platforms//os:linux",
+    ],
+    exec_compatible_with = ["@platforms//os:linux"],
+)  
 
 cc_toolchain(
-    name = "gcc_x86_64_linux_cc_toolchain",
-    all_files = ":gcc_x86_64_linux_toolchain_files",
-    compiler_files = ":gcc_x86_64_linux_toolchain_files",
+    name = "clang_x86_64_linux_cc_toolchain",
+    all_files = ":empty",
+    compiler_files = ":empty",
     dwp_files = ":empty",
-    linker_files = ":gcc_x86_64_linux_toolchain_files",
-    objcopy_files = ":gcc_x86_64_linux_toolchain_files",
-    strip_files = ":gcc_x86_64_linux_toolchain_files",
-    supports_param_files = 1,
-    toolchain_config = ":gcc_x86_64_linux_toolchain_config",
-    toolchain_identifier = "x86_64-linux-gnu",
+    linker_files = ":empty",
+    objcopy_files = ":empty",
+    strip_files = ":empty",
+    toolchain_config = ":clang_x86_64_linux_toolchain_config",
 )
 
 cc_toolchain_config(
-    name = "gcc_x86_64_linux_toolchain_config",
+    name = "clang_x86_64_linux_toolchain_config",
     abi_libc_version = "unknown",
     abi_version = "unknown",
     compile_flags = [
@@ -203,10 +200,11 @@ cc_toolchain_config(
     # builtin_sysroot = "/sysroot",
 )
 
+# still needed to avoid use of local_config_cc toolchain
 cc_toolchain_suite(
     name = "toolchain",
     toolchains = {
-        "k8": ":gcc_x86_64_linux_cc_toolchain",
-        "aarch64": ":gcc_aarch64_linux_cc_toolchain",
+        "k8": ":clang_x86_64_linux_cc_toolchain",
+        "aarch64": ":clang_aarch64_linux_cc_toolchain",
     },
 )
