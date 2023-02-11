@@ -59,7 +59,8 @@ fix: $(CHECK_FORMAT) force-non-root
 	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes "./linux/" "./proxylib/" --build_fixer_check_excluded_paths="./" fix
 
 # Fetch proxylib for the target architecture.
-# Run rule even if file exists, as it can be for a wrong architecture
+# Run rule even if file exists, as it can be for a wrong architecture.
+# This is only used for local tests runs, as this Makefile.dev is not imported to Docker test runs.
 .PHONY: proxylib/libcilium.so
 proxylib/libcilium.so:
 	if ! file $@ | grep $(subst amd64,x86-64,$(subst arm64,aarch64,$(TARGETARCH))); then \

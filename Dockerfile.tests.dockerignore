@@ -24,7 +24,6 @@
 /Makefile.docker
 /README*
 /envoy_bootstrap_v2.patch
-!/proxylib/libcilium.so
 /go/
 /go.*
 /Makefile.api

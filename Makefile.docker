@@ -124,10 +124,9 @@ Dockerfile.dockerignore: .dockerignore Makefile.docker
 	echo "/Makefile.api" >>$@
 	echo "/envoy_binary_test.sh" >>$@
 
-# Tests do not need Go APIs, but need libcilium.so
+# Tests do not need Go APIs
 Dockerfile.tests.dockerignore: .dockerignore Makefile.docker
 	cp $< $@
-	echo "!/proxylib/libcilium.so" >>$@
 	echo "/go/" >>$@
 	echo "/go.*" >>$@
 	echo "/Makefile.api" >>$@
@@ -164,12 +163,12 @@ docker-builder-archive: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
 	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_ARCHIVE_TAG) .
 
 .PHONY: docker-tests-archive
-docker-tests-archive: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore proxylib/libcilium.so
+docker-tests-archive: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore
 	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_ARCHIVE_TAG) .
 
 .PHONY: docker-tests
-docker-tests: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore proxylib/libcilium.so
-	$(DOCKER) build $(subst --push,,$(DOCKER_BUILD_OPTS)) --progress=plain $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< .
+docker-tests: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore
+	$(DOCKER) build $(subst --push,,$(DOCKER_BUILD_OPTS)) $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< .
 
 ifeq ($(BRANCH_TAG),"master")
   DOCKER_IMAGE_ENVOY_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)
