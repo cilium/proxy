@@ -14,12 +14,8 @@
 
 ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -d = -f2)
 
-DOCKER := $(QUIET)DOCKER_BUILDKIT=1 docker
-
-# Assume buildx if ARCH is explicitly defined
-ifdef ARCH
-  DOCKER_BUILDX:=1
-endif
+# Always use buildx
+DOCKER := $(QUIET)DOCKER_BUILDKIT=1 docker buildx
 
 DOCKER_DEV_ACCOUNT ?= quay.io/cilium
 # CACHE_REF ?= docker.io/cilium/cilium-dev:cilium-envoy-cache
@@ -31,40 +27,38 @@ ifndef NO_CACHE
     DOCKER_CACHE_OPTS += --cache-from=$(CACHE_REF)
   endif
 endif
-ifdef DOCKER_BUILDX
-  DOCKER := $(DOCKER) buildx
-  ifeq ($(ARCH),amd64)
-    DOCKER_PLATFORMS := --platform=linux/amd64
-  else ifeq ($(ARCH),arm64)
-    DOCKER_PLATFORMS := --platform=linux/arm64
-  else ifeq ($(ARCH),multi)
-    DOCKER_PLATFORMS := --platform=linux/arm64,linux/amd64
-  endif
-  DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
-  ifdef DOCKER_PLATFORMS
-    ifeq ($(DOCKER_BUILDER),default)
-      DOCKER_BUILDKIT_DRIVER :=
-      ifdef DOCKER_BUILDKIT_IMAGE
-        DOCKER_BUILDKIT_DRIVER := --driver docker-container --driver-opt image=$(DOCKER_BUILDKIT_IMAGE)
-      endif
-      BUILDER_SETUP := $(shell docker buildx create $(DOCKER_PLATFORMS) $(DOCKER_BUILDKIT_DRIVER) --use)
-      DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
-    endif
-  endif
-  ifneq ($(DOCKER_BUILDER),default)
-    # Only insert '--push' if user did not pass a conflicting '--output' option
-    ifeq ($(findstring --output,$(DOCKER_BUILD_OPTS)),)
-      ifeq ($(findstring --load,$(DOCKER_BUILD_OPTS)),)
-        DOCKER_BUILD_OPTS += --push
-      endif
-    endif
-    DOCKER_BUILD_OPTS += $(DOCKER_PLATFORMS)
-    ifdef CACHE_PUSH
-      DOCKER_CACHE_OPTS += --cache-to=$(CACHE_PUSH),mode=max
-    endif
-  endif
-  $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
+
+ifeq ($(ARCH),amd64)
+  DOCKER_PLATFORMS := --platform=linux/amd64
+else ifeq ($(ARCH),arm64)
+  DOCKER_PLATFORMS := --platform=linux/arm64
+else ifeq ($(ARCH),multi)
+  DOCKER_PLATFORMS := --platform=linux/arm64,linux/amd64
 endif
+DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
+ifdef DOCKER_PLATFORMS
+  ifeq ($(DOCKER_BUILDER),default)
+    DOCKER_BUILDKIT_DRIVER :=
+    ifdef DOCKER_BUILDKIT_IMAGE
+      DOCKER_BUILDKIT_DRIVER := --driver docker-container --driver-opt image=$(DOCKER_BUILDKIT_IMAGE)
+    endif
+    BUILDER_SETUP := $(shell docker buildx create $(DOCKER_PLATFORMS) $(DOCKER_BUILDKIT_DRIVER) --use)
+    DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
+  endif
+endif
+ifneq ($(DOCKER_BUILDER),default)
+  # Only insert '--push' if user did not pass a conflicting '--output' option
+  ifeq ($(findstring --output,$(DOCKER_BUILD_OPTS)),)
+    ifeq ($(findstring --load,$(DOCKER_BUILD_OPTS)),)
+      DOCKER_BUILD_OPTS += --push
+    endif
+  endif
+  DOCKER_BUILD_OPTS += $(DOCKER_PLATFORMS)
+  ifdef CACHE_PUSH
+    DOCKER_CACHE_OPTS += --cache-to=$(CACHE_PUSH),mode=max
+  endif
+endif
+$(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
 
 SLASH = -
 ARCH ?= $(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
