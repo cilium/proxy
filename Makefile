@@ -28,7 +28,7 @@ ifdef BAZEL_REMOTE_CACHE
   BAZEL_BUILD_OPTS += --remote_cache=$(BAZEL_REMOTE_CACHE)
 endif
 
-BAZEL_TEST_OPTS ?= --jobs=HOST_RAM*0.0002 --test_timeout=2000
+BAZEL_TEST_OPTS ?= --test_timeout=300
 BAZEL_TEST_OPTS += --test_output=errors
 
 BUILDARCH := $(subst aarch64,arm64,$(subst x86_64,amd64,$(shell uname -m)))
@@ -42,6 +42,9 @@ endif
 ifdef ARCH
   ifneq ($(ARCH),multi)
     TARGETARCH := $(ARCH)
+  else
+    # Split the cores when building for both targets
+    BAZEL_BUILD_OPTS += --jobs=HOST_CPUS*.5
   endif
 endif
 
@@ -106,11 +109,6 @@ $(DESTDIR)$(GLIBC_DIR): bazel-bin/cilium-envoy
 install: bazel-bin/cilium-envoy
 	$(SUDO) $(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(SUDO) $(INSTALL) -m 0755 -T $< $(DESTDIR)$(BINDIR)/cilium-envoy
-ifdef COPY_CACHE_EXT
-  ifneq ($(BAZEL_CACHE),)
-	cp -ra $(BAZEL_CACHE) $(BAZEL_CACHE)$(COPY_CACHE_EXT)
-  endif
-endif
 
 install-glibc: install $(DESTDIR)$(GLIBC_DIR)
 	LD_LINUX=$$(basename $$(patchelf --print-interpreter bazel-bin/cilium-envoy)); \
@@ -130,11 +128,6 @@ envoy-test-deps: $(COMPILER_DEP) proxylib/libcilium.so SOURCE_VERSION
 envoy-tests: $(COMPILER_DEP) proxylib/libcilium.so SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) --config=release -c fastbuild $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
-ifdef COPY_CACHE_EXT
-  ifneq ($(BAZEL_CACHE),)
-	cp -ra $(BAZEL_CACHE) $(BAZEL_CACHE)$(COPY_CACHE_EXT)
-  endif
-endif
 
 .PHONY: \
 	install \
