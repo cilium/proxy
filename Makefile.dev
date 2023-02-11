@@ -62,7 +62,7 @@ fix: $(CHECK_FORMAT) force-non-root
 # Run rule even if file exists, as it can be for a wrong architecture
 .PHONY: proxylib/libcilium.so
 proxylib/libcilium.so:
-	if ! file $@ | grep $(subst k8,x86-64,$(BAZEL_ARCH)); then \
+	if ! file $@ | grep $(subst amd64,x86-64,$(subst arm64,aarch64,$(TARGETARCH))); then \
 		PROXYLIB_DIGEST=$$(docker buildx imagetools inspect quay.io/cilium/cilium:stable --raw | jq -r '.manifests[] | select(.platform.architecture == "$(TARGETARCH)") | .digest') && \
 		docker create -ti --name cilium-proxylib $(CILIUM_REF)@$${PROXYLIB_DIGEST} bash && \
 		docker cp -L cilium-proxylib:/usr/lib/libcilium.so $@ && \

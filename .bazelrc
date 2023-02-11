@@ -5,8 +5,10 @@
 # Keep envoy.bazelrc up-to-date by run:
 # curl -sSL https://raw.githubusercontent.com/envoyproxy/envoy-wasm/master/.bazelrc > envoy.bazelrc
 import %workspace%/envoy.bazelrc
-build --platform_mappings=
-build:remote --remote_timeout=7200
+
+# Use platforms based toolchain resolution
+build --incompatible_enable_cc_toolchain_resolution
+build --platform_mappings=bazel/platform_mappings
 
 # Enable path normalization by default.
 # See: https://github.com/envoyproxy/envoy/pull/6519
@@ -21,10 +23,6 @@ build:release --linkopt=-Wl,--strip-all
 build:release --features=-per_object_debug_info
 build:release --fission=dbg
 
-# Always use toolchain
-build --crosstool_top=//bazel/toolchains:toolchain
-
+# Manual link stamping, forces link to include current git SHA even if binary is otherwise
+# upto-date
 build --define manual_stamp=manual_stamp
-
-# Can't use tcmalloc as it does not compile with GCC 9 that we use for cross-compilation
-# build --define tcmalloc=gperftools

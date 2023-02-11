@@ -1,5 +1,7 @@
 workspace(name = "cilium")
 
+register_toolchains("//bazel/toolchains:all")
+
 #
 # We grep for the following line to generate SOURCE_VERSION file for non-git
 # distribution builds. This line must start with the string ENVOY_SHA followed by

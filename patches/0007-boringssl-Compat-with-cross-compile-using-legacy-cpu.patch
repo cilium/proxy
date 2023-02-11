@@ -62,65 +62,15 @@ index 0000000000..f5b95af7e7
 +-- 
 +2.36.0
 +
-diff --git a/bazel/0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch b/bazel/0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch
-new file mode 100644
-index 0000000000..3216395c2e
---- /dev/null
-+++ b/bazel/0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch
-@@ -0,0 +1,43 @@
-+From df443d32e2352030f09e45cb5d9112cb36b7c02d Mon Sep 17 00:00:00 2001
-+From: Jarno Rajahalme <jarno@isovalent.com>
-+Date: Fri, 27 Jan 2023 20:35:17 +0200
-+Subject: [PATCH 2/2] bazel: Use old-stype cpu-flag to detect target platform
-+
-+Needed for compatibility with cilium/proxy toolchains.
-+
-+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
-+---
-+ BUILD | 10 ++++++----
-+ 1 file changed, 6 insertions(+), 4 deletions(-)
-+
-+diff --git a/BUILD b/BUILD
-+index cfa695a44..915ac1c27 100644
-+--- a/BUILD
-++++ b/BUILD
-+@@ -38,17 +38,19 @@ exports_files(["LICENSE"])
-+ config_setting(
-+     name = "linux_aarch64",
-+     constraint_values = [
-+-        "@platforms//os:linux",
-+-        "@platforms//cpu:aarch64",
-++#        "@platforms//os:linux",
-++#        "@platforms//cpu:aarch64",
-+     ],
-++    values = {"cpu": "aarch64"},
-+ )
-+ 
-+ config_setting(
-+     name = "linux_x86_64",
-+     constraint_values = [
-+-        "@platforms//os:linux",
-+-        "@platforms//cpu:x86_64",
-++#        "@platforms//os:linux",
-++#        "@platforms//cpu:x86_64",
-+     ],
-++    values = {"cpu": "k8"},
-+ )
-+ 
-+ config_setting(
-+-- 
-+2.36.0
-+
 diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl
 index 676b79f4f3..f748fe423b 100644
 --- a/bazel/repositories.bzl
 +++ b/bazel/repositories.bzl
-@@ -260,6 +260,8 @@ def _boringssl():
+@@ -260,6 +260,7 @@ def _boringssl():
          patches = [
              "@envoy//bazel:boringssl_static.patch",
              "@envoy//bazel:boringssl_CVE-2023-0286.patch",
 +            "@envoy//bazel:0001-Remove-unused-variable.patch",
-+            "@envoy//bazel:0002-bazel-Use-old-stype-cpu-flag-to-detect-target-platfo.patch"
          ],
      )
  

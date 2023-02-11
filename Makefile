@@ -32,27 +32,24 @@ BAZEL_TEST_OPTS ?= --jobs=HOST_RAM*0.0002 --test_timeout=2000
 BAZEL_TEST_OPTS += --test_output=errors
 
 BUILDARCH := $(subst aarch64,arm64,$(subst x86_64,amd64,$(shell uname -m)))
-BAZEL_ARCH := $(subst x86_64,k8,$(subst arm64,aarch64,$(shell uname -m)))
+# Default for the host architecture
+ifndef TARGETARCH
+  TARGETARCH := $(BUILDARCH)
+endif
 
-# ARCH overrides TARGETARCH, but not if ARCH=multi
+# ARCH=multi is only valid for docker builds, and gets resolved to individual targets for builds
+# within the Dockerfile.
 ifdef ARCH
   ifneq ($(ARCH),multi)
     TARGETARCH := $(ARCH)
   endif
 endif
 
-ifdef TARGETARCH
-  ifneq "$(TARGETARCH)" "$(BUILDARCH)"
-    $(info CROSS-COMPILING for $(TARGETARCH))
-    BAZEL_ARCH := $(subst amd64,k8,$(subst arm64,aarch64,$(TARGETARCH)))
-    BAZEL_BUILD_OPTS += --cpu=$(BAZEL_ARCH)
-  else
-    $(info BUILDING for $(TARGETARCH) ($(BAZEL_ARCH)))
-  endif
-else
-  TARGETARCH := $(BUILDARCH)
-  $(info BUILDING on $(TARGETARCH) ($(BAZEL_ARCH)))
-endif
+# Extra opts are passed to docker targets, which will choose the bazel platform themselves
+EXTRA_BAZEL_BUILD_OPTS := $(BAZEL_BUILD_OPTS)
+BAZEL_PLATFORM := //bazel:linux_$(subst amd64,x86_64,$(subst arm64,aarch64,$(TARGETARCH)))
+$(info BUILDING on $(BUILDARCH) for $(TARGETARCH) using $(BAZEL_PLATFORM))
+BAZEL_BUILD_OPTS += --platforms=$(BAZEL_PLATFORM)
 
 ifdef PKG_BUILD
   all: cilium-envoy

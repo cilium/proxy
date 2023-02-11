@@ -1,0 +1,16 @@
+platforms:
+  //bazel:linux_aarch64
+    --cpu=aarch64
+    --crosstool_top=//bazel/toolchains:toolchain
+
+  //bazel:linux_x86_64
+    --cpu=k8
+    --crosstool_top=//bazel/toolchains:toolchain
+
+flags:
+  --cpu=k8
+    //bazel:linux_x86_64
+
+  --cpu=aarch64
+    //bazel:linux_aarch64
+
