@@ -7,8 +7,6 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
  envoy/network/connection.h                                | 2 +-
  source/common/network/connection_impl.h                   | 2 +-
- source/common/network/happy_eyeballs_connection_impl.cc   | 2 +-
- source/common/network/happy_eyeballs_connection_impl.h    | 2 +-
  source/common/quic/quic_filter_manager_connection_impl.cc | 2 +-
  source/common/quic/quic_filter_manager_connection_impl.h  | 2 +-
  source/server/api_listener_impl.h                         | 2 +-
@@ -41,24 +39,24 @@ index cfdb2482a2..ba6df8b8f5 100644
    void close(ConnectionCloseType type) final;
    std::string nextProtocol() const override { return transport_socket_->protocol(); }
    void noDelay(bool enable) override;
-diff --git a/source/common/network/happy_eyeballs_connection_impl.cc b/source/common/network/happy_eyeballs_connection_impl.cc
-index c6dc14da14..5c286a80cb 100644
---- a/source/common/network/happy_eyeballs_connection_impl.cc
-+++ b/source/common/network/happy_eyeballs_connection_impl.cc
-@@ -106,7 +106,7 @@ void HappyEyeballsConnectionImpl::enableHalfClose(bool enabled) {
+diff --git a/source/common/network/multi_connection_base_impl.cc b/source/common/network/multi_connection_base_impl.cc
+index bebda20b03..407ad3ad32 100644
+--- a/source/common/network/multi_connection_base_impl.cc
++++ b/source/common/network/multi_connection_base_impl.cc
+@@ -102,7 +102,7 @@ void MultiConnectionBaseImpl::enableHalfClose(bool enabled) {
    }
  }
  
--bool HappyEyeballsConnectionImpl::isHalfCloseEnabled() {
-+bool HappyEyeballsConnectionImpl::isHalfCloseEnabled() const {
-   return connections_[0]->isHalfCloseEnabled();
- }
+-bool MultiConnectionBaseImpl::isHalfCloseEnabled() { return connections_[0]->isHalfCloseEnabled(); }
++bool MultiConnectionBaseImpl::isHalfCloseEnabled() const { return connections_[0]->isHalfCloseEnabled(); }
  
-diff --git a/source/common/network/happy_eyeballs_connection_impl.h b/source/common/network/happy_eyeballs_connection_impl.h
-index e314927f72..b2e44a0e79 100644
---- a/source/common/network/happy_eyeballs_connection_impl.h
-+++ b/source/common/network/happy_eyeballs_connection_impl.h
-@@ -72,7 +72,7 @@ public:
+ std::string MultiConnectionBaseImpl::nextProtocol() const {
+   return connections_[0]->nextProtocol();
+diff --git a/source/common/network/multi_connection_base_impl.h b/source/common/network/multi_connection_base_impl.h
+index 9734df18a6..5b8f8ee5dd 100644
+--- a/source/common/network/multi_connection_base_impl.h
++++ b/source/common/network/multi_connection_base_impl.h
+@@ -100,7 +100,7 @@ public:
    absl::optional<uint64_t> congestionWindowInBytes() const override;
  
    // Simple getters which always delegate to the first connection in connections_.
@@ -67,6 +65,7 @@ index e314927f72..b2e44a0e79 100644
    std::string nextProtocol() const override;
    // Note, this might change before connect finishes.
    ConnectionInfoSetter& connectionInfoSetter() override;
+
 diff --git a/source/common/quic/quic_filter_manager_connection_impl.cc b/source/common/quic/quic_filter_manager_connection_impl.cc
 index 26d48eb50c..2f88407fc3 100644
 --- a/source/common/quic/quic_filter_manager_connection_impl.cc
