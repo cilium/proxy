@@ -40,7 +40,6 @@ http_archive(
         "@//patches:0004-tcp_proxy-Add-option-to-read-before-connect.patch",
         "@//patches:0005-router-Do-not-crash-if-SNI-was-already-set-with-auto.patch",
         "@//patches:0006-tcmalloc-Update-for-arm64-support.patch",
-        "@//patches:0007-boringssl-Compat-with-cross-compile-using-legacy-cpu.patch",
     ],
     sha256 = ENVOY_SHA256,
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
