@@ -38,7 +38,7 @@ class UpstreamTlsWrapperFactory
     : public Server::Configuration::UpstreamTransportSocketConfigFactory,
       public TlsWrapperConfigFactory {
 public:
-  Network::TransportSocketFactoryPtr createTransportSocketFactory(
+  Network::UpstreamTransportSocketFactoryPtr createTransportSocketFactory(
       const Protobuf::Message& config,
       Server::Configuration::TransportSocketFactoryContext& context) override;
   ProtobufTypes::MessagePtr createEmptyConfigProto() override;
@@ -50,7 +50,7 @@ class DownstreamTlsWrapperFactory
     : public Server::Configuration::DownstreamTransportSocketConfigFactory,
       public TlsWrapperConfigFactory {
 public:
-  Network::TransportSocketFactoryPtr
+  Network::DownstreamTransportSocketFactoryPtr
   createTransportSocketFactory(const Protobuf::Message& config,
                                Server::Configuration::TransportSocketFactoryContext& context,
                                const std::vector<std::string>& server_names) override;

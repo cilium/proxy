@@ -103,7 +103,7 @@ public:
 
   // TODO(mattklein123): This logic is duplicated in various places. Cleanup in
   // a follow up.
-  Network::TransportSocketFactoryPtr createUpstreamSslContext() {
+  Network::DownstreamTransportSocketFactoryPtr createUpstreamSslContext() {
     envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext tls_context;
     auto* common_tls_context = tls_context.mutable_common_tls_context();
     auto* tls_cert = common_tls_context->add_tls_certificates();
@@ -144,9 +144,9 @@ public:
     Network::Address::InstanceConstSharedPtr address =
         Ssl::getSslAddress(version_, lookupPort("tcp_proxy"));
     context_ = createClientSslTransportSocketFactory(context_manager_, *api_);
-    ssl_client_ =
-        dispatcher_->createClientConnection(address, Network::Address::InstanceConstSharedPtr(),
-                                            context_->createTransportSocket(nullptr), nullptr);
+    ssl_client_ = dispatcher_->createClientConnection(
+        address, Network::Address::InstanceConstSharedPtr(),
+        context_->createTransportSocket(nullptr, nullptr), nullptr, nullptr);
 
     // Perform the SSL handshake. Loopback is whitelisted in tcp_proxy.json for
     // the ssl_auth filter so there will be no pause waiting on auth data.
@@ -201,7 +201,7 @@ public:
   // Downstream
   std::shared_ptr<WaitForPayloadReader> payload_reader_;
   MockWatermarkBuffer* client_write_buffer_;
-  Network::TransportSocketFactoryPtr context_;
+  Network::UpstreamTransportSocketFactoryPtr context_;
   Network::ClientConnectionPtr ssl_client_;
   ConnectionStatusCallbacks connect_callbacks_;
 };

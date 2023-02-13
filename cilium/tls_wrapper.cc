@@ -144,23 +144,25 @@ private:
   Network::TransportSocketPtr socket_;
 };
 
-class ClientSslSocketFactory : public Network::CommonTransportSocketFactory {
+class ClientSslSocketFactory : public Network::CommonUpstreamTransportSocketFactory {
 public:
   Network::TransportSocketPtr
-  createTransportSocket(Network::TransportSocketOptionsConstSharedPtr options) const override {
+  createTransportSocket(Network::TransportSocketOptionsConstSharedPtr options,
+                        std::shared_ptr<const Upstream::HostDescription>) const override {
     return std::make_unique<SslSocketWrapper>(
         Extensions::TransportSockets::Tls::InitialState::Client, options);
   }
 
+  absl::string_view defaultServerNameIndication() const override { return EMPTY_STRING; }
+
   bool implementsSecureTransport() const override { return true; }
 };
 
-class ServerSslSocketFactory : public Network::CommonTransportSocketFactory {
+class ServerSslSocketFactory : public Network::DownstreamTransportSocketFactory {
 public:
-  Network::TransportSocketPtr
-  createTransportSocket(Network::TransportSocketOptionsConstSharedPtr options) const override {
+  Network::TransportSocketPtr createDownstreamTransportSocket() const override {
     return std::make_unique<SslSocketWrapper>(
-        Extensions::TransportSockets::Tls::InitialState::Server, options);
+        Extensions::TransportSockets::Tls::InitialState::Server, nullptr);
   }
 
   bool implementsSecureTransport() const override { return true; }
@@ -168,7 +170,7 @@ public:
 
 } // namespace
 
-Network::TransportSocketFactoryPtr UpstreamTlsWrapperFactory::createTransportSocketFactory(
+Network::UpstreamTransportSocketFactoryPtr UpstreamTlsWrapperFactory::createTransportSocketFactory(
     const Protobuf::Message&, Server::Configuration::TransportSocketFactoryContext&) {
   return std::make_unique<ClientSslSocketFactory>();
 }
@@ -180,7 +182,8 @@ ProtobufTypes::MessagePtr UpstreamTlsWrapperFactory::createEmptyConfigProto() {
 REGISTER_FACTORY(UpstreamTlsWrapperFactory,
                  Server::Configuration::UpstreamTransportSocketConfigFactory);
 
-Network::TransportSocketFactoryPtr DownstreamTlsWrapperFactory::createTransportSocketFactory(
+Network::DownstreamTransportSocketFactoryPtr
+DownstreamTlsWrapperFactory::createTransportSocketFactory(
     const Protobuf::Message&, Server::Configuration::TransportSocketFactoryContext&,
     const std::vector<std::string>&) {
   return std::make_unique<ServerSslSocketFactory>();
