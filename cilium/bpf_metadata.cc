@@ -382,6 +382,12 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   return Network::FilterStatus::Continue;
 }
 
+Network::FilterStatus Instance::onData(Network::ListenerFilterBuffer&) {
+  return Network::FilterStatus::Continue;
+};
+
+size_t Instance::maxReadBytes() const { return 0; }
+
 } // namespace BpfMetadata
 } // namespace Cilium
 } // namespace Envoy
