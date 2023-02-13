@@ -174,9 +174,15 @@ docker-tests-archive: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerign
 empty-docker-tests-archive: Dockerfile.tests Dockerfile.tests.dockerignore
 	$(DOCKER) build --target empty-builder-archive $(DOCKER_BUILD_OPTS) -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_ARCHIVE_TAG) .
 
+ifeq ($(BRANCH_TAG),"master")
+  DOCKER_TESTS_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)-testlogs
+else
+  DOCKER_TESTS_TAGS ?= -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(BRANCH_TAG)$(IMAGE_ARCH)-testlogs
+endif
+
 .PHONY: docker-tests
 docker-tests: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore
-	$(DOCKER) build $(subst --push,,$(DOCKER_BUILD_OPTS)) $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< .
+	$(DOCKER) build --progress=plain $(subst --push,--load,$(DOCKER_BUILD_OPTS)) $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< $(DOCKER_TESTS_TAGS) .
 
 ifeq ($(BRANCH_TAG),"master")
   DOCKER_IMAGE_ENVOY_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)

@@ -67,7 +67,8 @@ jobs:
             BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-master-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
-          push: false
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy:latest-testlogs
   build-cache-and-push-images:
     timeout-minutes: 360
     name: Build cache and push images
