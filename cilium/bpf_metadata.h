@@ -59,6 +59,12 @@ class Instance : public Network::ListenerFilter,
   // Network::ListenerFilter
   Network::FilterStatus onAccept(Network::ListenerFilterCallbacks &cb) override;
 
+  // Network::ListenerFilter
+  Network::FilterStatus onData(Network::ListenerFilterBuffer& buffer) override;
+
+  // Network::ListenerFilter
+  size_t maxReadBytes() const override;
+
  private:
   const ConfigSharedPtr config_;
 };
