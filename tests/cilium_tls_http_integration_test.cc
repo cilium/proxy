@@ -198,9 +198,9 @@ public:
     Network::Address::InstanceConstSharedPtr address =
         Ssl::getSslAddress(version_, lookupPort("http"));
     context_ = createClientSslTransportSocketFactory(context_manager_, *api_);
-    Network::ClientConnectionPtr ssl_client_ =
-        dispatcher_->createClientConnection(address, Network::Address::InstanceConstSharedPtr(),
-                                            context_->createTransportSocket(nullptr), nullptr);
+    Network::ClientConnectionPtr ssl_client_ = dispatcher_->createClientConnection(
+        address, Network::Address::InstanceConstSharedPtr(),
+        context_->createTransportSocket(nullptr, nullptr), nullptr, nullptr);
 
     ssl_client_->enableHalfClose(true);
     codec_client_ = makeHttpConnection(std::move(ssl_client_));
@@ -220,7 +220,7 @@ public:
 
   // TODO(mattklein123): This logic is duplicated in various places. Cleanup in
   // a follow up.
-  Network::TransportSocketFactoryPtr createUpstreamSslContext() {
+  Network::DownstreamTransportSocketFactoryPtr createUpstreamSslContext() {
     envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext tls_context;
     auto* common_tls_context = tls_context.mutable_common_tls_context();
     auto* tls_cert = common_tls_context->add_tls_certificates();
@@ -277,7 +277,7 @@ public:
   std::string upstream_cert_name_{"upstreamlocalhost"};
 
   // Downstream
-  Network::TransportSocketFactoryPtr context_;
+  Network::UpstreamTransportSocketFactoryPtr context_;
 };
 
 class CiliumTLSHttpIntegrationTest : public CiliumHttpTLSIntegrationTest {

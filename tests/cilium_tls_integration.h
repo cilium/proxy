@@ -7,7 +7,7 @@
 namespace Envoy {
 namespace Cilium {
 
-Network::TransportSocketFactoryPtr
+Network::UpstreamTransportSocketFactoryPtr
 createClientSslTransportSocketFactory(Ssl::ContextManager& context_manager, Api::Api& api);
 
 } // namespace Cilium

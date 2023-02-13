@@ -16,7 +16,7 @@
 namespace Envoy {
 namespace Cilium {
 
-Network::TransportSocketFactoryPtr
+Network::UpstreamTransportSocketFactoryPtr
 createClientSslTransportSocketFactory(Ssl::ContextManager& context_manager, Api::Api& api) {
   std::string yaml_plain = R"EOF(
   common_tls_context:
@@ -33,7 +33,7 @@ createClientSslTransportSocketFactory(Ssl::ContextManager& context_manager, Api:
   auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
       tls_context, mock_factory_ctx);
   static auto* client_stats_store = new Stats::TestIsolatedStoreImpl();
-  return Network::TransportSocketFactoryPtr{
+  return Network::UpstreamTransportSocketFactoryPtr{
       new Extensions::TransportSockets::Tls::ClientSslSocketFactory(std::move(cfg), context_manager,
                                                                     *client_stats_store)};
 }
