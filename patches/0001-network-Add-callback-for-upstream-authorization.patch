@@ -285,7 +285,7 @@ index 1fdca8cb75..c64bec9776 100644
  
    // Callbacks for different error and success states during connection establishment
 diff --git a/source/common/tcp_proxy/upstream.cc b/source/common/tcp_proxy/upstream.cc
-index 0c695857e3..402d254ad9 100644
+index 53dbff2a2e..05e0ee7b58 100644
 --- a/source/common/tcp_proxy/upstream.cc
 +++ b/source/common/tcp_proxy/upstream.cc
 @@ -173,6 +173,10 @@ void TcpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
@@ -296,10 +296,10 @@ index 0c695857e3..402d254ad9 100644
 +  return conn_pool_data_.value().host();
 +}
 +
- void TcpConnPool::onPoolFailure(ConnectionPool::PoolFailureReason reason, absl::string_view,
+ void TcpConnPool::onPoolFailure(ConnectionPool::PoolFailureReason reason,
+                                 absl::string_view failure_reason,
                                  Upstream::HostDescriptionConstSharedPtr host) {
-   upstream_handle_ = nullptr;
-@@ -233,6 +237,10 @@ void HttpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
+@@ -234,6 +238,10 @@ void HttpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
    }
  }
  
@@ -307,9 +307,10 @@ index 0c695857e3..402d254ad9 100644
 +  return conn_pool_data_.value().host();
 +}
 +
- void HttpConnPool::onPoolFailure(ConnectionPool::PoolFailureReason reason, absl::string_view,
+ void HttpConnPool::onPoolFailure(ConnectionPool::PoolFailureReason reason,
+                                  absl::string_view failure_reason,
                                   Upstream::HostDescriptionConstSharedPtr host) {
-   upstream_handle_ = nullptr;
+
 diff --git a/source/common/tcp_proxy/upstream.h b/source/common/tcp_proxy/upstream.h
 index 5aef2b4ef3..25e839c3d9 100644
 --- a/source/common/tcp_proxy/upstream.h

@@ -98,7 +98,7 @@ index 70427be439..286c222858 100644
    read_callbacks_->upstreamHost()->outlierDetector().putResult(
        Upstream::Outlier::Result::LocalOriginConnectSuccessFinal);
 diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
-index c64bec9776..6af48f1538 100644
+index ab44713d9c..a27d7e6ff1 100644
 --- a/source/common/tcp_proxy/tcp_proxy.h
 +++ b/source/common/tcp_proxy/tcp_proxy.h
 @@ -21,6 +21,7 @@
@@ -107,9 +107,9 @@ index c64bec9776..6af48f1538 100644
  
 +#include "source/common/buffer/buffer_impl.h"
  #include "source/common/common/logger.h"
- #include "source/common/network/cidr_range.h"
- #include "source/common/network/filter_impl.h"
-@@ -189,6 +190,7 @@ public:
+ #include "source/common/formatter/substitution_format_string.h"
+ #include "source/common/http/header_map_impl.h"
+@@ -190,6 +191,7 @@ public:
          return OnDemandConfigOptConstRef();
        }
      }
@@ -117,7 +117,7 @@ index c64bec9776..6af48f1538 100644
  
    private:
      static TcpProxyStats generateStats(Stats::Scope& scope);
-@@ -202,6 +204,7 @@ public:
+@@ -203,6 +205,7 @@ public:
      absl::optional<std::chrono::milliseconds> max_downstream_connection_duration_;
      std::unique_ptr<TunnelingConfigHelper> tunneling_config_helper_;
      std::unique_ptr<OnDemandConfig> on_demand_config_;
@@ -125,7 +125,7 @@ index c64bec9776..6af48f1538 100644
    };
  
    using SharedConfigSharedPtr = std::shared_ptr<SharedConfig>;
-@@ -250,6 +253,7 @@ public:
+@@ -251,6 +254,7 @@ public:
    }
    // This function must not be called if on demand is disabled.
    const OnDemandStats& onDemandStats() const { return shared_config_->onDemandConfig()->stats(); }
@@ -133,7 +133,7 @@ index c64bec9776..6af48f1538 100644
  
  private:
    struct SimpleRouteImpl : public Route {
-@@ -478,6 +482,8 @@ protected:
+@@ -479,6 +483,8 @@ protected:
    uint32_t connect_attempts_{};
    bool connecting_{};
    bool downstream_closed_{};
