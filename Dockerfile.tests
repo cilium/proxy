@@ -87,10 +87,13 @@ RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
     PKG_BUILD=1 V=$V make envoy-tests && \
     cp -Lr /cilium/proxy/bazel-testlogs testlogs
 
+FROM scratch as empty-builder-archive
+LABEL maintainer="maintainer@cilium.io"
+WORKDIR /tmp/bazel-cache
+
 # This stage retains only the build caches from the builder stage.
 # This is used as the target for persisting Bazel build caches for later re-use.
-FROM scratch as builder-archive
-LABEL maintainer="maintainer@cilium.io"
+FROM empty-builder-archive as builder-archive
 ARG COPY_CACHE_EXT
 COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 

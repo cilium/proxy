@@ -60,10 +60,13 @@ RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DESTDIR=/tmp/install make install && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; fi
 
+FROM scratch as empty-builder-archive
+LABEL maintainer="maintainer@cilium.io"
+WORKDIR /tmp/bazel-cache
+
 # This stage retains only the build caches from the previous step. This is used as the target for persisting
 # Bazel build caches for later re-use.
-FROM scratch as builder-archive
-LABEL maintainer="maintainer@cilium.io"
+FROM empty-builder-archive as builder-archive
 ARG COPY_CACHE_EXT
 COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 
