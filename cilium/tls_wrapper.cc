@@ -45,21 +45,21 @@ class SslSocketWrapper : public Network::TransportSocket {
       uint32_t destination_port = option->port_;
 
       if (!option->ingress_) {
-	Network::Address::InstanceConstSharedPtr dst_address =
-	  state_ == Extensions::TransportSockets::Tls::InitialState::Client
-	  ? callbacks.connection().connectionInfoProvider().remoteAddress()
-	  : callbacks.connection().connectionInfoProvider().localAddress();
-	if (dst_address) {
-	  const auto dip = dst_address->ip();
-	  if (dip) {
-	    destination_port = dip->port();
-	    destination_identity = option->resolvePolicyId(dip);
-	  } else {
-	    ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Non-IP destination address: {}", dst_address->asString());
-	  }
-	} else {
-	  ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: No destination address");
-	}
+        Network::Address::InstanceConstSharedPtr dst_address =
+          state_ == Extensions::TransportSockets::Tls::InitialState::Client
+          ? callbacks.connection().connectionInfoProvider().remoteAddress()
+          : callbacks.connection().connectionInfoProvider().localAddress();
+        if (dst_address) {
+          const auto dip = dst_address->ip();
+          if (dip) {
+            destination_port = dip->port();
+            destination_identity = option->resolvePolicyId(dip);
+          } else {
+            ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Non-IP destination address: {}", dst_address->asString());
+          }
+        } else {
+          ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: No destination address");
+        }
       }
 
       auto port_policy = option->initial_policy_->findPortPolicy(
@@ -154,23 +154,27 @@ class SslSocketWrapper : public Network::TransportSocket {
   Network::TransportSocketPtr socket_;
 };
 
-class ClientSslSocketFactory : public Network::CommonTransportSocketFactory {
+class ClientSslSocketFactory : public Network::CommonUpstreamTransportSocketFactory {
  public:
   Network::TransportSocketPtr createTransportSocket(
-      Network::TransportSocketOptionsConstSharedPtr options) const override {
+      Network::TransportSocketOptionsConstSharedPtr options,
+      std::shared_ptr<const Upstream::HostDescription>) const override {
     return std::make_unique<SslSocketWrapper>(
         Extensions::TransportSockets::Tls::InitialState::Client, options);
+  }
+
+  absl::string_view defaultServerNameIndication() const override {
+    return EMPTY_STRING;
   }
 
   bool implementsSecureTransport() const override { return true; }
 };
 
-class ServerSslSocketFactory : public Network::CommonTransportSocketFactory {
+class ServerSslSocketFactory : public Network::DownstreamTransportSocketFactory {
  public:
-  Network::TransportSocketPtr createTransportSocket(
-      Network::TransportSocketOptionsConstSharedPtr options) const override {
+  Network::TransportSocketPtr createDownstreamTransportSocket() const override {
     return std::make_unique<SslSocketWrapper>(
-        Extensions::TransportSockets::Tls::InitialState::Server, options);
+        Extensions::TransportSockets::Tls::InitialState::Server, nullptr);
   }
 
   bool implementsSecureTransport() const override { return true; }
@@ -178,7 +182,7 @@ class ServerSslSocketFactory : public Network::CommonTransportSocketFactory {
 
 }  // namespace
 
-Network::TransportSocketFactoryPtr
+Network::UpstreamTransportSocketFactoryPtr
 UpstreamTlsWrapperFactory::createTransportSocketFactory(
     const Protobuf::Message&,
     Server::Configuration::TransportSocketFactoryContext&) {
@@ -192,7 +196,7 @@ ProtobufTypes::MessagePtr UpstreamTlsWrapperFactory::createEmptyConfigProto() {
 REGISTER_FACTORY(UpstreamTlsWrapperFactory,
                  Server::Configuration::UpstreamTransportSocketConfigFactory);
 
-Network::TransportSocketFactoryPtr
+Network::DownstreamTransportSocketFactoryPtr
 DownstreamTlsWrapperFactory::createTransportSocketFactory(
     const Protobuf::Message&,
     Server::Configuration::TransportSocketFactoryContext&,
