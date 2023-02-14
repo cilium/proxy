@@ -34,6 +34,8 @@ static_resources:
       seconds: 1
     transport_socket:
       name: "cilium.tls_wrapper"
+      typed_config:
+        "@type": type.googleapis.com/cilium.UpstreamTlsWrapperContext
     typed_extension_protocol_options:
       envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
         "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
@@ -125,6 +127,8 @@ static_resources:
                   prefix: "/"
       transport_socket:
         name: "cilium.tls_wrapper"
+        typed_config:
+          "@type": type.googleapis.com/cilium.DownstreamTlsWrapperContext
 )EOF";
 
 // upstream_tls_context tructed_ca from

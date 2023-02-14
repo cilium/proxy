@@ -33,6 +33,12 @@ api_cc_py_proto_library(
     visibility = ["//visibility:public"],
 )
 
+api_cc_py_proto_library(
+    name = "tls_wrapper",
+    srcs = ["tls_wrapper.proto"],
+    visibility = ["//visibility:public"],
+)
+
 envoy_proto_library(
     name = "accesslog_proto",
     srcs = ["accesslog.proto"],

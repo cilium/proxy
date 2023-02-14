@@ -30,6 +30,8 @@ static_resources:
       seconds: 1
     transport_socket:
       name: "cilium.tls_wrapper"
+      typed_config:
+        "@type": type.googleapis.com/cilium.UpstreamTlsWrapperContext
   - name: xds-grpc-cilium
     connect_timeout:
       seconds: 5
@@ -531,6 +533,8 @@ static_resources:
       seconds: 1
     transport_socket:
       name: "cilium.tls_wrapper"
+      typed_config:
+        "@type": type.googleapis.com/cilium.UpstreamTlsWrapperContext
   - name: xds-grpc-cilium
     connect_timeout:
       seconds: 5
@@ -572,6 +576,8 @@ static_resources:
         transport_protocol: "tls"
       transport_socket:
         name: "cilium.tls_wrapper"
+        typed_config:
+          "@type": type.googleapis.com/cilium.DownstreamTlsWrapperContext
       filters:
       - name: cilium.network
         typed_config:
