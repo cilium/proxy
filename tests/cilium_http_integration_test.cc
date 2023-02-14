@@ -182,7 +182,6 @@ resources:
 // params: is_ingress ("true", "false")
 const std::string cilium_proxy_config_fmt = R"EOF(
 admin:
-  access_log_path: /dev/null
   address:
     socket_address:
       address: 127.0.0.1
