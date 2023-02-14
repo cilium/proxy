@@ -16,7 +16,6 @@ namespace Cilium {
 // params: is_ingress ("true", "false")
 const std::string cilium_tls_tcp_proxy_config_fmt = R"EOF(
 admin:
-  access_log_path: /dev/null
   address:
     socket_address:
       address: 127.0.0.1
@@ -519,7 +518,6 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlushEnvoyExit) {
 // params: is_ingress ("true", "false")
 const std::string cilium_tls_downstream_tcp_proxy_config_fmt = R"EOF(
 admin:
-  access_log_path: /dev/null
   address:
     socket_address:
       address: 127.0.0.1
