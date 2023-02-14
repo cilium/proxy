@@ -17,6 +17,7 @@ envoy_cc_library(
     deps = [
         "//cilium:network_policy_lib",
         "//cilium:socket_option_lib",
+        "//cilium/api:tls_wrapper_cc_proto",
         "@envoy//envoy/network:transport_socket_interface",
         "@envoy//envoy/registry",
         "@envoy//envoy/server:transport_socket_config_interface",

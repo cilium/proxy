@@ -2,6 +2,8 @@
 
 #include "cilium/network_policy.h"
 #include "cilium/socket_option.h"
+#include "cilium/api/tls_wrapper.pb.h"
+
 #include "envoy/extensions/transport_sockets/tls/v3/cert.pb.h"
 #include "envoy/extensions/transport_sockets/tls/v3/cert.pb.validate.h"
 #include "source/common/network/raw_buffer_socket.h"
@@ -184,8 +186,7 @@ UpstreamTlsWrapperFactory::createTransportSocketFactory(
 }
 
 ProtobufTypes::MessagePtr UpstreamTlsWrapperFactory::createEmptyConfigProto() {
-  return std::make_unique<
-      envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext>();
+  return std::make_unique<::cilium::UpstreamTlsWrapperContext>();
 }
 
 REGISTER_FACTORY(UpstreamTlsWrapperFactory,
@@ -201,8 +202,7 @@ DownstreamTlsWrapperFactory::createTransportSocketFactory(
 
 ProtobufTypes::MessagePtr
 DownstreamTlsWrapperFactory::createEmptyConfigProto() {
-  return std::make_unique<
-      envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext>();
+  return std::make_unique<::cilium::DownstreamTlsWrapperContext>();
 }
 
 REGISTER_FACTORY(DownstreamTlsWrapperFactory,
