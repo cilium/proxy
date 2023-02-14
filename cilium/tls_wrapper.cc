@@ -185,6 +185,8 @@ UpstreamTlsWrapperFactory::createTransportSocketFactory(
   return std::make_unique<ClientSslSocketFactory>();
 }
 
+std::string UpstreamTlsWrapperFactory::name() const { return "cilium.tls_wrapper"; }
+
 ProtobufTypes::MessagePtr UpstreamTlsWrapperFactory::createEmptyConfigProto() {
   return std::make_unique<::cilium::UpstreamTlsWrapperContext>();
 }
@@ -199,6 +201,8 @@ DownstreamTlsWrapperFactory::createTransportSocketFactory(
     const std::vector<std::string>&) {
   return std::make_unique<ServerSslSocketFactory>();
 }
+
+std::string DownstreamTlsWrapperFactory::name() const { return "cilium.tls_wrapper"; }
 
 ProtobufTypes::MessagePtr
 DownstreamTlsWrapperFactory::createEmptyConfigProto() {
