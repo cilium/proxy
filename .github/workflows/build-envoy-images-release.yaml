@@ -98,19 +98,30 @@ jobs:
         run: |
           echo "${{ github.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
+          echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
+          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
 
-      - name: Multi-arch build & push of build artifact archive
+      - name: Checking if cilium-envoy-builder image exists
+        id: cilium-builder-tag-in-repositories
+        shell: bash
+        run: |
+          if docker buildx imagetools inspect quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+            echo exists="true" >> $GITHUB_OUTPUT
+          else
+            echo exists="false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Multi-arch build & push of cilium-envoy-builder
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
+        if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
+        id: docker_build_builder_ci
         with:
+          provenance: false
           context: .
-          file: ./Dockerfile
-          target: builder-archive
+          file: ./Dockerfile.builder
           platforms: linux/amd64,linux/arm64
-          build-args: |
-            COPY_CACHE_EXT=.new
-            BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
           push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:master-archive-latest
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
 
       - name: Cache Docker layers
         uses: actions/cache@58c146cc91c5b9e778e71775dfe9bf1442ad9a12 # v3.2.3
