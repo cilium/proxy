@@ -38,6 +38,30 @@ jobs:
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
+          echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
+          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $3 }')" >> $GITHUB_ENV
+
+      - name: Checking if cilium-envoy-builder image exists
+        id: cilium-builder-tests-tag-in-repositories
+        shell: bash
+        run: |
+          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+            echo exists="true" >> $GITHUB_OUTPUT
+          else
+            echo exists="false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: PR Multi-arch build & push of Builder image (dev)
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
+        if: steps.cilium-builder-tests-tag-in-repositories.outputs.exists == 'false'
+        id: docker_build_builder_tests_ci
+        with:
+          provenance: false
+          context: .
+          file: ./Dockerfile.builder.tests
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
 
       - name: Multi-arch update integration test archive
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
@@ -48,6 +72,7 @@ jobs:
           target: builder-archive
           platforms: linux/amd64,linux/arm64
           build-args: |
+            BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:tests-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
             COPY_CACHE_EXT=.new
             BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
           push: true
@@ -71,6 +96,7 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:tests-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
             BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-master-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
