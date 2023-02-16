@@ -1,6 +1,6 @@
 name: CI run integration tests
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 jobs:
@@ -11,6 +11,13 @@ jobs:
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f03ac48505955848960e80bbb68046aa35c7b9e7 # v2.4.1
+
+      - name: Login to quay.io
+        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
+          password: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
 
       - name: Enable Docker IPv6
         run: |
@@ -38,13 +45,29 @@ jobs:
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
           echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
+          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $3 }')" >> $GITHUB_ENV
 
-      - name: Wait for images to be available
-        timeout-minutes: 30
+      - name: Checking if cilium-envoy-builder image exists
+        id: cilium-builder-tests-tag-in-repositories
         shell: bash
         run: |
-          until docker manifest inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &> /dev/null; do sleep 45s; done
+          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:tests-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+            echo exists="true" >> $GITHUB_OUTPUT
+          else
+            echo exists="false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: PR Multi-arch build & push of Builder image (dev)
+        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
+        if: steps.cilium-builder-tests-tag-in-repositories.outputs.exists == 'false'
+        id: docker_build_builder_tests_ci
+        with:
+          provenance: false
+          context: .
+          file: ./Dockerfile.builder.tests
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:tests-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
 
       - name: Run integration tests on amd64
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
@@ -55,7 +78,7 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_BASE=quay.io/cilium/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+            BUILDER_BASE=quay.io/cilium/cilium-envoy-builder-dev:tests-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           cache-from: type=local,src=/tmp/buildx-cache
           push: false
