@@ -78,7 +78,6 @@ SOURCE_VERSION: force
 
 ENVOY_VERSION := $(shell cat ENVOY_VERSION)
 BAZEL_VERSION := $(shell cat .bazelversion)
-BUILDER_BASE_TAG ?= bazel-$(BAZEL_VERSION)$(IMAGE_ARCH)
 BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
 BRANCH_TAG := $(shell echo $(BRANCH_NAME) | tr -c '[:alnum:]_.\n-' '-')
 BUILDER_IMAGE_OPTS ?=
@@ -86,6 +85,13 @@ BUILDER_IMAGE_OPTS ?=
 # target for builder archive
 BUILDER_ARCHIVE_TAG ?= master-archive-latest
 TESTS_ARCHIVE_TAG ?= test-master-archive-latest
+
+BUILDER_DOCKER_HASH=$(shell git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $$3 }')
+TEST_BUILDER_DOCKER_HASH=$(shell git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $$3 }')
+BUILDER_BASE_TAG ?= $(BAZEL_VERSION)-$(BUILDER_DOCKER_HASH)
+TESTS_BUILDER_BASE_TAG ?= $(BAZEL_VERSION)-$(TEST_BUILDER_DOCKER_HASH)
+BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG)
+TESTS_BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_BUILDER_BASE_TAG)
 
 ifndef NO_CACHE
   ifndef BUILDER_IMAGE
@@ -161,11 +167,11 @@ GIT_IGNORE_FILES := $(shell find -H . -not -path "./_build*" -not -path "./vendo
 
 .PHONY: docker-image-builder
 docker-image-builder: Dockerfile.builder SOURCE_VERSION Dockerfile.builder.dockerignore
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG) .
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg BUILDER_BASE="$(BUILDER_BASE)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG) .
 
 .PHONY: docker-image-builder-tests
 docker-image-builder-tests: Dockerfile.builder.tests SOURCE_VERSION Dockerfile.builder.tests.dockerignore
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:test-$(BUILDER_BASE_TAG) .
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg BUILDER_BASE="$(TESTS_BUILDER_BASE)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_BUILDER_BASE_TAG) .
 
 .PHONY: docker-builder-archive
 docker-builder-archive: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
