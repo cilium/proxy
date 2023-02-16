@@ -114,6 +114,11 @@ Dockerfile.builder.dockerignore:
 	echo "*" >$@
 	echo "!/.bazelversion" >>$@
 
+# Builder image for tests consists only of build tools, so it only needs .bazelversion
+Dockerfile.builder.tests.dockerignore:
+	echo "*" >$@
+	echo "!/.bazelversion" >>$@
+
 # Release does not need Go API or test files
 Dockerfile.dockerignore: .dockerignore Makefile.docker
 	cp $< $@
@@ -157,6 +162,10 @@ GIT_IGNORE_FILES := $(shell find -H . -not -path "./_build*" -not -path "./vendo
 .PHONY: docker-image-builder
 docker-image-builder: Dockerfile.builder SOURCE_VERSION Dockerfile.builder.dockerignore
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG) .
+
+.PHONY: docker-image-builder-tests
+docker-image-builder-tests: Dockerfile.builder.tests SOURCE_VERSION Dockerfile.builder.tests.dockerignore
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:test-$(BUILDER_BASE_TAG) .
 
 .PHONY: docker-builder-archive
 docker-builder-archive: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
