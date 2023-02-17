@@ -66,8 +66,10 @@ ARG V
 ARG BAZEL_BUILD_OPTS
 ARG BUILDARCH
 ARG TARGETARCH
+ARG NO_CACHE
 ENV TARGETARCH=$TARGETARCH
 
+RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private if [ -n "$NO_CACHE" ]; then rm -rf /root/.cache/*; fi
 RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
     --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,rw \
     if [ "$TARGETARCH" != "$BUILDARCH" ]; then \

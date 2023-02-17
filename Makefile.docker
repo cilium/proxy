@@ -95,7 +95,7 @@ TESTS_BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_BUILDER
 BUILD_IMAGE_OPTS := --build-arg BUILDER_BASE="$(BUILDER_BASE)"
 TESTS_IMAGE_OPTS := --build-arg BUILDER_BASE="$(TESTS_BUILDER_BASE)"
 
-ifndef NO_CACHE
+ifndef NO_ARCHIVE
   ifndef ARCHIVE_IMAGE
     # Default builder refresh image ref
     ARCHIVE_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_ARCHIVE_TAG)
@@ -103,7 +103,9 @@ ifndef NO_CACHE
   else
     TESTS_ARCHIVE_IMAGE := $(ARCHIVE_IMAGE)
   endif
-else
+endif
+
+ifdef NO_CACHE
   DOCKER_CACHE_OPTS += --build-arg NO_CACHE=$(NO_CACHE)
   ifeq ($(NO_CACHE),2)
     DOCKER_CACHE_OPTS += --no-cache
