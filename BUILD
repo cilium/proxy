@@ -1,8 +1,6 @@
 load(
     "@envoy//bazel:envoy_build_system.bzl",
     "envoy_cc_binary",
-    "envoy_cc_library",
-    "envoy_cc_test",
 )
 
 licenses(["notice"])  # Apache 2
@@ -36,19 +34,19 @@ sh_test(
 
 sh_binary(
     name = "check_format.py",
-    srcs = ["@envoy//tools:code_format/check_format.py"],
-    deps = [
+    srcs = ["@envoy//tools/code_format:check_format.py"],
+    data = [
         ":envoy_build_fixer.py",
         ":header_order.py",
     ],
 )
 
-sh_library(
+sh_binary(
     name = "header_order.py",
-    srcs = ["@envoy//tools:code_format/header_order.py"],
+    srcs = ["@envoy//tools/code_format:header_order.py"],
 )
 
-sh_library(
+sh_binary(
     name = "envoy_build_fixer.py",
-    srcs = ["@envoy//tools:code_format/envoy_build_fixer.py"],
+    srcs = ["@envoy//tools/code_format:envoy_build_fixer.py"],
 )
