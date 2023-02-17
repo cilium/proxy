@@ -7,7 +7,7 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:bazel-5.1.1@sha256:9e94c4c6
 ARG PROXYLIB=quay.io/cilium/cilium:stable
 
 #
-# BUILDER_IMAGE defaults to the result of the first stage below,
+# ARCHIVE_IMAGE defaults to the result of the first stage below,
 # refreshing the build caches from Envoy dependencies before the final
 # build stage. This can be overridden on docker build command line to
 # use pre-built dependencies. Note that if cross-compiling, these
@@ -15,7 +15,7 @@ ARG PROXYLIB=quay.io/cilium/cilium:stable
 # TARGETPLATFORM build artifacts, and thus can only be reused when
 # building on the same BUILDPLATFORM.
 #
-ARG BUILDER_IMAGE=builder-fresh
+ARG ARCHIVE_IMAGE=builder-fresh
 
 FROM $PROXYLIB as proxylib
 
@@ -36,9 +36,9 @@ ENV TARGETARCH=$TARGETARCH
 #
 RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V make envoy-test-deps
 
-# By default this stage picks up the result of the build above, but BUILDER_IMAGE can be
+# By default this stage picks up the result of the build above, but ARCHIVE_IMAGE can be
 # overridden to point to a saved image of an earlier run of that stage.
-FROM $BUILDER_IMAGE as builder-cache
+FROM $ARCHIVE_IMAGE as archive-cache
 
 FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder
 LABEL maintainer="maintainer@cilium.io"
@@ -53,7 +53,7 @@ ENV TARGETARCH=$TARGETARCH
 
 # Clear runner's cache when building deps
 RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private rm -rf /root/.cache/*
-RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=builder-cache,rw \
+RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,rw \
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V make envoy-test-deps && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; fi
 
@@ -69,7 +69,7 @@ ARG TARGETARCH
 ENV TARGETARCH=$TARGETARCH
 
 RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
-    --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=builder-cache,rw \
+    --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,rw \
     if [ "$TARGETARCH" != "$BUILDARCH" ]; then \
       if [ "$TARGETARCH" = "amd64" ]; then \
         # Allow running x86_64 test binaries via qemu \

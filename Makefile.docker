@@ -80,7 +80,7 @@ ENVOY_VERSION := $(shell cat ENVOY_VERSION)
 BAZEL_VERSION := $(shell cat .bazelversion)
 BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
 BRANCH_TAG := $(shell echo $(BRANCH_NAME) | tr -c '[:alnum:]_.\n-' '-')
-BUILDER_IMAGE_OPTS ?=
+ARCHIVE_IMAGE_OPTS ?=
 
 # target for builder archive
 BUILDER_ARCHIVE_TAG ?= master-archive-latest
@@ -94,12 +94,12 @@ BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG)
 TESTS_BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_BUILDER_BASE_TAG)
 
 ifndef NO_CACHE
-  ifndef BUILDER_IMAGE
+  ifndef ARCHIVE_IMAGE
     # Default builder refresh image ref
-    BUILDER_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_ARCHIVE_TAG)
+    ARCHIVE_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_ARCHIVE_TAG)
     TESTS_ARCHIVE_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_ARCHIVE_TAG)
   else
-    TESTS_ARCHIVE_IMAGE := $(BUILDER_IMAGE)
+    TESTS_ARCHIVE_IMAGE := $(ARCHIVE_IMAGE)
   endif
 else
   DOCKER_CACHE_OPTS += --build-arg NO_CACHE=$(NO_CACHE)
@@ -108,11 +108,11 @@ else
   endif
 endif
 
-ifdef BUILDER_IMAGE
-  BUILDER_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(BUILDER_IMAGE)
+ifdef ARCHIVE_IMAGE
+  ARCHIVE_IMAGE_OPTS += --build-arg ARCHIVE_IMAGE=$(ARCHIVE_IMAGE)
 endif
 ifdef TESTS_ARCHIVE_IMAGE
-  TESTS_IMAGE_OPTS += --build-arg BUILDER_IMAGE=$(TESTS_ARCHIVE_IMAGE)
+  TESTS_IMAGE_OPTS += --build-arg ARCHIVE_IMAGE=$(TESTS_ARCHIVE_IMAGE)
 endif
 
 # Builder image consists only of build tools, so it only needs .bazelversion
@@ -175,7 +175,7 @@ docker-image-builder-tests: Dockerfile.builder.tests SOURCE_VERSION Dockerfile.b
 
 .PHONY: docker-builder-archive
 docker-builder-archive: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
-	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_ARCHIVE_TAG) .
+	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(ARCHIVE_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_ARCHIVE_TAG) .
 
 .PHONY: empty-docker-builder-archive
 empty-docker-builder-archive: Dockerfile Dockerfile.dockerignore
@@ -210,7 +210,7 @@ endif
 .PHONY: docker-image-envoy
 docker-image-envoy: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
 	@$(ECHO_GEN) docker-image-envoy
-	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILDER_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" $(DOCKER_IMAGE_ENVOY_TAGS) .
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(ARCHIVE_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" $(DOCKER_IMAGE_ENVOY_TAGS) .
 
 docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
 	@$(ECHO_GEN) docker-istio-proxy

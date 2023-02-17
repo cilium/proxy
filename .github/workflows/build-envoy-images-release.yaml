@@ -96,8 +96,8 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:tests-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
-            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-master-archive-latest
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-master-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: true
@@ -159,7 +159,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
-            BUILDER_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:master-archive-latest
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:master-archive-latest
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: true
           tags: |
