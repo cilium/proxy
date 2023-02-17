@@ -94,8 +94,8 @@ ARCH=multi ARCHIVE_IMAGE=docker.io/me/cilium-envoy-archive make docker-image-env
 > builds. For now the image ref shown above is for builds on amd64
 > only (native amd64, cross-compiled arm64).
 
-Define `NO_CACHE=1` to build from scratch, but be warned that this can
-take several hours.
+Define `NO_CACHE=1` to clear the local build cache before the build, and `NO_ARCHIVE=1` to build
+from scratch, but be warned that this can take a long time.
 
 ### Docker caching
 
@@ -108,8 +108,7 @@ this with our own build cache, which you can also update with the
 ARCH=multi CACHE_REF=docker.io/me/cilium-proxy:cache CACHE_PUSH=1 make docker-image-envoy
 ```
 
-`NO_CACHE=1` can be used to disable docker cache pulling, but it also
-disables use of pre-built Bazel artifacts.`
+`NO_CACHE=1` can be used to disable docker cache pulling.
 
 In a CI environment it might be a good idea to push a new cache image
 after each main branch commit.
@@ -133,10 +132,10 @@ can override the first two parts of this by defining
 Pre-compiled Envoy dependencies need to be updated only when Envoy
 version is updated or patched enough to increase compilation time
 significantly. To do this you should update Envoy version in
-`ENVOY_VERSION` and supply `NO_CACHE=1` on the make line, e.g.:
+`ENVOY_VERSION` and supply `NO_CACHE=1` and `NO_ARCHIVE=1` on the make line, e.g.:
 
 ```
-ARCH=multi NO_CACHE=1 BUILDER_ARCHIVE_TAG=master-archive-latest make docker-builder-archive
+ARCH=multi NO_CACHE=1 NO_ARCHIVE=1 BUILDER_ARCHIVE_TAG=master-archive-latest make docker-builder-archive
 ```
 
 
@@ -147,7 +146,7 @@ another. To create a new builder image first update the required Bazel
 version at `.bazelversion` and then run:
 
 ```
-ARCH=multi NO_CACHE=1 make docker-image-builder
+ARCH=multi NO_CACHE=1 NO_ARCHIVE=1 make docker-image-builder
 ```
 
 The builder can not be cross-compiled as native build tools are needed
@@ -176,7 +175,7 @@ make docker-tests
 This runs the integration tests after loading Bazel build cache for
 Envoy dependencies from
 `quay.io/cilium/cilium-envoy-builder:test-master-archive-latest`. Define
-`NO_CACHE=1` to compile tests from scratch.
+`NO_ARCHIVE=1` and `NO_CACHE=1` to compile tests from scratch.
 
 This command fails if any of the integration tests fail, printing the
 failing test logs on console.
@@ -204,10 +203,11 @@ can override the first two parts of this by defining
 Pre-compiled Envoy test dependencies need to be updated only when
 Envoy version is updated or patched enough to increase compilation
 time significantly. To do this you should update Envoy version
-in `ENVOY_VERSION` and supply `NO_CACHE=1` on the make line, e.g.:
+in `ENVOY_VERSION` and supply `NO_ARCHIVE=1` and `NO_CACHE=1` on
+the make line, e.g.:
 
 ```
-ARCH=amd64 NO_CACHE=1 make docker-tests-archive
+ARCH=amd64 NO_ARCHIVE=1 NO_CACHE=1 make docker-tests-archive
 ```
 
 
