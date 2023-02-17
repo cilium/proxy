@@ -38,11 +38,11 @@ envoy-default: $(COMPILER_DEP) SOURCE_VERSION install-bazel
 
 debug: envoy-debug
 
-envoy-debug: $(COMPILER_DEP) SOURCE_VERSION
+envoy-debug: $(COMPILER_DEP) SOURCE_VERSION install-bazel
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c dbg //:cilium-envoy $(BAZEL_FILTER)
 
-$(CHECK_FORMAT): force-non-root SOURCE_VERSION
+$(CHECK_FORMAT): force-non-root SOURCE_VERSION install-bazel
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:check_format.py
 
 veryclean: force-non-root clean
@@ -71,10 +71,10 @@ proxylib/libcilium.so:
 	fi
 
 # Run tests without debug by default.
-tests: proxylib/libcilium.so force-non-root SOURCE_VERSION
+tests:  $(COMPILER_DEP) proxylib/libcilium.so force-non-root SOURCE_VERSION install-bazel
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
-debug-tests: proxylib/libcilium.so force-non-root SOURCE_VERSION
+debug-tests:  $(COMPILER_DEP) proxylib/libcilium.so force-non-root SOURCE_VERSION install-bazel
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c dbg $(BAZEL_TEST_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c dbg $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)

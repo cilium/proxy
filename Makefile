@@ -14,7 +14,7 @@
 
 include Makefile.defs
 
-# COMPILER_DEP:=clang.bazelrc
+COMPILER_DEP := clang.bazelrc
 
 ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy
 ENVOY_TESTS = bazel-bin/tests/*_test
@@ -72,16 +72,22 @@ else
   SUDO=sudo
 endif
 
+define add_clang_apt_source
+	if [ ! -f /etc/apt/trusted.gpg.d/apt.llvm.org.asc ]; then \
+	  $(SUDO) wget -q -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key; \
+	fi
+	apt_source="deb http://apt.llvm.org/$(1)/ llvm-toolchain-$(1)-15 main" && \
+	grep $${apt_source} /etc/apt/sources.list || echo $${apt_source} | $(SUDO) tee -a /etc/apt/sources.list
+	apt_source="deb-src http://apt.llvm.org/$(1)/ llvm-toolchain-$(1)-15 main" && \
+	grep $${apt_source} /etc/apt/sources.list || echo $${apt_source} | $(SUDO) tee -a /etc/apt/sources.list
+	$(SUDO) apt update
+endef
+
 /usr/lib/llvm-15:
-	$(SUDO) apt install clang-15 llvm-15-dev
+	$(SUDO) apt info clang-15 || $(call add_clang_apt_source,$(shell lsb_release -cs))
+	$(SUDO) apt install -y clang-15 llvm-15-dev lld-15 clang-format-15
 
-/usr/lib/lld-15:
-	$(SUDO) apt install lld-15
-
-/usr/lib/clang-format-15:
-	$(SUDO) apt install clang-format-15
-
-clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-15 /usr/lib/lld-15 /usr/lib/clang-format-15
+clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-15
 	bazel/setup_clang.sh /usr/lib/llvm-15
 	echo "build --config=clang" >> $@
 
