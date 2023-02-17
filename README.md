@@ -83,10 +83,10 @@ to `default`.
 
 Docker build uses cached Bazel artifacts from
 `quay.io/cilium/cilium-envoy-builder:master-archive-latest` by
-default. You can override this by defining `BUILDER_IMAGE=<ref>`:
+default. You can override this by defining `ARCHIVE_IMAGE=<ref>`:
 
 ```
-ARCH=multi BUILDER_IMAGE=docker.io/me/cilium-envoy-archive make docker-image-envoy
+ARCH=multi ARCHIVE_IMAGE=docker.io/me/cilium-envoy-archive make docker-image-envoy
 ```
 
 > Bazel build artifacts contain toolchain specific data and binaries
@@ -128,7 +128,7 @@ By default the pre-compiled dependencies image is tagged as
 can override the first two parts of this by defining
 `DOCKER_DEV_ACCOUNT=docker.io/me`,
 `BUILDER_ARCHIVE_TAG=my-builder-archive`, or completely by defining
-`BUILDER_IMAGE=<ref>`.
+`ARCHIVE_IMAGE=<ref>`.
 
 Pre-compiled Envoy dependencies need to be updated only when Envoy
 version is updated or patched enough to increase compilation time
@@ -199,7 +199,7 @@ By default the pre-compiled test dependencies image is tagged as
 can override the first two parts of this by defining
 `DOCKER_DEV_ACCOUNT=docker.io/me`,
 `TESTS_ARCHIVE_TAG=my-test-archive`, or completely by defining
-`BUILDER_IMAGE=<ref>`.
+`ARCHIVE_IMAGE=<ref>`.
 
 Pre-compiled Envoy test dependencies need to be updated only when
 Envoy version is updated or patched enough to increase compilation
