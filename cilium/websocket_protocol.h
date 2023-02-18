@@ -1,5 +1,7 @@
 #pragma once
 
+// NOLINT(namespace-envoy)
+
 // Some sensible limits to protect against excess resource use
 #define WEBSOCKET_HANDSHAKE_MAX_SIZE 4096
 #define WEBSOCKET_CONTROL_FRAME_MAX_SIZE 256
