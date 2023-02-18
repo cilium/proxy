@@ -165,7 +165,7 @@ message HttpNetworkPolicyRules {
 }
 
 message HeaderMatch {
-  string name = 1 [(validate.rules).string.min_bytes = 1];
+  string name = 1 [(validate.rules).string.min_len = 1];
   string value = 2; // empty for presence match
 
   // Action specifies what to do when the header matches.
