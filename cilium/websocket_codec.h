@@ -2,13 +2,13 @@
 
 #include <string>
 
-#include "cilium/websocket_config.h"
-
 #include "envoy/event/dispatcher.h"
 #include "envoy/event/timer.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
+
+#include "cilium/websocket_config.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -23,7 +23,8 @@ public:
   virtual void injectEncoded(Buffer::Instance& data, bool end_stream) PURE;
   virtual void injectDecoded(Buffer::Instance& data, bool end_stream) PURE;
 
-  virtual void setOriginalDestinationAddress(const Network::Address::InstanceConstSharedPtr& orig_dst) PURE;
+  virtual void
+  setOriginalDestinationAddress(const Network::Address::InstanceConstSharedPtr& orig_dst) PURE;
 
   virtual void onHandshakeCreated(const Http::RequestHeaderMap&) PURE;
   virtual void onHandshakeSent() PURE;
@@ -54,7 +55,7 @@ private:
 
     Codec& parent_;
     bool end_stream_{false};
-    Buffer::OwnedImpl encoded_{};  // Buffer for encoded websocket frames
+    Buffer::OwnedImpl encoded_{}; // Buffer for encoded websocket frames
   };
 
   class Decoder : Logger::Loggable<Logger::Id::filter> {
@@ -84,24 +85,26 @@ private:
     if (ping_timer_ != nullptr) {
       auto config = parent_->config();
       if (config->ping_when_idle_) {
-	ping_timer_->enableTimer(config->ping_interval_);
+        ping_timer_->enableTimer(config->ping_interval_);
       }
     }
   }
 
-  bool ping(const void *payload, size_t len);
-  bool pong(const void *payload, size_t len);
+  bool ping(const void* payload, size_t len);
+  bool pong(const void* payload, size_t len);
 
-  static Network::Address::InstanceConstSharedPtr decodeHandshakeRequest(const ConfigSharedPtr& config, const Http::RequestHeaderMap& headers);
-  static void encodeHandshakeResponse(Http::ResponseHeaderMap& headers, uint32_t status, absl::string_view hash, const Http::RequestHeaderMap* request_headers);
+  static Network::Address::InstanceConstSharedPtr
+  decodeHandshakeRequest(const ConfigSharedPtr& config, const Http::RequestHeaderMap& headers);
+  static void encodeHandshakeResponse(Http::ResponseHeaderMap& headers, uint32_t status,
+                                      absl::string_view hash,
+                                      const Http::RequestHeaderMap* request_headers);
 
   const ConfigSharedPtr& config() { return parent_->config(); };
 
   static bool checkPrefix(Buffer::Instance& data, const std::string& prefix);
 
-  void closeOnError(const char *msg);
-  void closeOnError(Buffer::Instance& data, const char *msg);
-
+  void closeOnError(const char* msg);
+  void closeOnError(Buffer::Instance& data, const char* msg);
 
   CodecCallbacks* parent_;
   Network::Connection& connection_;
@@ -118,6 +121,6 @@ private:
 };
 typedef std::unique_ptr<Codec> CodecPtr;
 
-}  // namespace WebSocket
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace WebSocket
+} // namespace Cilium
+} // namespace Envoy

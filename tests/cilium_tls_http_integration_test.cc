@@ -1,7 +1,9 @@
 #include "source/extensions/transport_sockets/tls/context_config_impl.h"
 #include "source/extensions/transport_sockets/tls/ssl_socket.h"
+
 #include "test/integration/ssl_utility.h"
-#include "tests/bpf_metadata.h"  // policy_config
+
+#include "tests/bpf_metadata.h" // policy_config
 #include "tests/cilium_http_integration.h"
 #include "tests/cilium_tls_integration.h"
 
@@ -184,9 +186,8 @@ resources:
  * "example.domain.name.namespace"
  */
 class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
- public:
-  CiliumHttpTLSIntegrationTest(const std::string& config)
-      : CiliumHttpIntegrationTest(config) {}
+public:
+  CiliumHttpTLSIntegrationTest(const std::string& config) : CiliumHttpIntegrationTest(config) {}
   ~CiliumHttpTLSIntegrationTest() {}
 
   void initialize() override {
@@ -198,9 +199,8 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
         Ssl::getSslAddress(version_, lookupPort("http"));
     context_ = createClientSslTransportSocketFactory(context_manager_, *api_);
     Network::ClientConnectionPtr ssl_client_ =
-        dispatcher_->createClientConnection(
-            address, Network::Address::InstanceConstSharedPtr(),
-            context_->createTransportSocket(nullptr), nullptr);
+        dispatcher_->createClientConnection(address, Network::Address::InstanceConstSharedPtr(),
+                                            context_->createTransportSocket(nullptr), nullptr);
 
     ssl_client_->enableHalfClose(true);
     codec_client_ = makeHttpConnection(std::move(ssl_client_));
@@ -211,7 +211,8 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
       auto config = upstreamConfig();
       config.upstream_protocol_ = FakeHttpConnection::Type::HTTP1;
       config.enable_half_close_ = true;
-      fake_upstreams_.emplace_back(new FakeUpstream(createUpstreamSslContext(), 0, version_, config));
+      fake_upstreams_.emplace_back(
+          new FakeUpstream(createUpstreamSslContext(), 0, version_, config));
     } else {
       CiliumHttpIntegrationTest::createUpstreams();
     }
@@ -220,27 +221,20 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
   // TODO(mattklein123): This logic is duplicated in various places. Cleanup in
   // a follow up.
   Network::TransportSocketFactoryPtr createUpstreamSslContext() {
-    envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext
-        tls_context;
+    envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext tls_context;
     auto* common_tls_context = tls_context.mutable_common_tls_context();
     auto* tls_cert = common_tls_context->add_tls_certificates();
-    tls_cert->mutable_certificate_chain()->set_filename(
-        TestEnvironment::runfilesPath(fmt::format(
-            "test/config/integration/certs/{}cert.pem", upstream_cert_name_)));
-    tls_cert->mutable_private_key()->set_filename(
-        TestEnvironment::runfilesPath(fmt::format(
-            "test/config/integration/certs/{}key.pem", upstream_cert_name_)));
-    ENVOY_LOG_MISC(debug, "Fake Upstream Downstream TLS context: {}",
-                   tls_context.DebugString());
-    auto cfg = std::make_unique<
-        Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
+    tls_cert->mutable_certificate_chain()->set_filename(TestEnvironment::runfilesPath(
+        fmt::format("test/config/integration/certs/{}cert.pem", upstream_cert_name_)));
+    tls_cert->mutable_private_key()->set_filename(TestEnvironment::runfilesPath(
+        fmt::format("test/config/integration/certs/{}key.pem", upstream_cert_name_)));
+    ENVOY_LOG_MISC(debug, "Fake Upstream Downstream TLS context: {}", tls_context.DebugString());
+    auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
         tls_context, factory_context_);
 
     static Stats::Scope* upstream_stats_store = new Stats::IsolatedStoreImpl();
-    return std::make_unique<
-        Extensions::TransportSockets::Tls::ServerSslSocketFactory>(
-        std::move(cfg), context_manager_, *upstream_stats_store,
-        std::vector<std::string>{});
+    return std::make_unique<Extensions::TransportSockets::Tls::ServerSslSocketFactory>(
+        std::move(cfg), context_manager_, *upstream_stats_store, std::vector<std::string>{});
   }
 
   std::string testPolicyFmt() override {
@@ -269,8 +263,7 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
 
   void Accepted(Http::TestRequestHeaderMapImpl&& headers) {
     initialize();
-    auto response =
-        sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
+    auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
 
     EXPECT_TRUE(response->complete());
     EXPECT_EQ("200", response->headers().getStatusValue());
@@ -288,26 +281,21 @@ class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
 };
 
 class CiliumTLSHttpIntegrationTest : public CiliumHttpTLSIntegrationTest {
- public:
+public:
   CiliumTLSHttpIntegrationTest()
-      : CiliumHttpTLSIntegrationTest(
-            fmt::format(TestEnvironment::substitute(
-                            cilium_tls_http_proxy_config_fmt, GetParam()),
-                        "true")) {}
+      : CiliumHttpTLSIntegrationTest(fmt::format(
+            TestEnvironment::substitute(cilium_tls_http_proxy_config_fmt, GetParam()), "true")) {}
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumTLSHttpIntegrationTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumTLSHttpIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumTLSHttpIntegrationTest, DeniedPathPrefix) {
-  Denied(
-      {{":method", "GET"}, {":path", "/prefix"}, {":authority", "localhost"}});
+  Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefix) {
-  Accepted(
-      {{":method", "GET"}, {":path", "/allowed"}, {":authority", "localhost"}});
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefixStrippedHeader) {
@@ -318,35 +306,25 @@ TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefixStrippedHeader) {
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathRegex) {
-  Accepted({{":method", "GET"},
-            {":path", "/maybe/public"},
-            {":authority", "localhost"}});
+  Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, DeniedPath) {
-  Denied({{":method", "GET"},
-          {":path", "/maybe/private"},
-          {":authority", "localhost"}});
+  Denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, DeniedMethod) {
-  Denied({{":method", "POST"},
-          {":path", "/maybe/private"},
-          {":authority", "localhost"}});
+  Denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AcceptedMethod) {
-  Accepted({{":method", "PUT"},
-            {":path", "/public/opinions"},
-            {":authority", "localhost"}});
+  Accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, L3DeniedPath) {
-  Denied({{":method", "GET"},
-          {":path", "/only-2-allowed"},
-          {":authority", "localhost"}});
+  Denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "localhost"}});
 }
 
-}  // namespace Cilium
+} // namespace Cilium
 
-}  // namespace Envoy
+} // namespace Envoy

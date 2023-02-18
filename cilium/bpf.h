@@ -22,7 +22,7 @@ namespace Cilium {
  * Bpf system call interface.
  */
 class Bpf : public Logger::Loggable<Logger::Id::filter> {
- public:
+public:
   /**
    * Create a bpf map object without actually creating or opening a bpf map yet.
    * @param map_type the type of a bpf map to be opened or created, e.g.,
@@ -44,7 +44,7 @@ class Bpf : public Logger::Loggable<Logger::Id::filter> {
    * @param path the file system path to the pinned bpf map.
    * @returns boolean for success of the operation.
    */
-  bool open(const std::string &path);
+  bool open(const std::string& path);
 
   /**
    * Create a new bpf map.
@@ -61,7 +61,7 @@ class Bpf : public Logger::Loggable<Logger::Id::filter> {
    * @param path the file system path where to pin the bpf map.
    * @returns boolean for success of the operation.
    */
-  bool pin(const std::string &path);
+  bool pin(const std::string& path);
 
   /**
    * Insert an entry with value and identified with the key to the map.
@@ -70,14 +70,14 @@ class Bpf : public Logger::Loggable<Logger::Id::filter> {
    * inserted.
    * @returns boolean for success of the operation.
    */
-  bool insert(const void *key, const void *value);
+  bool insert(const void* key, const void* value);
 
   /**
    * Delete the entry identified with the key from the map, if it exists.
    * @param key pointer to the key identifying the new entry to be inserted.
    * @returns boolean for success of the operation.
    */
-  bool remove(const void *key);
+  bool remove(const void* key);
 
   /**
    * Lookup an entry from the bpf map identified with the key, storing the found
@@ -86,19 +86,19 @@ class Bpf : public Logger::Loggable<Logger::Id::filter> {
    * @param value pointer at which the value is copied to if the entry is found.
    * @returns boolean for success of the operation.
    */
-  bool lookup(const void *key, void *value);
+  bool lookup(const void* key, void* value);
 
- private:
-  int bpfSyscall(int cmd, union bpf_attr *attr);
+private:
+  int bpfSyscall(int cmd, union bpf_attr* attr);
 
- protected:
+protected:
   int fd_;
 
- public:
+public:
   uint32_t map_type_;
   uint32_t key_size_;
   uint32_t value_size_;
 };
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

@@ -6,13 +6,13 @@ filegroup(name = "empty")
 
 toolchain(
     name = "aarch64_linux_cc_toolchain",
-    toolchain = ":clang_aarch64_linux_cc_toolchain",
-    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+    exec_compatible_with = ["@platforms//os:linux"],
     target_compatible_with = [
         "@platforms//cpu:aarch64",
-	"@platforms//os:linux",
+        "@platforms//os:linux",
     ],
-    exec_compatible_with = ["@platforms//os:linux"],
+    toolchain = ":clang_aarch64_linux_cc_toolchain",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
 )
 
 cc_toolchain(
@@ -32,16 +32,16 @@ cc_toolchain_config(
     abi_version = "aarch64",
     compile_flags = [
         "--target=aarch64-unknown-linux-gnu",
-        "-fuse-ld=lld",                      # cmake compiler test needs this
+        "-fuse-ld=lld",  # cmake compiler test needs this
         "-U_FORTIFY_SOURCE",
         "-fstack-protector",
         "-Wall",
         "-Wunused-but-set-parameter",
         "-Wno-free-nonheap-object",
         "-fno-omit-frame-pointer",
-	# Needed by Envoy dependencies to build:
-	"-Wno-unused-command-line-argument", # tcmalloc needs this since -fuse-ld was added above
-	"-Wno-deprecated-builtins",
+        # Needed by Envoy dependencies to build:
+        "-Wno-unused-command-line-argument",  # tcmalloc needs this since -fuse-ld was added above
+        "-Wno-deprecated-builtins",
     ],
     compiler = "clang",
     coverage_compile_flags = ["--coverage"],
@@ -49,7 +49,7 @@ cc_toolchain_config(
     cpu = "aarch64",
     cxx_builtin_include_directories = [
         "/usr/lib/llvm-15",
-	"/usr/aarch64-linux-gnu/include",
+        "/usr/aarch64-linux-gnu/include",
         "/usr/include",
     ],
     cxx_flags = ["-std=c++0x"],
@@ -104,14 +104,14 @@ cc_toolchain_config(
 
 toolchain(
     name = "x86_64_linux_cc_toolchain",
-    toolchain = ":clang_x86_64_linux_cc_toolchain",
-    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+    exec_compatible_with = ["@platforms//os:linux"],
     target_compatible_with = [
         "@platforms//cpu:x86_64",
-	"@platforms//os:linux",
+        "@platforms//os:linux",
     ],
-    exec_compatible_with = ["@platforms//os:linux"],
-)  
+    toolchain = ":clang_x86_64_linux_cc_toolchain",
+    toolchain_type = "@bazel_tools//tools/cpp:toolchain_type",
+)
 
 cc_toolchain(
     name = "clang_x86_64_linux_cc_toolchain",
@@ -130,16 +130,16 @@ cc_toolchain_config(
     abi_version = "unknown",
     compile_flags = [
         "--target=x86_64-unknown-linux-gnu",
-        "-fuse-ld=lld",                      # cmake compiler test needs this
+        "-fuse-ld=lld",  # cmake compiler test needs this
         "-U_FORTIFY_SOURCE",
         "-fstack-protector",
         "-Wall",
         "-Wunused-but-set-parameter",
         "-Wno-free-nonheap-object",
         "-fno-omit-frame-pointer",
-	# Needed by Envoy dependencies to build:
-	"-Wno-unused-command-line-argument", # tcmalloc needs this since -fuse-ld was added above
-	"-Wno-deprecated-builtins",
+        # Needed by Envoy dependencies to build:
+        "-Wno-unused-command-line-argument",  # tcmalloc needs this since -fuse-ld was added above
+        "-Wno-deprecated-builtins",
     ],
     compiler = "clang",
     coverage_compile_flags = ["--coverage"],
@@ -147,7 +147,7 @@ cc_toolchain_config(
     cpu = "k8",
     cxx_builtin_include_directories = [
         "/usr/lib/llvm-15",
-	"/usr/x86_64-linux-gnu/include",
+        "/usr/x86_64-linux-gnu/include",
         "/usr/include",
     ],
     cxx_flags = ["-std=c++0x"],

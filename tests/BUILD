@@ -166,8 +166,8 @@ envoy_cc_test(
     deps = [
         ":cilium_http_integration_lib",
         "//cilium:bpf_metadata_lib",
-        "//cilium:websocket_lib",
         "//cilium:network_filter_lib",
+        "//cilium:websocket_lib",
     ],
 )
 
@@ -181,8 +181,8 @@ envoy_cc_test(
     deps = [
         ":cilium_tcp_integration_lib",
         "//cilium:bpf_metadata_lib",
-        "//cilium:websocket_lib",
         "//cilium:network_filter_lib",
+        "//cilium:websocket_lib",
     ],
 )
 

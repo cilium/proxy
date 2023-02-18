@@ -3,14 +3,15 @@
 #include <memory>
 #include <string>
 
-#include "cilium/bpf_metadata.h"
-#include "cilium/host_map.h"
-#include "cilium/network_policy.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/server/factory_context.h"
 #include "envoy/server/filter_config.h"
+
+#include "cilium/bpf_metadata.h"
+#include "cilium/host_map.h"
+#include "cilium/network_policy.h"
 
 namespace Envoy {
 
@@ -26,7 +27,7 @@ namespace Cilium {
 namespace BpfMetadata {
 
 class TestConfig : public Config {
- public:
+public:
   TestConfig(const ::cilium::BpfMetadata& config,
              Server::Configuration::ListenerFactoryContext& context);
   ~TestConfig();
@@ -36,18 +37,18 @@ class TestConfig : public Config {
 };
 
 class TestInstance : public Instance {
- public:
+public:
   TestInstance(const ConfigSharedPtr& config);
 };
 
-}  // namespace BpfMetadata
-}  // namespace Filter
+} // namespace BpfMetadata
+} // namespace Cilium
 
 namespace Server {
 namespace Configuration {
 
 class TestBpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
- public:
+public:
   // NamedListenerFilterConfigFactory
   Network::ListenerFilterFactoryCb createListenerFilterFactoryFromProto(
       const Protobuf::Message& proto_config,
@@ -59,7 +60,7 @@ class TestBpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
   std::string name() const override;
 };
 
-}  // namespace Configuration
-}  // namespace Server
+} // namespace Configuration
+} // namespace Server
 
-}  // namespace Envoy
+} // namespace Envoy

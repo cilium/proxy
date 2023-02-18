@@ -2,27 +2,27 @@
 
 #include <string>
 
-#include "cilium/accesslog.h"
-#include "cilium/websocket_config.h"
-#include "cilium/websocket_codec.h"
-
+#include "envoy/common/random_generator.h"
 #include "envoy/event/dispatcher.h"
 #include "envoy/event/timer.h"
-#include "envoy/common/random_generator.h"
 #include "envoy/server/filter_config.h"
 #include "envoy/stats/stats_macros.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
 
+#include "cilium/accesslog.h"
+#include "cilium/websocket_codec.h"
+#include "cilium/websocket_config.h"
+
 namespace Envoy {
 namespace Cilium {
 namespace WebSocket {
 
 class Instance : public Network::Filter,
-		 public CodecCallbacks,
-		 Logger::Loggable<Logger::Id::filter> {
- public:
+                 public CodecCallbacks,
+                 Logger::Loggable<Logger::Id::filter> {
+public:
   Instance(const ConfigSharedPtr& config) : config_(config) {}
 
   // Network::ReadFilter
@@ -39,15 +39,11 @@ class Instance : public Network::Filter,
   }
 
   // WebSocket::CodecCallbacks
-  const ConfigSharedPtr& config() override {
-    return config_;
-  }
+  const ConfigSharedPtr& config() override { return config_; }
   void onHandshakeCreated(const Http::RequestHeaderMap& headers) override {
     log_entry_.UpdateFromRequest(0, nullptr, headers);
   }
-  void onHandshakeSent() override {
-    config_->Log(log_entry_, ::cilium::EntryType::Request);
-  }
+  void onHandshakeSent() override { config_->Log(log_entry_, ::cilium::EntryType::Request); }
   void onHandshakeRequest(const Http::RequestHeaderMap& headers) override;
   void onHandshakeResponse(const Http::ResponseHeaderMap& headers) override {
     log_entry_.UpdateFromResponse(headers, config_->time_source_);
@@ -68,7 +64,8 @@ class Instance : public Network::Filter,
   void injectEncoded(Buffer::Instance& data, bool end_stream) override;
   void injectDecoded(Buffer::Instance& data, bool end_stream) override;
 
-  void setOriginalDestinationAddress(const Network::Address::InstanceConstSharedPtr& orig_dst) override {
+  void
+  setOriginalDestinationAddress(const Network::Address::InstanceConstSharedPtr& orig_dst) override {
     callbacks_->connection().connectionInfoSetter().restoreLocalAddress(orig_dst);
   }
 
@@ -82,6 +79,6 @@ private:
   Cilium::AccessLog::Entry log_entry_{};
 };
 
-}  // namespace WebSocket
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace WebSocket
+} // namespace Cilium
+} // namespace Envoy

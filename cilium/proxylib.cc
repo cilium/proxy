@@ -2,10 +2,12 @@
 
 #include <dlfcn.h>
 
-#include "absl/container/fixed_array.h"
+#include "envoy/common/exception.h"
+
 #include "source/common/common/assert.h"
 #include "source/common/common/fmt.h"
-#include "envoy/common/exception.h"
+
+#include "absl/container/fixed_array.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -13,28 +15,24 @@ namespace Cilium {
 GoFilter::GoFilter(const std::string& go_module,
                    const Protobuf::Map<::std::string, ::std::string>& params) {
   ENVOY_LOG(info, "GoFilter: Opening go module {}", go_module);
-  ::dlerror();  // clear any possible error state
+  ::dlerror(); // clear any possible error state
   go_module_handle_ = ::dlopen(go_module.c_str(), RTLD_NOW);
   if (!go_module_handle_) {
     throw EnvoyException(
-        fmt::format("cilium.network: Cannot load go module \'{}\': {}",
-                    go_module, dlerror()));
+        fmt::format("cilium.network: Cannot load go module \'{}\': {}", go_module, dlerror()));
   }
 
   go_close_module_ = GoCloseModuleCB(::dlsym(go_module_handle_, "CloseModule"));
   if (!go_close_module_) {
-    throw EnvoyException(
-        fmt::format("cilium.network: Cannot find symbol \'CloseModule\' from "
-                    "module \'{}\': {}",
-                    go_module, dlerror()));
+    throw EnvoyException(fmt::format("cilium.network: Cannot find symbol \'CloseModule\' from "
+                                     "module \'{}\': {}",
+                                     go_module, dlerror()));
   }
-  GoOpenModuleCB go_open_module =
-      GoOpenModuleCB(::dlsym(go_module_handle_, "OpenModule"));
+  GoOpenModuleCB go_open_module = GoOpenModuleCB(::dlsym(go_module_handle_, "OpenModule"));
   if (!go_open_module) {
-    throw EnvoyException(
-        fmt::format("cilium.network: Cannot find symbol \'OpenModule\' from "
-                    "module \'{}\': {}",
-                    go_module, dlerror()));
+    throw EnvoyException(fmt::format("cilium.network: Cannot find symbol \'OpenModule\' from "
+                                     "module \'{}\': {}",
+                                     go_module, dlerror()));
   } else {
     // Convert params to KeyValue pairs
     auto num = params.size();
@@ -46,34 +44,31 @@ GoFilter::GoFilter(const std::string& go_module,
       values[i++].value = GoString(pair.second);
     }
 
-    go_module_id_ = go_open_module(GoKeyValueSlice(values.data(), num),
-                                   ENVOY_LOG_CHECK_LEVEL(debug));
+    go_module_id_ =
+        go_open_module(GoKeyValueSlice(values.data(), num), ENVOY_LOG_CHECK_LEVEL(debug));
     if (go_module_id_ == 0) {
-      throw EnvoyException(fmt::format(
-          "cilium.network: \'{}::OpenModule()\' rejected parameters",
-          go_module));
+      throw EnvoyException(
+          fmt::format("cilium.network: \'{}::OpenModule()\' rejected parameters", go_module));
     }
   }
 
-  go_on_new_connection_ =
-      GoOnNewConnectionCB(::dlsym(go_module_handle_, "OnNewConnection"));
+  go_on_new_connection_ = GoOnNewConnectionCB(::dlsym(go_module_handle_, "OnNewConnection"));
   if (!go_on_new_connection_) {
-    throw EnvoyException(
-        fmt::format("cilium.network: Cannot find symbol \'OnNewConnection\' "
-                    "from module \'{}\': {}",
-                    go_module, dlerror()));
+    throw EnvoyException(fmt::format("cilium.network: Cannot find symbol \'OnNewConnection\' "
+                                     "from module \'{}\': {}",
+                                     go_module, dlerror()));
   }
   go_on_data_ = GoOnDataCB(::dlsym(go_module_handle_, "OnData"));
   if (!go_on_data_) {
-    throw EnvoyException(fmt::format(
-        "cilium.network: Cannot find symbol \'OnData\' from module \'{}\': {}",
-        go_module, dlerror()));
+    throw EnvoyException(
+        fmt::format("cilium.network: Cannot find symbol \'OnData\' from module \'{}\': {}",
+                    go_module, dlerror()));
   }
   go_close_ = GoCloseCB(::dlsym(go_module_handle_, "Close"));
   if (!go_close_) {
-    throw EnvoyException(fmt::format(
-        "cilium.network: Cannot find symbol \'Close\' from module \'{}\': {}",
-        go_module, dlerror()));
+    throw EnvoyException(
+        fmt::format("cilium.network: Cannot find symbol \'Close\' from module \'{}\': {}",
+                    go_module, dlerror()));
   }
 }
 
@@ -90,72 +85,69 @@ namespace {
 
 const char* filter_strerror(FilterResult res) {
   switch (res) {
-    case FILTER_OK:
-      return "No error";
-    case FILTER_PARSER_ERROR:
-      return "Parser error";
-    case FILTER_UNKNOWN_CONNECTION:
-      return "Unknown connection";
-    case FILTER_UNKNOWN_PARSER:
-      return "Unknown parser";
-    case FILTER_INVALID_ADDRESS:
-      return "Invalid address";
-    case FILTER_POLICY_DROP:
-      return "Connection rejected";
-    case FILTER_INVALID_INSTANCE:
-      return "Invalid proxylib instance";
-    case FILTER_UNKNOWN_ERROR:
-      break;
+  case FILTER_OK:
+    return "No error";
+  case FILTER_PARSER_ERROR:
+    return "Parser error";
+  case FILTER_UNKNOWN_CONNECTION:
+    return "Unknown connection";
+  case FILTER_UNKNOWN_PARSER:
+    return "Unknown parser";
+  case FILTER_INVALID_ADDRESS:
+    return "Invalid address";
+  case FILTER_POLICY_DROP:
+    return "Connection rejected";
+  case FILTER_INVALID_INSTANCE:
+    return "Invalid proxylib instance";
+  case FILTER_UNKNOWN_ERROR:
+    break;
   }
   return "Unknown error";
 }
 
-}  // namespace
+} // namespace
 
-GoFilter::InstancePtr GoFilter::NewInstance(
-    Network::Connection& conn, const std::string& go_proto, bool ingress,
-    uint32_t src_id, uint32_t dst_id, const std::string& src_addr,
-    const std::string& dst_addr, const std::string& policy_name) const {
+GoFilter::InstancePtr GoFilter::NewInstance(Network::Connection& conn, const std::string& go_proto,
+                                            bool ingress, uint32_t src_id, uint32_t dst_id,
+                                            const std::string& src_addr,
+                                            const std::string& dst_addr,
+                                            const std::string& policy_name) const {
   InstancePtr parser{nullptr};
   if (go_module_handle_) {
     parser = std::make_unique<Instance>(*this, conn);
     ENVOY_CONN_LOG(trace, "GoFilter: Calling go module", conn);
     auto res = (*go_on_new_connection_)(
-        go_module_id_, go_proto, conn.id(), ingress, src_id, dst_id, src_addr,
-        dst_addr, policy_name, &parser->orig_.inject_slice_,
-        &parser->reply_.inject_slice_);
+        go_module_id_, go_proto, conn.id(), ingress, src_id, dst_id, src_addr, dst_addr,
+        policy_name, &parser->orig_.inject_slice_, &parser->reply_.inject_slice_);
     if (res == FILTER_OK) {
       parser->connection_id_ = conn.id();
     } else {
-      ENVOY_CONN_LOG(
-          warn, "Cilium Network: Connection with parser \"{}\" rejected: {}",
-          conn, go_proto, filter_strerror(res));
+      ENVOY_CONN_LOG(warn, "Cilium Network: Connection with parser \"{}\" rejected: {}", conn,
+                     go_proto, filter_strerror(res));
       parser.reset(nullptr);
     }
   }
   return parser;
 }
 
-FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
-                                      bool end_stream) {
+FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool end_stream) {
   auto& dir = reply ? reply_ : orig_;
   int64_t input_len = data.length();
 
   // Pass bytes based on an earlier verdict?
   if (dir.pass_bytes_ > 0) {
-    ASSERT(dir.drop_bytes_ == 0);       // Can't drop and pass the same bytes
-    ASSERT(dir.buffer_.length() == 0);  // Passed data is not buffered
-    ASSERT(dir.need_bytes_ == 0);       // Passed bytes can't be needed
+    ASSERT(dir.drop_bytes_ == 0);      // Can't drop and pass the same bytes
+    ASSERT(dir.buffer_.length() == 0); // Passed data is not buffered
+    ASSERT(dir.need_bytes_ == 0);      // Passed bytes can't be needed
     // Can return immediately if passing more that we have input.
     // May need to process injected data even when there is no input left.
     if (dir.pass_bytes_ > input_len) {
       if (input_len > 0) {
-        ENVOY_CONN_LOG(debug,
-                       "Cilium Network::OnIO: Passing all input: {} bytes: {} ",
-                       conn_, input_len, data.toString());
+        ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Passing all input: {} bytes: {} ", conn_,
+                       input_len, data.toString());
         dir.pass_bytes_ -= input_len;
       }
-      return FILTER_OK;  // all of 'data' is passed to the next filter
+      return FILTER_OK; // all of 'data' is passed to the next filter
     }
     // Pass of dir.pass_bytes_ is done after buffer rearrangement below.
     // Using the available APIs it is easier to move data from the beginning of
@@ -163,23 +155,21 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
   } else {
     // Drop bytes based on an earlier verdict?
     if (dir.drop_bytes_ > 0) {
-      ASSERT(dir.buffer_.length() == 0);  // Dropped data is not buffered
-      ASSERT(dir.need_bytes_ == 0);       // Dropped bytes can't be needed
+      ASSERT(dir.buffer_.length() == 0); // Dropped data is not buffered
+      ASSERT(dir.need_bytes_ == 0);      // Dropped bytes can't be needed
       // Can return immediately if passing more that we have input.
       // May need to process injected data even when there is no input left.
       if (dir.drop_bytes_ > input_len) {
         if (input_len > 0) {
-          ENVOY_CONN_LOG(
-              debug, "Cilium Network::OnIO: Dropping all input: {} bytes: {} ",
-              conn_, input_len, data.toString());
+          ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Dropping all input: {} bytes: {} ", conn_,
+                         input_len, data.toString());
           dir.drop_bytes_ -= input_len;
           data.drain(input_len);
         }
-        return FILTER_OK;  // everything was dropped, nothing more to be done
+        return FILTER_OK; // everything was dropped, nothing more to be done
       }
-      ENVOY_CONN_LOG(
-          debug, "Cilium Network::OnIO: Dropping first {} bytes of input: {}",
-          conn_, dir.drop_bytes_, data.toString());
+      ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Dropping first {} bytes of input: {}", conn_,
+                     dir.drop_bytes_, data.toString());
       data.drain(dir.drop_bytes_);
       input_len -= dir.drop_bytes_;
       dir.drop_bytes_ = 0;
@@ -198,9 +188,8 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
   // Note that the case of all new input being passed is already taken care of
   // above.
   if (dir.pass_bytes_ > 0) {
-    ENVOY_CONN_LOG(debug,
-                   "Cilium Network::OnIO: Passing first {} bytes of input: {}",
-                   conn_, input_len, input.toString());
+    ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Passing first {} bytes of input: {}", conn_,
+                   input_len, input.toString());
     output.move(input, dir.pass_bytes_);
     input_len -= dir.pass_bytes_;
     dir.pass_bytes_ = 0;
@@ -210,11 +199,10 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
   // Output now at frame boundary, output frame(s) injected by the reverse
   // direction first
   if (dir.inject_slice_.len() > 0) {
-    ENVOY_CONN_LOG(debug,
-                   "Cilium Network::OnIO: Reverse Injecting: {} bytes: {} ",
-                   conn_, dir.inject_slice_.len(),
-                   std::string(reinterpret_cast<char*>(dir.inject_slice_.data_),
-                               dir.inject_slice_.len()));
+    ENVOY_CONN_LOG(
+        debug, "Cilium Network::OnIO: Reverse Injecting: {} bytes: {} ", conn_,
+        dir.inject_slice_.len(),
+        std::string(reinterpret_cast<char*>(dir.inject_slice_.data_), dir.inject_slice_.len()));
     output.add(dir.inject_slice_.data_, dir.inject_slice_.len());
     dir.inject_slice_.reset();
   }
@@ -225,7 +213,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
   }
   dir.need_bytes_ = 0;
 
-  const int max_ops = 16;  // Make shorter for testing purposes
+  const int max_ops = 16; // Make shorter for testing purposes
   FilterOp ops_[max_ops];
   GoFilterOpSlice ops(ops_, max_ops);
 
@@ -242,21 +230,18 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
     uint64_t non_empty_slices = 0;
     for (const Buffer::RawSlice& raw_slice : raw_slices) {
       if (raw_slice.len_ > 0) {
-        buffer_slices[non_empty_slices++] = GoSlice<uint8_t>(
-            reinterpret_cast<uint8_t*>(raw_slice.mem_), raw_slice.len_);
+        buffer_slices[non_empty_slices++] =
+            GoSlice<uint8_t>(reinterpret_cast<uint8_t*>(raw_slice.mem_), raw_slice.len_);
         total_length += raw_slice.len_;
       }
     }
     GoDataSlices input_slices(buffer_slices.begin(), non_empty_slices);
 
-    ENVOY_CONN_LOG(
-        trace, "Cilium Network::OnIO: Calling go module with {} bytes of data",
-        conn_, total_length);
-    res = (*parent_.go_on_data_)(connection_id_, reply, end_stream,
-                                 &input_slices, &ops);
-    ENVOY_CONN_LOG(trace,
-                   "Cilium Network::OnIO: \'go_on_data\' returned {}, ops({})",
-                   conn_, res, ops.len());
+    ENVOY_CONN_LOG(trace, "Cilium Network::OnIO: Calling go module with {} bytes of data", conn_,
+                   total_length);
+    res = (*parent_.go_on_data_)(connection_id_, reply, end_stream, &input_slices, &ops);
+    ENVOY_CONN_LOG(trace, "Cilium Network::OnIO: \'go_on_data\' returned {}, ops({})", conn_, res,
+                   ops.len());
     if (res == FILTER_OK) {
       // Process all returned filter operations.
       for (int i = 0; i < ops.len(); i++) {
@@ -264,9 +249,8 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
         auto n_bytes = ops_[i].n_bytes;
 
         if (n_bytes == 0) {
-          ENVOY_CONN_LOG(
-              warn, "Cilium Network::OnIO: INVALID op ({}) length: {} bytes",
-              conn_, op, n_bytes);
+          ENVOY_CONN_LOG(warn, "Cilium Network::OnIO: INVALID op ({}) length: {} bytes", conn_, op,
+                         n_bytes);
           return FILTER_PARSER_ERROR;
         }
 
@@ -279,72 +263,58 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
         }
 
         switch (op) {
-          case FILTEROP_MORE:
-            ENVOY_CONN_LOG(debug,
-                           "Cilium Network::OnIO: FILTEROP_MORE: {} bytes",
-                           conn_, n_bytes);
-            dir.need_bytes_ = input_len + n_bytes;
-            terminal_op_seen =
-                true;  // MORE can not be followed with other ops.
-            continue;  // errors out if more operations follow
+        case FILTEROP_MORE:
+          ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: FILTEROP_MORE: {} bytes", conn_, n_bytes);
+          dir.need_bytes_ = input_len + n_bytes;
+          terminal_op_seen = true; // MORE can not be followed with other ops.
+          continue;                // errors out if more operations follow
 
-          case FILTEROP_PASS:
-            ENVOY_CONN_LOG(debug,
-                           "Cilium Network::OnIO: FILTEROP_PASS: {} bytes",
-                           conn_, n_bytes);
-            if (n_bytes > input_len) {
-              output.move(input, input_len);
-              dir.pass_bytes_ =
-                  n_bytes - input_len;  // pass the remainder later
-              input_len = 0;
-              terminal_op_seen =
-                  true;  // PASS more than input is terminal operation.
-              continue;  // errors out if more operations follow
-            }
-            output.move(input, n_bytes);
-            input_len -= n_bytes;
-            break;
+        case FILTEROP_PASS:
+          ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: FILTEROP_PASS: {} bytes", conn_, n_bytes);
+          if (n_bytes > input_len) {
+            output.move(input, input_len);
+            dir.pass_bytes_ = n_bytes - input_len; // pass the remainder later
+            input_len = 0;
+            terminal_op_seen = true; // PASS more than input is terminal operation.
+            continue;                // errors out if more operations follow
+          }
+          output.move(input, n_bytes);
+          input_len -= n_bytes;
+          break;
 
-          case FILTEROP_DROP:
-            ENVOY_CONN_LOG(debug,
-                           "Cilium Network::OnIO: FILTEROP_DROP: {} bytes",
-                           conn_, n_bytes);
-            if (n_bytes > input_len) {
-              input.drain(input_len);
-              dir.drop_bytes_ =
-                  n_bytes - input_len;  // drop the remainder later
-              input_len = 0;
-              terminal_op_seen =
-                  true;  // DROP more than input is terminal operation.
-              continue;  // errors out if more operations follow
-            }
-            input.drain(n_bytes);
-            input_len -= n_bytes;
-            break;
+        case FILTEROP_DROP:
+          ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: FILTEROP_DROP: {} bytes", conn_, n_bytes);
+          if (n_bytes > input_len) {
+            input.drain(input_len);
+            dir.drop_bytes_ = n_bytes - input_len; // drop the remainder later
+            input_len = 0;
+            terminal_op_seen = true; // DROP more than input is terminal operation.
+            continue;                // errors out if more operations follow
+          }
+          input.drain(n_bytes);
+          input_len -= n_bytes;
+          break;
 
-          case FILTEROP_INJECT:
-            if (n_bytes > dir.inject_slice_.len()) {
-              ENVOY_CONN_LOG(warn,
-                             "Cilium Network::OnIO: FILTEROP_INJECT: INVALID "
-                             "length: {} bytes",
-                             conn_, n_bytes);
-              return FILTER_PARSER_ERROR;
-            }
-            ENVOY_CONN_LOG(
-                debug, "Cilium Network::OnIO: FILTEROP_INJECT: {} bytes: {}",
-                conn_, n_bytes,
-                std::string(reinterpret_cast<char*>(dir.inject_slice_.data_),
-                            dir.inject_slice_.len()));
-            output.add(dir.inject_slice_.data_, n_bytes);
-            dir.inject_slice_.drain(n_bytes);
-            break;
-
-          case FILTEROP_ERROR:
-          default:
+        case FILTEROP_INJECT:
+          if (n_bytes > dir.inject_slice_.len()) {
             ENVOY_CONN_LOG(warn,
-                           "Cilium Network::OnIO: FILTEROP_ERROR: {} bytes",
+                           "Cilium Network::OnIO: FILTEROP_INJECT: INVALID "
+                           "length: {} bytes",
                            conn_, n_bytes);
             return FILTER_PARSER_ERROR;
+          }
+          ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: FILTEROP_INJECT: {} bytes: {}", conn_,
+                         n_bytes,
+                         std::string(reinterpret_cast<char*>(dir.inject_slice_.data_),
+                                     dir.inject_slice_.len()));
+          output.add(dir.inject_slice_.data_, n_bytes);
+          dir.inject_slice_.drain(n_bytes);
+          break;
+
+        case FILTEROP_ERROR:
+        default:
+          ENVOY_CONN_LOG(warn, "Cilium Network::OnIO: FILTEROP_ERROR: {} bytes", conn_, n_bytes);
+          return FILTER_PARSER_ERROR;
         }
       }
     } else {
@@ -355,9 +325,8 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
     }
 
     if (dir.inject_slice_.len() > 0) {
-      ENVOY_CONN_LOG(
-          warn, "Cilium Network::OnIO: {} bytes abandoned in inject buffer",
-          conn_, dir.inject_slice_.len());
+      ENVOY_CONN_LOG(warn, "Cilium Network::OnIO: {} bytes abandoned in inject buffer", conn_,
+                     dir.inject_slice_.len());
       return FILTER_PARSER_ERROR;
     }
 
@@ -370,11 +339,9 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data,
   } while (!terminal_op_seen && (ops.len() == max_ops || inject_buf_exhausted));
 
   if (output.length() < 100) {
-    ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Output on return: {}", conn_,
-                   output.toString());
+    ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Output on return: {}", conn_, output.toString());
   } else {
-    ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Output length return: {}",
-                   conn_, output.length());
+    ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Output length return: {}", conn_, output.length());
   }
   return res;
 }
@@ -385,5 +352,5 @@ void GoFilter::Instance::Close() {
   conn_.close(Network::ConnectionCloseType::NoFlush);
 }
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

@@ -9,11 +9,11 @@
 namespace Envoy {
 
 class AccessLogServer : Logger::Loggable<Logger::Id::router> {
- public:
+public:
   AccessLogServer(const std::string path);
   ~AccessLogServer();
 
- private:
+private:
   void Close();
   void threadRoutine();
 
@@ -23,4 +23,4 @@ class AccessLogServer : Logger::Loggable<Logger::Id::router> {
   Thread::ThreadPtr thread_;
 };
 
-}  // namespace Envoy
+} // namespace Envoy

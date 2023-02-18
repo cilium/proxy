@@ -2,16 +2,16 @@
 
 #include <string>
 
-#include "cilium/accesslog.h"
-#include "cilium/api/websocket.pb.h"
-
-#include "envoy/event/dispatcher.h"
 #include "envoy/common/random_generator.h"
+#include "envoy/event/dispatcher.h"
 #include "envoy/http/request_id_extension.h"
 #include "envoy/server/filter_config.h"
 #include "envoy/stats/stats_macros.h"
 
 #include "source/common/common/logger.h"
+
+#include "cilium/accesslog.h"
+#include "cilium/api/websocket.pb.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -33,7 +33,7 @@ namespace WebSocket {
   COUNTER(handshake_invalid_websocket_request)	\
   COUNTER(handshake_invalid_websocket_response)	\
   COUNTER(handshake_write_error)		\
-  COUNTER(ping_sent_count)			\
+  COUNTER(ping_sent_count)                                                                                \
 // clang-format on
 
 /**
@@ -49,17 +49,11 @@ struct FilterStats {
  */
 class Config : public Logger::Loggable<Logger::Id::config> {
 public:
-  Config(Server::Configuration::FactoryContext& context,
-	 bool client,
-	 const std::string& access_log_path,
-	 const std::string& host,
-	 const std::string& path,
-	 const std::string& key,
-	 const std::string& version,
-	 const std::string& origin,
-	 const ProtobufWkt::Duration& handshake_timeout,
-	 const ProtobufWkt::Duration& ping_interval,
-	 bool ping_when_idle);
+  Config(Server::Configuration::FactoryContext& context, bool client,
+         const std::string& access_log_path, const std::string& host, const std::string& path,
+         const std::string& key, const std::string& version, const std::string& origin,
+         const ProtobufWkt::Duration& handshake_timeout, const ProtobufWkt::Duration& ping_interval,
+         bool ping_when_idle);
   Config(const ::cilium::WebSocketClient& config, Server::Configuration::FactoryContext& context);
   Config(const ::cilium::WebSocketServer& config, Server::Configuration::FactoryContext& context);
   virtual ~Config();
@@ -91,7 +85,7 @@ private:
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;
- 
-}  // namespace WebSocket
-}  // namespace Cilium
-}  // namespace Envoy
+
+} // namespace WebSocket
+} // namespace Cilium
+} // namespace Envoy

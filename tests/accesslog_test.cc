@@ -1,13 +1,15 @@
-#include "cilium/accesslog.h"
-
-#include "source/common/network/address_impl.h"
 #include "envoy/http/protocol.h"
 #include "envoy/network/socket.h"
-#include "gtest/gtest.h"
+
+#include "source/common/network/address_impl.h"
+
 #include "test/mocks/event/mocks.h"
 #include "test/mocks/network/connection.h"
 #include "test/mocks/stream_info/mocks.h"
 #include "test/test_common/utility.h"
+
+#include "cilium/accesslog.h"
+#include "gtest/gtest.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -18,23 +20,24 @@ protected:
 };
 
 TEST_F(CiliumTest, AccessLog) {
-  Http::TestRequestHeaderMapImpl headers{
-      {":method", "GET"},
-      {":path", "/"},
-      {":authority", "host"},
-      {"x-forwarded-proto", "http"},
-      {"x-request-id", "ba41267c-cfc2-4a92-ad3e-cd084ab099b4"}};
+  Http::TestRequestHeaderMapImpl headers{{":method", "GET"},
+                                         {":path", "/"},
+                                         {":authority", "host"},
+                                         {"x-forwarded-proto", "http"},
+                                         {"x-request-id", "ba41267c-cfc2-4a92-ad3e-cd084ab099b4"}};
   Network::MockConnection connection;
   auto source_address = std::make_shared<Network::Address::Ipv4Instance>("5.6.7.8", 45678);
   auto destination_address = std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80);
   connection.stream_info_.protocol_ = Http::Protocol::Http11;
   connection.stream_info_.start_time_ = time_system_.systemTime();
   connection.stream_info_.downstream_connection_info_provider_->setRemoteAddress(source_address);
-  connection.stream_info_.downstream_connection_info_provider_->setLocalAddress(destination_address);
+  connection.stream_info_.downstream_connection_info_provider_->setLocalAddress(
+      destination_address);
 
   AccessLog::Entry log;
 
-  log.InitFromRequest("1.2.3.4", true, 1, source_address, 173, destination_address, connection.stream_info_, headers);
+  log.InitFromRequest("1.2.3.4", true, 1, source_address, 173, destination_address,
+                      connection.stream_info_, headers);
 
   EXPECT_EQ(log.entry_.is_ingress(), true);
   EXPECT_EQ(log.entry_.entry_type(), ::cilium::EntryType::Request);
@@ -58,8 +61,7 @@ TEST_F(CiliumTest, AccessLog) {
   EXPECT_STREQ(log.entry_.http().headers(0).value().c_str(),
                "ba41267c-cfc2-4a92-ad3e-cd084ab099b4");
 
-  Http::TestResponseHeaderMapImpl response_headers{
-      {"my-response-header", "response"}};
+  Http::TestResponseHeaderMapImpl response_headers{{"my-response-header", "response"}};
 
   NiceMock<Event::SimulatedTimeSystem> time_source;
   log.UpdateFromResponse(response_headers, time_source);
@@ -78,9 +80,8 @@ TEST_F(CiliumTest, AccessLog) {
   EXPECT_STREQ(log.entry_.http().headers(0).value().c_str(),
                "ba41267c-cfc2-4a92-ad3e-cd084ab099b4");
   EXPECT_STREQ(log.entry_.http().headers(1).key().c_str(), "my-response-header");
-  EXPECT_STREQ(log.entry_.http().headers(1).value().c_str(),
-               "response");
+  EXPECT_STREQ(log.entry_.http().headers(1).value().c_str(), "response");
 }
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

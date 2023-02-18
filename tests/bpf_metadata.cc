@@ -1,11 +1,13 @@
 #include "tests/bpf_metadata.h"
 
-#include "cilium/api/bpf_metadata.pb.validate.h"
-#include "cilium/socket_option.h"
 #include "source/common/common/logger.h"
 #include "source/common/config/filesystem_subscription_impl.h"
 #include "source/common/config/utility.h"
+
 #include "test/test_common/environment.h"
+
+#include "cilium/api/bpf_metadata.pb.validate.h"
+#include "cilium/socket_option.h"
 
 namespace Envoy {
 
@@ -72,7 +74,7 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   auto policy = getPolicy(pod_ip);
   if (policy == nullptr) {
     ENVOY_LOG_MISC(warn, "cilium.bpf_metadata ({}): No policy found for {}",
-              is_ingress_ ? "ingress" : "egress", pod_ip);
+                   is_ingress_ ? "ingress" : "egress", pod_ip);
     return false;
   }
 
@@ -82,8 +84,7 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   // Note: tls_inspector may overwrite this value, if it executes after us!
   std::string l7proto;
   if (policy &&
-      policy->useProxylib(is_ingress_, port,
-                          is_ingress_ ? source_identity : destination_identity,
+      policy->useProxylib(is_ingress_, port, is_ingress_ ? source_identity : destination_identity,
                           l7proto)) {
     std::vector<absl::string_view> protocols;
     protocols.emplace_back(l7proto);
@@ -91,79 +92,68 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
   }
 
-  socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, 0, source_identity, is_ingress_, false, port,
-      std::move(pod_ip), nullptr, nullptr, nullptr, shared_from_this()));
+  socket.addOption(std::make_shared<Cilium::SocketOption>(policy, 0, source_identity, is_ingress_,
+                                                          false, port, std::move(pod_ip), nullptr,
+                                                          nullptr, nullptr, shared_from_this()));
 
   return true;
 }
 
 TestInstance::TestInstance(const ConfigSharedPtr& config) : Instance(config) {}
 
-}  // namespace BpfMetadata
-}  // namespace Filter
+} // namespace BpfMetadata
+} // namespace Cilium
 
 namespace Server {
 namespace Configuration {
 
 namespace {
 
-std::shared_ptr<const Cilium::PolicyHostMap> createHostMap(
-    const std::string& config,
-    Server::Configuration::ListenerFactoryContext& context) {
+std::shared_ptr<const Cilium::PolicyHostMap>
+createHostMap(const std::string& config, Server::Configuration::ListenerFactoryContext& context) {
   return context.singletonManager().getTyped<const Cilium::PolicyHostMap>(
       "cilium_host_map_singleton", [&config, &context] {
-        std::string path =
-            TestEnvironment::writeStringToFileForTest("host_map.yaml", config);
-        ENVOY_LOG_MISC(
-            debug,
-            "Loading Cilium Host Map from file \'{}\' instead of using gRPC",
-            path);
+        std::string path = TestEnvironment::writeStringToFileForTest("host_map.yaml", config);
+        ENVOY_LOG_MISC(debug, "Loading Cilium Host Map from file \'{}\' instead of using gRPC",
+                       path);
 
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
-            path, context.api());
+        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path, context.api());
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
-        auto map =
-            std::make_shared<Cilium::PolicyHostMap>(context.threadLocal());
-        auto subscription =
-            std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-		context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path),
-		*map, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
+        auto map = std::make_shared<Cilium::PolicyHostMap>(context.threadLocal());
+        auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
+            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path), *map, *map,
+            stats, ProtobufMessage::getNullValidationVisitor(), context.api());
         map->startSubscription(std::move(subscription));
         return map;
       });
 }
 
-std::shared_ptr<const Cilium::NetworkPolicyMap> createPolicyMap(
-    const std::string& config, Server::Configuration::FactoryContext& context) {
+std::shared_ptr<const Cilium::NetworkPolicyMap>
+createPolicyMap(const std::string& config, Server::Configuration::FactoryContext& context) {
   return context.singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
       "cilium_network_policy_singleton", [&config, &context] {
         // File subscription.
-        std::string path = TestEnvironment::writeStringToFileForTest(
-            "network_policy.yaml", config);
+        std::string path = TestEnvironment::writeStringToFileForTest("network_policy.yaml", config);
         ENVOY_LOG_MISC(debug,
                        "Loading Cilium Network Policy from file \'{}\' instead "
                        "of using gRPC",
                        path);
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
-            path, context.api());
+        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path, context.api());
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
-        auto subscription =
-            std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-		context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path),
-		*map, *map, stats, ProtobufMessage::getNullValidationVisitor(), context.api());
+        auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
+            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path), *map, *map,
+            stats, ProtobufMessage::getNullValidationVisitor(), context.api());
         map->startSubscription(std::move(subscription));
         return map;
       });
 }
 
-}  // namespace
+} // namespace
 
-Network::ListenerFilterFactoryCb
-TestBpfMetadataConfigFactory::createListenerFilterFactoryFromProto(
+Network::ListenerFilterFactoryCb TestBpfMetadataConfigFactory::createListenerFilterFactoryFromProto(
     const Protobuf::Message& proto_config,
     const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
     ListenerFactoryContext& context) {
@@ -179,29 +169,25 @@ TestBpfMetadataConfigFactory::createListenerFilterFactoryFromProto(
           proto_config, context.messageValidationVisitor()),
       context);
 
-  return [listener_filter_matcher, config](
-             Network::ListenerFilterManager& filter_manager) mutable -> void {
-    filter_manager.addAcceptFilter(
-        listener_filter_matcher,
-        std::make_unique<Cilium::BpfMetadata::TestInstance>(config));
+  return [listener_filter_matcher,
+          config](Network::ListenerFilterManager& filter_manager) mutable -> void {
+    filter_manager.addAcceptFilter(listener_filter_matcher,
+                                   std::make_unique<Cilium::BpfMetadata::TestInstance>(config));
   };
 }
 
-ProtobufTypes::MessagePtr
-TestBpfMetadataConfigFactory::createEmptyConfigProto() {
+ProtobufTypes::MessagePtr TestBpfMetadataConfigFactory::createEmptyConfigProto() {
   return std::make_unique<::cilium::BpfMetadata>();
 }
 
-std::string TestBpfMetadataConfigFactory::name() const {
-  return "test_bpf_metadata";
-}
+std::string TestBpfMetadataConfigFactory::name() const { return "test_bpf_metadata"; }
 
 /**
  * Static registration for the bpf metadata filter. @see RegisterFactory.
  */
 REGISTER_FACTORY(TestBpfMetadataConfigFactory, NamedListenerFilterConfigFactory);
 
-}  // namespace Configuration
-}  // namespace Server
+} // namespace Configuration
+} // namespace Server
 
-}  // namespace Envoy
+} // namespace Envoy

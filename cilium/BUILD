@@ -105,13 +105,13 @@ envoy_cc_library(
     name = "websocket_lib",
     srcs = [
         "websocket.cc",
-        "websocket_config.cc",
         "websocket_codec.cc",
+        "websocket_config.cc",
     ],
     hdrs = [
         "websocket.h",
-        "websocket_config.h",
         "websocket_codec.h",
+        "websocket_config.h",
         "websocket_protocol.h",
     ],
     external_deps = ["http_parser"],

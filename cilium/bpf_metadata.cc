@@ -5,16 +5,18 @@
 
 #include <string>
 
-#include "cilium/api/bpf_metadata.pb.validate.h"
-#include "cilium/socket_option.h"
+#include "envoy/network/listen_socket.h"
+#include "envoy/registry/registry.h"
+#include "envoy/singleton/manager.h"
+
 #include "source/common/common/assert.h"
 #include "source/common/common/fmt.h"
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/network/socket_option_factory.h"
-#include "envoy/network/listen_socket.h"
-#include "envoy/registry/registry.h"
-#include "envoy/singleton/manager.h"
+
+#include "cilium/api/bpf_metadata.pb.validate.h"
+#include "cilium/socket_option.h"
 
 namespace Envoy {
 namespace Server {
@@ -25,7 +27,7 @@ namespace Configuration {
  * NamedNetworkFilterConfigFactory.
  */
 class BpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
- public:
+public:
   // NamedListenerFilterConfigFactory
   Network::ListenerFilterFactoryCb createListenerFilterFactoryFromProto(
       const Protobuf::Message& proto_config,
@@ -35,11 +37,10 @@ class BpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
         MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(
             proto_config, context.messageValidationVisitor()),
         context);
-    return [listener_filter_matcher, config](
-               Network::ListenerFilterManager& filter_manager) mutable -> void {
-      filter_manager.addAcceptFilter(
-          listener_filter_matcher,
-          std::make_unique<Cilium::BpfMetadata::Instance>(config));
+    return [listener_filter_matcher,
+            config](Network::ListenerFilterManager& filter_manager) mutable -> void {
+      filter_manager.addAcceptFilter(listener_filter_matcher,
+                                     std::make_unique<Cilium::BpfMetadata::Instance>(config));
     };
   }
 
@@ -55,10 +56,10 @@ class BpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
  * Versioning started from 1.1.0 for Cilium version 1.12.0.
  */
 REGISTER_FACTORY(BpfMetadataConfigFactory,
-		 NamedListenerFilterConfigFactory){FACTORY_VERSION(1, 1, 0, {{}})};
+                 NamedListenerFilterConfigFactory){FACTORY_VERSION(1, 1, 0, {{}})};
 
-}  // namespace Configuration
-}  // namespace Server
+} // namespace Configuration
+} // namespace Server
 
 namespace Cilium {
 namespace BpfMetadata {
@@ -71,8 +72,8 @@ SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
 
 namespace {
 
-std::shared_ptr<const Cilium::PolicyHostMap> createHostMap(
-    Server::Configuration::ListenerFactoryContext& context) {
+std::shared_ptr<const Cilium::PolicyHostMap>
+createHostMap(Server::Configuration::ListenerFactoryContext& context) {
   return context.singletonManager().getTyped<const Cilium::PolicyHostMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context] {
         auto map = std::make_shared<Cilium::PolicyHostMap>(
@@ -83,38 +84,44 @@ std::shared_ptr<const Cilium::PolicyHostMap> createHostMap(
       });
 }
 
-std::shared_ptr<const Cilium::NetworkPolicyMap> createPolicyMap(
-    Server::Configuration::FactoryContext& context,
-    Cilium::CtMapSharedPtr& ct) {
+std::shared_ptr<const Cilium::NetworkPolicyMap>
+createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct) {
   return context.singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-      [&context, &ct] {
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, &ct] {
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context, ct);
         map->startSubscription();
         return map;
       });
 }
 
-}  // namespace
+} // namespace
 
 Config::Config(const ::cilium::BpfMetadata& config,
                Server::Configuration::ListenerFactoryContext& context)
     : is_ingress_(config.is_ingress()),
       may_use_original_source_address_(config.may_use_original_source_address()),
       egress_mark_source_endpoint_id_(config.egress_mark_source_endpoint_id()),
-      ipv4_source_address_(Network::Utility::parseInternetAddressNoThrow(config.ipv4_source_address())),
-      ipv6_source_address_(Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address()))
-{
+      ipv4_source_address_(
+          Network::Utility::parseInternetAddressNoThrow(config.ipv4_source_address())),
+      ipv6_source_address_(
+          Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address())) {
   if (egress_mark_source_endpoint_id_ && is_ingress_) {
-    throw EnvoyException("cilium.bpf_metadata: egress_mark_source_endpoint_id may not be set with is_ingress");
+    throw EnvoyException(
+        "cilium.bpf_metadata: egress_mark_source_endpoint_id may not be set with is_ingress");
   }
-  if ((ipv4_source_address_ && ipv4_source_address_->ip()->version() != Network::Address::IpVersion::v4) ||
+  if ((ipv4_source_address_ &&
+       ipv4_source_address_->ip()->version() != Network::Address::IpVersion::v4) ||
       (!ipv4_source_address_ && config.ipv4_source_address().length() > 0)) {
-    throw EnvoyException(fmt::format("cilium.bpf_metadata: ipv4_source_address is not an IPv4 address: {}", config.ipv4_source_address()));
+    throw EnvoyException(
+        fmt::format("cilium.bpf_metadata: ipv4_source_address is not an IPv4 address: {}",
+                    config.ipv4_source_address()));
   }
-  if ((ipv6_source_address_ && ipv6_source_address_->ip()->version() != Network::Address::IpVersion::v6) ||
+  if ((ipv6_source_address_ &&
+       ipv6_source_address_->ip()->version() != Network::Address::IpVersion::v6) ||
       (!ipv6_source_address_ && config.ipv6_source_address().length() > 0)) {
-    throw EnvoyException(fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}", config.ipv6_source_address()));
+    throw EnvoyException(
+        fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}",
+                    config.ipv6_source_address()));
   }
   // Note: all instances use the bpf root of the first filter with non-empty
   // bpf_root instantiated! Only try opening bpf maps if bpf root is explicitly
@@ -137,8 +144,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
         });
     if (bpf_root != ct_maps_->bpfRoot()) {
       // bpf root may not change during runtime
-      throw EnvoyException(
-          fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
+      throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
     }
   }
   // Only create the hosts map if ipcache can't be opened
@@ -185,32 +191,31 @@ const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) 
 }
 
 bool Config::getMetadata(Network::ConnectionSocket& socket) {
-  Network::Address::InstanceConstSharedPtr src_address = socket.connectionInfoProvider().remoteAddress();
+  Network::Address::InstanceConstSharedPtr src_address =
+      socket.connectionInfoProvider().remoteAddress();
   const auto sip = src_address->ip();
   const auto dst_address = socket.ioHandle().localAddress();
   const auto dip = dst_address->ip();
 
   if (!sip || !dip) {
-    ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}",
-                   src_address->asString(), dst_address->asString());
+    ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}", src_address->asString(),
+                   dst_address->asString());
     return false;
   }
 
   // We do this first as this likely restores the destination address
   // Let the OriginalDstCluster know the destination address can be used.
-  socket.connectionInfoProvider().restoreLocalAddress(dst_address);  // mark as `restored`
+  socket.connectionInfoProvider().restoreLocalAddress(dst_address); // mark as `restored`
 
   std::string pod_ip, other_ip;
   if (is_ingress_) {
     pod_ip = dip->addressAsString();
     other_ip = sip->addressAsString();
-    ENVOY_LOG_MISC(debug, "INGRESS POD IP: {}, source IP: {}", pod_ip,
-                   other_ip);
+    ENVOY_LOG_MISC(debug, "INGRESS POD IP: {}, source IP: {}", pod_ip, other_ip);
   } else {
     pod_ip = sip->addressAsString();
     other_ip = dip->addressAsString();
-    ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {}", pod_ip,
-                   other_ip);
+    ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {}", pod_ip, other_ip);
   }
 
   const auto& policy = getPolicy(pod_ip);
@@ -225,8 +230,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   if (ct_maps_ != nullptr) {
     auto ct_name = policy->conntrackName();
     if (ct_name.length() > 0) {
-      source_identity =
-          ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
+      source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
     }
   }
   if (source_identity == 0) {
@@ -263,31 +267,30 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       // as in this case the upstream connection may go to either IPv4 or IPv6 and the
       // source address must match that version.
       // Keep the original source address for the matching version, create a new source IP
-      // for the other version with the same port number as in the other version. Hopefully the 5-tuple will be unique. A bind and
+      // for the other version with the same port number as in the other version. Hopefully the
+      // 5-tuple will be unique. A bind and
       switch (sip->version()) {
       case Network::Address::IpVersion::v4: {
-	ipv4_source_address = src_address;
-	sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(ips.ipv6_->sockAddr());
-	sa6.sin6_port = sip->port();
-	ipv6_source_address = std::make_shared<Network::Address::Ipv6Instance>(sa6);
-      }
-	break;
+        ipv4_source_address = src_address;
+        sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(ips.ipv6_->sockAddr());
+        sa6.sin6_port = sip->port();
+        ipv6_source_address = std::make_shared<Network::Address::Ipv6Instance>(sa6);
+      } break;
       case Network::Address::IpVersion::v6: {
-	ipv6_source_address = src_address;
-	sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(ips.ipv4_->sockAddr());
-	sa4.sin_port = sip->port();
-	ipv4_source_address = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
-      }
-	break;
+        ipv6_source_address = src_address;
+        sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(ips.ipv4_->sockAddr());
+        sa4.sin_port = sip->port();
+        ipv4_source_address = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
+      } break;
       }
       src_address = nullptr;
     }
-  // Otherwise only use the original source address if permitted and the destination is not in the
-  // same node, is not a locally allocated identity, and is not classified as WORLD.
-  //
+    // Otherwise only use the original source address if permitted and the destination is not in the
+    // same node, is not a locally allocated identity, and is not classified as WORLD.
+    //
   } else if (!(may_use_original_source_address_ &&
-	       !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
-	       destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
+               !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
+               destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
     // Original source address is not used
     src_address = nullptr;
   }
@@ -297,7 +300,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     socket.addOptions(Network::SocketOptionFactory::buildIpTransparentOptions());
     socket.addOptions(Network::SocketOptionFactory::buildReusePortOptions());
   }
-  
+
   // Add metadata for policy based listener filter chain matching.
   // This requires the TLS inspector, if used, to run before us.
   // Note: This requires egress policy be known before upstream host selection,
@@ -306,8 +309,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // based policies (e.g., with MongoDB or MySQL filters).
   std::string l7proto;
   if (policy->useProxylib(is_ingress_, dip->port(),
-                          is_ingress_ ? source_identity : destination_identity,
-                          l7proto)) {
+                          is_ingress_ ? source_identity : destination_identity, l7proto)) {
     const auto& old_protocols = socket.requestedApplicationProtocols();
     std::vector<absl::string_view> protocols;
     for (const auto& old_protocol : old_protocols) {
@@ -315,9 +317,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     }
     protocols.emplace_back(l7proto);
     socket.setRequestedApplicationProtocols(protocols);
-    ENVOY_LOG(info,
-              "cilium.bpf_metadata: setRequestedApplicationProtocols(..., {})",
-              l7proto);
+    ENVOY_LOG(info, "cilium.bpf_metadata: setRequestedApplicationProtocols(..., {})", l7proto);
   }
 
   // Pass the metadata to an Envoy socket option we can retrieve later in other
@@ -337,9 +337,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     }
   }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, mark, source_identity, is_ingress_, isL7LB, dip->port(),
-      std::move(pod_ip), std::move(src_address),
-      std::move(ipv4_source_address), std::move(ipv6_source_address),
+      policy, mark, source_identity, is_ingress_, isL7LB, dip->port(), std::move(pod_ip),
+      std::move(src_address), std::move(ipv4_source_address), std::move(ipv6_source_address),
       shared_from_this()));
   return true;
 }
@@ -355,7 +354,7 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
     true, 10
   };
   int keepalive = true;
-  int secs = 5 * 60;  // Five minutes
+  int secs = 5 * 60; // Five minutes
 
   auto status = socket.setSocketOption(SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
   if (status.return_value_ < 0) {
@@ -369,14 +368,12 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   } else {
     status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPINTVL, &secs, sizeof(secs));
     if (status.return_value_ < 0) {
-      ENVOY_LOG(critical,
-                "Socket option failure. Failed to set TCP_KEEPINTVL: {}",
+      ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPINTVL: {}",
                 Envoy::errorDetails(status.errno_));
     } else {
       status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPIDLE, &secs, sizeof(secs));
       if (status.return_value_ < 0) {
-        ENVOY_LOG(critical,
-                  "Socket option failure. Failed to set TCP_KEEPIDLE: {}",
+        ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPIDLE: {}",
                   Envoy::errorDetails(status.errno_));
       }
     }
@@ -385,6 +382,6 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   return Network::FilterStatus::Continue;
 }
 
-}  // namespace BpfMetadata
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace BpfMetadata
+} // namespace Cilium
+} // namespace Envoy

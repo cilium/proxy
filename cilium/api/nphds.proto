@@ -15,9 +15,9 @@ import "validate/validate.proto";
 service NetworkPolicyHostsDiscoveryService {
   option (envoy.annotations.resource).type = "cilium.NetworkPolicyHosts";
 
-  rpc StreamNetworkPolicyHosts(
-      stream envoy.service.discovery.v3.DiscoveryRequest)
-      returns (stream envoy.service.discovery.v3.DiscoveryResponse) {}
+  rpc StreamNetworkPolicyHosts(stream envoy.service.discovery.v3.DiscoveryRequest)
+      returns (stream envoy.service.discovery.v3.DiscoveryResponse) {
+  }
 
   rpc FetchNetworkPolicyHosts(envoy.service.discovery.v3.DiscoveryRequest)
       returns (envoy.service.discovery.v3.DiscoveryResponse) {

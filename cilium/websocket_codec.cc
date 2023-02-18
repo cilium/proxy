@@ -1,12 +1,10 @@
 #include "cilium/websocket_codec.h"
-#include "cilium/websocket_protocol.h"
-
-#include <string>
 
 #include <http_parser.h>
 
-#include "cilium/api/websocket.pb.validate.h"
-#include "cilium/socket_option.h"
+#include <string>
+
+#include "envoy/registry/registry.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/assert.h"
@@ -21,7 +19,10 @@
 #include "source/common/http/utility.h"
 #include "source/common/network/filter_manager_impl.h"
 #include "source/common/network/utility.h"
-#include "envoy/registry/registry.h"
+
+#include "cilium/api/websocket.pb.validate.h"
+#include "cilium/socket_option.h"
+#include "cilium/websocket_protocol.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -54,30 +55,30 @@ public:
     http_parser_init(&parser_, type_);
     parser_.data = this;
     http_parser_settings settings = {
-      nullptr, /* on_message_begin */
-      nullptr, /* on_URL */
-      nullptr, /* on_status */
-      [](http_parser* parser, const char* at, size_t length) -> int {
-	return static_cast<HttpParser*>(parser->data)->onHeaderField(at, length);
-      }, /* on_header_field */
-      [](http_parser* parser, const char* at, size_t length) -> int {
-	return static_cast<HttpParser*>(parser->data)->onHeaderValue(at, length);
-      }, /* on_header_value */
-      [](http_parser* parser) -> int {
-	return static_cast<HttpParser*>(parser->data)->onHeadersComplete();
-      }, /* on_headers_complete */
-      nullptr, /* on_body */
-      [](http_parser* parser) -> int {
-	static_cast<HttpParser*>(parser->data)->message_complete_ = true;
-	return 0;
-      }, /* on_message_complete */
-      nullptr, /* chunk header, chunk length in parser->content_length */
-      nullptr, /* chunk complete */
+        nullptr, /* on_message_begin */
+        nullptr, /* on_URL */
+        nullptr, /* on_status */
+        [](http_parser* parser, const char* at, size_t length) -> int {
+          return static_cast<HttpParser*>(parser->data)->onHeaderField(at, length);
+        }, /* on_header_field */
+        [](http_parser* parser, const char* at, size_t length) -> int {
+          return static_cast<HttpParser*>(parser->data)->onHeaderValue(at, length);
+        }, /* on_header_value */
+        [](http_parser* parser) -> int {
+          return static_cast<HttpParser*>(parser->data)->onHeadersComplete();
+        },       /* on_headers_complete */
+        nullptr, /* on_body */
+        [](http_parser* parser) -> int {
+          static_cast<HttpParser*>(parser->data)->message_complete_ = true;
+          return 0;
+        },       /* on_message_complete */
+        nullptr, /* chunk header, chunk length in parser->content_length */
+        nullptr, /* chunk complete */
     };
 
     ssize_t rc = http_parser_execute(&parser_, &settings, msg.data(), msg.length());
     ENVOY_LOG(trace, "websocket: http_parser parsed {} chars, error code: {}", rc,
-	      HTTP_PARSER_ERRNO(&parser_));
+              HTTP_PARSER_ERRNO(&parser_));
 
     // Errors in parsing HTTP.
     if (HTTP_PARSER_ERRNO(&parser_) != HPE_OK) {
@@ -88,25 +89,23 @@ public:
   }
 
   bool versionIsHttp1_1() {
-    ENVOY_LOG(trace, "websocket: http_parser got version major: {} minor: {}",
-	      parser_.http_major, parser_.http_minor);
+    ENVOY_LOG(trace, "websocket: http_parser got version major: {} minor: {}", parser_.http_major,
+              parser_.http_minor);
     return parser_.http_major == 1 && parser_.http_minor == 1;
   }
 
-  uint32_t size() {
-    return parser_.nread;
-  }
+  uint32_t size() { return parser_.nread; }
 
 protected:
   int completeLastHeader() {
     if (Http::HeaderUtility::headerNameContainsUnderscore(current_header_field_.getStringView())) {
       ENVOY_LOG(debug, "websocket: Rejecting invalid header: key={} value={}",
-		current_header_field_.getStringView(), current_header_value_.getStringView());
+                current_header_field_.getStringView(), current_header_value_.getStringView());
       return -1;
     }
     ENVOY_LOG(trace, "websocket: completed header: key={} value={}",
-	      current_header_field_.getStringView(), current_header_value_.getStringView());
-    
+              current_header_field_.getStringView(), current_header_value_.getStringView());
+
     if (!current_header_field_.empty()) {
       // Strip trailing whitespace of the current header value if any. Leading whitespace was
       // trimmed in onHeaderValue. http_parser does not strip leading or trailing whitespace as the
@@ -124,7 +123,7 @@ protected:
     if (parsing_value_) {
       auto code = completeLastHeader();
       if (code != 0) {
-	return code;
+        return code;
       }
     }
     parsing_value_ = false;
@@ -151,9 +150,7 @@ protected:
     return 0;
   }
 
-  virtual int onHeadersComplete() {
-    return completeLastHeader();
-  }
+  virtual int onHeadersComplete() { return completeLastHeader(); }
 
   virtual void addHeader(Http::HeaderString&& key, Http::HeaderString&& value) PURE;
 
@@ -168,14 +165,9 @@ protected:
 
 class RequestParser : public HttpParser {
 public:
-  RequestParser() :
-    HttpParser(HTTP_REQUEST),
-    headers_(Http::RequestHeaderMapImpl::create())
-  {}
+  RequestParser() : HttpParser(HTTP_REQUEST), headers_(Http::RequestHeaderMapImpl::create()) {}
 
-  const Http::RequestHeaderMap& headers() {
-    return *(headers_.get());
-  }
+  const Http::RequestHeaderMap& headers() { return *(headers_.get()); }
 
 protected:
   int onHeadersComplete() override {
@@ -193,18 +185,13 @@ private:
 
 class ResponseParser : public HttpParser {
 public:
-  ResponseParser() :
-    HttpParser(HTTP_RESPONSE),
-    headers_(Http::ResponseHeaderMapImpl::create())
-  {}
+  ResponseParser() : HttpParser(HTTP_RESPONSE), headers_(Http::ResponseHeaderMapImpl::create()) {}
 
-  const Http::ResponseHeaderMap& headers() {
-    return *(headers_.get());
-  }
+  const Http::ResponseHeaderMap& headers() { return *(headers_.get()); }
 
   unsigned int status() {
     ENVOY_LOG(trace, "websocket: http_parser got status: {}",
-	      static_cast<unsigned int>(parser_.status_code));
+              static_cast<unsigned int>(parser_.status_code));
     return parser_.status_code;
   }
 
@@ -238,18 +225,18 @@ void encodeHeader(Buffer::Instance& buffer, absl::string_view key, absl::string_
 void encodeHeaders(Buffer::Instance& buffer, Http::RequestOrResponseHeaderMap& headers) {
   const Http::HeaderValues& header_values = Http::Headers::get();
   headers.iterate(
-    [&buffer, &header_values](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
+      [&buffer, &header_values](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
         absl::string_view key = header.key().getStringView();
         if (key[0] == ':') {
-	  // Translate :authority -> host so that upper layers do not need to deal with this.
-	  if (key.size() > 1 && key[1] == 'a') {
-	    key = absl::string_view(header_values.HostLegacy.get());
-	  } else {
-	    // Skip all headers starting with ':' that make it here.
-	    return Http::HeaderMap::Iterate::Continue;
-	  }
+          // Translate :authority -> host so that upper layers do not need to deal with this.
+          if (key.size() > 1 && key[1] == 'a') {
+            key = absl::string_view(header_values.HostLegacy.get());
+          } else {
+            // Skip all headers starting with ':' that make it here.
+            return Http::HeaderMap::Iterate::Continue;
+          }
         }
-	encodeHeader(buffer, key, header.value().getStringView());
+        encodeHeader(buffer, key, header.value().getStringView());
         return Http::HeaderMap::Iterate::Continue;
       });
   encodeHeader(buffer, header_values.ContentLength.get(), "0");
@@ -291,13 +278,10 @@ void encodeResponse(Buffer::Instance& buffer, Http::ResponseHeaderMap& headers) 
 // Codec
 //
 
-Codec::Codec(CodecCallbacks* parent, Network::Connection& conn) :
-  parent_(parent),
-  connection_(conn),
-  encoder_(*this),
-  decoder_(*this) {
-  ENVOY_CONN_LOG(trace, "Enabling websocket handshake timeout at {} ms",
-		 connection_, parent_->config()->handshake_timeout_.count());
+Codec::Codec(CodecCallbacks* parent, Network::Connection& conn)
+    : parent_(parent), connection_(conn), encoder_(*this), decoder_(*this) {
+  ENVOY_CONN_LOG(trace, "Enabling websocket handshake timeout at {} ms", connection_,
+                 parent_->config()->handshake_timeout_.count());
   handshake_timer_ = connection_.dispatcher().createTimer([this]() {
     parent_->config()->stats_.handshake_timeout_.inc();
     closeOnError("websocket handshake timed out");
@@ -307,7 +291,7 @@ Codec::Codec(CodecCallbacks* parent, Network::Connection& conn) :
 
 namespace {
 
-size_t maskData(uint8_t *buf, size_t n_bytes, uint8_t mask[4], size_t payload_offset = 0) {
+size_t maskData(uint8_t* buf, size_t n_bytes, uint8_t mask[4], size_t payload_offset = 0) {
   for (size_t i = 0; i < n_bytes; i++) {
     buf[i] ^= mask[payload_offset % 4];
     payload_offset++;
@@ -317,7 +301,7 @@ size_t maskData(uint8_t *buf, size_t n_bytes, uint8_t mask[4], size_t payload_of
 
 } // namespace
 
-void Codec::closeOnError(const char *msg) {
+void Codec::closeOnError(const char* msg) {
   if (msg) {
     ENVOY_LOG(debug, "websocket: Closing connection: {}", msg);
   }
@@ -325,7 +309,7 @@ void Codec::closeOnError(const char *msg) {
   connection_.close(Network::ConnectionCloseType::NoFlush);
 }
 
-void Codec::closeOnError(Buffer::Instance& data, const char *msg) {
+void Codec::closeOnError(Buffer::Instance& data, const char* msg) {
   closeOnError(msg);
   // Test infra insists on data being drained
   data.drain(data.length());
@@ -342,7 +326,7 @@ void Codec::handshake() {
   }
 
   const Network::Address::InstanceConstSharedPtr& dst_address =
-    connection_.connectionInfoProvider().localAddress();
+      connection_.connectionInfoProvider().localAddress();
 
   // Create WebSocket Handshake
   const Http::HeaderValues& header_values = Http::Headers::get();
@@ -387,7 +371,9 @@ void Codec::encode(Buffer::Instance& data, bool end_stream) {
   }
 }
 
-void Codec::encodeHandshakeResponse(Http::ResponseHeaderMap& headers, uint32_t status, absl::string_view hash, const Http::RequestHeaderMap* request_headers) {
+void Codec::encodeHandshakeResponse(Http::ResponseHeaderMap& headers, uint32_t status,
+                                    absl::string_view hash,
+                                    const Http::RequestHeaderMap* request_headers) {
   if (status == 200) {
     ENVOY_LOG(debug, "websocket: Using hash {}", hash);
     headers.setStatus(enumToInt(Http::Code::SwitchingProtocols)); // 101
@@ -395,21 +381,24 @@ void Codec::encodeHandshakeResponse(Http::ResponseHeaderMap& headers, uint32_t s
     headers.setReferenceUpgrade(Http::Headers::get().UpgradeValues.WebSocket);
     headers.addCopy(Envoy::Http::LowerCaseString("sec-websocket-accept"), hash);
   } else {
-    headers.setStatus(enumToInt(Http::Code::Forbidden)); // 403    
+    headers.setStatus(enumToInt(Http::Code::Forbidden)); // 403
   }
   if (request_headers != nullptr && request_headers->RequestId()) {
     headers.setRequestId(request_headers->getRequestIdValue());
   }
 }
 
-Network::Address::InstanceConstSharedPtr Codec::decodeHandshakeRequest(const ConfigSharedPtr& config, const Http::RequestHeaderMap& headers) {
+Network::Address::InstanceConstSharedPtr
+Codec::decodeHandshakeRequest(const ConfigSharedPtr& config,
+                              const Http::RequestHeaderMap& headers) {
 
   auto method = headers.getMethodValue();
   auto path = absl::AsciiStrToLower(headers.getPathValue());
   auto host = absl::AsciiStrToLower(headers.getHostValue());
   auto connection = absl::AsciiStrToLower(headers.getConnectionValue());
   auto upgrade = absl::AsciiStrToLower(headers.getUpgradeValue());
-  auto version = absl::AsciiStrToLower(headers.getInlineValue(sec_websocket_version_handle.handle()));
+  auto version =
+      absl::AsciiStrToLower(headers.getInlineValue(sec_websocket_version_handle.handle()));
   auto origin = headers.getInline(origin_handle.handle());
   auto protocol = headers.getInline(sec_websocket_protocol_handle.handle());
   auto extensions = headers.getInline(sec_websocket_extensions_handle.handle());
@@ -421,44 +410,39 @@ Network::Address::InstanceConstSharedPtr Codec::decodeHandshakeRequest(const Con
     const std::string request_override_host(override_header->value().getStringView());
     orig_dst = Network::Utility::parseInternetAddressAndPortNoThrow(request_override_host, false);
   }
-  bool valid = (method == Http::Headers::get().MethodValues.Get &&
-		connection == Http::Headers::get().ConnectionValues.Upgrade &&
-		upgrade == Http::Headers::get().UpgradeValues.WebSocket &&
-		// path must be present with non-empty value, and must match expected if configured
-		((config->path_.empty() && path.length() > 0) ||
-		 (path == config->path_)) &&
-		// host must be present with non-empty value, and must match expected if configured
-		((config->host_.empty() && host.length() > 0) ||
-		 (host == config->host_)) &&
-		// key must be present with non-empty value, and must match expected if configured
-		((config->key_.empty() && key.length() > 0) ||
-		 (key == config->key_)) &&
-		// version must be present with non-empty value, and must match expected if configured
-		((config->version_.empty() && version.length() > 0) ||
-		 (version == config->version_)) &&
-		// origin must be present with non-empty value and must match expected if configured,
-		// origin may not be present if not configured
-		(config->origin_.empty() ?
-		 origin == nullptr :
-		 (origin != nullptr &&
-		  absl::AsciiStrToLower(origin->value().getStringView()) == config->origin_)) &&
-		// protocol and extensions are not allowed for now
-		protocol == nullptr && extensions == nullptr &&
-		// override header must be present and have a valid value
-		orig_dst != nullptr);
-  ENVOY_LOG(debug, "websocket: valid = {}, method: {}/{}, path: \"{}\"/\"{}\", host: {}/{}, connection: {}/{}, upgrade: {}/{}, key: {}/{}, version: {}/{}, origin: {}/{}, protocol: {}, extensions: {}, override: {}",
-	    valid,
-	    method, Http::Headers::get().MethodValues.Get,
-	    path, config->path_,
-	    host, config->host_,
-	    connection, Http::Headers::get().ConnectionValues.Upgrade,
-	    upgrade, Http::Headers::get().UpgradeValues.WebSocket,
-	    key, config->key_,
-	    version, config->version_,
-	    origin ? origin->value().getStringView() : "<NONE>", config->origin_,
-	    protocol ? protocol->value().getStringView() : "<NONE>",
-	    extensions ? extensions->value().getStringView() : "<NONE>",
-	    override_header ? override_header->value().getStringView(): "<NONE>");
+  bool valid =
+      (method == Http::Headers::get().MethodValues.Get &&
+       connection == Http::Headers::get().ConnectionValues.Upgrade &&
+       upgrade == Http::Headers::get().UpgradeValues.WebSocket &&
+       // path must be present with non-empty value, and must match expected if configured
+       ((config->path_.empty() && path.length() > 0) || (path == config->path_)) &&
+       // host must be present with non-empty value, and must match expected if configured
+       ((config->host_.empty() && host.length() > 0) || (host == config->host_)) &&
+       // key must be present with non-empty value, and must match expected if configured
+       ((config->key_.empty() && key.length() > 0) || (key == config->key_)) &&
+       // version must be present with non-empty value, and must match expected if configured
+       ((config->version_.empty() && version.length() > 0) || (version == config->version_)) &&
+       // origin must be present with non-empty value and must match expected if configured,
+       // origin may not be present if not configured
+       (config->origin_.empty()
+            ? origin == nullptr
+            : (origin != nullptr &&
+               absl::AsciiStrToLower(origin->value().getStringView()) == config->origin_)) &&
+       // protocol and extensions are not allowed for now
+       protocol == nullptr && extensions == nullptr &&
+       // override header must be present and have a valid value
+       orig_dst != nullptr);
+  ENVOY_LOG(debug,
+            "websocket: valid = {}, method: {}/{}, path: \"{}\"/\"{}\", host: {}/{}, connection: "
+            "{}/{}, upgrade: {}/{}, key: {}/{}, version: {}/{}, origin: {}/{}, protocol: {}, "
+            "extensions: {}, override: {}",
+            valid, method, Http::Headers::get().MethodValues.Get, path, config->path_, host,
+            config->host_, connection, Http::Headers::get().ConnectionValues.Upgrade, upgrade,
+            Http::Headers::get().UpgradeValues.WebSocket, key, config->key_, version,
+            config->version_, origin ? origin->value().getStringView() : "<NONE>", config->origin_,
+            protocol ? protocol->value().getStringView() : "<NONE>",
+            extensions ? extensions->value().getStringView() : "<NONE>",
+            override_header ? override_header->value().getStringView() : "<NONE>");
 
   return valid ? orig_dst : nullptr;
 }
@@ -468,24 +452,24 @@ void Codec::startPingTimer() {
 
   // Start ping timer if enabled
   if (config->ping_interval_.count()) {
-    ENVOY_CONN_LOG(trace, "Enabling websocket PING timer at {} ms",
-		   connection_, config->ping_interval_.count());
+    ENVOY_CONN_LOG(trace, "Enabling websocket PING timer at {} ms", connection_,
+                   config->ping_interval_.count());
     ping_timer_ = connection_.dispatcher().createTimer([this]() {
       auto& config = parent_->config();
       char count_buffer[StringUtil::MIN_ITOA_OUT_LEN];
-      const uint32_t count_len = StringUtil::itoa(count_buffer, StringUtil::MIN_ITOA_OUT_LEN,
-						  ++ping_count_);
+      const uint32_t count_len =
+          StringUtil::itoa(count_buffer, StringUtil::MIN_ITOA_OUT_LEN, ++ping_count_);
       if (ping(count_buffer, count_len)) {
-	ENVOY_CONN_LOG(trace, "Injected websocket PING {}", connection_, ping_count_);
-	// Randomize ping inverval with jitter when idle
-	if (ping_timer_ != nullptr) {
-	  uint64_t interval_ms = config->ping_interval_.count();
-	  const uint64_t jitter_percent_mod = ping_interval_jitter_percent_ * interval_ms / 100;
-	  if (jitter_percent_mod > 0) {
-	    interval_ms += config->random_.random() % jitter_percent_mod;
-	  }
-	  ping_timer_->enableTimer(std::chrono::milliseconds(interval_ms));
-	}
+        ENVOY_CONN_LOG(trace, "Injected websocket PING {}", connection_, ping_count_);
+        // Randomize ping inverval with jitter when idle
+        if (ping_timer_ != nullptr) {
+          uint64_t interval_ms = config->ping_interval_.count();
+          const uint64_t jitter_percent_mod = ping_interval_jitter_percent_ * interval_ms / 100;
+          if (jitter_percent_mod > 0) {
+            interval_ms += config->random_.random() % jitter_percent_mod;
+          }
+          ping_timer_->enableTimer(std::chrono::milliseconds(interval_ms));
+        }
       }
     });
     ping_timer_->enableTimer(config->ping_interval_);
@@ -516,24 +500,25 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
     if (config->client_) {
       // Sanity check the first chars to catch non HTTP responses
       if (!checkPrefix(handshake_buffer_, response_prefix)) {
-	config->stats_.handshake_not_http_.inc();
-	return closeOnError(handshake_buffer_, "response not http.");      
+        config->stats_.handshake_not_http_.inc();
+        return closeOnError(handshake_buffer_, "response not http.");
       }
     } else {
       // Server needs to see the handshake request as the first message.
       // Sanity check the first chars to catch non HTTP requests
       if (!checkPrefix(handshake_buffer_, request_prefix)) {
-	config->stats_.handshake_not_http_.inc();
-	return closeOnError(handshake_buffer_, "request not http.");
+        config->stats_.handshake_not_http_.inc();
+        return closeOnError(handshake_buffer_, "request not http.");
       }
     }
 
     // Find the header separator that marks the end of the handshake request/response.
-    ssize_t pos = handshake_buffer_.search(header_separator.data(), header_separator.length(), 0, 0);
+    ssize_t pos =
+        handshake_buffer_.search(header_separator.data(), header_separator.length(), 0, 0);
     if (pos == -1) {
       if (end_stream) {
-	config->stats_.protocol_error_.inc();
-	return closeOnError(handshake_buffer_, "no request/response.");	
+        config->stats_.protocol_error_.inc();
+        return closeOnError(handshake_buffer_, "no request/response.");
       }
       return; // Header separator not found, Need more data
     }
@@ -543,14 +528,15 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
 
     // Include the header separator in message size
     size_t msg_size = pos + header_separator.length();
-    absl::string_view message = { reinterpret_cast<char*>(handshake_buffer_.linearize(msg_size)), msg_size };
+    absl::string_view message = {reinterpret_cast<char*>(handshake_buffer_.linearize(msg_size)),
+                                 msg_size};
 
     if (config->client_) {
       ResponseParser parser;
       bool ok = parser.parse(message);
       if (!ok) {
-	config->stats_.handshake_parse_error_.inc();
-	return closeOnError(handshake_buffer_, "response parse failed.");
+        config->stats_.handshake_parse_error_.inc();
+        return closeOnError(handshake_buffer_, "response parse failed.");
       }
       handshake_buffer_.drain(msg_size);
 
@@ -558,13 +544,13 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
       parent_->onHandshakeResponse(headers);
 
       if (!parser.versionIsHttp1_1()) {
-	config->stats_.handshake_invalid_http_version_.inc();
-	return closeOnError(handshake_buffer_, "unsupported HTTP protocol");
+        config->stats_.handshake_invalid_http_version_.inc();
+        return closeOnError(handshake_buffer_, "unsupported HTTP protocol");
       }
 
       if (parser.status() != 101) {
-	config->stats_.handshake_invalid_http_status_.inc();
-	return closeOnError(handshake_buffer_, "Invalid HTTP status code for websocket");
+        config->stats_.handshake_invalid_http_status_.inc();
+        return closeOnError(handshake_buffer_, "Invalid HTTP status code for websocket");
       }
 
       // Validate response headers
@@ -573,17 +559,17 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
       auto key_accept = headers.getInlineValue(sec_websocket_accept_handle.handle());
 
       auto key_response = config->keyResponse(config->key_);
-      accepted_ =
-	connection == Http::Headers::get().ConnectionValues.Upgrade &&
-	upgrade == Http::Headers::get().UpgradeValues.WebSocket &&
-	key_accept == key_response;
-  
-      ENVOY_LOG(debug, "websocket: accepted_ = {}, connection: {}, upgrade: {}, accept: {} (expected {})",
-		accepted_, connection, upgrade, key_accept, key_response);
+      accepted_ = connection == Http::Headers::get().ConnectionValues.Upgrade &&
+                  upgrade == Http::Headers::get().UpgradeValues.WebSocket &&
+                  key_accept == key_response;
+
+      ENVOY_LOG(debug,
+                "websocket: accepted_ = {}, connection: {}, upgrade: {}, accept: {} (expected {})",
+                accepted_, connection, upgrade, key_accept, key_response);
 
       if (!accepted_) {
-	config->stats_.handshake_invalid_websocket_response_.inc();
-	return closeOnError(handshake_buffer_, "Invalid WebSocket response");
+        config->stats_.handshake_invalid_websocket_response_.inc();
+        return closeOnError(handshake_buffer_, "Invalid WebSocket response");
       }
 
       // Kick write on the other direction
@@ -594,9 +580,9 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
       RequestParser parser;
       bool ok = parser.parse(message);
       if (!ok) {
-	// Consider issuing HTTP response instead?
-	config->stats_.handshake_parse_error_.inc();
-	return closeOnError(handshake_buffer_, "request parse failed.");
+        // Consider issuing HTTP response instead?
+        config->stats_.handshake_parse_error_.inc();
+        return closeOnError(handshake_buffer_, "request parse failed.");
       }
       handshake_buffer_.drain(msg_size);
 
@@ -604,8 +590,8 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
       parent_->onHandshakeRequest(headers);
 
       if (!parser.versionIsHttp1_1()) {
-	config->stats_.handshake_invalid_http_version_.inc();
-	return closeOnError(handshake_buffer_, "unsupported HTTP protocol");
+        config->stats_.handshake_invalid_http_version_.inc();
+        return closeOnError(handshake_buffer_, "unsupported HTTP protocol");
       }
 
       // Validate request headers
@@ -614,19 +600,19 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
       auto orig_dst = decodeHandshakeRequest(config, headers);
       accepted_ = (orig_dst != nullptr);
       if (!accepted_) {
-	config->stats_.handshake_invalid_websocket_request_.inc();
+        config->stats_.handshake_invalid_websocket_request_.inc();
 
-	// Create handshake error response
-	encodeHandshakeResponse(*response_headers, 403, "", &headers);
-	encodeResponse(response_buffer, *response_headers);
-	parent_->injectEncoded(response_buffer, true);
-	// Check if the buffer was not drained
-	if (response_buffer.length() > 0) {
-	  config->stats_.handshake_write_error_.inc();
-	} else {
-	  parent_->onHandshakeResponseSent(*response_headers);
-	}
-	return closeOnError(handshake_buffer_, "Invalid WebSocket request");
+        // Create handshake error response
+        encodeHandshakeResponse(*response_headers, 403, "", &headers);
+        encodeResponse(response_buffer, *response_headers);
+        parent_->injectEncoded(response_buffer, true);
+        // Check if the buffer was not drained
+        if (response_buffer.length() > 0) {
+          config->stats_.handshake_write_error_.inc();
+        } else {
+          parent_->onHandshakeResponseSent(*response_headers);
+        }
+        return closeOnError(handshake_buffer_, "Invalid WebSocket request");
       }
 
       // Create handshake response
@@ -636,8 +622,8 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
       parent_->injectEncoded(response_buffer, false);
       // Check if the buffer was not drained
       if (response_buffer.length() > 0) {
-	config->stats_.handshake_write_error_.inc();
-	return closeOnError(handshake_buffer_, "error writing handshake response");
+        config->stats_.handshake_write_error_.inc();
+        return closeOnError(handshake_buffer_, "error writing handshake response");
       }
       // Set destination address for the original destination filter.
       parent_->setOriginalDestinationAddress(orig_dst);
@@ -662,7 +648,7 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
   parent_->injectDecoded(decoder_.data(), decoder_.endStream());
 }
 
-bool Codec::ping(const void *payload, size_t len) {
+bool Codec::ping(const void* payload, size_t len) {
   if (encoder_.endStream()) {
     return false;
   }
@@ -673,7 +659,7 @@ bool Codec::ping(const void *payload, size_t len) {
   return true;
 }
 
-bool Codec::pong(const void *payload, size_t len) {
+bool Codec::pong(const void* payload, size_t len) {
   if (encoder_.endStream()) {
     return false;
   }
@@ -683,7 +669,6 @@ bool Codec::pong(const void *payload, size_t len) {
   return true;
 }
 
-
 // Encoder
 
 // Encode 'data' and 'end_stream' as websocket frames into 'encoded_'. Uses 'opcode' as the
@@ -691,8 +676,8 @@ bool Codec::pong(const void *payload, size_t len) {
 void Codec::Encoder::encode(Buffer::Instance& data, bool end_stream, uint8_t opcode) {
   auto hex_len = std::min(data.length(), 20UL);
   const uint8_t* hex_data = reinterpret_cast<uint8_t*>(data.linearize(hex_len));
-  ENVOY_LOG(debug, "websocket encoder: {} bytes: 0x{}, end_stream: {}, opcode: {}",
-	    data.length(), Hex::encode(hex_data, hex_len), end_stream, opcode);
+  ENVOY_LOG(debug, "websocket encoder: {} bytes: 0x{}, end_stream: {}, opcode: {}", data.length(),
+            Hex::encode(hex_data, hex_len), end_stream, opcode);
 
   auto& config = parent_.config();
   //
@@ -711,14 +696,14 @@ void Codec::Encoder::encode(Buffer::Instance& data, bool end_stream, uint8_t opc
 
       frame_header[1] = 126;
       len16 = htobe16(payload_len);
-      memcpy(frame_header+frame_header_length, &len16, 2);
+      memcpy(frame_header + frame_header_length, &len16, 2);
       frame_header_length += 2;
     } else {
       uint64_t len64;
 
       frame_header[1] = 127;
       len64 = htobe64(payload_len);
-      memcpy(frame_header+frame_header_length, &len64, 8);
+      memcpy(frame_header + frame_header_length, &len64, 8);
       frame_header_length += 8;
     }
 
@@ -727,19 +712,19 @@ void Codec::Encoder::encode(Buffer::Instance& data, bool end_stream, uint8_t opc
       frame_header[1] |= MASK_MASK;
 
       union {
-	uint8_t bytes[4];
-	uint32_t word;
+        uint8_t bytes[4];
+        uint32_t word;
       } mask;
-      
+
       mask.word = config->random_.random();
-      memcpy(frame_header+frame_header_length, &mask, 4);
+      memcpy(frame_header + frame_header_length, &mask, 4);
       frame_header_length += 4;
-      uint8_t *buf = reinterpret_cast<uint8_t *>(data.linearize(payload_len));
+      uint8_t* buf = reinterpret_cast<uint8_t*>(data.linearize(payload_len));
       maskData(buf, payload_len, mask.bytes);
     }
 
     // Add frame header and (masked) data
-    encoded_.add(absl::string_view{reinterpret_cast<char *>(frame_header), frame_header_length});
+    encoded_.add(absl::string_view{reinterpret_cast<char*>(frame_header), frame_header_length});
     encoded_.move(data, payload_len);
   }
 
@@ -758,15 +743,14 @@ void Codec::Encoder::encode(Buffer::Instance& data, bool end_stream, uint8_t opc
       frame_header[1] |= MASK_MASK;
 
       uint32_t mask = config->random_.random();
-      memcpy(frame_header+frame_header_length, &mask, 4);
+      memcpy(frame_header + frame_header_length, &mask, 4);
       frame_header_length += 4;
       // No data to mask
     }
     encoded_.add(reinterpret_cast<void*>(frame_header), frame_header_length);
     end_stream_ = true;
 
-    ENVOY_LOG(debug, "websocket encoder: sent WebSocket CLOSE message, end_stream: {}",
-	      end_stream);
+    ENVOY_LOG(debug, "websocket encoder: sent WebSocket CLOSE message, end_stream: {}", end_stream);
   }
 }
 
@@ -777,22 +761,20 @@ void Codec::Encoder::encode(Buffer::Instance& data, bool end_stream, uint8_t opc
  * Does not drain anything from the buffer,
  * draining has to be done separately.
  */
-#define TRY_READ_NETWORK(DATA)					\
-  {								\
-    if (buffer_.length() < frame_offset+sizeof(*(DATA))) {	\
-      /* Try again when we have more data */			\
-      return;							\
-    }								\
-    ENVOY_LOG(trace, "websocket: copyOut {} bytes at offset {}",	\
-	      sizeof(*(DATA)), frame_offset);			\
-    buffer_.copyOut(frame_offset, sizeof(*(DATA)), (DATA));	\
-    frame_offset += sizeof(*(DATA));				\
+#define TRY_READ_NETWORK(DATA)                                                                     \
+  {                                                                                                \
+    if (buffer_.length() < frame_offset + sizeof(*(DATA))) {                                       \
+      /* Try again when we have more data */                                                       \
+      return;                                                                                      \
+    }                                                                                              \
+    ENVOY_LOG(trace, "websocket: copyOut {} bytes at offset {}", sizeof(*(DATA)), frame_offset);   \
+    buffer_.copyOut(frame_offset, sizeof(*(DATA)), (DATA));                                        \
+    frame_offset += sizeof(*(DATA));                                                               \
   }
 
 // Decode 'data' into 'decoded_'.
 void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(trace, "websocket decoder: {} bytes, end_stream: {}",
-	    data.length(), end_stream);
+  ENVOY_LOG(trace, "websocket decoder: {} bytes, end_stream: {}", data.length(), end_stream);
 
   buffer_.move(data);
 
@@ -816,18 +798,20 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
       uint8_t* buf = static_cast<uint8_t*>(slice.mem_);
       auto hex_len = std::min(n_bytes, 20UL);
       if (unmasking_) {
-	ENVOY_LOG(trace, "websocket decoder: unmasking payload remaining: {}, offset: {}, processing: {}: 0x{}",
-		  payload_remaining_, payload_offset_, n_bytes, Hex::encode(buf, hex_len));
-	payload_offset_ = maskData(buf, n_bytes, mask_, payload_offset_);
+        ENVOY_LOG(
+            trace,
+            "websocket decoder: unmasking payload remaining: {}, offset: {}, processing: {}: 0x{}",
+            payload_remaining_, payload_offset_, n_bytes, Hex::encode(buf, hex_len));
+        payload_offset_ = maskData(buf, n_bytes, mask_, payload_offset_);
       }
       ENVOY_LOG(trace, "websocket decoder: payload remaining: {}, offset: {}, processing: {}: 0x{}",
-		payload_remaining_, payload_offset_, n_bytes, Hex::encode(buf, hex_len));
+                payload_remaining_, payload_offset_, n_bytes, Hex::encode(buf, hex_len));
 
       decoded_.move(buffer_, n_bytes);
       payload_remaining_ -= n_bytes;
 
       if (buffer_.length() == 0) {
-	return;
+        return;
       }
     }
     //
@@ -842,8 +826,7 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
     uint8_t opcode;
     uint64_t payload_len;
 
-    ENVOY_LOG(trace, "websocket decoder: remaining buffer: {} bytes",
-	      buffer_.length());
+    ENVOY_LOG(trace, "websocket decoder: remaining buffer: {} bytes", buffer_.length());
 
     TRY_READ_NETWORK(&frame_header);
     opcode = frame_header[0] & OPCODE_MASK;
@@ -864,7 +847,7 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
       TRY_READ_NETWORK(&mask_);
       unmasking_ = true;
     }
-    
+
     //
     // Whole header received and decoded
     //
@@ -874,47 +857,47 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
       // Protect against too large control frames that could happen if the decoder ever loses
       // sync with the data stream.
       if (payload_len > WEBSOCKET_CONTROL_FRAME_MAX_SIZE) {
-	ENVOY_LOG(debug, "websocket decoder: too large control frame: {} bytes", payload_len);
-	buffer_.drain(buffer_.length());
-	end_stream_ = true;
-	return;
+        ENVOY_LOG(debug, "websocket decoder: too large control frame: {} bytes", payload_len);
+        buffer_.drain(buffer_.length());
+        end_stream_ = true;
+        return;
       }
 
       // Buffer until whole control frame has been received
       if (buffer_.length() < frame_offset + payload_len) {
-	return;
+        return;
       }
 
       // Drain control frame header, get the payload
       buffer_.drain(frame_offset);
-      uint8_t *payload = reinterpret_cast<uint8_t *>(buffer_.linearize(payload_len));
+      uint8_t* payload = reinterpret_cast<uint8_t*>(buffer_.linearize(payload_len));
 
       // Unmask the control frame payload
       if (unmasking_) {
-	maskData(payload, payload_len, mask_);
+        maskData(payload, payload_len, mask_);
       }
 
       switch (opcode) {
       case OPCODE_CLOSE:
-	ENVOY_LOG(trace, "websocket decoder: CLOSE received");
-	end_stream_ = true;
-	break;
+        ENVOY_LOG(trace, "websocket decoder: CLOSE received");
+        end_stream_ = true;
+        break;
       case OPCODE_PING: {
-	ENVOY_LOG(trace, "websocket decoder: PING received");
-	// Reply with a PONG with the same payload
-	parent_.pong(payload, payload_len);
-	break;
+        ENVOY_LOG(trace, "websocket decoder: PING received");
+        // Reply with a PONG with the same payload
+        parent_.pong(payload, payload_len);
+        break;
       }
       case OPCODE_PONG:
-	ENVOY_LOG(trace, "websocket decoder: PONG received");
-	break;
+        ENVOY_LOG(trace, "websocket decoder: PONG received");
+        break;
       }
       // Drain control plane payload
       buffer_.drain(payload_len);
     } else {
       // Unframe and forward all non-control frames
       ENVOY_LOG(trace, "websocket decoder: received websocket data: header {} bytes, data {} bytes",
-		frame_offset, payload_len);
+                frame_offset, payload_len);
 
       buffer_.drain(frame_offset);
       payload_remaining_ = payload_len;
@@ -922,6 +905,6 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
   }
 }
 
-}  // namespace WebSocket
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace WebSocket
+} // namespace Cilium
+} // namespace Envoy

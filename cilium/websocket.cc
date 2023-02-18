@@ -1,12 +1,10 @@
 #include "cilium/websocket.h"
-#include "cilium/websocket_protocol.h"
-
-#include <string>
 
 #include <http_parser.h>
 
-#include "cilium/api/websocket.pb.validate.h"
-#include "cilium/socket_option.h"
+#include <string>
+
+#include "envoy/registry/registry.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/assert.h"
@@ -20,7 +18,10 @@
 #include "source/common/http/utility.h"
 #include "source/common/network/filter_manager_impl.h"
 #include "source/common/network/utility.h"
-#include "envoy/registry/registry.h"
+
+#include "cilium/api/websocket.pb.validate.h"
+#include "cilium/socket_option.h"
+#include "cilium/websocket_protocol.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -50,19 +51,19 @@ Http::RegisterCustomInlineHeader<Http::CustomInlineHeaderRegistry::Type::Respons
  * Config registration for the WebSocket server filter. @see
  * NamedNetworkFilterConfigFactory.
  */
-class CiliumWebSocketServerConfigFactory : public Server::Configuration::NamedNetworkFilterConfigFactory {
- public:
+class CiliumWebSocketServerConfigFactory
+    : public Server::Configuration::NamedNetworkFilterConfigFactory {
+public:
   // NamedNetworkFilterConfigFactory
-  Network::FilterFactoryCb createFilterFactoryFromProto(
-      const Protobuf::Message& proto_config,
-      Server::Configuration::FactoryContext& context) override {
+  Network::FilterFactoryCb
+  createFilterFactoryFromProto(const Protobuf::Message& proto_config,
+                               Server::Configuration::FactoryContext& context) override {
     auto config = std::make_shared<Cilium::WebSocket::Config>(
         MessageUtil::downcastAndValidate<const ::cilium::WebSocketServer&>(
             proto_config, context.messageValidationVisitor()),
         context);
     return [config](Network::FilterManager& filter_manager) mutable -> void {
-      filter_manager.addFilter(
-          std::make_shared<Cilium::WebSocket::Instance>(config));
+      filter_manager.addFilter(std::make_shared<Cilium::WebSocket::Instance>(config));
     };
   }
 
@@ -77,26 +78,25 @@ class CiliumWebSocketServerConfigFactory : public Server::Configuration::NamedNe
  * Static registration for the websocket server network filter. @see RegisterFactory.
  */
 REGISTER_FACTORY(CiliumWebSocketServerConfigFactory,
-		 Server::Configuration::NamedNetworkFilterConfigFactory);
-
+                 Server::Configuration::NamedNetworkFilterConfigFactory);
 
 /**
  * Config registration for the WebSocket client filter. @see
  * NamedNetworkFilterConfigFactory.
  */
-class CiliumWebSocketClientConfigFactory : public Server::Configuration::NamedNetworkFilterConfigFactory {
- public:
+class CiliumWebSocketClientConfigFactory
+    : public Server::Configuration::NamedNetworkFilterConfigFactory {
+public:
   // NamedNetworkFilterConfigFactory
-  Network::FilterFactoryCb createFilterFactoryFromProto(
-      const Protobuf::Message& proto_config,
-      Server::Configuration::FactoryContext& context) override {
+  Network::FilterFactoryCb
+  createFilterFactoryFromProto(const Protobuf::Message& proto_config,
+                               Server::Configuration::FactoryContext& context) override {
     auto config = std::make_shared<Cilium::WebSocket::Config>(
         MessageUtil::downcastAndValidate<const ::cilium::WebSocketClient&>(
             proto_config, context.messageValidationVisitor()),
         context);
     return [config](Network::FilterManager& filter_manager) mutable -> void {
-      filter_manager.addFilter(
-          std::make_shared<Cilium::WebSocket::Instance>(config));
+      filter_manager.addFilter(std::make_shared<Cilium::WebSocket::Instance>(config));
     };
   }
 
@@ -111,7 +111,7 @@ class CiliumWebSocketClientConfigFactory : public Server::Configuration::NamedNe
  * Static registration for the websocket client network filter. @see RegisterFactory.
  */
 REGISTER_FACTORY(CiliumWebSocketClientConfigFactory,
-		 Server::Configuration::NamedNetworkFilterConfigFactory);
+                 Server::Configuration::NamedNetworkFilterConfigFactory);
 
 Network::FilterStatus Instance::onNewConnection() {
   ENVOY_LOG(debug, "cilium.network.websocket: onNewConnection");
@@ -128,7 +128,7 @@ Network::FilterStatus Instance::onNewConnection() {
   }
 
   const Network::Address::InstanceConstSharedPtr& dst_address =
-    conn.connectionInfoProvider().localAddress();
+      conn.connectionInfoProvider().localAddress();
   const Network::Address::Ip* dip = dst_address ? dst_address->ip() : nullptr;
   const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
   const auto option = Cilium::GetSocketOption(socketOptions);
@@ -146,8 +146,8 @@ Network::FilterStatus Instance::onNewConnection() {
   }
   // Initialize the log entry
   log_entry_.InitFromConnection(pod_ip, is_ingress, identity,
-				callbacks_->connection().connectionInfoProvider().remoteAddress(),
-				destination_identity, dst_address, &config_->time_source_);
+                                callbacks_->connection().connectionInfoProvider().remoteAddress(),
+                                destination_identity, dst_address, &config_->time_source_);
 
   codec_ = std::make_unique<Codec>(this, conn);
 
@@ -158,17 +158,16 @@ Network::FilterStatus Instance::onNewConnection() {
 
   // Handshake cannot be injected while in this (onNewConnection()) callbask, schedule it to be run
   // afterwards, but during the current dispatcher iteration.
-  client_handshake_cb_ = conn.dispatcher().createSchedulableCallback([this]() {
-    codec_->handshake();
-  });
+  client_handshake_cb_ =
+      conn.dispatcher().createSchedulableCallback([this]() { codec_->handshake(); });
   client_handshake_cb_->scheduleCallbackCurrentIteration();
 
   return Network::FilterStatus::Continue;
 }
 
 Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(debug, "cilium.network.websocket: onData {} bytes, end_stream: {}",
-	    data.length(), end_stream);
+  ENVOY_LOG(debug, "cilium.network.websocket: onData {} bytes, end_stream: {}", data.length(),
+            end_stream);
   if (codec_) {
     if (config_->client_) {
       codec_->encode(data, end_stream);
@@ -181,8 +180,8 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
 }
 
 Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(trace, "cilium.network.websocket: onWrite {} bytes, end_stream: {}",
-	    data.length(), end_stream);
+  ENVOY_LOG(trace, "cilium.network.websocket: onWrite {} bytes, end_stream: {}", data.length(),
+            end_stream);
   if (codec_) {
     if (config_->client_) {
       codec_->decode(data, end_stream);
@@ -222,10 +221,11 @@ void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
     auto override_header = headers.getInline(original_dst_host_handle.handle());
     if (override_header != nullptr && !override_header->value().empty()) {
       const std::string request_override_host(override_header->value().getStringView());
-      orig_dst_address = Network::Utility::parseInternetAddressAndPortNoThrow(request_override_host, false);
+      orig_dst_address =
+          Network::Utility::parseInternetAddressAndPortNoThrow(request_override_host, false);
       const Network::Address::Ip* dip = orig_dst_address ? orig_dst_address->ip() : nullptr;
       if (dip) {
-	destination_identity = option->resolvePolicyId(dip);
+        destination_identity = option->resolvePolicyId(dip);
       }
     }
   }
@@ -234,6 +234,6 @@ void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
   log_entry_.UpdateFromRequest(destination_identity, orig_dst_address, headers);
 }
 
-}  // namespace WebSocket
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace WebSocket
+} // namespace Cilium
+} // namespace Envoy

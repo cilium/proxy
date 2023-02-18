@@ -5,5 +5,7 @@ option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
 package cilium;
 
 // Empty configuration messages for Cilium TLS wrapper to make Envoy happy
-message UpstreamTlsWrapperContext {}
-message DownstreamTlsWrapperContext {}
+message UpstreamTlsWrapperContext {
+}
+message DownstreamTlsWrapperContext {
+}

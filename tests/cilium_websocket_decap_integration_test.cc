@@ -1,10 +1,10 @@
-#include "tests/cilium_http_integration.h"
-
 #include "source/common/config/decoded_resource_impl.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/thread_local/thread_local_impl.h"
-#include "tests/bpf_metadata.h"  // policy_config
+
+#include "tests/bpf_metadata.h" // policy_config
+#include "tests/cilium_http_integration.h"
 
 using namespace std::literals;
 
@@ -66,12 +66,10 @@ static_resources:
 )EOF";
 
 class CiliumWebSocketIntegrationTest : public CiliumHttpIntegrationTest {
- public:
+public:
   CiliumWebSocketIntegrationTest()
-      : CiliumHttpIntegrationTest(
-            fmt::format(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt,
-                                                    GetParam()),
-                        "false")) {
+      : CiliumHttpIntegrationTest(fmt::format(
+            TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam()), "false")) {
     host_map_config = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -98,7 +96,8 @@ resources:
   - port: {0}
     rules:
     - remote_policies: [ 1 ]
-)EOF", GetParam());
+)EOF",
+                                       GetParam());
   }
 
   void Denied(Http::TestRequestHeaderMapImpl&& headers) {
@@ -112,9 +111,8 @@ resources:
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumWebSocketIntegrationTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumWebSocketIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumWebSocketIntegrationTest, DeniedNonWebSocket) {
   initialize();
@@ -124,23 +122,21 @@ TEST_P(CiliumWebSocketIntegrationTest, DeniedNonWebSocket) {
 TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   initialize();
   auto request_headers = Http::TestRequestHeaderMapImpl{
-    {":method", "GET"},
-    {":path", "/"},
-    {":authority", "host"},
-    {"Upgrade", "websocket"},
-    {"Connection", "Upgrade"},
-    {"Origin", "jarno.cilium.rocks"},
-    {"Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ=="},
-    {"Sec-WebSocket-Version", "13"},
-    {"x-request-id", "000000ff-0000-0000-0000-000000000001"},
-    {"x-envoy-original-dst-host", original_dst_address->asString()}
-  };
+      {":method", "GET"},
+      {":path", "/"},
+      {":authority", "host"},
+      {"Upgrade", "websocket"},
+      {"Connection", "Upgrade"},
+      {"Origin", "jarno.cilium.rocks"},
+      {"Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ=="},
+      {"Sec-WebSocket-Version", "13"},
+      {"x-request-id", "000000ff-0000-0000-0000-000000000001"},
+      {"x-envoy-original-dst-host", original_dst_address->asString()}};
   codec_client_ = makeHttpConnection(lookupPort("http"));
 
   IntegrationStreamDecoderPtr response = codec_client_->makeHeaderOnlyRequest(request_headers);
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
   // Wait for the response to be read by the codec client.
   response->waitForHeaders();
   EXPECT_EQ("101", response->headers().getStatusValue());
@@ -148,7 +144,8 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   auto clientConn = codec_client_->connection();
 
   // Create websocket framed data & write it on the client connection
-  Buffer::OwnedImpl buf{"\x82\x5" "hello"};
+  Buffer::OwnedImpl buf{"\x82\x5"
+                        "hello"};
   clientConn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -163,12 +160,18 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   response->waitForBodyData(7);
   absl::string_view resp = response->body();
-  ASSERT_EQ(resp.substr(0, 7), "\x82\x5" "world");
+  ASSERT_EQ(resp.substr(0, 7), "\x82\x5"
+                               "world");
   response->clearBody();
 
   // Send multiple frames back-to-back
   ASSERT_EQ(buf.length(), 0);
-  buf.add("\x82\x6" "hello2" "\x82\x7" "hello21" "\x82\x3" "foo");
+  buf.add("\x82\x6"
+          "hello2"
+          "\x82\x7"
+          "hello21"
+          "\x82\x3"
+          "foo");
   clientConn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -181,14 +184,17 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   response->waitForBodyData(5);
   resp = response->body();
-  ASSERT_EQ(resp.substr(0, 5), "\x82\x3" "bar");
+  ASSERT_EQ(resp.substr(0, 5), "\x82\x3"
+                               "bar");
   response->clearBody();
 
   // Bigger size formats & multiple responses.
   // Officially optimal length formats must be used, but our implementation
   // accepts larger formats with less data, which makes testing easier.
   ASSERT_EQ(buf.length(), 0);
-  absl::string_view frame16{"\x82\x7e\0\x5" "len16", 9};
+  absl::string_view frame16{"\x82\x7e\0\x5"
+                            "len16",
+                            9};
   buf.add(frame16);
   clientConn->write(buf, false);
   // Run the dispatcher so that the write event is handled
@@ -203,15 +209,19 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   ASSERT_TRUE(fake_upstream_connection->write("bar"));
   response->waitForBodyData(10);
   resp = response->body();
-  ASSERT_EQ(resp.substr(0, 5), "\x82\x3" "foo");
-  ASSERT_EQ(resp.substr(5, 5), "\x82\x3" "bar");
+  ASSERT_EQ(resp.substr(0, 5), "\x82\x3"
+                               "foo");
+  ASSERT_EQ(resp.substr(5, 5), "\x82\x3"
+                               "bar");
   response->clearBody();
 
   // 64-bit size format
   // Officially optimal length formats must be used, but our implementation
   // accepts larger formats with less data, which makes testing easier.
   ASSERT_EQ(buf.length(), 0);
-  absl::string_view frame64{"\x82\x7f\0\0\0\0\0\0\0\x5" "len64", 15};
+  absl::string_view frame64{"\x82\x7f\0\0\0\0\0\0\0\x5"
+                            "len64",
+                            15};
   buf.add(frame64);
   clientConn->write(buf, false);
   // Run the dispatcher so that the write event is handled
@@ -224,12 +234,16 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
   response->waitForBodyData(7);
   resp = response->body();
-  ASSERT_EQ(resp.substr(0, 7), "\x82\x5" "hello");
+  ASSERT_EQ(resp.substr(0, 7), "\x82\x5"
+                               "hello");
   response->clearBody();
 
   // Gaps within a frame
   ASSERT_EQ(buf.length(), 0);
-  buf.add("\x82\x5" "hello" "\x82\xe" "gap ");
+  buf.add("\x82\x5"
+          "hello"
+          "\x82\xe"
+          "gap ");
   clientConn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -241,7 +255,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   ASSERT_TRUE(fake_upstream_connection->write("bar42"));
 
   ASSERT_EQ(buf.length(), 0);
-  buf.add("in between" "\x82\x3" "foo");
+  buf.add("in between"
+          "\x82\x3"
+          "foo");
   clientConn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -252,15 +268,16 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   response->waitForBodyData(7);
   resp = response->body();
-  ASSERT_EQ(resp.substr(0, 7), "\x82\x5" "bar42");
+  ASSERT_EQ(resp.substr(0, 7), "\x82\x5"
+                               "bar42");
   response->clearBody();
 
   // Masked frames
   ASSERT_EQ(buf.length(), 0);
   auto msg = "heello there\r\n"s;
-  unsigned char mask[4] = { 0x12, 0x34, 0x56, 0x78 };
+  unsigned char mask[4] = {0x12, 0x34, 0x56, 0x78};
   auto masked = msg;
-  for (size_t i=0; i < msg.length(); i++) {
+  for (size_t i = 0; i < msg.length(); i++) {
     masked[i] = msg[i] ^ mask[i % 4];
   }
   buf.add("\x82\x8e");
@@ -279,15 +296,16 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   response->waitForBodyData(16);
   ASSERT_EQ(response->body().length(), 16);
   resp = response->body();
-  ASSERT_EQ(resp.substr(0, 16), "\x82\xe" "heello there\r\n");
+  ASSERT_EQ(resp.substr(0, 16), "\x82\xe"
+                                "heello there\r\n");
   response->clearBody();
-  
+
   // 2nd masked frame
   ASSERT_EQ(buf.length(), 0);
   auto msg2 = "hello there\r\n"s;
-  unsigned char mask2[4] = { 0x90, 0xab, 0xcd, 0xef };
+  unsigned char mask2[4] = {0x90, 0xab, 0xcd, 0xef};
   auto masked2 = msg2;
-  for (size_t i=0; i < msg2.length(); i++) {
+  for (size_t i = 0; i < msg2.length(); i++) {
     masked2[i] = msg2[i] ^ mask2[i % 4];
   }
   // Write frame header
@@ -322,9 +340,10 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   response->waitForBodyData(15);
   resp = response->body();
 
-  ASSERT_EQ(resp.substr(0, 15), "\x82\xd" "hello there\r\n");
+  ASSERT_EQ(resp.substr(0, 15), "\x82\xd"
+                                "hello there\r\n");
   response->clearBody();
-  
+
   // Close
   ASSERT_TRUE(fake_upstream_connection->close());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
@@ -337,4 +356,4 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   cleanupUpstreamAndDownstream();
 }
 
-}  // namespace Envoy
+} // namespace Envoy

@@ -1,6 +1,8 @@
 #include "source/extensions/transport_sockets/tls/context_config_impl.h"
 #include "source/extensions/transport_sockets/tls/ssl_socket.h"
+
 #include "test/integration/ssl_utility.h"
+
 #include "tests/cilium_tcp_integration.h"
 #include "tests/cilium_tls_integration.h"
 
@@ -70,9 +72,8 @@ static_resources:
 )EOF";
 
 class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
- public:
-  CiliumTLSIntegrationTest(const std::string& config)
-      : CiliumTcpIntegrationTest(config) {
+public:
+  CiliumTLSIntegrationTest(const std::string& config) : CiliumTcpIntegrationTest(config) {
 #if 0
     for (Logger::Logger& logger : Logger::Registry::loggers()) {
       logger.setLevel(spdlog::level::trace);
@@ -91,10 +92,10 @@ class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
       auto config = upstreamConfig();
       config.upstream_protocol_ = FakeHttpConnection::Type::HTTP1;
       config.enable_half_close_ = true;
-      fake_upstreams_.emplace_back(new FakeUpstream(createUpstreamSslContext(), 0, version_, config));
+      fake_upstreams_.emplace_back(
+          new FakeUpstream(createUpstreamSslContext(), 0, version_, config));
     } else {
-      CiliumTcpIntegrationTest::
-          createUpstreams();  // maybe BaseIntegrationTest::createUpstreams()
+      CiliumTcpIntegrationTest::createUpstreams(); // maybe BaseIntegrationTest::createUpstreams()
     }
   }
 
@@ -103,26 +104,20 @@ class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
   // TODO(mattklein123): This logic is duplicated in various places. Cleanup in
   // a follow up.
   Network::TransportSocketFactoryPtr createUpstreamSslContext() {
-    envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext
-        tls_context;
+    envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext tls_context;
     auto* common_tls_context = tls_context.mutable_common_tls_context();
     auto* tls_cert = common_tls_context->add_tls_certificates();
-    tls_cert->mutable_certificate_chain()->set_filename(
-        TestEnvironment::runfilesPath(fmt::format(
-            "test/config/integration/certs/{}cert.pem", upstream_cert_name_)));
-    tls_cert->mutable_private_key()->set_filename(
-        TestEnvironment::runfilesPath(fmt::format(
-            "test/config/integration/certs/{}key.pem", upstream_cert_name_)));
+    tls_cert->mutable_certificate_chain()->set_filename(TestEnvironment::runfilesPath(
+        fmt::format("test/config/integration/certs/{}cert.pem", upstream_cert_name_)));
+    tls_cert->mutable_private_key()->set_filename(TestEnvironment::runfilesPath(
+        fmt::format("test/config/integration/certs/{}key.pem", upstream_cert_name_)));
 
-    auto cfg = std::make_unique<
-        Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
+    auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
         tls_context, factory_context_);
 
     static Stats::Scope* upstream_stats_store = new Stats::IsolatedStoreImpl();
-    return std::make_unique<
-        Extensions::TransportSockets::Tls::ServerSslSocketFactory>(
-        std::move(cfg), context_manager_, *upstream_stats_store,
-        std::vector<std::string>{});
+    return std::make_unique<Extensions::TransportSockets::Tls::ServerSslSocketFactory>(
+        std::move(cfg), context_manager_, *upstream_stats_store, std::vector<std::string>{});
   }
 
   void setupConnections() {
@@ -135,27 +130,23 @@ class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
 
     EXPECT_CALL(*mock_buffer_factory_, createBuffer_(_, _, _))
         .Times(AtLeast(1))
-        .WillOnce(Invoke(
-            [&](std::function<void()> below_low,
-                std::function<void()> above_high,
-                std::function<void()> above_overflow) -> Buffer::Instance* {
-              client_write_buffer_ = new NiceMock<MockWatermarkBuffer>(
-                  below_low, above_high, above_overflow);
-              ON_CALL(*client_write_buffer_, move(_))
-                  .WillByDefault(Invoke(client_write_buffer_,
-                                        &MockWatermarkBuffer::baseMove));
-              ON_CALL(*client_write_buffer_, drain(_))
-                  .WillByDefault(Invoke(client_write_buffer_,
-                                        &MockWatermarkBuffer::trackDrains));
-              return client_write_buffer_;
-            }));
+        .WillOnce(Invoke([&](std::function<void()> below_low, std::function<void()> above_high,
+                             std::function<void()> above_overflow) -> Buffer::Instance* {
+          client_write_buffer_ =
+              new NiceMock<MockWatermarkBuffer>(below_low, above_high, above_overflow);
+          ON_CALL(*client_write_buffer_, move(_))
+              .WillByDefault(Invoke(client_write_buffer_, &MockWatermarkBuffer::baseMove));
+          ON_CALL(*client_write_buffer_, drain(_))
+              .WillByDefault(Invoke(client_write_buffer_, &MockWatermarkBuffer::trackDrains));
+          return client_write_buffer_;
+        }));
     // Set up the SSL client.
     Network::Address::InstanceConstSharedPtr address =
         Ssl::getSslAddress(version_, lookupPort("tcp_proxy"));
     context_ = createClientSslTransportSocketFactory(context_manager_, *api_);
-    ssl_client_ = dispatcher_->createClientConnection(
-        address, Network::Address::InstanceConstSharedPtr(),
-        context_->createTransportSocket(nullptr), nullptr);
+    ssl_client_ =
+        dispatcher_->createClientConnection(address, Network::Address::InstanceConstSharedPtr(),
+                                            context_->createTransportSocket(nullptr), nullptr);
 
     // Perform the SSL handshake. Loopback is whitelisted in tcp_proxy.json for
     // the ssl_auth filter so there will be no pause waiting on auth data.
@@ -173,21 +164,18 @@ class CiliumTLSIntegrationTest : public CiliumTcpIntegrationTest {
   void sendAndReceiveTlsData(const std::string& data_to_send_upstream,
                              const std::string& data_to_send_downstream) {
     FakeRawConnectionPtr fake_upstream_connection;
-    AssertionResult result =
-        fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection);
+    AssertionResult result = fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection);
     RELEASE_ASSERT(result, result.message());
 
     // Ship some data upstream.
     Buffer::OwnedImpl buffer(data_to_send_upstream);
     ssl_client_->write(buffer, false);
-    while (client_write_buffer_->bytesDrained() !=
-           data_to_send_upstream.size()) {
+    while (client_write_buffer_->bytesDrained() != data_to_send_upstream.size()) {
       dispatcher_->run(Event::Dispatcher::RunType::NonBlock);
     }
 
     // Make sure the data makes it upstream.
-    ASSERT_TRUE(
-        fake_upstream_connection->waitForData(data_to_send_upstream.size()));
+    ASSERT_TRUE(fake_upstream_connection->waitForData(data_to_send_upstream.size()));
 
     // Now send data downstream and make sure it arrives.
     ASSERT_TRUE(fake_upstream_connection->write(data_to_send_downstream));
@@ -245,32 +233,27 @@ resources:
 )EOF";
 
 class CiliumTLSProxyIntegrationTest : public CiliumTLSIntegrationTest {
- public:
+public:
   CiliumTLSProxyIntegrationTest()
-      : CiliumTLSIntegrationTest(
-            fmt::format(TestEnvironment::substitute(
-                            cilium_tls_tcp_proxy_config_fmt, GetParam()),
-                        "true")) {}
+      : CiliumTLSIntegrationTest(fmt::format(
+            TestEnvironment::substitute(cilium_tls_tcp_proxy_config_fmt, GetParam()), "true")) {}
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(TCP_POLICY_UPSTREAM_TLS_fmt, GetParam());
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumTLSProxyIntegrationTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
-    TestUtility::ipTestParamsToString);
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumTLSProxyIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                         TestUtility::ipTestParamsToString);
 
 // Test upstream writing before downstream does.
 TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamWritesFirst) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
 
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
   tcp_client->waitForData("hello");
@@ -289,13 +272,11 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamWritesFirst) {
 // when there is an upstream disconnect.
 TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamDisconnect) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   ASSERT_TRUE(tcp_client->write("hello"));
 
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
   ASSERT_TRUE(fake_upstream_connection->write("world"));
@@ -311,13 +292,11 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamDisconnect) {
 // when the client disconnects.
 TEST_P(CiliumTLSProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   ASSERT_TRUE(tcp_client->write("hello"));
 
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
   ASSERT_TRUE(fake_upstream_connection->write("world"));
@@ -335,13 +314,11 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyLargeWrite) {
   initialize();
 
   std::string data(1024 * 16, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   ASSERT_TRUE(tcp_client->write(data));
 
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(data.size()));
   ASSERT_TRUE(fake_upstream_connection->write(data));
@@ -352,27 +329,17 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyLargeWrite) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   uint32_t upstream_pauses =
-      test_server_
-          ->counter(
-              "cluster.tls-cluster.upstream_flow_control_paused_reading_total")
+      test_server_->counter("cluster.tls-cluster.upstream_flow_control_paused_reading_total")
           ->value();
   uint32_t upstream_resumes =
-      test_server_
-          ->counter(
-              "cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
+      test_server_->counter("cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
           ->value();
   EXPECT_EQ(upstream_pauses, upstream_resumes);
 
   uint32_t downstream_pauses =
-      test_server_
-          ->counter(
-              "tcp.tcp_stats.downstream_flow_control_paused_reading_total")
-          ->value();
+      test_server_->counter("tcp.tcp_stats.downstream_flow_control_paused_reading_total")->value();
   uint32_t downstream_resumes =
-      test_server_
-          ->counter(
-              "tcp.tcp_stats.downstream_flow_control_resumed_reading_total")
-          ->value();
+      test_server_->counter("tcp.tcp_stats.downstream_flow_control_resumed_reading_total")->value();
   EXPECT_EQ(downstream_pauses, downstream_resumes);
 }
 
@@ -385,12 +352,10 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyDownstreamFlush) {
   initialize();
 
   std::string data(size, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
 
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   tcp_client->readDisable(true);
   ASSERT_TRUE(tcp_client->write("", true));
@@ -401,28 +366,21 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyDownstreamFlush) {
 
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
 
-  test_server_->waitForCounterGe(
-      "cluster.tls-cluster.upstream_flow_control_paused_reading_total", 1);
-  EXPECT_EQ(
-      test_server_
-          ->counter(
-              "cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
-          ->value(),
-      0);
+  test_server_->waitForCounterGe("cluster.tls-cluster.upstream_flow_control_paused_reading_total",
+                                 1);
+  EXPECT_EQ(test_server_->counter("cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
+                ->value(),
+            0);
   tcp_client->readDisable(false);
   tcp_client->waitForData(data);
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
 
   uint32_t upstream_pauses =
-      test_server_
-          ->counter(
-              "cluster.tls-cluster.upstream_flow_control_paused_reading_total")
+      test_server_->counter("cluster.tls-cluster.upstream_flow_control_paused_reading_total")
           ->value();
   uint32_t upstream_resumes =
-      test_server_
-          ->counter(
-              "cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
+      test_server_->counter("cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
           ->value();
   EXPECT_GE(upstream_pauses, upstream_resumes);
   EXPECT_GT(upstream_resumes, 0);
@@ -437,12 +395,10 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlush) {
   initialize();
 
   std::string data(size, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
 
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   // Disabling read does not let the TLS handshake to finish. We should be able
   // to wait for ConnectionEvent::Connected, which is raised after the TLS
@@ -460,15 +416,14 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlush) {
 
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
   ASSERT_TRUE(fake_upstream_connection->readDisable(false));
-  ASSERT_TRUE(fake_upstream_connection->waitForData(
-      data.size(), nullptr, 3 * TestUtility::DefaultTimeout));
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(data.size(), nullptr, 3 * TestUtility::DefaultTimeout));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   tcp_client->waitForHalfClose();
 
-  EXPECT_EQ(
-      test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
+  EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
 }
 
@@ -482,12 +437,10 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlushEnvoyExit) {
   initialize();
 
   std::string data(size, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
 
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   // Disabling read does not let the TLS handshake to finish. We should be able
   // to wait for ConnectionEvent::Connected, which is raised after the TLS
@@ -589,11 +542,10 @@ static_resources:
 )EOF";
 
 class CiliumDownstreamTLSIntegrationTest : public CiliumTLSIntegrationTest {
- public:
+public:
   CiliumDownstreamTLSIntegrationTest()
       : CiliumTLSIntegrationTest(fmt::format(
-            TestEnvironment::substitute(
-                cilium_tls_downstream_tcp_proxy_config_fmt, GetParam()),
+            TestEnvironment::substitute(cilium_tls_downstream_tcp_proxy_config_fmt, GetParam()),
             "true")) {}
 
   std::string testPolicyFmt() override {
@@ -601,10 +553,9 @@ class CiliumDownstreamTLSIntegrationTest : public CiliumTLSIntegrationTest {
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumDownstreamTLSIntegrationTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
-    TestUtility::ipTestParamsToString);
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumDownstreamTLSIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                         TestUtility::ipTestParamsToString);
 
 TEST_P(CiliumDownstreamTLSIntegrationTest, SendTlsToTlsListener) {
   setupConnections();
@@ -622,8 +573,7 @@ TEST_P(CiliumDownstreamTLSIntegrationTest, DownstreamHalfClose) {
   setupConnections();
 
   FakeRawConnectionPtr fake_upstream_connection;
-  AssertionResult result =
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection);
+  AssertionResult result = fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection);
   RELEASE_ASSERT(result, result.message());
 
   Buffer::OwnedImpl empty_buffer;
@@ -649,8 +599,7 @@ TEST_P(CiliumDownstreamTLSIntegrationTest, UpstreamHalfClose) {
   setupConnections();
 
   FakeRawConnectionPtr fake_upstream_connection;
-  AssertionResult result =
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection);
+  AssertionResult result = fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection);
   RELEASE_ASSERT(result, result.message());
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -675,5 +624,5 @@ TEST_P(CiliumDownstreamTLSIntegrationTest, UpstreamHalfClose) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

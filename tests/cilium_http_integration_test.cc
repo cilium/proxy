@@ -1,10 +1,10 @@
-#include "tests/cilium_http_integration.h"
-
 #include "source/common/config/decoded_resource_impl.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/thread_local/thread_local_impl.h"
-#include "tests/bpf_metadata.h"  // policy_config
+
+#include "tests/bpf_metadata.h" // policy_config
+#include "tests/cilium_http_integration.h"
 
 namespace Envoy {
 
@@ -248,13 +248,12 @@ static_resources:
 )EOF";
 
 class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
- public:
+public:
   CiliumIntegrationTest()
-      : CiliumHttpIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()),
-            "true")) {}
-  CiliumIntegrationTest(const std::string& config)
-      : CiliumHttpIntegrationTest(config) {}
+      : CiliumHttpIntegrationTest(
+            fmt::format(TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()), "true")) {
+  }
+  CiliumIntegrationTest(const std::string& config) : CiliumHttpIntegrationTest(config) {}
 
   std::string testPolicyFmt() {
     return TestEnvironment::substitute(HEADER_ACTION_POLICY_fmt, GetParam());
@@ -274,8 +273,7 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
   void Accepted(Http::TestRequestHeaderMapImpl&& headers) {
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
-    auto response =
-        sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
+    auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
 
     EXPECT_TRUE(response->complete());
     EXPECT_EQ("200", response->headers().getStatusValue());
@@ -285,28 +283,25 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
   }
 
   void InvalidHostMap(const std::string& config, const char* exmsg) {
-    std::string path =
-        TestEnvironment::writeStringToFileForTest("host_map_fail.yaml", config);
+    std::string path = TestEnvironment::writeStringToFileForTest("host_map_fail.yaml", config);
     envoy::service::discovery::v3::DiscoveryResponse message;
     ThreadLocal::InstanceImpl tls;
 
-    MessageUtil::loadFromFile(path, message,
-                              ProtobufMessage::getNullValidationVisitor(),
+    MessageUtil::loadFromFile(path, message, ProtobufMessage::getNullValidationVisitor(),
                               *api_.get());
     Envoy::Cilium::PolicyHostMap hmap(tls);
-    const auto decoded_resources = Envoy::Config::DecodedResourcesWrapper(
-        hmap, message.resources(), message.version_info());
+    const auto decoded_resources =
+        Envoy::Config::DecodedResourcesWrapper(hmap, message.resources(), message.version_info());
 
     EXPECT_THROW_WITH_MESSAGE(
-        hmap.onConfigUpdate(decoded_resources.refvec_, message.version_info()),
-        EnvoyException, exmsg);
+        hmap.onConfigUpdate(decoded_resources.refvec_, message.version_info()), EnvoyException,
+        exmsg);
     tls.shutdownGlobalThreading();
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumIntegrationTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumIntegrationTest, HostMapValid) {
   std::string config = R"EOF(version_info: "0"
@@ -325,45 +320,33 @@ resources:
   host_addresses: [ "0.0.0.0/0", "::/0" ]
 )EOF";
 
-  std::string path = TestEnvironment::writeStringToFileForTest(
-      "host_map_success.yaml", config);
+  std::string path = TestEnvironment::writeStringToFileForTest("host_map_success.yaml", config);
   envoy::service::discovery::v3::DiscoveryResponse message;
   ThreadLocal::InstanceImpl tls;
 
-  MessageUtil::loadFromFile(
-      path, message, ProtobufMessage::getNullValidationVisitor(), *api_.get());
+  MessageUtil::loadFromFile(path, message, ProtobufMessage::getNullValidationVisitor(),
+                            *api_.get());
   auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(tls);
-  const auto decoded_resources = Envoy::Config::DecodedResourcesWrapper(
-      *hmap, message.resources(), message.version_info());
+  const auto decoded_resources =
+      Envoy::Config::DecodedResourcesWrapper(*hmap, message.resources(), message.version_info());
 
-  VERBOSE_EXPECT_NO_THROW(
-      hmap->onConfigUpdate(decoded_resources.refvec_, message.version_info()));
+  VERBOSE_EXPECT_NO_THROW(hmap->onConfigUpdate(decoded_resources.refvec_, message.version_info()));
 
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()),
-            173);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.0").ip()),
-            12);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.2").ip()),
-            12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()), 173);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.0").ip()), 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.2").ip()), 12);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("127.0.0.1").ip()), 1);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("127.0.0.2").ip()),
-            11);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("126.0.0.2").ip()),
-            12);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("128.0.0.0").ip()),
-            12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("127.0.0.2").ip()), 11);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("126.0.0.2").ip()), 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("128.0.0.0").ip()), 12);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("::1").ip()), 1);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("::").ip()), 12);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("f00d::1").ip()), 173);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("f00d::").ip()), 12);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef::1.2.3.4").ip()),
-            11);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::").ip()),
-            11);
-  EXPECT_EQ(
-      hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::42").ip()), 11);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:2::").ip()),
-            12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef::1.2.3.4").ip()), 11);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::").ip()), 11);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::42").ip()), 11);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:2::").ip()), 12);
 
   tls.shutdownGlobalThreading();
 }
@@ -570,10 +553,8 @@ TEST_P(CiliumIntegrationTest, DeniedPathPrefix) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathPrefix) {
-  Accepted({{":method", "GET"},
-            {":path", "/allowed"},
-            {":authority", "host"},
-            {"header1", "value1"}});
+  Accepted(
+      {{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}, {"header1", "value1"}});
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathPrefixStrippedHeader) {
@@ -585,8 +566,7 @@ TEST_P(CiliumIntegrationTest, AllowedPathPrefixStrippedHeader) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathRegex) {
-  Accepted(
-      {{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
+  Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathRegexDeleteHeader) {
@@ -604,21 +584,15 @@ TEST_P(CiliumIntegrationTest, AllowedHostRegexDeleteHeader) {
 }
 
 TEST_P(CiliumIntegrationTest, DeniedPath) {
-  Denied({{":method", "GET"},
-          {":path", "/maybe/private"},
-          {":authority", "host"}});
+  Denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationTest, AllowedHostString) {
-  Accepted({{":method", "GET"},
-            {":path", "/maybe/private"},
-            {":authority", "allowedHOST"}});
+  Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "allowedHOST"}});
 }
 
 TEST_P(CiliumIntegrationTest, AllowedReplaced) {
-  Accepted({{":method", "GET"},
-            {":path", "/allowed"},
-            {":authority", "allowedHOST"}});
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "allowedHOST"}});
 }
 
 TEST_P(CiliumIntegrationTest, Denied42) {
@@ -636,33 +610,24 @@ TEST_P(CiliumIntegrationTest, AllowedReplacedAndDeleted) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedHostRegex) {
-  Accepted({{":method", "GET"},
-            {":path", "/maybe/private"},
-            {":authority", "hostREGEXname"}});
+  Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "hostREGEXname"}});
 }
 
 TEST_P(CiliumIntegrationTest, DeniedMethod) {
-  Denied({{":method", "POST"},
-          {":path", "/maybe/private"},
-          {":authority", "host"}});
+  Denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationTest, AcceptedMethod) {
-  Accepted({{":method", "PUT"},
-            {":path", "/public/opinions"},
-            {":authority", "host"}});
+  Accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationTest, L3DeniedPath) {
-  Denied({{":method", "GET"},
-          {":path", "/only-2-allowed"},
-          {":authority", "host"}});
+  Denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
 }
 
 class CiliumIntegrationPortTest : public CiliumIntegrationTest {
- public:
-  CiliumIntegrationPortTest()
-    : CiliumIntegrationTest() {}
+public:
+  CiliumIntegrationPortTest() : CiliumIntegrationTest() {}
 
   std::string testPolicyFmt() {
     return TestEnvironment::substitute(BASIC_POLICY_fmt + R"EOF(  - port: {0}
@@ -675,13 +640,13 @@ class CiliumIntegrationPortTest : public CiliumIntegrationTest {
             safe_regex_match:
               google_re2: {{}}
               regex: '/only-2-allowed'
-)EOF", GetParam());
+)EOF",
+                                       GetParam());
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumIntegrationPortTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationPortTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumIntegrationPortTest, DuplicatePort) {
   initialize();
@@ -695,17 +660,15 @@ TEST_P(CiliumIntegrationPortTest, DuplicatePort) {
   ASSERT_TRUE(response->waitForEndStream());
 
   uint64_t status;
-  ASSERT_TRUE(absl::SimpleAtoi(
-      response->headers().Status()->value().getStringView(), &status));
+  ASSERT_TRUE(absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status));
   EXPECT_EQ(500, status);
 }
 
 class CiliumIntegrationEgressTest : public CiliumIntegrationTest {
- public:
+public:
   CiliumIntegrationEgressTest()
       : CiliumIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()),
-            "false")) {
+            TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()), "false")) {
     host_map_config = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -718,9 +681,8 @@ resources:
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumIntegrationEgressTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationEgressTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumIntegrationEgressTest, DeniedPathPrefix) {
   Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
@@ -731,46 +693,32 @@ TEST_P(CiliumIntegrationEgressTest, AllowedPathPrefix) {
 }
 
 TEST_P(CiliumIntegrationEgressTest, AllowedPathRegex) {
-  Accepted(
-      {{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
+  Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, DeniedPath) {
-  Denied({{":method", "GET"},
-          {":path", "/maybe/private"},
-          {":authority", "host"}});
+  Denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, AllowedHostString) {
-  Accepted({{":method", "GET"},
-            {":path", "/maybe/private"},
-            {":authority", "allowedHOST"}});
+  Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "allowedHOST"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, AllowedHostRegex) {
-  Accepted({{":method", "GET"},
-            {":path", "/maybe/private"},
-            {":authority", "hostREGEXname"}});
+  Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "hostREGEXname"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, DeniedMethod) {
-  Denied({{":method", "POST"},
-          {":path", "/maybe/private"},
-          {":authority", "host"}});
+  Denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, AcceptedMethod) {
-  Accepted({{":method", "PUT"},
-            {":path", "/public/opinions"},
-            {":authority", "host"}});
+  Accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, L3DeniedPath) {
-  Denied({{":method", "GET"},
-          {":path", "/only-2-allowed"},
-          {":authority", "host"}});
+  Denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
 }
-
 
 const std::string L34_POLICY_fmt = R"EOF(version_info: "0"
 resources:
@@ -785,17 +733,14 @@ resources:
 )EOF";
 
 class CiliumIntegrationEgressL34Test : public CiliumIntegrationEgressTest {
- public:
+public:
   CiliumIntegrationEgressL34Test() {}
 
-  std::string testPolicyFmt() {
-    return TestEnvironment::substitute(L34_POLICY_fmt, GetParam());
-  }
+  std::string testPolicyFmt() { return TestEnvironment::substitute(L34_POLICY_fmt, GetParam()); }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumIntegrationEgressL34Test,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationEgressL34Test,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix) {
   Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
@@ -805,4 +750,4 @@ TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix2) {
   Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 }
 
-}  // namespace Envoy
+} // namespace Envoy

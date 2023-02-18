@@ -10,12 +10,14 @@ register_toolchains("//bazel/toolchains:all")
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
 ENVOY_PROJECT = "envoyproxy"
+
 ENVOY_REPO = "envoy"
 
 # https://github.com/envoyproxy/envoy/tree/v1.22.7
 # NOTE: Update version number to file 'ENVOY_VERSION' to keep test and build docker images
 # for different versions.
 ENVOY_SHA = "9c4467263303640a81a7d0d2ee7da4eed2009369"
+
 ENVOY_SHA256 = "f9c29978f3f104431847133f7fa493c0d422f8be4467789cea2a320f25c3c867"
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
@@ -27,8 +29,8 @@ local_repository(
 
 http_archive(
     name = "envoy",
-    patch_tool = "git",
     patch_args = ["apply"],
+    patch_tool = "git",
     patches = [
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
         "@//patches:0002-upstream-Add-callback-for-upstream-authorization.patch",
