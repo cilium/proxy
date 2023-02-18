@@ -403,7 +403,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlush) {
   // Disabling read does not let the TLS handshake to finish. We should be able
   // to wait for ConnectionEvent::Connected, which is raised after the TLS
   // handshake has completed, but just wait for a while instead for now.
-  usleep(100000);
+  usleep(100000); // NO_CHECK_FORMAT(real_time)
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -445,7 +445,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlushEnvoyExit) {
   // Disabling read does not let the TLS handshake to finish. We should be able
   // to wait for ConnectionEvent::Connected, which is raised after the TLS
   // handshake has completed, but just wait for a while instead for now.
-  usleep(100000);
+  usleep(100000); // NO_CHECK_FORMAT(real_time)
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
