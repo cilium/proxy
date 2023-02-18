@@ -1,5 +1,6 @@
 load(
     "@envoy//bazel:envoy_build_system.bzl",
+    "envoy_package",
     "envoy_proto_library",
 )
 load(
@@ -9,34 +10,31 @@ load(
 
 licenses(["notice"])  # Apache 2
 
+envoy_package()
+
 api_cc_py_proto_library(
     name = "bpf_metadata",
     srcs = ["bpf_metadata.proto"],
-    visibility = ["//visibility:public"],
 )
 
 api_cc_py_proto_library(
     name = "network_filter",
     srcs = ["network_filter.proto"],
-    visibility = ["//visibility:public"],
 )
 
 api_cc_py_proto_library(
     name = "l7policy",
     srcs = ["l7policy.proto"],
-    visibility = ["//visibility:public"],
 )
 
 api_cc_py_proto_library(
     name = "websocket",
     srcs = ["websocket.proto"],
-    visibility = ["//visibility:public"],
 )
 
 api_cc_py_proto_library(
     name = "tls_wrapper",
     srcs = ["tls_wrapper.proto"],
-    visibility = ["//visibility:public"],
 )
 
 envoy_proto_library(
@@ -47,7 +45,6 @@ envoy_proto_library(
 api_cc_py_proto_library(
     name = "npds",
     srcs = ["npds.proto"],
-    visibility = ["//visibility:public"],
     deps = [
         "@envoy_api//envoy/annotations:pkg",
         "@envoy_api//envoy/config/core/v3:pkg",
@@ -60,7 +57,6 @@ api_cc_py_proto_library(
 api_cc_py_proto_library(
     name = "nphds",
     srcs = ["nphds.proto"],
-    visibility = ["//visibility:public"],
     deps = [
         "@envoy_api//envoy/annotations:pkg",
         "@envoy_api//envoy/service/discovery/v3:pkg",

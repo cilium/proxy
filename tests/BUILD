@@ -2,9 +2,12 @@ load(
     "@envoy//bazel:envoy_build_system.bzl",
     "envoy_cc_test",
     "envoy_cc_test_library",
+    "envoy_package",
 )
 
 licenses(["notice"])  # Apache 2
+
+envoy_package()
 
 envoy_cc_test_library(
     name = "accesslog_server_lib",
@@ -28,6 +31,7 @@ envoy_cc_test_library(
         "//cilium:bpf_metadata_lib",
         "//cilium:network_policy_lib",
         "//cilium:socket_option_lib",
+        "@envoy//source/common/config:filesystem_subscription_lib",
         "@envoy//test/test_common:environment_lib",
     ],
 )
@@ -63,6 +67,8 @@ envoy_cc_test_library(
     ],
     repository = "@envoy",
     deps = [
+        "@envoy//source/extensions/filters/listener/tls_inspector:config",
+        "@envoy//source/extensions/filters/network/tcp_proxy:config",
         "@envoy//test/integration:integration_lib",
     ],
 )
@@ -75,6 +81,7 @@ envoy_cc_test_library(
     deps = [
         ":accesslog_server_lib",
         ":bpf_metadata_lib",
+        "@envoy//source/extensions/filters/network/tcp_proxy:config",
         "@envoy//test/integration:integration_lib",
     ],
 )
@@ -168,6 +175,7 @@ envoy_cc_test(
         "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
+        "@envoy//source/extensions/filters/network/tcp_proxy:config",
     ],
 )
 

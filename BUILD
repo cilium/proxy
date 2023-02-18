@@ -1,9 +1,12 @@
 load(
     "@envoy//bazel:envoy_build_system.bzl",
     "envoy_cc_binary",
+    "envoy_package",
 )
 
 licenses(["notice"])  # Apache 2
+
+envoy_package()
 
 exports_files([
     "linux/bpf.h",
@@ -14,7 +17,6 @@ exports_files([
 envoy_cc_binary(
     name = "cilium-envoy",
     repository = "@envoy",
-    visibility = ["//visibility:public"],
     deps = [
         # Cilium filters.
         "//cilium:bpf_metadata_lib",
