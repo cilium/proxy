@@ -1,13 +1,14 @@
 #include "cilium/network_policy.h"
 
 #include <string>
-#include <unordered_set>
 
 #include "source/common/common/matchers.h"
 #include "source/common/config/utility.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h"
 
+#include "absl/container/flat_hash_set.h"
+#include "absl/container/node_hash_map.h"
 #include "cilium/api/npds.pb.validate.h"
 #include "cilium/grpc_subscription.h"
 
@@ -491,7 +492,7 @@ protected:
     Ssl::ClientContextSharedPtr client_context_;
 
     std::string name_;
-    std::unordered_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
+    absl::flat_hash_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
     // Use std::less<> to allow heterogeneous lookups (with string_view).
     std::set<std::string, std::less<>> allowed_snis_; // All SNIs allowed if empty.
     std::vector<HttpNetworkPolicyRule>
@@ -611,7 +612,7 @@ protected:
       return nullptr;
     }
 
-    std::unordered_map<uint32_t, PortNetworkPolicyRules> rules_;
+    absl::node_hash_map<uint32_t, PortNetworkPolicyRules> rules_;
   };
 
 public:
@@ -712,8 +713,8 @@ void NetworkPolicyMap::onConfigUpdate(
   ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", name_,
             resources.size(), version_info);
 
-  std::unordered_set<std::string> keeps;
-  std::unordered_set<std::string> ct_maps_to_keep;
+  absl::flat_hash_set<std::string> keeps;
+  absl::flat_hash_set<std::string> ct_maps_to_keep;
 
   // Collect a shared vector of policies to be added
   auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
@@ -747,7 +748,7 @@ void NetworkPolicyMap::onConfigUpdate(
   // Collect a shared vector of policy names to be removed
   auto to_be_deleted = std::make_shared<std::vector<std::string>>();
   // Collect a shared vector of conntrack maps to close
-  auto cts_to_be_closed = std::make_shared<std::unordered_set<std::string>>();
+  auto cts_to_be_closed = std::make_shared<absl::flat_hash_set<std::string>>();
   const auto& policies = tls_map->policies_;
   for (auto& pair : policies) {
     if (keeps.find(pair.first) == keeps.end()) {

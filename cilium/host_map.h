@@ -150,8 +150,8 @@ public:
     // Vectors of <prefix-len>, <address-map> pairs, ordered in the decreasing
     // prefix length, where map keys are addresses of the given prefix length.
     // Address bits outside of the prefix are zeroes.
-    std::vector<std::pair<unsigned int, std::unordered_map<uint32_t, uint64_t>>> ipv4_to_policy_;
-    std::vector<std::pair<unsigned int, std::unordered_map<absl::uint128, uint64_t>>>
+    std::vector<std::pair<unsigned int, absl::flat_hash_map<uint32_t, uint64_t>>> ipv4_to_policy_;
+    std::vector<std::pair<unsigned int, absl::flat_hash_map<absl::uint128, uint64_t>>>
         ipv6_to_policy_;
   };
   typedef std::shared_ptr<ThreadLocalHostMap> ThreadLocalHostMapSharedPtr;

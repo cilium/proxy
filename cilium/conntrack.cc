@@ -111,7 +111,7 @@ CtMap::CtMaps6::CtMaps6(const std::string& bpf_root, const std::string& map_name
 }
 
 // Must hold mutex!
-std::unordered_map<const std::string, std::unique_ptr<CtMap::CtMaps4>>::iterator
+absl::flat_hash_map<const std::string, std::unique_ptr<CtMap::CtMaps4>>::iterator
 CtMap::openMap4(const std::string& map_name) {
   auto pair = ct_maps4_.emplace(std::make_pair(map_name, nullptr));
   // construct the maps only if the entry was inserted
@@ -130,7 +130,7 @@ CtMap::openMap4(const std::string& map_name) {
 }
 
 // Must hold mutex!
-std::unordered_map<const std::string, std::unique_ptr<CtMap::CtMaps6>>::iterator
+absl::flat_hash_map<const std::string, std::unique_ptr<CtMap::CtMaps6>>::iterator
 CtMap::openMap6(const std::string& map_name) {
   auto pair = ct_maps6_.emplace(std::make_pair(map_name, nullptr));
   // construct the maps only if the entry was inserted
@@ -148,7 +148,7 @@ CtMap::openMap6(const std::string& map_name) {
   return pair.first;
 }
 
-void CtMap::closeMaps(const std::shared_ptr<std::unordered_set<std::string>>& to_be_closed) {
+void CtMap::closeMaps(const std::shared_ptr<absl::flat_hash_set<std::string>>& to_be_closed) {
   std::lock_guard<std::mutex> guard(maps_mutex_);
 
   for (const auto& name : *to_be_closed) {
