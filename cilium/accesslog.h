@@ -3,45 +3,43 @@
 #include <map>
 #include <string>
 
-#include "cilium/api/accesslog.pb.h"
-#include "source/common/common/logger.h"
-#include "source/common/common/thread.h"
 #include "envoy/http/header_map.h"
 #include "envoy/network/connection.h"
 #include "envoy/router/router.h"
 #include "envoy/stream_info/stream_info.h"
 
+#include "source/common/common/logger.h"
+#include "source/common/common/thread.h"
+
+#include "cilium/api/accesslog.pb.h"
+
 namespace Envoy {
 namespace Cilium {
 
 class AccessLog : Logger::Loggable<Logger::Id::router> {
- public:
+public:
   static AccessLog* Open(std::string path);
   void Close();
 
   // wrapper for protobuf
   class Entry {
-   public:
-    void InitFromRequest(const std::string& policy_name, bool ingress,
-			 uint32_t source_identity,
-			 const Network::Address::InstanceConstSharedPtr& source_address,
+  public:
+    void InitFromRequest(const std::string& policy_name, bool ingress, uint32_t source_identity,
+                         const Network::Address::InstanceConstSharedPtr& source_address,
                          uint32_t destination_identity,
                          const Network::Address::InstanceConstSharedPtr& destination_address,
-                         const StreamInfo::StreamInfo&,
-                         const Http::RequestHeaderMap&);
+                         const StreamInfo::StreamInfo&, const Http::RequestHeaderMap&);
     void UpdateFromRequest(uint32_t destination_identity,
-			   const Network::Address::InstanceConstSharedPtr& destination_address,
-			   const Http::RequestHeaderMap&);
+                           const Network::Address::InstanceConstSharedPtr& destination_address,
+                           const Http::RequestHeaderMap&);
     void UpdateFromResponse(const Http::ResponseHeaderMap&, TimeSource&);
 
-    void InitFromConnection(const std::string& policy_name, bool ingress,
-			    uint32_t source_identity,
-			    const Network::Address::InstanceConstSharedPtr& source_address,
+    void InitFromConnection(const std::string& policy_name, bool ingress, uint32_t source_identity,
+                            const Network::Address::InstanceConstSharedPtr& source_address,
                             uint32_t destination_identity,
                             const Network::Address::InstanceConstSharedPtr& destination_address,
                             TimeSource* time_source);
-    bool UpdateFromMetadata(const std::string& l7proto,
-                            const ProtobufWkt::Struct& metadata);
+    bool UpdateFromMetadata(const std::string& l7proto, const ProtobufWkt::Struct& metadata);
 
     ::cilium::LogEntry entry_{};
   };
@@ -49,7 +47,7 @@ class AccessLog : Logger::Loggable<Logger::Id::router> {
 
   ~AccessLog();
 
- private:
+private:
   static Thread::MutexBasicLockable logs_mutex;
   static std::map<std::string, std::unique_ptr<AccessLog>> logs;
 
@@ -67,5 +65,5 @@ class AccessLog : Logger::Loggable<Logger::Id::router> {
 
 typedef std::unique_ptr<AccessLog> AccessLogPtr;
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

@@ -1,8 +1,8 @@
-#include "tests/cilium_tcp_integration.h"
-
 #include "test/integration/integration.h"
 #include "test/integration/utility.h"
 #include "test/test_common/environment.h"
+
+#include "tests/cilium_tcp_integration.h"
 
 namespace Envoy {
 
@@ -63,27 +63,22 @@ static_resources:
 )EOF";
 
 class CiliumTcpProxyIntegrationTest : public CiliumTcpIntegrationTest {
- public:
+public:
   CiliumTcpProxyIntegrationTest()
-      : CiliumTcpIntegrationTest(
-            fmt::format(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt,
-                                                    GetParam()),
-                        "true")) {}
+      : CiliumTcpIntegrationTest(fmt::format(
+            TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam()), "true")) {}
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumTcpProxyIntegrationTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
-    TestUtility::ipTestParamsToString);
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumTcpProxyIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                         TestUtility::ipTestParamsToString);
 
 // Test upstream writing before downstream downstream does.
 TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamWritesFirst) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
   tcp_client->waitForData("hello");
@@ -102,12 +97,10 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamWritesFirst) {
 // when there is an upstream disconnect.
 TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamDisconnect) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   ASSERT_TRUE(tcp_client->write("hello"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
   ASSERT_TRUE(fake_upstream_connection->write("world"));
@@ -123,12 +116,10 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamDisconnect) {
 // when the client disconnects.
 TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   ASSERT_TRUE(tcp_client->write("hello"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
   ASSERT_TRUE(fake_upstream_connection->write("world"));
@@ -146,12 +137,10 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyLargeWrite) {
   initialize();
 
   std::string data(1024 * 16, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   ASSERT_TRUE(tcp_client->write(data));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(data.size()));
   ASSERT_TRUE(fake_upstream_connection->write(data));
@@ -162,27 +151,16 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyLargeWrite) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   uint32_t upstream_pauses =
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_paused_reading_total")
-          ->value();
+      test_server_->counter("cluster.cluster1.upstream_flow_control_paused_reading_total")->value();
   uint32_t upstream_resumes =
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_resumed_reading_total")
+      test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
           ->value();
   EXPECT_EQ(upstream_pauses, upstream_resumes);
 
   uint32_t downstream_pauses =
-      test_server_
-          ->counter(
-              "tcp.tcp_stats.downstream_flow_control_paused_reading_total")
-          ->value();
+      test_server_->counter("tcp.tcp_stats.downstream_flow_control_paused_reading_total")->value();
   uint32_t downstream_resumes =
-      test_server_
-          ->counter(
-              "tcp.tcp_stats.downstream_flow_control_resumed_reading_total")
-          ->value();
+      test_server_->counter("tcp.tcp_stats.downstream_flow_control_resumed_reading_total")->value();
   EXPECT_EQ(downstream_pauses, downstream_resumes);
 }
 
@@ -195,11 +173,9 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyDownstreamFlush) {
   initialize();
 
   std::string data(size, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   tcp_client->readDisable(true);
   ASSERT_TRUE(tcp_client->write("", true));
@@ -210,28 +186,19 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyDownstreamFlush) {
 
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
 
-  test_server_->waitForCounterGe(
-      "cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
-  EXPECT_EQ(
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_resumed_reading_total")
-          ->value(),
-      0);
+  test_server_->waitForCounterGe("cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
+  EXPECT_EQ(test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
+                ->value(),
+            0);
   tcp_client->readDisable(false);
   tcp_client->waitForData(data);
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
 
   uint32_t upstream_pauses =
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_paused_reading_total")
-          ->value();
+      test_server_->counter("cluster.cluster1.upstream_flow_control_paused_reading_total")->value();
   uint32_t upstream_resumes =
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_resumed_reading_total")
+      test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
           ->value();
   EXPECT_GE(upstream_pauses, upstream_resumes);
   EXPECT_GT(upstream_resumes, 0);
@@ -246,11 +213,9 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamFlush) {
   initialize();
 
   std::string data(size, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -268,8 +233,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamFlush) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForHalfClose();
 
-  EXPECT_EQ(
-      test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
+  EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
 }
 
@@ -283,11 +247,9 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamFlushEnvoyExit) {
   initialize();
 
   std::string data(size, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -381,47 +343,40 @@ resources:
 )EOF";
 
 class CiliumGoLinetesterIntegrationTest : public CiliumTcpIntegrationTest {
- public:
+public:
   CiliumGoLinetesterIntegrationTest()
-      : CiliumTcpIntegrationTest(
-            fmt::format(TestEnvironment::substitute(
-                            cilium_linetester_config_fmt, GetParam()),
-                        "true")) {}
+      : CiliumTcpIntegrationTest(fmt::format(
+            TestEnvironment::substitute(cilium_linetester_config_fmt, GetParam()), "true")) {}
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(TCP_POLICY_LINEPARSER_fmt, GetParam());
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumGoLinetesterIntegrationTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
-    TestUtility::ipTestParamsToString);
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumGoLinetesterIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                         TestUtility::ipTestParamsToString);
 
-static FakeRawConnection::ValidatorFunction noMatch(
-    const char* data_to_not_match) {
+static FakeRawConnection::ValidatorFunction noMatch(const char* data_to_not_match) {
   return [data_to_not_match](const std::string& data) -> bool {
     auto found = data.find(data_to_not_match);
     return found == std::string::npos;
   };
 }
 
-TEST_P(CiliumGoLinetesterIntegrationTest,
-       CiliumGoLineParserUpstreamWritesFirst) {
+TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserUpstreamWritesFirst) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("DROP reply direction\n"));
   ASSERT_TRUE(fake_upstream_connection->write("PASS reply direction\n"));
   tcp_client->waitForData("PASS reply direction\n");
 
   ASSERT_TRUE(tcp_client->write("PASS original direction\n"));
-  ASSERT_TRUE(fake_upstream_connection->waitForData(
-      FakeRawConnection::waitForInexactMatch("PASS")));
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(FakeRawConnection::waitForInexactMatch("PASS")));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
@@ -432,11 +387,9 @@ TEST_P(CiliumGoLinetesterIntegrationTest,
 
 TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserPartialLines) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("DROP reply "));
   absl::SleepFor(absl::Milliseconds(10));
@@ -458,11 +411,9 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserPartialLines) {
 
 TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInject) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(tcp_client->write("INJECT reply direction\n"));
   ASSERT_TRUE(tcp_client->write("PASS original direction\n"));
@@ -484,11 +435,9 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInject) {
 
 TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartial) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("PASS reply"));
   ASSERT_TRUE(tcp_client->write("INJECT reply direction\n"));
@@ -510,14 +459,11 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartial) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
 
-TEST_P(CiliumGoLinetesterIntegrationTest,
-       CiliumGoLineParserInjectPartialMultiple) {
+TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartialMultiple) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("PASS reply"));
   ASSERT_TRUE(tcp_client->write("INJECT reply direction\n"));
@@ -624,39 +570,33 @@ resources:
 )EOF";
 
 class CiliumGoBlocktesterIntegrationTest : public CiliumTcpIntegrationTest {
- public:
+public:
   CiliumGoBlocktesterIntegrationTest()
-      : CiliumTcpIntegrationTest(
-            fmt::format(TestEnvironment::substitute(
-                            cilium_blocktester_config_fmt, GetParam()),
-                        "true")) {}
+      : CiliumTcpIntegrationTest(fmt::format(
+            TestEnvironment::substitute(cilium_blocktester_config_fmt, GetParam()), "true")) {}
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(TCP_POLICY_BLOCKPARSER_fmt, GetParam());
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumGoBlocktesterIntegrationTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
-    TestUtility::ipTestParamsToString);
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumGoBlocktesterIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                         TestUtility::ipTestParamsToString);
 
-TEST_P(CiliumGoBlocktesterIntegrationTest,
-       CiliumGoBlockParserUpstreamWritesFirst) {
+TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserUpstreamWritesFirst) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("24:DROP reply direction\n"));
   ASSERT_TRUE(fake_upstream_connection->write("24:PASS reply direction\n"));
   tcp_client->waitForData("24:PASS reply direction\n");
 
   ASSERT_TRUE(tcp_client->write("27:PASS original direction\n"));
-  ASSERT_TRUE(fake_upstream_connection->waitForData(
-      FakeRawConnection::waitForInexactMatch("PASS")));
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(FakeRawConnection::waitForInexactMatch("PASS")));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
@@ -667,11 +607,9 @@ TEST_P(CiliumGoBlocktesterIntegrationTest,
 
 TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserPartialBlocks) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("24:DROP reply "));
   ASSERT_TRUE(fake_upstream_connection->write("direction\n24:PASS"));
@@ -691,11 +629,9 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserPartialBlocks) {
 
 TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInject) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(tcp_client->write("26:INJECT reply direction\n"));
   ASSERT_TRUE(tcp_client->write("27:PASS original direction\n"));
@@ -719,11 +655,9 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInject) {
 
 TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartial) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("24:PASS reply"));
   ASSERT_TRUE(tcp_client->write("26:INJECT reply direction\n"));
@@ -745,14 +679,11 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartial) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
 
-TEST_P(CiliumGoBlocktesterIntegrationTest,
-       CiliumGoBlockParserInjectPartialMultiple) {
+TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartialMultiple) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("24:PASS reply"));
   ASSERT_TRUE(tcp_client->write("26:INJECT reply direction\n"));
@@ -770,8 +701,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest,
   tcp_client->waitForData("26:INJECT reply direction\n", false);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
-      FakeRawConnection::waitForInexactMatch(
-          "29:INSERT original direction\n")));
+      FakeRawConnection::waitForInexactMatch("29:INSERT original direction\n")));
   ASSERT_TRUE(fake_upstream_connection->waitForData(noMatch("DROP")));
 
   ASSERT_TRUE(fake_upstream_connection->write("24:DROP reply direction\n"));
@@ -785,14 +715,11 @@ TEST_P(CiliumGoBlocktesterIntegrationTest,
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
 
-TEST_P(CiliumGoBlocktesterIntegrationTest,
-       CiliumGoBlockParserInjectBufferOverflow) {
+TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectBufferOverflow) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(tcp_client->write("26:INJECT reply direction\n"));
   ASSERT_TRUE(tcp_client->write("27:DROP original direction\n"));
@@ -820,4 +747,4 @@ TEST_P(CiliumGoBlocktesterIntegrationTest,
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
 
-}  // namespace Envoy
+} // namespace Envoy

@@ -1,14 +1,14 @@
 #pragma once
 
 #include "test/integration/http_integration.h"
+
 #include "tests/accesslog_server.h"
 
 namespace Envoy {
 
-class CiliumHttpIntegrationTest
-    : public HttpIntegrationTest,
-      public testing::TestWithParam<Network::Address::IpVersion> {
- public:
+class CiliumHttpIntegrationTest : public HttpIntegrationTest,
+                                  public testing::TestWithParam<Network::Address::IpVersion> {
+public:
   CiliumHttpIntegrationTest(const std::string& config);
   ~CiliumHttpIntegrationTest();
 
@@ -19,4 +19,4 @@ class CiliumHttpIntegrationTest
   AccessLogServer accessLogServer_;
 };
 
-}  // namespace Envoy
+} // namespace Envoy

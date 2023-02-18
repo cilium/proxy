@@ -1,15 +1,16 @@
 #include "tests/cilium_http_integration.h"
 
-#include "source/common/common/logger.h"
 #include "envoy/network/address.h"
+
+#include "source/common/common/logger.h"
+
 #include "tests/bpf_metadata.h"
 
 namespace Envoy {
 
 CiliumHttpIntegrationTest::CiliumHttpIntegrationTest(const std::string& config)
     : HttpIntegrationTest(Http::CodecClient::Type::HTTP1, GetParam(), config),
-      accessLogServer_(
-          TestEnvironment::unixDomainSocketPath("access_log.sock")) {
+      accessLogServer_(TestEnvironment::unixDomainSocketPath("access_log.sock")) {
 #if 1
   for (Logger::Logger& logger : Logger::Registry::loggers()) {
     logger.setLevel(spdlog::level::trace);
@@ -33,7 +34,7 @@ void CiliumHttpIntegrationTest::createEnvoy() {
     original_dst_address = std::make_shared<Network::Address::Ipv6Instance>(
         Network::Test::getLoopbackAddressString(GetParam()), port);
   }
-  HttpIntegrationTest::createEnvoy();  
+  HttpIntegrationTest::createEnvoy();
 }
 
-}  // namespace Envoy
+} // namespace Envoy

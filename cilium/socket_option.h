@@ -1,10 +1,12 @@
 #pragma once
 
-#include "source/common/common/logger.h"
-#include "source/common/common/utility.h"
-#include "conntrack.h"
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/network/listen_socket.h"
+
+#include "source/common/common/logger.h"
+#include "source/common/common/utility.h"
+
+#include "conntrack.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -22,38 +24,32 @@ public:
 
 class SocketMarkOption : public Network::Socket::Option,
                          public Logger::Loggable<Logger::Id::filter> {
- public:
+public:
   SocketMarkOption(uint32_t mark, uint32_t identity, bool ingress, bool l7LB,
                    Network::Address::InstanceConstSharedPtr original_source_address,
                    Network::Address::InstanceConstSharedPtr ipv4_source_address,
                    Network::Address::InstanceConstSharedPtr ipv6_source_address)
-      : identity_(identity),
-        mark_(mark),
-        ingress_(ingress),
-	isL7LB_(l7LB),
+      : identity_(identity), mark_(mark), ingress_(ingress), isL7LB_(l7LB),
         original_source_address_(std::move(original_source_address)),
         ipv4_source_address_(std::move(ipv4_source_address)),
         ipv6_source_address_(std::move(ipv6_source_address)) {}
 
-  absl::optional<Network::Socket::Option::Details> getOptionDetails(
-      const Network::Socket&,
-      envoy::config::core::v3::SocketOption::SocketState) const override {
+  absl::optional<Network::Socket::Option::Details>
+  getOptionDetails(const Network::Socket&,
+                   envoy::config::core::v3::SocketOption::SocketState) const override {
     return absl::nullopt;
   }
 
-  bool setOption(
-      Network::Socket& socket,
-      envoy::config::core::v3::SocketOption::SocketState state) const override {
+  bool setOption(Network::Socket& socket,
+                 envoy::config::core::v3::SocketOption::SocketState state) const override {
     // sidecars do not have mark
     if (mark_ == 0) {
       return true;
     }
     // Only set the option once per socket
     if (state != envoy::config::core::v3::SocketOption::STATE_PREBIND) {
-      ENVOY_LOG(
-          trace,
-          "Skipping setting socket ({}) option SO_MARK, state != STATE_PREBIND",
-          socket.ioHandle().fdDoNotUse());
+      ENVOY_LOG(trace, "Skipping setting socket ({}) option SO_MARK, state != STATE_PREBIND",
+                socket.ioHandle().fdDoNotUse());
       return true;
     }
     auto status = socket.setSocketOption(SOL_SOCKET, SO_MARK, &mark_, sizeof(mark_));
@@ -66,9 +62,8 @@ class SocketMarkOption : public Network::Socket::Option,
                   "CAP_NET_ADMIN needed: {}",
                   mark_, Envoy::errorDetails(status.errno_));
       } else {
-        ENVOY_LOG(critical,
-                  "Socket option failure. Failed to set SO_MARK to {}: {}",
-                  mark_, Envoy::errorDetails(status.errno_));
+        ENVOY_LOG(critical, "Socket option failure. Failed to set SO_MARK to {}: {}", mark_,
+                  Envoy::errorDetails(status.errno_));
         return false;
       }
     }
@@ -78,13 +73,13 @@ class SocketMarkOption : public Network::Socket::Option,
       // Select source address based on the socket address family
       auto ipVersion = socket.ipVersion();
       if (!ipVersion.has_value()) {
-	ENVOY_LOG(critical,
-		  "Socket address family is not available, can not choose source address");
-	return false;
+        ENVOY_LOG(critical,
+                  "Socket address family is not available, can not choose source address");
+        return false;
       }
       source_address = ipv6_source_address_;
       if (*ipVersion == Network::Address::IpVersion::v4) {
-	source_address = ipv4_source_address_;
+        source_address = ipv4_source_address_;
       }
     }
     if (source_address) {
@@ -95,18 +90,17 @@ class SocketMarkOption : public Network::Socket::Option,
       uint32_t one = 1;
       auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
       if (status.return_value_ < 0) {
-	ENVOY_LOG(critical,
-		  "Failed to set socket option SO_REUSEADDR: {}",
-		  Envoy::errorDetails(status.errno_));
-	return false;
+        ENVOY_LOG(critical, "Failed to set socket option SO_REUSEADDR: {}",
+                  Envoy::errorDetails(status.errno_));
+        return false;
       }
     }
 
     ENVOY_LOG(trace,
               "Set socket ({}) option SO_MARK to {:x} (magic mark: {:x}, id: "
               "{}, cluster: {}), src: {}",
-              socket.ioHandle().fdDoNotUse(), mark_, mark_ & 0xff00, mark_ >> 16,
-              mark_ & 0xff, source_address ? source_address->asString() : "");
+              socket.ioHandle().fdDoNotUse(), mark_, mark_ & 0xff00, mark_ >> 16, mark_ & 0xff,
+              source_address ? source_address->asString() : "");
 
     if (source_address) {
       socket.connectionInfoProvider().setLocalAddress(std::move(source_address));
@@ -115,8 +109,7 @@ class SocketMarkOption : public Network::Socket::Option,
     return true;
   }
 
-  template <typename T>
-  void addressIntoVector(std::vector<uint8_t>& vec, const T& address) const {
+  template <typename T> void addressIntoVector(std::vector<uint8_t>& vec, const T& address) const {
     const uint8_t* byte_array = reinterpret_cast<const uint8_t*>(&address);
     vec.insert(vec.end(), byte_array, byte_array + sizeof(T));
   }
@@ -134,8 +127,7 @@ class SocketMarkOption : public Network::Socket::Option,
       if (original_source_address_->ip()->version() == Network::Address::IpVersion::v4) {
         uint32_t raw_address = original_source_address_->ip()->ipv4()->address();
         addressIntoVector(key, raw_address);
-      } else if (original_source_address_->ip()->version() ==
-                 Network::Address::IpVersion::v6) {
+      } else if (original_source_address_->ip()->version() == Network::Address::IpVersion::v6) {
         absl::uint128 raw_address = original_source_address_->ip()->ipv6()->address();
         addressIntoVector(key, raw_address);
       }
@@ -150,10 +142,9 @@ class SocketMarkOption : public Network::Socket::Option,
 
   bool isSupported() const override { return true; }
 
-  // isL7LB returns 'true' if policy enforcement should be done on the basis of the upstream destination address.
-  bool policyUseUpstreamDestinationAddress() const {
-    return isL7LB_;
-  }
+  // isL7LB returns 'true' if policy enforcement should be done on the basis of the upstream
+  // destination address.
+  bool policyUseUpstreamDestinationAddress() const { return isL7LB_; }
 
   uint32_t identity_;
   uint32_t mark_;
@@ -169,28 +160,24 @@ class SocketMarkOption : public Network::Socket::Option,
 };
 
 class SocketOption : public SocketMarkOption {
- public:
-  SocketOption(PolicyInstanceConstSharedPtr policy, uint32_t mark,
-               uint32_t source_identity,
+public:
+  SocketOption(PolicyInstanceConstSharedPtr policy, uint32_t mark, uint32_t source_identity,
                bool ingress, bool l7LB, uint16_t port, std::string&& pod_ip,
                Network::Address::InstanceConstSharedPtr original_source_address,
                Network::Address::InstanceConstSharedPtr ipv4_source_address,
                Network::Address::InstanceConstSharedPtr ipv6_source_address,
                const std::shared_ptr<PolicyResolver>& policy_id_resolver)
-    : SocketMarkOption(mark, source_identity, ingress, l7LB, original_source_address, ipv4_source_address, ipv6_source_address),
-        initial_policy_(policy),
-        port_(port),
-        pod_ip_(std::move(pod_ip)),
+      : SocketMarkOption(mark, source_identity, ingress, l7LB, original_source_address,
+                         ipv4_source_address, ipv6_source_address),
+        initial_policy_(policy), port_(port), pod_ip_(std::move(pod_ip)),
         policy_id_resolver_(policy_id_resolver) {
-    ENVOY_LOG(
-        debug,
-        "Cilium SocketOption(): source_identity: {}, "
-        "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {}",
-        identity_, ingress_, port_, pod_ip_,
-        original_source_address_ ? original_source_address_->asString() : "",
-        ipv4_source_address_ ? ipv4_source_address_->asString() : "",
-        ipv6_source_address_ ? ipv6_source_address_->asString() : "",
-        mark_);
+    ENVOY_LOG(debug,
+              "Cilium SocketOption(): source_identity: {}, "
+              "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {}",
+              identity_, ingress_, port_, pod_ip_,
+              original_source_address_ ? original_source_address_->asString() : "",
+              ipv4_source_address_ ? ipv4_source_address_->asString() : "",
+              ipv6_source_address_ ? ipv6_source_address_->asString() : "", mark_);
     ASSERT(initial_policy_ != nullptr);
   }
 
@@ -201,16 +188,17 @@ class SocketOption : public SocketMarkOption {
   const PolicyInstanceConstSharedPtr getPolicy() const {
     return policy_id_resolver_->getPolicy(pod_ip_);
   }
- 
+
   const PolicyInstanceConstSharedPtr initial_policy_; // Never NULL
   uint16_t port_;
   std::string pod_ip_;
+
 private:
   const std::shared_ptr<PolicyResolver> policy_id_resolver_;
 };
 
-static inline const Cilium::SocketOption* GetSocketOption(
-    const Network::Socket::OptionsSharedPtr& options) {
+static inline const Cilium::SocketOption*
+GetSocketOption(const Network::Socket::OptionsSharedPtr& options) {
   if (options) {
     for (const auto& option : *options) {
       auto opt = dynamic_cast<const Cilium::SocketOption*>(option.get());
@@ -222,5 +210,5 @@ static inline const Cilium::SocketOption* GetSocketOption(
   return nullptr;
 }
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

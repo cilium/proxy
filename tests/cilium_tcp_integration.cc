@@ -1,7 +1,9 @@
 #include "tests/cilium_tcp_integration.h"
 
 #include "envoy/network/address.h"
+
 #include "test/test_common/environment.h"
+
 #include "tests/bpf_metadata.h"
 
 namespace Envoy {
@@ -26,8 +28,7 @@ resources:
 
 CiliumTcpIntegrationTest::CiliumTcpIntegrationTest(const std::string& config)
     : BaseIntegrationTest(GetParam(), config),
-      accessLogServer_(
-          TestEnvironment::unixDomainSocketPath("access_log.sock")) {
+      accessLogServer_(TestEnvironment::unixDomainSocketPath("access_log.sock")) {
   enableHalfClose(true);
 #if 1
   for (Logger::Logger& logger : Logger::Registry::loggers()) {
@@ -54,7 +55,7 @@ void CiliumTcpIntegrationTest::createEnvoy() {
     original_dst_address = std::make_shared<Network::Address::Ipv6Instance>(
         Network::Test::getLoopbackAddressString(GetParam()), port);
   }
-  BaseIntegrationTest::createEnvoy();  
+  BaseIntegrationTest::createEnvoy();
 }
 
 void CiliumTcpIntegrationTest::initialize() {
@@ -64,4 +65,4 @@ void CiliumTcpIntegrationTest::initialize() {
 
 void CiliumTcpIntegrationTest::TearDown() { npmap.reset(); }
 
-}  // namespace Envoy
+} // namespace Envoy

@@ -58,8 +58,7 @@ AccessLog::AccessLog(std::string path) : path_(path), fd_(-1), open_count_(1), e
 
 AccessLog::~AccessLog() {}
 
-#define CONST_STRING_VIEW(NAME, STR) \
-  const absl::string_view NAME = {STR, sizeof(STR) - 1}
+#define CONST_STRING_VIEW(NAME, STR) const absl::string_view NAME = {STR, sizeof(STR) - 1}
 
 CONST_STRING_VIEW(pathSV, ":path");
 CONST_STRING_VIEW(methodSV, ":method");
@@ -68,13 +67,10 @@ CONST_STRING_VIEW(xForwardedProtoSV, "x-forwarded-proto");
 CONST_STRING_VIEW(xRequestIdSV, "x-request-id");
 CONST_STRING_VIEW(statusSV, ":status");
 
-void AccessLog::Entry::InitFromConnection(const std::string& policy_name,
-					  bool ingress,
-                                          uint32_t source_identity,
-                                          const Network::Address::InstanceConstSharedPtr& source_address,
-                                          uint32_t destination_identity,
-                                          const Network::Address::InstanceConstSharedPtr& destination_address,
-                                          TimeSource* time_source) {
+void AccessLog::Entry::InitFromConnection(
+    const std::string& policy_name, bool ingress, uint32_t source_identity,
+    const Network::Address::InstanceConstSharedPtr& source_address, uint32_t destination_identity,
+    const Network::Address::InstanceConstSharedPtr& destination_address, TimeSource* time_source) {
   entry_.set_policy_name(policy_name);
   entry_.set_is_ingress(ingress);
   entry_.set_source_security_id(source_identity);
@@ -90,9 +86,8 @@ void AccessLog::Entry::InitFromConnection(const std::string& policy_name,
 
   if (time_source) {
     auto time = time_source->systemTime();
-    entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                             time.time_since_epoch())
-                             .count());
+    entry_.set_timestamp(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(time.time_since_epoch()).count());
   }
 }
 
@@ -114,8 +109,7 @@ bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
       old_fields->erase(pair.first);
       changed = true;
     } else {
-      auto new_value =
-          MessageUtil::getJsonStringFromMessage(it->second, false, true);
+      auto new_value = MessageUtil::getJsonStringFromMessage(it->second, false, true);
       if (new_value.ok() && new_value.value() != pair.second) {
         (*old_fields)[pair.first] = new_value.value();
         changed = true;
@@ -134,33 +128,32 @@ bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
   return changed;
 }
 
-void AccessLog::Entry::InitFromRequest(const std::string& policy_name,
-				       bool ingress,
-				       uint32_t source_identity,
-				       const Network::Address::InstanceConstSharedPtr& src_address,
+void AccessLog::Entry::InitFromRequest(const std::string& policy_name, bool ingress,
+                                       uint32_t source_identity,
+                                       const Network::Address::InstanceConstSharedPtr& src_address,
                                        uint32_t destination_identity,
                                        const Network::Address::InstanceConstSharedPtr& dst_address,
-				       const StreamInfo::StreamInfo& info,
+                                       const StreamInfo::StreamInfo& info,
                                        const Http::RequestHeaderMap& headers) {
-  InitFromConnection(policy_name, ingress, source_identity, src_address, destination_identity, dst_address, nullptr);
+  InitFromConnection(policy_name, ingress, source_identity, src_address, destination_identity,
+                     dst_address, nullptr);
 
   auto time = info.startTime();
-  entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                           time.time_since_epoch())
-                           .count());
+  entry_.set_timestamp(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(time.time_since_epoch()).count());
 
   ::cilium::HttpProtocol proto;
   switch (info.protocol() ? info.protocol().value() : Http::Protocol::Http11) {
-    case Http::Protocol::Http10:
-      proto = ::cilium::HttpProtocol::HTTP10;
-      break;
-    case Http::Protocol::Http11:
-    default:  // Just to make compiler happy
-      proto = ::cilium::HttpProtocol::HTTP11;
-      break;
-    case Http::Protocol::Http2:
-      proto = ::cilium::HttpProtocol::HTTP2;
-      break;
+  case Http::Protocol::Http10:
+    proto = ::cilium::HttpProtocol::HTTP10;
+    break;
+  case Http::Protocol::Http11:
+  default: // Just to make compiler happy
+    proto = ::cilium::HttpProtocol::HTTP11;
+    break;
+  case Http::Protocol::Http2:
+    proto = ::cilium::HttpProtocol::HTTP2;
+    break;
   }
   ::cilium::HttpLogEntry* http_entry = entry_.mutable_http();
   http_entry->set_http_protocol(proto);
@@ -168,9 +161,9 @@ void AccessLog::Entry::InitFromRequest(const std::string& policy_name,
   UpdateFromRequest(destination_identity, dst_address, headers);
 }
 
-void AccessLog::Entry::UpdateFromRequest(uint32_t destination_identity,
-					 const Network::Address::InstanceConstSharedPtr& dst_address,
-					 const Http::RequestHeaderMap& headers) {
+void AccessLog::Entry::UpdateFromRequest(
+    uint32_t destination_identity, const Network::Address::InstanceConstSharedPtr& dst_address,
+    const Http::RequestHeaderMap& headers) {
   // Destination may have changed
   if (destination_identity != 0) {
     entry_.set_destination_security_id(destination_identity);
@@ -184,38 +177,36 @@ void AccessLog::Entry::UpdateFromRequest(uint32_t destination_identity,
   http_entry->clear_headers();
 
   // request headers
-  headers.iterate(
-      [http_entry](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
-        const absl::string_view key = header.key().getStringView();
-        const absl::string_view value = header.value().getStringView();
+  headers.iterate([http_entry](const Http::HeaderEntry& header) -> Http::HeaderMap::Iterate {
+    const absl::string_view key = header.key().getStringView();
+    const absl::string_view value = header.value().getStringView();
 
-        if (key == pathSV) {
-          http_entry->set_path(value.data(), value.size());
-        } else if (key == methodSV) {
-          http_entry->set_method(value.data(), value.size());
-        } else if (key == authoritySV) {
-          http_entry->set_host(value.data(), value.size());
-        } else if (key == xForwardedProtoSV) {
-          // Envoy sets the ":scheme" header later in the router filter
-          // according to the upstream protocol (TLS vs. clear), but we want to
-          // get the downstream scheme, which is provided in
-          // "x-forwarded-proto".
-          http_entry->set_scheme(value.data(), value.size());
-        } else {
-          ::cilium::KeyValue* kv = http_entry->add_headers();
-          kv->set_key(key.data(), key.size());
-          kv->set_value(value.data(), value.size());
-        }
-        return Http::HeaderMap::Iterate::Continue;
-      });
+    if (key == pathSV) {
+      http_entry->set_path(value.data(), value.size());
+    } else if (key == methodSV) {
+      http_entry->set_method(value.data(), value.size());
+    } else if (key == authoritySV) {
+      http_entry->set_host(value.data(), value.size());
+    } else if (key == xForwardedProtoSV) {
+      // Envoy sets the ":scheme" header later in the router filter
+      // according to the upstream protocol (TLS vs. clear), but we want to
+      // get the downstream scheme, which is provided in
+      // "x-forwarded-proto".
+      http_entry->set_scheme(value.data(), value.size());
+    } else {
+      ::cilium::KeyValue* kv = http_entry->add_headers();
+      kv->set_key(key.data(), key.size());
+      kv->set_value(value.data(), value.size());
+    }
+    return Http::HeaderMap::Iterate::Continue;
+  });
 }
 
-void AccessLog::Entry::UpdateFromResponse(
-    const Http::ResponseHeaderMap& headers, TimeSource& time_source) {
+void AccessLog::Entry::UpdateFromResponse(const Http::ResponseHeaderMap& headers,
+                                          TimeSource& time_source) {
   auto time = time_source.systemTime();
-  entry_.set_timestamp(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                           time.time_since_epoch())
-                           .count());
+  entry_.set_timestamp(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(time.time_since_epoch()).count());
 
   ::cilium::HttpLogEntry* http_entry = entry_.mutable_http();
 
@@ -232,7 +223,7 @@ void AccessLog::Entry::UpdateFromResponse(
   http_entry->clear_headers();
 
   // Add back the x-request-id, if any
-  if (request_id.length() > 0) {    
+  if (request_id.length() > 0) {
     ::cilium::KeyValue* kv = http_entry->add_headers();
     kv->set_key(xRequestIdSV.data(), xRequestIdSV.size());
     kv->set_value(request_id);
@@ -273,16 +264,14 @@ void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
 
   Thread::LockGuard guard(fd_mutex_);
   while (tries-- > 0 && guarded_connect()) {
-    ssize_t sent =
-        ::send(fd_, msg.data(), length, MSG_DONTWAIT | MSG_EOR | MSG_NOSIGNAL);
+    ssize_t sent = ::send(fd_, msg.data(), length, MSG_DONTWAIT | MSG_EOR | MSG_NOSIGNAL);
 
     if (sent == -1) {
       errno_ = errno;
       continue; // retry
     }
     if (sent < length) {
-      ENVOY_LOG(debug, "Cilium access log send truncated by {} bytes.",
-                length - sent);
+      ENVOY_LOG(debug, "Cilium access log send truncated by {} bytes.", length - sent);
     }
     // trace level logs when message was sent
     ENVOY_LOG(trace, "Cilium access log msg sent: {}", entry.DebugString());
@@ -303,7 +292,7 @@ bool AccessLog::guarded_connect() {
       return true;
     }
     ENVOY_LOG(debug, "Cilium access log resetting socket due to error: {}",
-	      Envoy::errorDetails(errno_));
+              Envoy::errorDetails(errno_));
     ::close(fd_);
     fd_ = -1;
   }
@@ -322,11 +311,9 @@ bool AccessLog::guarded_connect() {
 
   struct sockaddr_un addr = {AF_UNIX, {}};
   strncpy(addr.sun_path, path_.c_str(), sizeof(addr.sun_path) - 1);
-  if (::connect(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) ==
-      -1) {
-    errno_ = errno;    
-    ENVOY_LOG(warn, "Connect to {} failed: {}", path_,
-              Envoy::errorDetails(errno_));
+  if (::connect(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1) {
+    errno_ = errno;
+    ENVOY_LOG(warn, "Connect to {} failed: {}", path_, Envoy::errorDetails(errno_));
     ::close(fd_);
     fd_ = -1;
     return false;
@@ -335,5 +322,5 @@ bool AccessLog::guarded_connect() {
   return true;
 }
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

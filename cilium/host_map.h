@@ -2,12 +2,6 @@
 
 #include <arpa/inet.h>
 
-#include "absl/numeric/int128.h"
-#include "cilium/api/nphds.pb.h"
-#include "cilium/api/nphds.pb.validate.h"
-#include "source/common/common/logger.h"
-#include "source/common/network/utility.h"
-#include "source/common/protobuf/message_validator_impl.h"
 #include "envoy/config/subscription.h"
 #include "envoy/event/dispatcher.h"
 #include "envoy/local_info/local_info.h"
@@ -15,43 +9,39 @@
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/upstream/cluster_manager.h"
 
+#include "source/common/common/logger.h"
+#include "source/common/network/utility.h"
+#include "source/common/protobuf/message_validator_impl.h"
+
+#include "absl/numeric/int128.h"
+#include "cilium/api/nphds.pb.h"
+#include "cilium/api/nphds.pb.validate.h"
+
 // std::hash specialization for Abseil uint128, needed for unordered_map key.
 namespace std {
-template <>
-struct hash<absl::uint128> {
+template <> struct hash<absl::uint128> {
   size_t operator()(const absl::uint128& x) const {
     return hash<uint64_t>{}(absl::Uint128Low64(x)) ^
            (hash<uint64_t>{}(absl::Uint128High64(x)) << 1);
   }
 };
-}  // namespace std
+} // namespace std
 
 namespace Envoy {
 namespace Cilium {
 
-template <typename I>
-I ntoh(I);
-template <>
-inline uint32_t ntoh(uint32_t addr) {
-  return ntohl(addr);
-}
-template <>
-inline absl::uint128 ntoh(absl::uint128 addr) {
+template <typename I> I ntoh(I);
+template <> inline uint32_t ntoh(uint32_t addr) { return ntohl(addr); }
+template <> inline absl::uint128 ntoh(absl::uint128 addr) {
   return Network::Utility::Ip6ntohl(addr);
 }
-template <typename I>
-I hton(I);
-template <>
-inline uint32_t hton(uint32_t addr) {
-  return htonl(addr);
-}
-template <>
-inline absl::uint128 hton(absl::uint128 addr) {
+template <typename I> I hton(I);
+template <> inline uint32_t hton(uint32_t addr) { return htonl(addr); }
+template <> inline absl::uint128 hton(absl::uint128 addr) {
   return Network::Utility::Ip6htonl(addr);
 }
 
-template <typename I>
-I masked(I addr, unsigned int plen) {
+template <typename I> I masked(I addr, unsigned int plen) {
   const unsigned int PLEN_MAX = sizeof(I) * 8;
   return plen == 0 ? I(0) : addr & ~hton((I(1) << (PLEN_MAX - plen)) - 1);
 };
@@ -69,22 +59,19 @@ class PolicyHostMap : public Singleton::Instance,
                       public Config::OpaqueResourceDecoder,
                       public std::enable_shared_from_this<PolicyHostMap>,
                       public Logger::Loggable<Logger::Id::config> {
- public:
-  PolicyHostMap(const LocalInfo::LocalInfo& local_info,
-                Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-                Random::RandomGenerator& random, Stats::Scope& scope,
+public:
+  PolicyHostMap(const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
+                Event::Dispatcher& dispatcher, Random::RandomGenerator& random, Stats::Scope& scope,
                 ThreadLocal::SlotAllocator& tls);
   PolicyHostMap(ThreadLocal::SlotAllocator& tls);
   ~PolicyHostMap() {
-    ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!",
-              name_);
+    ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 
   void startSubscription() { subscription_->start({}); }
 
   // This is used for testing with a file-based subscription
-  void startSubscription(
-      std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
+  void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
     subscription_ = std::move(subscription);
     startSubscription();
   }
@@ -94,7 +81,7 @@ class PolicyHostMap : public Singleton::Instance,
   // thread local slot on each thread.
   struct ThreadLocalHostMap : public ThreadLocal::ThreadLocalObject,
                               public Logger::Loggable<Logger::Id::config> {
-   public:
+  public:
     void logmaps(const std::string& msg) const {
       char buf[INET6_ADDRSTRLEN];
       std::string ip4, ip6, prefix;
@@ -106,9 +93,8 @@ class PolicyHostMap : public Singleton::Instance,
             ip4 += ", ";
           }
           first = false;
-          ip4 += fmt::format("{}/{}->{}",
-                             inet_ntop(AF_INET, &pair.first, buf, sizeof(buf)),
-                             prefix, pair.second);
+          ip4 += fmt::format("{}/{}->{}", inet_ntop(AF_INET, &pair.first, buf, sizeof(buf)), prefix,
+                             pair.second);
         }
       }
       first = true;
@@ -119,13 +105,11 @@ class PolicyHostMap : public Singleton::Instance,
             ip6 += ", ";
           }
           first = false;
-          ip6 += fmt::format("{}/{}->{}",
-                             inet_ntop(AF_INET6, &pair.first, buf, sizeof(buf)),
+          ip6 += fmt::format("{}/{}->{}", inet_ntop(AF_INET6, &pair.first, buf, sizeof(buf)),
                              prefix, pair.second);
         }
       }
-      ENVOY_LOG(debug, "PolicyHostMap::{}: IPv4: [{}], IPv6: [{}]", msg, ip4,
-                ip6);
+      ENVOY_LOG(debug, "PolicyHostMap::{}: IPv4: [{}], IPv6: [{}]", msg, ip4, ip6);
     }
 
     // Find the longest prefix match of the addr, return the matching policy id,
@@ -162,14 +146,12 @@ class PolicyHostMap : public Singleton::Instance,
       return ID::WORLD;
     }
 
-   protected:
+  protected:
     // Vectors of <prefix-len>, <address-map> pairs, ordered in the decreasing
     // prefix length, where map keys are addresses of the given prefix length.
     // Address bits outside of the prefix are zeroes.
-    std::vector<std::pair<unsigned int, std::unordered_map<uint32_t, uint64_t>>>
-        ipv4_to_policy_;
-    std::vector<
-        std::pair<unsigned int, std::unordered_map<absl::uint128, uint64_t>>>
+    std::vector<std::pair<unsigned int, std::unordered_map<uint32_t, uint64_t>>> ipv4_to_policy_;
+    std::vector<std::pair<unsigned int, std::unordered_map<absl::uint128, uint64_t>>>
         ipv6_to_policy_;
   };
   typedef std::shared_ptr<ThreadLocalHostMap> ThreadLocalHostMapSharedPtr;
@@ -189,20 +171,17 @@ class PolicyHostMap : public Singleton::Instance,
       if (tlsmap) {
         tlsmap->logmaps(msg);
       } else {
-        ENVOY_LOG(debug, "PolicyHostMap::{}: Error getting thread local map",
-                  msg);
+        ENVOY_LOG(debug, "PolicyHostMap::{}: Error getting thread local map", msg);
       }
     }
   }
 
   // Config::SubscriptionCallbacks
-  void onConfigUpdate(
-      const std::vector<Envoy::Config::DecodedResourceRef>& resources,
-      const std::string& version_info) override;
-  void onConfigUpdate(
-      const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
-      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
-      const std::string& system_version_info) override {
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
+                      const std::string& version_info) override;
+  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
+                      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
+                      const std::string& system_version_info) override {
     // NOT IMPLEMENTED YET.
     UNREFERENCED_PARAMETER(added_resources);
     UNREFERENCED_PARAMETER(removed_resources);
@@ -217,19 +196,17 @@ class PolicyHostMap : public Singleton::Instance,
     // If the Any is a synthetic empty message (e.g. because the resource field
     // was not set in Resource, this might be empty, so we shouldn't decode.
     if (!resource.type_url().empty()) {
-      MessageUtil::anyConvertAndValidate<cilium::NetworkPolicyHosts>(
-          resource, *typed_message, validation_visitor_);
+      MessageUtil::anyConvertAndValidate<cilium::NetworkPolicyHosts>(resource, *typed_message,
+                                                                     validation_visitor_);
     }
     return typed_message;
   }
 
   std::string resourceName(const Protobuf::Message& resource) override {
-    return fmt::format(
-        "{}",
-        dynamic_cast<const cilium::NetworkPolicyHosts&>(resource).policy());
+    return fmt::format("{}", dynamic_cast<const cilium::NetworkPolicyHosts&>(resource).policy());
   }
 
- private:
+private:
   ThreadLocal::SlotPtr tls_;
   ProtobufMessage::ValidationVisitor& validation_visitor_;
   Stats::ScopePtr scope_;
@@ -238,5 +215,5 @@ class PolicyHostMap : public Singleton::Instance,
   std::string name_;
 };
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

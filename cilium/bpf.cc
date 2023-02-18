@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "source/common/common/utility.h"
+
 #include "linux/bpf.h"
 
 namespace Envoy {
@@ -23,10 +24,7 @@ enum {
 };
 
 Bpf::Bpf(uint32_t map_type, uint32_t key_size, uint32_t value_size)
-    : fd_(-1),
-      map_type_(map_type),
-      key_size_(key_size),
-      value_size_(value_size) {
+    : fd_(-1), map_type_(map_type), key_size_(key_size), value_size_(value_size) {
   struct rlimit rl = {RLIM_INFINITY, RLIM_INFINITY};
   setrlimit(RLIMIT_MEMLOCK, &rl);
 }
@@ -34,11 +32,12 @@ Bpf::Bpf(uint32_t map_type, uint32_t key_size, uint32_t value_size)
 Bpf::~Bpf() { close(); }
 
 void Bpf::close() {
-  if (fd_ >= 0) ::close(fd_);
+  if (fd_ >= 0)
+    ::close(fd_);
   fd_ = -1;
 }
 
-bool Bpf::open(const std::string &path) {
+bool Bpf::open(const std::string& path) {
   bool log_on_error = ENVOY_LOG_CHECK_LEVEL(trace);
   union bpf_attr attr = {};
   attr.pathname = uintptr_t(path.c_str());
@@ -51,8 +50,7 @@ bool Bpf::open(const std::string &path) {
                               std::to_string(fd_));
     std::ifstream bpf_file(bpf_file_path);
     if (bpf_file.is_open()) {
-      uint32_t map_type = UINT32_MAX, key_size = UINT32_MAX,
-               value_size = UINT32_MAX;
+      uint32_t map_type = UINT32_MAX, key_size = UINT32_MAX, value_size = UINT32_MAX;
 
       while (std::getline(bpf_file, line)) {
         std::istringstream iss(line);
@@ -74,17 +72,15 @@ bool Bpf::open(const std::string &path) {
       }
       bpf_file.close();
 
-      if ((map_type == map_type_ || (map_type == BPF_MAP_TYPE_LRU_HASH &&
-                                     map_type_ == BPF_MAP_TYPE_HASH)) &&
+      if ((map_type == map_type_ ||
+           (map_type == BPF_MAP_TYPE_LRU_HASH && map_type_ == BPF_MAP_TYPE_HASH)) &&
           key_size == key_size_ && value_size == value_size_) {
         return true;
       }
       if (log_on_error) {
         if (map_type != map_type_) {
-          ENVOY_LOG(
-              warn,
-              "cilium.bpf_metadata: map type mismatch on {}: got {}, wanted {}",
-              path, map_type, map_type_);
+          ENVOY_LOG(warn, "cilium.bpf_metadata: map type mismatch on {}: got {}, wanted {}", path,
+                    map_type, map_type_);
         } else if (key_size != key_size_) {
           ENVOY_LOG(warn,
                     "cilium.bpf_metadata: map key size mismatch on {}: got {}, "
@@ -98,16 +94,16 @@ bool Bpf::open(const std::string &path) {
         }
       }
     } else if (log_on_error) {
-      ENVOY_LOG(warn, "cilium.bpf_metadata: map {} could not open bpf file {}",
-                path, bpf_file_path);
+      ENVOY_LOG(warn, "cilium.bpf_metadata: map {} could not open bpf file {}", path,
+                bpf_file_path);
     }
     close();
   } else if (errno == ENOENT && log_on_error) {
-    ENVOY_LOG(debug, "cilium.bpf_metadata: bpf syscall for map {} failed: {}",
-              path, Envoy::errorDetails(errno));
+    ENVOY_LOG(debug, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path,
+              Envoy::errorDetails(errno));
   } else if (log_on_error) {
-    ENVOY_LOG(warn, "cilium.bpf_metadata: bpf syscall for map {} failed: {}",
-              path, Envoy::errorDetails(errno));
+    ENVOY_LOG(warn, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path,
+              Envoy::errorDetails(errno));
   }
 
   return false;
@@ -125,7 +121,7 @@ bool Bpf::create(uint32_t max_entries, uint32_t flags) {
   return fd_ >= 0;
 }
 
-bool Bpf::pin(const std::string &path) {
+bool Bpf::pin(const std::string& path) {
   union bpf_attr attr = {};
   attr.pathname = uintptr_t(path.c_str());
   attr.bpf_fd = uint32_t(fd_);
@@ -133,7 +129,7 @@ bool Bpf::pin(const std::string &path) {
   return bpfSyscall(BPF_OBJ_PIN, &attr) == 0;
 }
 
-bool Bpf::insert(const void *key, const void *value) {
+bool Bpf::insert(const void* key, const void* value) {
   union bpf_attr attr = {};
   attr.map_fd = uint32_t(fd_);
   attr.key = uintptr_t(key);
@@ -143,7 +139,7 @@ bool Bpf::insert(const void *key, const void *value) {
   return bpfSyscall(BPF_MAP_UPDATE_ELEM, &attr) == 0;
 }
 
-bool Bpf::remove(const void *key) {
+bool Bpf::remove(const void* key) {
   union bpf_attr attr = {};
   attr.map_fd = uint32_t(fd_);
   attr.key = uintptr_t(key);
@@ -152,7 +148,7 @@ bool Bpf::remove(const void *key) {
   return bpfSyscall(BPF_MAP_DELETE_ELEM, &attr) == 0;
 }
 
-bool Bpf::lookup(const void *key, void *value) {
+bool Bpf::lookup(const void* key, void* value) {
   union bpf_attr attr = {};
   attr.map_fd = uint32_t(fd_);
   attr.key = uintptr_t(key);
@@ -173,9 +169,9 @@ bool Bpf::lookup(const void *key, void *value) {
 #endif
 #endif
 
-int Bpf::bpfSyscall(int cmd, union bpf_attr *attr) {
+int Bpf::bpfSyscall(int cmd, union bpf_attr* attr) {
   return ::syscall(__NR_bpf, cmd, attr, sizeof(*attr));
 }
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

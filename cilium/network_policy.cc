@@ -3,12 +3,13 @@
 #include <string>
 #include <unordered_set>
 
-#include "cilium/api/npds.pb.validate.h"
-#include "cilium/grpc_subscription.h"
 #include "source/common/common/matchers.h"
 #include "source/common/config/utility.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h"
+
+#include "cilium/api/npds.pb.validate.h"
+#include "cilium/grpc_subscription.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -17,73 +18,58 @@ uint64_t NetworkPolicyMap::instance_id_ = 0;
 
 // PortPolicy used in cases where no rules are found -> always allow
 class AllowPortNetworkPolicyRule : public PortPolicy {
- public:
-  AllowPortNetworkPolicyRule() {};
+public:
+  AllowPortNetworkPolicyRule(){};
 
-  bool Matches(absl::string_view, uint64_t) const override {
-    return true;
-  }
+  bool Matches(absl::string_view, uint64_t) const override { return true; }
 
   // PortPolicy
-  bool useProxylib(std::string&) const override {
-    return false;
-  }
+  bool useProxylib(std::string&) const override { return false; }
 
   // Envoy Metadata matcher
   bool allowed(const envoy::config::core::v3::Metadata&) const override {
-    return true;  // allowed by default
+    return true; // allowed by default
   }
 
   const Ssl::ContextConfig& getServerTlsContextConfig() const override {
     return *empty_context_config; // not used
   }
-  Ssl::ContextSharedPtr getServerTlsContext() const override {
-    return nullptr;
-  }
+  Ssl::ContextSharedPtr getServerTlsContext() const override { return nullptr; }
   const Ssl::ContextConfig& getClientTlsContextConfig() const override {
     return *empty_context_config; // not used
   }
-  Ssl::ContextSharedPtr getClientTlsContext() const override {
-    return nullptr;
-  }
+  Ssl::ContextSharedPtr getClientTlsContext() const override { return nullptr; }
+
 private:
   static Extensions::TransportSockets::Tls::ClientContextConfigImpl* empty_context_config;
 };
-Extensions::TransportSockets::Tls::ClientContextConfigImpl* AllowPortNetworkPolicyRule::empty_context_config{nullptr};
+Extensions::TransportSockets::Tls::ClientContextConfigImpl*
+    AllowPortNetworkPolicyRule::empty_context_config{nullptr};
 
-PortPolicyConstSharedPtr allowPortNetworkPolicyRule = std::make_shared<AllowPortNetworkPolicyRule>();
+PortPolicyConstSharedPtr allowPortNetworkPolicyRule =
+    std::make_shared<AllowPortNetworkPolicyRule>();
 
 // Allow-all Egress policy
 class AllowAllEgressPolicyInstanceImpl : public PolicyInstance {
- public:
+public:
   AllowAllEgressPolicyInstanceImpl() {}
 
-  bool Allowed(bool ingress, uint32_t, uint64_t,
-	       Envoy::Http::RequestHeaderMap&,
-	       Cilium::AccessLog::Entry&) const override {
+  bool Allowed(bool ingress, uint32_t, uint64_t, Envoy::Http::RequestHeaderMap&,
+               Cilium::AccessLog::Entry&) const override {
     return ingress ? false : true;
   }
-  
+
   const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint32_t, uint64_t) const override {
     return ingress ? nullptr : allowPortNetworkPolicyRule;
   }
 
-  bool useProxylib(bool, uint32_t, uint64_t,
-		   std::string&) const override {
-    return false;
-  }
+  bool useProxylib(bool, uint32_t, uint64_t, std::string&) const override { return false; }
 
-  const std::string& conntrackName() const override {
-    return empty_string;
-  }
+  const std::string& conntrackName() const override { return empty_string; }
 
-  uint32_t getEndpointID() const override {
-    return 0;
-  }
+  uint32_t getEndpointID() const override { return 0; }
 
-  const IPAddressPair& getEndpointIPs() const override {
-    return empty_ips;
-  }
+  const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
 
 private:
   static const std::string empty_string;
@@ -93,37 +79,33 @@ const std::string AllowAllEgressPolicyInstanceImpl::empty_string = "";
 const IPAddressPair AllowAllEgressPolicyInstanceImpl::empty_ips{};
 
 IPAddressPair::IPAddressPair(const cilium::NetworkPolicy& proto) {
-  for (const auto& ipAddr: proto.endpoint_ips()) {
+  for (const auto& ipAddr : proto.endpoint_ips()) {
     auto ip = Network::Utility::parseInternetAddressNoThrow(ipAddr);
     if (ip) {
       switch (ip->ip()->version()) {
       case Network::Address::IpVersion::v4:
-	ipv4_ = std::move(ip);
-	break;
+        ipv4_ = std::move(ip);
+        break;
       case Network::Address::IpVersion::v6:
-	ipv6_ = std::move(ip);
-	break;
+        ipv6_ = std::move(ip);
+        break;
       }
     }
   }
 }
 
 class PolicyInstanceImpl : public PolicyInstance {
- public:
+public:
   PolicyInstanceImpl(const NetworkPolicyMap& parent, uint64_t hash,
                      const cilium::NetworkPolicy& proto)
-      : conntrack_map_name_(proto.conntrack_map_name()),
-        endpoint_id_(proto.endpoint_id()),
-        hash_(hash),
-        policy_proto_(proto),
-        endpoint_ips_(proto),
+      : conntrack_map_name_(proto.conntrack_map_name()), endpoint_id_(proto.endpoint_id()),
+        hash_(hash), policy_proto_(proto), endpoint_ips_(proto),
         ingress_(parent, policy_proto_.ingress_per_port_policies()),
         egress_(parent, policy_proto_.egress_per_port_policies()) {}
 
- protected:
+protected:
   class HttpNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
-    static envoy::config::route::v3::HeaderMatcher matcher(
-        const cilium::HeaderMatch& config) {
+    static envoy::config::route::v3::HeaderMatcher matcher(const cilium::HeaderMatch& config) {
       envoy::config::route::v3::HeaderMatcher match;
       match.set_name(config.name());
       if (config.value().length() == 0) {
@@ -134,66 +116,50 @@ class PolicyInstanceImpl : public PolicyInstance {
       return match;
     }
     class HeaderMatch : public Http::HeaderUtility::HeaderData {
-     public:
+    public:
       HeaderMatch(const cilium::HeaderMatch& config)
-          : HeaderData(matcher(config)),
-            match_action_(config.match_action()),
+          : HeaderData(matcher(config)), match_action_(config.match_action()),
             mismatch_action_(config.mismatch_action()) {}
 
       cilium::HeaderMatch::MatchAction match_action_;
       cilium::HeaderMatch::MismatchAction mismatch_action_;
     };
 
-   public:
+  public:
     HttpNetworkPolicyRule(const cilium::HttpNetworkPolicyRule& rule) {
       ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
       for (const auto& header : rule.headers()) {
-        headers_.emplace_back(
-            std::make_unique<Http::HeaderUtility::HeaderData>(header));
+        headers_.emplace_back(std::make_unique<Http::HeaderUtility::HeaderData>(header));
         const auto& header_data = *headers_.back();
-        ENVOY_LOG(
-            trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
-            header_data.name_.get(),
-            header_data.header_match_type_ ==
-                    Http::HeaderUtility::HeaderMatchType::Range
-                ? fmt::format("[{}-{})", header_data.range_.start(),
-                              header_data.range_.end())
-                : header_data.header_match_type_ ==
-                          Http::HeaderUtility::HeaderMatchType::Value
+        ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
+                  header_data.name_.get(),
+                  header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
+                      ? fmt::format("[{}-{})", header_data.range_.start(), header_data.range_.end())
+                  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
                       ? "<VALUE>"
-                      : header_data.header_match_type_ ==
-                                Http::HeaderUtility::HeaderMatchType::Present
-                            ? "<PRESENT>"
-                            : header_data.header_match_type_ ==
-                                      Http::HeaderUtility::HeaderMatchType::
-                                          Regex
-                                  ? "<REGEX>"
-                                  : "<UNKNOWN>");
+                  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present
+                      ? "<PRESENT>"
+                  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
+                      ? "<REGEX>"
+                      : "<UNKNOWN>");
       }
       for (const auto& config : rule.header_matches()) {
         header_matches_.emplace_back(HeaderMatch(config));
         const auto& header_data = header_matches_.back();
-        ENVOY_LOG(
-            trace,
-            "Cilium L7 HttpNetworkPolicyRule(): HeaderData for headers_action "
-            "{}={} (match: {}, mismatch: {})",
-            header_data.name_.get(),
-            header_data.header_match_type_ ==
-                    Http::HeaderUtility::HeaderMatchType::Range
-                ? fmt::format("[{}-{})", header_data.range_.start(),
-                              header_data.range_.end())
-                : header_data.header_match_type_ ==
-                          Http::HeaderUtility::HeaderMatchType::Value
+        ENVOY_LOG(trace,
+                  "Cilium L7 HttpNetworkPolicyRule(): HeaderData for headers_action "
+                  "{}={} (match: {}, mismatch: {})",
+                  header_data.name_.get(),
+                  header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
+                      ? fmt::format("[{}-{})", header_data.range_.start(), header_data.range_.end())
+                  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
                       ? header_data.value_
-                      : header_data.header_match_type_ ==
-                                Http::HeaderUtility::HeaderMatchType::Present
-                            ? "<PRESENT>"
-                            : header_data.header_match_type_ ==
-                                      Http::HeaderUtility::HeaderMatchType::
-                                          Regex
-                                  ? "<REGEX>"
-                                  : "<UNKNOWN>",
-            header_data.match_action_, header_data.mismatch_action_);
+                  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present
+                      ? "<PRESENT>"
+                  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
+                      ? "<REGEX>"
+                      : "<UNKNOWN>",
+                  header_data.match_action_, header_data.mismatch_action_);
       }
     }
 
@@ -212,58 +178,56 @@ class PolicyInstanceImpl : public PolicyInstance {
         if (Http::HeaderUtility::matchHeaders(headers, header_data)) {
           // Match action
           switch (header_data.match_action_) {
-            case cilium::HeaderMatch::CONTINUE_ON_MATCH:
-              continue;
-            case cilium::HeaderMatch::FAIL_ON_MATCH:
-            default:  // fail closed if unknown action
-              accepted = false;
-              break;
-            case cilium::HeaderMatch::DELETE_ON_MATCH:
-              headers.remove(header_data.name_);
-              break;
+          case cilium::HeaderMatch::CONTINUE_ON_MATCH:
+            continue;
+          case cilium::HeaderMatch::FAIL_ON_MATCH:
+          default: // fail closed if unknown action
+            accepted = false;
+            break;
+          case cilium::HeaderMatch::DELETE_ON_MATCH:
+            headers.remove(header_data.name_);
+            break;
           }
           kv = log_entry.entry_.mutable_http()->add_rejected_headers();
         } else {
           // Mismatch action
           switch (header_data.mismatch_action_) {
-            case cilium::HeaderMatch::FAIL_ON_MISMATCH:
-            default:
-              kv = log_entry.entry_.mutable_http()->add_missing_headers();
-              accepted = false;
-              break;
-            case cilium::HeaderMatch::CONTINUE_ON_MISMATCH:
-              kv = log_entry.entry_.mutable_http()->add_missing_headers();
+          case cilium::HeaderMatch::FAIL_ON_MISMATCH:
+          default:
+            kv = log_entry.entry_.mutable_http()->add_missing_headers();
+            accepted = false;
+            break;
+          case cilium::HeaderMatch::CONTINUE_ON_MISMATCH:
+            kv = log_entry.entry_.mutable_http()->add_missing_headers();
+            continue;
+          case cilium::HeaderMatch::ADD_ON_MISMATCH:
+            headers.addReferenceKey(header_data.name_, header_data.value_);
+            kv = log_entry.entry_.mutable_http()->add_missing_headers();
+            break;
+          case cilium::HeaderMatch::DELETE_ON_MISMATCH:
+            if (header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present) {
+              // presence match failed, nothing to do
               continue;
-            case cilium::HeaderMatch::ADD_ON_MISMATCH:
-              headers.addReferenceKey(header_data.name_, header_data.value_);
-              kv = log_entry.entry_.mutable_http()->add_missing_headers();
-              break;
-            case cilium::HeaderMatch::DELETE_ON_MISMATCH:
-              if (header_data.header_match_type_ ==
-                  Http::HeaderUtility::HeaderMatchType::Present) {
-                // presence match failed, nothing to do
-                continue;
+            }
+            {
+              // otherwise need to find out if the header existed or not
+              const auto header_value =
+                  Http::HeaderUtility::getAllOfHeaderAsString(headers, header_data.name_);
+              if (!header_value.result().has_value()) {
+                continue; // nothing to remove
               }
-              {
-                // otherwise need to find out if the header existed or not
-                const auto header_value =
-                    Http::HeaderUtility::getAllOfHeaderAsString(
-                        headers, header_data.name_);
-                if (!header_value.result().has_value()) {
-                  continue;  // nothing to remove
-                }
-                // Remove the header with an incorrect value
-                headers.remove(header_data.name_);
-                kv = log_entry.entry_.mutable_http()->add_rejected_headers();
-                kv->set_key(header_data.name_.get());
-                kv->set_value(header_value.result().value().data(),
-                              header_value.result().value().size());
-              }
-              continue;
-            case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
-              headers.setReferenceKey(header_data.name_, header_data.value_);
-              kv = log_entry.entry_.mutable_http()->add_missing_headers();
-              break;
+              // Remove the header with an incorrect value
+              headers.remove(header_data.name_);
+              kv = log_entry.entry_.mutable_http()->add_rejected_headers();
+              kv->set_key(header_data.name_.get());
+              kv->set_value(header_value.result().value().data(),
+                            header_value.result().value().size());
+            }
+            continue;
+          case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
+            headers.setReferenceKey(header_data.name_, header_data.value_);
+            kv = log_entry.entry_.mutable_http()->add_missing_headers();
+            break;
           }
         }
         kv->set_key(header_data.name_.get());
@@ -272,18 +236,15 @@ class PolicyInstanceImpl : public PolicyInstance {
       return accepted;
     }
 
-    std::vector<Http::HeaderUtility::HeaderDataPtr>
-        headers_;  // Allowed if empty.
+    std::vector<Http::HeaderUtility::HeaderDataPtr> headers_; // Allowed if empty.
     std::vector<HeaderMatch> header_matches_;
   };
 
   class L7NetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
-   public:
-    L7NetworkPolicyRule(const cilium::L7NetworkPolicyRule& rule)
-        : name_(rule.name()) {
+  public:
+    L7NetworkPolicyRule(const cilium::L7NetworkPolicyRule& rule) : name_(rule.name()) {
       for (const auto& matcher : rule.metadata_rule()) {
-        ENVOY_LOG(debug, "Cilium L7NetworkPolicyRule() metadata_rule: {}",
-                  matcher.DebugString());
+        ENVOY_LOG(debug, "Cilium L7NetworkPolicyRule() metadata_rule: {}", matcher.DebugString());
         metadata_matchers_.emplace_back(matcher);
         matchers_.emplace_back(matcher);
       }
@@ -306,33 +267,27 @@ class PolicyInstanceImpl : public PolicyInstance {
 
     std::string name_;
 
-   private:
+  private:
     std::vector<Envoy::Matchers::MetadataMatcher> metadata_matchers_;
     std::vector<envoy::type::matcher::v3::MetadataMatcher> matchers_;
   };
 
-  class PortNetworkPolicyRule : public PortPolicy,
-                                public Logger::Loggable<Logger::Id::config> {
-   public:
-    PortNetworkPolicyRule(const NetworkPolicyMap& parent,
-                          const cilium::PortNetworkPolicyRule& rule)
-      : manager_(parent.transport_socket_factory_context_.sslContextManager()),
-	name_(rule.name()), l7_proto_(rule.l7_proto()) {
+  class PortNetworkPolicyRule : public PortPolicy, public Logger::Loggable<Logger::Id::config> {
+  public:
+    PortNetworkPolicyRule(const NetworkPolicyMap& parent, const cilium::PortNetworkPolicyRule& rule)
+        : manager_(parent.transport_socket_factory_context_.sslContextManager()),
+          name_(rule.name()), l7_proto_(rule.l7_proto()) {
       for (const auto& remote : rule.remote_policies()) {
-        ENVOY_LOG(
-            trace,
-            "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule {}",
-            remote, name_);
+        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule {}", remote,
+                  name_);
         allowed_remotes_.emplace(remote);
       }
       if (rule.has_downstream_tls_context()) {
         auto config = rule.downstream_tls_context();
-        envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext
-            context_config;
+        envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext context_config;
         auto tls_context = context_config.mutable_common_tls_context();
         if (config.trusted_ca() != "") {
-          auto require_tls_certificate =
-              context_config.mutable_require_client_certificate();
+          auto require_tls_certificate = context_config.mutable_require_client_certificate();
           require_tls_certificate->set_value(true);
           auto validation_context = tls_context->mutable_validation_context();
           auto trusted_ca = validation_context->mutable_trusted_ca();
@@ -346,41 +301,36 @@ class PolicyInstanceImpl : public PolicyInstance {
             auto private_key = tls_certificate->mutable_private_key();
             private_key->set_inline_string(config.private_key());
           } else {
-            throw EnvoyException(
-                absl::StrCat("PortNetworkPolicyRule: TLS context has no "
-                             "private key in rule ",
-                             name_));
+            throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: TLS context has no "
+                                              "private key in rule ",
+                                              name_));
           }
         } else {
-          throw EnvoyException(
-              absl::StrCat("PortNetworkPolicyRule: TLS context has no "
-                           "certificate chain in rule ",
-                           name_));
+          throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: TLS context has no "
+                                            "certificate chain in rule ",
+                                            name_));
         }
         for (int i = 0; i < config.server_names_size(); i++) {
           server_names_.emplace_back(config.server_names(i));
         }
-        server_config_ = std::make_unique<
-            Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
-            context_config, parent.transport_socket_factory_context_);
+        server_config_ =
+            std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
+                context_config, parent.transport_socket_factory_context_);
         server_context_ = manager_.createSslServerContext(
-            parent.transport_socket_factory_context_.scope(),
-            *server_config_, server_names_);
+            parent.transport_socket_factory_context_.scope(), *server_config_, server_names_);
       }
       if (rule.has_upstream_tls_context()) {
         auto config = rule.upstream_tls_context();
-        envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext
-            context_config;
+        envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext context_config;
         auto tls_context = context_config.mutable_common_tls_context();
         if (config.trusted_ca() != "") {
           auto validation_context = tls_context->mutable_validation_context();
           auto trusted_ca = validation_context->mutable_trusted_ca();
           trusted_ca->set_inline_string(config.trusted_ca());
         } else {
-          throw EnvoyException(
-              absl::StrCat("PortNetworkPolicyRule: Upstream TLS context has no "
-                           "trusted CA in rule ",
-                           name_));
+          throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: Upstream TLS context has no "
+                                            "trusted CA in rule ",
+                                            name_));
         }
         if (config.certificate_chain() != "") {
           auto tls_certificate = tls_context->add_tls_certificates();
@@ -393,25 +343,21 @@ class PolicyInstanceImpl : public PolicyInstance {
         }
         if (config.server_names_size() > 0) {
           if (config.server_names_size() > 1) {
-            throw EnvoyException(
-                absl::StrCat("PortNetworkPolicyRule: Upstream TLS context has "
-                             "more than one server name in rule ",
-                             name_));
+            throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: Upstream TLS context has "
+                                              "more than one server name in rule ",
+                                              name_));
           }
           context_config.set_sni(config.server_names(0));
         }
-        client_config_ = std::make_unique<
-            Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
-            context_config, parent.transport_socket_factory_context_);
+        client_config_ =
+            std::make_unique<Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
+                context_config, parent.transport_socket_factory_context_);
         client_context_ = manager_.createSslClientContext(
-            parent.transport_socket_factory_context_.scope(),
-            *client_config_);
+            parent.transport_socket_factory_context_.scope(), *client_config_);
       }
       for (const auto& sni : rule.server_names()) {
-        ENVOY_LOG(
-            trace,
-            "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}",
-            sni, name_);
+        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}", sni,
+                  name_);
         allowed_snis_.emplace(sni);
       }
       if (rule.has_http_rules()) {
@@ -491,10 +437,8 @@ class PolicyInstanceImpl : public PolicyInstance {
     // PortPolicy
     bool useProxylib(std::string& l7_proto) const override {
       if (l7_proto_.length() > 0) {
-        ENVOY_LOG(
-            trace,
-            "Cilium L7 PortNetworkPolicyRules::useProxylib(): returning {}",
-            l7_proto_);
+        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules::useProxylib(): returning {}",
+                  l7_proto_);
         l7_proto = l7_proto_;
         return true;
       }
@@ -502,15 +446,14 @@ class PolicyInstanceImpl : public PolicyInstance {
     }
 
     // Envoy Metadata matcher
-    bool allowed(
-        const envoy::config::core::v3::Metadata& metadata) const override {
+    bool allowed(const envoy::config::core::v3::Metadata& metadata) const override {
       for (const auto& rule : l7_deny_rules_) {
         if (rule.matches(metadata)) {
           ENVOY_LOG(trace,
                     "Cilium L7 PortNetworkPolicyRules::allowed(): DENY due to "
                     "a matching deny rule {}",
                     rule.name_);
-          return false;  // request is denied if any deny rule matches
+          return false; // request is denied if any deny rule matches
         }
       }
       if (l7_allow_rules_.size() > 0) {
@@ -529,24 +472,15 @@ class PolicyInstanceImpl : public PolicyInstance {
                   l7_allow_rules_.size());
         return false;
       }
-      ENVOY_LOG(trace,
-                "Cilium L7 PortNetworkPolicyRules::allowed(): default ALLOW "
-                "due to no allow rules");
-      return true;  // allowed by default
+      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules::allowed(): default ALLOW "
+                       "due to no allow rules");
+      return true; // allowed by default
     }
 
-    const Ssl::ContextConfig& getServerTlsContextConfig() const override {
-      return *server_config_;
-    }
-    Ssl::ContextSharedPtr getServerTlsContext() const override {
-      return server_context_;
-    }
-    const Ssl::ContextConfig& getClientTlsContextConfig() const override {
-      return *client_config_;
-    }
-    Ssl::ContextSharedPtr getClientTlsContext() const override {
-      return client_context_;
-    }
+    const Ssl::ContextConfig& getServerTlsContextConfig() const override { return *server_config_; }
+    Ssl::ContextSharedPtr getServerTlsContext() const override { return server_context_; }
+    const Ssl::ContextConfig& getClientTlsContextConfig() const override { return *client_config_; }
+    Ssl::ContextSharedPtr getClientTlsContext() const override { return client_context_; }
 
     Envoy::Ssl::ContextManager& manager_;
     Ssl::ServerContextConfigPtr server_config_;
@@ -557,34 +491,28 @@ class PolicyInstanceImpl : public PolicyInstance {
     Ssl::ClientContextSharedPtr client_context_;
 
     std::string name_;
-    std::unordered_set<uint64_t>
-        allowed_remotes_;  // Everyone allowed if empty.
+    std::unordered_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
     // Use std::less<> to allow heterogeneous lookups (with string_view).
-    std::set<std::string, std::less<>> allowed_snis_;  // All SNIs allowed if empty.
+    std::set<std::string, std::less<>> allowed_snis_; // All SNIs allowed if empty.
     std::vector<HttpNetworkPolicyRule>
-        http_rules_;  // Allowed if empty, but remote is checked first.
+        http_rules_; // Allowed if empty, but remote is checked first.
     bool have_header_matches_{false};
     std::string l7_proto_{};
     std::vector<L7NetworkPolicyRule> l7_allow_rules_;
     std::vector<L7NetworkPolicyRule> l7_deny_rules_;
   };
-  using PortNetworkPolicyRuleConstSharedPtr =
-      std::shared_ptr<const PortNetworkPolicyRule>;
+  using PortNetworkPolicyRuleConstSharedPtr = std::shared_ptr<const PortNetworkPolicyRule>;
 
   class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
-   public:
-    PortNetworkPolicyRules(
-        const NetworkPolicyMap& parent,
-        const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>&
-            rules) {
+  public:
+    PortNetworkPolicyRules(const NetworkPolicyMap& parent,
+                           const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
       if (rules.size() == 0) {
-        ENVOY_LOG(trace,
-                  "Cilium L7 PortNetworkPolicyRules(): No rules, will allow "
-                  "everything.");
+        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): No rules, will allow "
+                         "everything.");
       }
       for (const auto& it : rules) {
-        rules_.emplace_back(
-            std::make_shared<PortNetworkPolicyRule>(parent, it));
+        rules_.emplace_back(std::make_shared<PortNetworkPolicyRule>(parent, it));
         if (rules_.back()->have_header_matches_) {
           have_header_matches_ = true;
         }
@@ -613,7 +541,7 @@ class PolicyInstanceImpl : public PolicyInstance {
     const PortPolicyConstSharedPtr findPortPolicy(uint64_t remote_id) const {
       // Empty set matches any payload from anyone
       if (rules_.size() == 0) {
-	return allowPortNetworkPolicyRule;
+        return allowPortNetworkPolicyRule;
       }
       for (const auto& rule : rules_) {
         if (rule->Matches(remote_id)) {
@@ -623,16 +551,14 @@ class PolicyInstanceImpl : public PolicyInstance {
       return nullptr;
     }
 
-    std::vector<PortNetworkPolicyRuleConstSharedPtr>
-        rules_;  // Allowed if empty.
+    std::vector<PortNetworkPolicyRuleConstSharedPtr> rules_; // Allowed if empty.
     bool have_header_matches_{false};
   };
 
   class PortNetworkPolicy : public Logger::Loggable<Logger::Id::config> {
-   public:
-    PortNetworkPolicy(
-        const NetworkPolicyMap& parent,
-        const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicy>& rules) {
+  public:
+    PortNetworkPolicy(const NetworkPolicyMap& parent,
+                      const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicy>& rules) {
       for (const auto& it : rules) {
         // Only TCP supported for HTTP
         if (it.protocol() == envoy::config::core::v3::SocketAddress::TCP) {
@@ -641,22 +567,16 @@ class PolicyInstanceImpl : public PolicyInstance {
                     "Cilium L7 PortNetworkPolicy(): installing TCP policy for "
                     "port {}",
                     it.port());
-          if (!rules_
-                   .emplace(it.port(),
-                            PortNetworkPolicyRules(parent, it.rules()))
-                   .second) {
+          if (!rules_.emplace(it.port(), PortNetworkPolicyRules(parent, it.rules())).second) {
             throw EnvoyException("PortNetworkPolicy: Duplicate port number");
           }
         } else {
-          ENVOY_LOG(
-              trace,
-              "Cilium L7 PortNetworkPolicy(): NOT installing non-TCP policy");
+          ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): NOT installing non-TCP policy");
         }
       }
     }
 
-    bool Matches(uint32_t port, uint64_t remote_id,
-                 Envoy::Http::RequestHeaderMap& headers,
+    bool Matches(uint32_t port, uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                  Cilium::AccessLog::Entry& log_entry) const {
       auto it = rules_.find(port);
       if (it != rules_.end()) {
@@ -676,8 +596,7 @@ class PolicyInstanceImpl : public PolicyInstance {
       return false;
     }
 
-    const PortPolicyConstSharedPtr findPortPolicy(uint32_t port,
-                                                  uint64_t remote_id) const {
+    const PortPolicyConstSharedPtr findPortPolicy(uint32_t port, uint64_t remote_id) const {
       auto it = rules_.find(port);
       if (it != rules_.end()) {
         return it->second.findPortPolicy(remote_id);
@@ -695,7 +614,7 @@ class PolicyInstanceImpl : public PolicyInstance {
     std::unordered_map<uint32_t, PortNetworkPolicyRules> rules_;
   };
 
- public:
+public:
   bool Allowed(bool ingress, uint32_t port, uint64_t remote_id,
                Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const override {
@@ -703,8 +622,8 @@ class PolicyInstanceImpl : public PolicyInstance {
                    : egress_.Matches(port, remote_id, headers, log_entry);
   }
 
-  const PortPolicyConstSharedPtr findPortPolicy(
-      bool ingress, uint32_t port, uint64_t remote_id) const override {
+  const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint32_t port,
+                                                uint64_t remote_id) const override {
     return ingress ? ingress_.findPortPolicy(port, remote_id)
                    : egress_.findPortPolicy(port, remote_id);
   }
@@ -718,67 +637,54 @@ class PolicyInstanceImpl : public PolicyInstance {
     return false;
   }
 
-  const std::string& conntrackName() const override {
-    return conntrack_map_name_;
-  }
+  const std::string& conntrackName() const override { return conntrack_map_name_; }
 
-  uint32_t getEndpointID() const override {
-    return endpoint_id_;
-  }
+  uint32_t getEndpointID() const override { return endpoint_id_; }
 
-  const IPAddressPair& getEndpointIPs() const override {
-    return endpoint_ips_;
-  }
+  const IPAddressPair& getEndpointIPs() const override { return endpoint_ips_; }
 
- public:
+public:
   std::string conntrack_map_name_;
   uint32_t endpoint_id_;
   uint64_t hash_;
   const cilium::NetworkPolicy policy_proto_;
   const IPAddressPair endpoint_ips_;
 
- private:
+private:
   const PortNetworkPolicy ingress_;
   const PortNetworkPolicy egress_;
 };
 
 // Common base constructor
 // This is used directly for testing with a file-based subscription
-NetworkPolicyMap::NetworkPolicyMap(
-    Server::Configuration::FactoryContext& context)
+NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
     : tls_map(context.threadLocal()),
       validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
-      transport_socket_factory_context_(
-          context.getTransportSocketFactoryContext()),
+      transport_socket_factory_context_(context.getTransportSocketFactoryContext()),
       local_ip_str_(context.localInfo().address()->ip()->addressAsString()),
-      is_sidecar_(context.localInfo().nodeName().rfind("sidecar~" , 0) == 0) {
+      is_sidecar_(context.localInfo().nodeName().rfind("sidecar~", 0) == 0) {
   instance_id_++;
   name_ = fmt::format("cilium.policymap.{}.{}.", local_ip_str_, instance_id_);
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
 
-  tls_map.set([&](Event::Dispatcher&) {
-    return std::make_shared<ThreadLocalPolicyMap>();
-  });
+  tls_map.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
 }
 
 // This is used in production
-NetworkPolicyMap::NetworkPolicyMap(
-    Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct)
+NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context,
+                                   Cilium::CtMapSharedPtr& ct)
     : NetworkPolicyMap(context) {
   ctmap_ = ct;
   scope_ = context.scope().createScope(name_);
-  subscription_ =
-      subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
-                context.clusterManager(), context.mainThreadDispatcher(),
-                context.api().randomGenerator(), *scope_, *this, *this);
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
+                            context.clusterManager(), context.mainThreadDispatcher(),
+                            context.api().randomGenerator(), *scope_, *this, *this);
 }
 
-static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{
-    nullptr};
+static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{nullptr};
 
 const std::shared_ptr<const PolicyInstanceImpl>&
-NetworkPolicyMap::GetPolicyInstanceImpl(
-    const std::string& endpoint_ip) const {
+NetworkPolicyMap::GetPolicyInstanceImpl(const std::string& endpoint_ip) const {
   auto it = tls_map->policies_.find(endpoint_ip);
   if (it == tls_map->policies_.end()) {
     return null_instance_impl;
@@ -786,8 +692,8 @@ NetworkPolicyMap::GetPolicyInstanceImpl(
   return it->second;
 }
 
-const PolicyInstanceConstSharedPtr NetworkPolicyMap::GetPolicyInstance(
-    const std::string& endpoint_ip) const {
+const PolicyInstanceConstSharedPtr
+NetworkPolicyMap::GetPolicyInstance(const std::string& endpoint_ip) const {
   return GetPolicyInstanceImpl(endpoint_ip);
 }
 
@@ -798,26 +704,21 @@ void NetworkPolicyMap::pause() {
   }
 }
 
-void NetworkPolicyMap::resume() {
-  resume_.reset();
-}
+void NetworkPolicyMap::resume() { resume_.reset(); }
 
 void NetworkPolicyMap::onConfigUpdate(
     const std::vector<Envoy::Config::DecodedResourceRef>& resources,
     const std::string& version_info) {
-  ENVOY_LOG(debug,
-            "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}",
-            name_, resources.size(), version_info);
+  ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", name_,
+            resources.size(), version_info);
 
   std::unordered_set<std::string> keeps;
   std::unordered_set<std::string> ct_maps_to_keep;
 
   // Collect a shared vector of policies to be added
-  auto to_be_added =
-      std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
+  auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
   for (const auto& resource : resources) {
-    const auto& config =
-        dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
+    const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
     ENVOY_LOG(debug,
               "Received Network Policy for endpoint {} in onConfigUpdate() "
               "version {}",
@@ -834,15 +735,13 @@ void NetworkPolicyMap::onConfigUpdate(
     const uint64_t new_hash = MessageUtil::hash(config);
     const auto& old_policy = GetPolicyInstanceImpl(config.endpoint_ips()[0]);
     if (old_policy && old_policy->hash_ == new_hash &&
-        Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_,
-                                                   config)) {
+        Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_, config)) {
       ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
       continue;
     }
 
     // May throw
-    to_be_added->emplace_back(
-        std::make_shared<PolicyInstanceImpl>(*this, new_hash, config));
+    to_be_added->emplace_back(std::make_shared<PolicyInstanceImpl>(*this, new_hash, config));
   }
 
   // Collect a shared vector of policy names to be removed
@@ -877,22 +776,18 @@ void NetworkPolicyMap::onConfigUpdate(
   // Execute changes on all threads.
   tls_map.runOnAllThreads(
       [to_be_added, to_be_deleted](OptRef<ThreadLocalPolicyMap> npmap) {
-	ENVOY_LOG(trace,
-		  "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
-		  "updates on the next thread");
-	for (const auto& policy_name : *to_be_deleted) {
-	  ENVOY_LOG(trace,
-		    "Cilium deleting removed network policy for endpoint {}",
-		    policy_name);
-	  npmap->policies_.erase(policy_name);
-	}
-	for (const auto& new_policy : *to_be_added) {
-	  for (const auto& endpoint_ip : new_policy->policy_proto_.endpoint_ips()) {
-	    ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}",
-		      endpoint_ip);
-	    npmap->policies_[endpoint_ip] = new_policy;
-	  }
-	}
+        ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
+                         "updates on the next thread");
+        for (const auto& policy_name : *to_be_deleted) {
+          ENVOY_LOG(trace, "Cilium deleting removed network policy for endpoint {}", policy_name);
+          npmap->policies_.erase(policy_name);
+        }
+        for (const auto& new_policy : *to_be_added) {
+          for (const auto& endpoint_ip : new_policy->policy_proto_.endpoint_ips()) {
+            ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", endpoint_ip);
+            npmap->policies_[endpoint_ip] = new_policy;
+          }
+        }
       },
       // Delete old cts when all threads have updated their policies,
       // and resume NPDS after.
@@ -906,14 +801,15 @@ void NetworkPolicyMap::onConfigUpdate(
       });
 }
 
-void NetworkPolicyMap::onConfigUpdateFailed(
-    Envoy::Config::ConfigUpdateFailureReason, const EnvoyException*) {
+void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
+                                            const EnvoyException*) {
   // We need to allow server startup to continue, even if we have a bad
   // config.
   ENVOY_LOG(debug, "Network Policy Update failed, keeping existing policy.");
 }
 
-PolicyInstanceConstSharedPtr NetworkPolicyMap::AllowAllEgressPolicy = std::make_shared<AllowAllEgressPolicyInstanceImpl>();
+PolicyInstanceConstSharedPtr NetworkPolicyMap::AllowAllEgressPolicy =
+    std::make_shared<AllowAllEgressPolicyInstanceImpl>();
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

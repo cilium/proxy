@@ -2,14 +2,14 @@
 
 #include <string>
 
-#include "absl/types/optional.h"
-
-#include "cilium/accesslog.h"
-#include "cilium/api/l7policy.pb.h"
-
-#include "source/common/common/logger.h"
 #include "envoy/server/filter_config.h"
 #include "envoy/stats/stats_macros.h"
+
+#include "source/common/common/logger.h"
+
+#include "absl/types/optional.h"
+#include "cilium/accesslog.h"
+#include "cilium/api/l7policy.pb.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -19,7 +19,7 @@ namespace Cilium {
  */
 // clang-format off
 #define ALL_CILIUM_STATS(COUNTER)                                                                  \
-  COUNTER(access_denied)                                                                           \
+  COUNTER(access_denied)                                                                                \
 // clang-format on
 
 /**
@@ -36,18 +36,18 @@ struct FilterStats {
 class Config : public Logger::Loggable<Logger::Id::filter> {
 public:
   Config(const std::string& access_log_path, const std::string& denied_403_body,
-	 Server::Configuration::FactoryContext& context);
-  Config(const ::cilium::L7Policy &config, Server::Configuration::FactoryContext& context);
+         Server::Configuration::FactoryContext& context);
+  Config(const ::cilium::L7Policy& config, Server::Configuration::FactoryContext& context);
   ~Config();
 
-  void Log(AccessLog::Entry &, ::cilium::EntryType);
+  void Log(AccessLog::Entry&, ::cilium::EntryType);
 
   TimeSource& time_source_;
   FilterStats stats_;
   std::string denied_403_body_;
 
 private:
-  AccessLog *access_log_;
+  AccessLog* access_log_;
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;
@@ -55,8 +55,7 @@ typedef std::shared_ptr<Config> ConfigSharedPtr;
 // Each request gets their own instance of this filter, and
 // they can run parallel from multiple worker threads, all accessing
 // the shared configuration.
-class AccessFilter : public Http::StreamFilter,
-                     Logger::Loggable<Logger::Id::filter> {
+class AccessFilter : public Http::StreamFilter, Logger::Loggable<Logger::Id::filter> {
 public:
   AccessFilter(ConfigSharedPtr& config) : config_(config) {}
 
@@ -79,7 +78,8 @@ public:
   Http::FilterHeadersStatus encode1xxHeaders(Http::ResponseHeaderMap&) override {
     return Http::FilterHeadersStatus::Continue;
   }
-  Http::FilterHeadersStatus encodeHeaders(Http::ResponseHeaderMap& headers, bool end_stream) override;
+  Http::FilterHeadersStatus encodeHeaders(Http::ResponseHeaderMap& headers,
+                                          bool end_stream) override;
   Http::FilterDataStatus encodeData(Buffer::Instance&, bool) override {
     return Http::FilterDataStatus::Continue;
   }
@@ -99,5 +99,5 @@ private:
   AccessLog::Entry log_entry_;
 };
 
-} // Cilium
-} // Envoy
+} // namespace Cilium
+} // namespace Envoy

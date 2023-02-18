@@ -2,10 +2,12 @@
 
 #include <google/protobuf/map.h>
 
+#include "envoy/network/connection.h"
+
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
 #include "source/common/protobuf/protobuf.h"
-#include "envoy/network/connection.h"
+
 #include "proxylib/libcilium.h"
 
 namespace Envoy {
@@ -19,11 +21,9 @@ struct GoString {
   GoInt len_;
 };
 
-template <typename T>
-struct GoSlice {
+template <typename T> struct GoSlice {
   GoSlice() : data_(nullptr), len_(0) {}
-  GoSlice(T* data, GoInt len)
-      : data_(data), len_(len), cap_(len) {}  // Initialized as full
+  GoSlice(T* data, GoInt len) : data_(data), len_(len), cap_(len) {} // Initialized as full
   GoInt len() const { return len_; }
   GoInt cap() const { return cap_; }
   T& operator[](GoInt x) { return data_[x]; }
@@ -41,15 +41,14 @@ struct GoSlice {
 // Slice that remembers the base pointer and that can be reset.
 // Note that these have more header data than GoSlices and therefore may not
 // used as array elements passed to Go!
-template <typename T>
-struct ResetableSlice : GoSlice<T> {
+template <typename T> struct ResetableSlice : GoSlice<T> {
   // Templated base class member access is a bit ugly
   using GoSlice<T>::data_;
   using GoSlice<T>::len_;
   using GoSlice<T>::cap_;
 
   ResetableSlice(T* data, GoInt cap) : GoSlice<T>(data, cap), base_(data) {
-    len_ = 0;  // Init as empty
+    len_ = 0; // Init as empty
   }
 
   // Non-Go helpers to consume data filled in by Go. Must reset() before slice
@@ -87,28 +86,23 @@ typedef uint64_t (*GoOpenModuleCB)(GoKeyValueSlice, bool);
 typedef void (*GoCloseModuleCB)(uint64_t);
 
 typedef ResetableSlice<uint8_t> GoBufferSlice;
-typedef FilterResult (*GoOnNewConnectionCB)(uint64_t, GoString, uint64_t, bool,
-                                            uint32_t, uint32_t, GoString,
-                                            GoString, GoString, GoBufferSlice*,
+typedef FilterResult (*GoOnNewConnectionCB)(uint64_t, GoString, uint64_t, bool, uint32_t, uint32_t,
+                                            GoString, GoString, GoString, GoBufferSlice*,
                                             GoBufferSlice*);
 
-typedef GoSlice<GoSlice<uint8_t>>
-    GoDataSlices;  // Scatter-gather buffer list as '[][]byte'
+typedef GoSlice<GoSlice<uint8_t>> GoDataSlices; // Scatter-gather buffer list as '[][]byte'
 typedef ResetableSlice<FilterOp> GoFilterOpSlice;
-typedef FilterResult (*GoOnDataCB)(uint64_t, bool, bool, GoDataSlices*,
-                                   GoFilterOpSlice*);
+typedef FilterResult (*GoOnDataCB)(uint64_t, bool, bool, GoDataSlices*, GoFilterOpSlice*);
 typedef void (*GoCloseCB)(uint64_t);
 
 class GoFilter : public Logger::Loggable<Logger::Id::filter> {
- public:
-  GoFilter(const std::string& go_module,
-           const Protobuf::Map<::std::string, ::std::string>&);
+public:
+  GoFilter(const std::string& go_module, const Protobuf::Map<::std::string, ::std::string>&);
   ~GoFilter();
 
   class Instance : public Logger::Loggable<Logger::Id::filter> {
-   public:
-    Instance(const GoFilter& parent, Network::Connection& conn)
-        : parent_(parent), conn_(conn) {}
+  public:
+    Instance(const GoFilter& parent, Network::Connection& conn) : parent_(parent), conn_(conn) {}
     ~Instance() {
       if (connection_id_) {
         // Tell Go parser to scrap the state kept for the connection
@@ -130,11 +124,9 @@ class GoFilter : public Logger::Loggable<Logger::Id::filter> {
       bool WantToInject() const { return !closed_ && inject_slice_.len() > 0; }
       void Close() { closed_ = true; }
 
-      Buffer::OwnedImpl buffer_;  // Buffered data in this direction
-      int64_t need_bytes_{
-          0};  // Number of additional data bytes needed before can parse again
-      int64_t pass_bytes_{
-          0};  // Number of bytes to pass without calling the parser again
+      Buffer::OwnedImpl buffer_; // Buffered data in this direction
+      int64_t need_bytes_{0};    // Number of additional data bytes needed before can parse again
+      int64_t pass_bytes_{0};    // Number of bytes to pass without calling the parser again
       int64_t drop_bytes_{0};
       bool closed_{false};
       GoBufferSlice inject_slice_;
@@ -149,14 +141,11 @@ class GoFilter : public Logger::Loggable<Logger::Id::filter> {
   };
   typedef std::unique_ptr<Instance> InstancePtr;
 
-  InstancePtr NewInstance(Network::Connection& conn,
-                          const std::string& go_proto, bool ingress,
-                          uint32_t src_id, uint32_t dst_id,
-                          const std::string& src_addr,
-                          const std::string& dst_addr,
-                          const std::string& policy_name) const;
+  InstancePtr NewInstance(Network::Connection& conn, const std::string& go_proto, bool ingress,
+                          uint32_t src_id, uint32_t dst_id, const std::string& src_addr,
+                          const std::string& dst_addr, const std::string& policy_name) const;
 
- private:
+private:
   void* go_module_handle_{nullptr};
   GoCloseModuleCB go_close_module_;
   GoOnNewConnectionCB go_on_new_connection_;
@@ -167,5 +156,5 @@ class GoFilter : public Logger::Loggable<Logger::Id::filter> {
 
 typedef std::shared_ptr<const GoFilter> GoFilterSharedPtr;
 
-}  // namespace Cilium
-}  // namespace Envoy
+} // namespace Cilium
+} // namespace Envoy

@@ -1,8 +1,8 @@
-#include "tests/cilium_tcp_integration.h"
-
 #include "test/integration/integration.h"
 #include "test/integration/utility.h"
 #include "test/test_common/environment.h"
+
+#include "tests/cilium_tcp_integration.h"
 
 namespace Envoy {
 
@@ -75,12 +75,10 @@ static_resources:
 )EOF";
 
 class CiliumWebSocketIntegrationTest : public CiliumTcpIntegrationTest {
- public:
+public:
   CiliumWebSocketIntegrationTest()
-      : CiliumTcpIntegrationTest(
-            fmt::format(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt,
-                                                    GetParam()),
-                        "true")) {}
+      : CiliumTcpIntegrationTest(fmt::format(
+            TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam()), "true")) {}
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(R"EOF(version_info: "0"
@@ -97,23 +95,21 @@ resources:
   - port: {0}
     rules:
     - remote_policies: [ 1 ]
-)EOF", GetParam());
+)EOF",
+                                       GetParam());
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(
-    IpVersions, CiliumWebSocketIntegrationTest,
-    testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
-    TestUtility::ipTestParamsToString);
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumWebSocketIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                         TestUtility::ipTestParamsToString);
 
 // Test upstream writing before downstream downstream does.
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
 
@@ -136,12 +132,10 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
 // when there is an upstream disconnect.
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamDisconnect) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   ASSERT_TRUE(tcp_client->write("hello"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string received;
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
@@ -162,12 +156,10 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamDisconnect) {
 // when the client disconnects.
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   initialize();
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   ASSERT_TRUE(tcp_client->write("hello"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string received;
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
@@ -191,12 +183,10 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   initialize();
 
   std::string data(1024 * 16, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   ASSERT_TRUE(tcp_client->write(data));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string received;
   ASSERT_TRUE(fake_upstream_connection->waitForData(data.size(), &received));
@@ -212,26 +202,15 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   uint32_t upstream_pauses =
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_paused_reading_total")
-          ->value();
+      test_server_->counter("cluster.cluster1.upstream_flow_control_paused_reading_total")->value();
   uint32_t upstream_resumes =
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_resumed_reading_total")
+      test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
           ->value();
   EXPECT_EQ(upstream_pauses, upstream_resumes);
   uint32_t downstream_pauses =
-      test_server_
-          ->counter(
-              "tcp.tcp_stats.downstream_flow_control_paused_reading_total")
-          ->value();
+      test_server_->counter("tcp.tcp_stats.downstream_flow_control_paused_reading_total")->value();
   uint32_t downstream_resumes =
-      test_server_
-          ->counter(
-              "tcp.tcp_stats.downstream_flow_control_resumed_reading_total")
-          ->value();
+      test_server_->counter("tcp.tcp_stats.downstream_flow_control_resumed_reading_total")->value();
   EXPECT_EQ(downstream_pauses, downstream_resumes);
 }
 
@@ -245,11 +224,9 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   initialize();
 
   std::string data(size, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
 
@@ -262,28 +239,19 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
 
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
 
-  test_server_->waitForCounterGe(
-      "cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
-  EXPECT_EQ(
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_resumed_reading_total")
-          ->value(),
-      0);
+  test_server_->waitForCounterGe("cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
+  EXPECT_EQ(test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
+                ->value(),
+            0);
   tcp_client->readDisable(false);
   tcp_client->waitForData(data);
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
 
   uint32_t upstream_pauses =
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_paused_reading_total")
-          ->value();
+      test_server_->counter("cluster.cluster1.upstream_flow_control_paused_reading_total")->value();
   uint32_t upstream_resumes =
-      test_server_
-          ->counter(
-              "cluster.cluster1.upstream_flow_control_resumed_reading_total")
+      test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
           ->value();
   EXPECT_GE(upstream_pauses, upstream_resumes);
   EXPECT_GT(upstream_resumes, 0);
@@ -299,11 +267,9 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
   initialize();
 
   std::string data(size, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
 
@@ -326,8 +292,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForHalfClose();
 
-  EXPECT_EQ(
-      test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
+  EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
 }
 
@@ -341,11 +306,9 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
   initialize();
 
   std::string data(size, 'a');
-  IntegrationTcpClientPtr tcp_client =
-      makeTcpConnection(lookupPort("tcp_proxy"));
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
-  ASSERT_TRUE(
-      fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -366,4 +329,4 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
   // Success criteria is that no ASSERTs fire and there are no leaks.
 }
 
-}  // namespace Envoy
+} // namespace Envoy
