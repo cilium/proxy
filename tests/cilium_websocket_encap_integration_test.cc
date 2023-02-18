@@ -108,7 +108,7 @@ public:
     char mask[4];
     bool masked = frame[1] & 0x80;
     if (masked) {
-      memcpy(mask, frame + frame_offset, sizeof(mask));
+      memcpy(mask, frame + frame_offset, sizeof(mask)); // NOLINT(safe-memcpy)
       frame_offset += sizeof(mask);
     }
     if (data_len != len - frame_offset) {

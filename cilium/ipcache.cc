@@ -73,7 +73,7 @@ uint32_t IPCache::resolve(const Network::Address::Ip* ip) {
     key.lpm_key = {32 + 128, {}};
     key.family = ENDPOINT_KEY_IPV6;
     absl::uint128 ip6 = ip->ipv6()->address();
-    memcpy(&key.ip6, &ip6, sizeof key.ip6);
+    memcpy(&key.ip6, &ip6, sizeof key.ip6); // NOLINT(safe-memcpy)
   }
 
   if (key.family == ENDPOINT_KEY_IPV4) {

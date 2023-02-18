@@ -199,8 +199,8 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
              dip->version() == Network::Address::IpVersion::v6) {
     absl::uint128 daddr = dip->ipv6()->address();
     absl::uint128 saddr = sip->ipv6()->address();
-    memcpy(&key6.daddr, &daddr, 16);
-    memcpy(&key6.saddr, &saddr, 16);
+    memcpy(&key6.daddr, &daddr, 16); // NOLINT(safe-memcpy)
+    memcpy(&key6.saddr, &saddr, 16); // NOLINT(safe-memcpy)
     key6.sport = htons(sip->port());
     key6.dport = htons(dip->port());
     key6.nexthdr = 6; // TCP only for now
