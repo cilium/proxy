@@ -696,14 +696,14 @@ void Codec::Encoder::encode(Buffer::Instance& data, bool end_stream, uint8_t opc
 
       frame_header[1] = 126;
       len16 = htobe16(payload_len);
-      memcpy(frame_header + frame_header_length, &len16, 2);
+      memcpy(frame_header + frame_header_length, &len16, 2); // NOLINT(safe-memcpy)
       frame_header_length += 2;
     } else {
       uint64_t len64;
 
       frame_header[1] = 127;
       len64 = htobe64(payload_len);
-      memcpy(frame_header + frame_header_length, &len64, 8);
+      memcpy(frame_header + frame_header_length, &len64, 8); // NOLINT(safe-memcpy)
       frame_header_length += 8;
     }
 
@@ -717,7 +717,7 @@ void Codec::Encoder::encode(Buffer::Instance& data, bool end_stream, uint8_t opc
       } mask;
 
       mask.word = config->random_.random();
-      memcpy(frame_header + frame_header_length, &mask, 4);
+      memcpy(frame_header + frame_header_length, &mask, 4); // NOLINT(safe-memcpy)
       frame_header_length += 4;
       uint8_t* buf = reinterpret_cast<uint8_t*>(data.linearize(payload_len));
       maskData(buf, payload_len, mask.bytes);
@@ -743,7 +743,7 @@ void Codec::Encoder::encode(Buffer::Instance& data, bool end_stream, uint8_t opc
       frame_header[1] |= MASK_MASK;
 
       uint32_t mask = config->random_.random();
-      memcpy(frame_header + frame_header_length, &mask, 4);
+      memcpy(frame_header + frame_header_length, &mask, 4); // NOLINT(safe-memcpy)
       frame_header_length += 4;
       // No data to mask
     }
