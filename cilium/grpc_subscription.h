@@ -1,6 +1,5 @@
 #pragma once
 
-#include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/grpc_mux.h"
 #include "envoy/config/subscription.h"
 #include "envoy/event/dispatcher.h"

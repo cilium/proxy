@@ -13,7 +13,6 @@ envoy_cc_library(
     srcs = ["tls_wrapper.cc"],
     hdrs = ["tls_wrapper.h"],
     repository = "@envoy",
-    visibility = ["//visibility:public"],
     deps = [
         "//cilium:network_policy_lib",
         "//cilium:socket_option_lib",
@@ -23,6 +22,7 @@ envoy_cc_library(
         "@envoy//envoy/server:transport_socket_config_interface",
         "@envoy//source/extensions/transport_sockets/tls:ssl_socket_lib",
         "@envoy//source/server:transport_socket_config_lib",
+        "@envoy_api//envoy/extensions/transport_sockets/tls/v3:pkg_cc_proto",
     ],
 )
 
@@ -43,10 +43,13 @@ envoy_cc_library(
         "@envoy//envoy/config:subscription_interface",
         "@envoy//envoy/singleton:manager_interface",
         "@envoy//source/common/common:logger_lib",
+        "@envoy//source/common/config:opaque_resource_decoder_lib",
         "@envoy//source/common/local_info:local_info_lib",
         "@envoy//source/common/network:address_lib",
         "@envoy//source/common/router:config_utility_lib",
-        "@envoy//source/exe:envoy_common_lib",
+        "@envoy//source/extensions/transport_sockets/tls:context_config_lib",
+        "@envoy//source/server:transport_socket_config_lib",
+        "@envoy_api//envoy/type/matcher/v3:pkg_cc_proto",
     ],
 )
 
@@ -60,6 +63,7 @@ envoy_cc_library(
         "//cilium:conntrack_lib",
         "@envoy//envoy/network:listen_socket_interface",
         "@envoy//source/common/common:logger_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],
 )
 
@@ -72,10 +76,12 @@ envoy_cc_library(
         "grpc_subscription.h",
     ],
     repository = "@envoy",
-    visibility = ["//visibility:public"],
     deps = [
+        "@envoy//envoy/network:connection_interface",
         "@envoy//source/common/config:grpc_subscription_lib",
-        "@envoy//source/exe:envoy_common_lib",
+        "@envoy//source/common/config:type_to_endpoint_lib",
+        "@envoy_api//envoy/annotations:pkg_cc_proto",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],
 )
 
@@ -88,7 +94,6 @@ envoy_cc_library(
         "l7policy.h",
     ],
     repository = "@envoy",
-    visibility = ["//visibility:public"],
     deps = [
         "//cilium:accesslog_lib",
         "//cilium:network_policy_lib",
@@ -116,7 +121,6 @@ envoy_cc_library(
     ],
     external_deps = ["http_parser"],
     repository = "@envoy",
-    visibility = ["//visibility:public"],
     deps = [
         "//cilium:accesslog_lib",
         "//cilium:socket_option_lib",
@@ -124,7 +128,13 @@ envoy_cc_library(
         "@envoy//envoy/common/crypto:crypto_interface",
         "@envoy//source/common/common:base64_lib",
         "@envoy//source/common/common:hex_lib",
+        "@envoy//source/common/crypto:utility_lib",
+        "@envoy//source/common/http:codes_lib",
+        "@envoy//source/common/http:header_utility_lib",
+        "@envoy//source/common/http:request_id_extension_lib",
         "@envoy//source/common/http:utility_lib",
+        "@envoy//source/common/network:filter_manager_lib",
+        "@envoy_api//envoy/extensions/request_id/uuid/v3:pkg_cc_proto",
     ],
 )
 
@@ -137,10 +147,11 @@ envoy_cc_library(
         "accesslog.h",
     ],
     repository = "@envoy",
-    visibility = ["//visibility:public"],
     deps = [
         "//cilium/api:accesslog_proto_cc_proto",
-        "@envoy//source/exe:envoy_common_lib",
+        "@envoy//envoy/http:header_map_interface",
+        "@envoy//envoy/network:connection_interface",
+        "@envoy//envoy/router:router_interface",
     ],
 )
 
@@ -229,7 +240,6 @@ envoy_cc_library(
         "network_filter.h",
     ],
     repository = "@envoy",
-    visibility = ["//visibility:public"],
     deps = [
         "//cilium:conntrack_lib",
         "//cilium:network_policy_lib",
@@ -260,7 +270,6 @@ envoy_cc_library(
         "host_map.h",
     ],
     repository = "@envoy",
-    visibility = ["//visibility:public"],
     deps = [
         "//cilium:conntrack_lib",
         "//cilium:grpc_subscription_lib",
