@@ -3,14 +3,14 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 
 #include "envoy/network/address.h"
 #include "envoy/singleton/instance.h"
 
 #include "source/common/common/logger.h"
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "bpf.h"
 
 namespace std {
@@ -60,19 +60,19 @@ public:
     CtMap6 ctmap6_tcp_;
     CtMap6 ctmap6_any_;
   };
-  void closeMaps(const std::shared_ptr<std::unordered_set<std::string>>& to_be_closed);
+  void closeMaps(const std::shared_ptr<absl::flat_hash_set<std::string>>& to_be_closed);
 
 private:
-  std::unordered_map<const std::string, std::unique_ptr<CtMaps4>>::iterator
+  absl::flat_hash_map<const std::string, std::unique_ptr<CtMaps4>>::iterator
   openMap4(const std::string& map_name);
-  std::unordered_map<const std::string, std::unique_ptr<CtMaps6>>::iterator
+  absl::flat_hash_map<const std::string, std::unique_ptr<CtMaps6>>::iterator
   openMap6(const std::string& map_name);
 
   // All known conntrack maps. Populated with the "global" maps at startup,
   // further maps are opened and inserted on demand.
   std::mutex maps_mutex_;
-  std::unordered_map<const std::string, std::unique_ptr<CtMaps4>> ct_maps4_;
-  std::unordered_map<const std::string, std::unique_ptr<CtMaps6>> ct_maps6_;
+  absl::flat_hash_map<const std::string, std::unique_ptr<CtMaps4>> ct_maps4_;
+  absl::flat_hash_map<const std::string, std::unique_ptr<CtMaps6>> ct_maps6_;
   std::string bpf_root_;
 };
 
