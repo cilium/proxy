@@ -12,7 +12,7 @@ message WebSocketClient {
   string access_log_path = 1;
 
   // Host header value, required.
-  string host = 2 [(validate.rules).string.min_bytes = 2];
+  string host = 2 [(validate.rules).string.min_len = 2];
 
   // Path value. Defaults to "/".
   string path = 3;
