@@ -77,16 +77,14 @@ RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
         # Allow running x86_64 test binaries via qemu \
         ln -s /usr/x86_64-linux-gnu/lib/ld-linux-x86-64.so.* /lib; \
         ln -s /lib /lib64; \
-        LD_LIBRARY_PATH=/usr/x86_64-linux-gnu/lib; \
+        ln -s /usr/x86_64-linux-gnu/lib /usr/cilium-cross-compat/lib; \
       elif [ "$TARGETARCH" = "arm64" ]; then \
         # Allow running aarch64 test binaries via qemu \
         ln -s /usr/aarch64-linux-gnu/lib/ld-linux-aarch64.so.* /lib; \
-        LD_LIBRARY_PATH=/usr/aarch64-linux-gnu/lib; \
+        ln -s /usr/aarch64-linux-gnu/lib /usr/cilium-cross-compat/lib; \
       fi; \
     fi && \
-    echo "using LD_LIBRARY_PATH=${LD_LIBRARY_PATH} for running tests" && \
-    BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache --test_env=LD_LIBRARY_PATH=${LD_LIBRARY_PATH}" \
-    PKG_BUILD=1 V=$V make envoy-tests && \
+    BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V make envoy-tests && \
     cp -Lr /cilium/proxy/bazel-testlogs testlogs
 
 FROM scratch as empty-builder-archive
