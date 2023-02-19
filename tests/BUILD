@@ -4,10 +4,19 @@ load(
     "envoy_cc_test_library",
     "envoy_package",
 )
+load(
+    "@envoy_api//bazel:api_build_system.bzl",
+    "api_cc_py_proto_library",
+)
 
 licenses(["notice"])  # Apache 2
 
 envoy_package()
+
+api_cc_py_proto_library(
+    name = "bpf_metadata",
+    srcs = ["bpf_metadata.proto"],
+)
 
 envoy_cc_test_library(
     name = "accesslog_server_lib",
@@ -28,21 +37,12 @@ envoy_cc_test_library(
     hdrs = ["bpf_metadata.h"],
     repository = "@envoy",
     deps = [
+        ":bpf_metadata_cc_proto",
         "//cilium:bpf_metadata_lib",
         "//cilium:network_policy_lib",
         "//cilium:socket_option_lib",
         "@envoy//source/common/config:filesystem_subscription_lib",
         "@envoy//test/test_common:environment_lib",
-    ],
-)
-
-envoy_cc_test_library(
-    name = "l7policy_lib",
-    srcs = ["l7policy.cc"],
-    hdrs = ["l7policy.h"],
-    repository = "@envoy",
-    deps = [
-        "//cilium:l7policy_lib",
     ],
 )
 
@@ -106,8 +106,8 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
+        ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
-        "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
     ],
 )
@@ -120,9 +120,9 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
+        ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
         ":cilium_tls_integration_lib",
-        "//cilium:bpf_metadata_lib",
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
         "//cilium:tls_wrapper_lib",
@@ -138,9 +138,9 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
+        ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
         ":cilium_tls_integration_lib",
-        "//cilium:bpf_metadata_lib",
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
         "//cilium:tls_wrapper_lib",
@@ -155,9 +155,8 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
+        ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
-        ":l7policy_lib",
-        "//cilium:bpf_metadata_lib",
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
     ],
@@ -171,8 +170,8 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
+        ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
-        "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
         "@envoy//source/extensions/filters/network/tcp_proxy:config",
@@ -187,8 +186,8 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
+        ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
-        "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
     ],
@@ -202,8 +201,8 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
+        ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
-        "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
     ],

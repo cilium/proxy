@@ -6,8 +6,8 @@
 
 #include "test/test_common/environment.h"
 
-#include "cilium/api/bpf_metadata.pb.validate.h"
 #include "cilium/socket_option.h"
+#include "tests/bpf_metadata.pb.validate.h"
 
 namespace Envoy {
 
@@ -22,9 +22,17 @@ std::string policy_config;
 namespace Cilium {
 namespace BpfMetadata {
 
-TestConfig::TestConfig(const ::cilium::BpfMetadata& config,
+namespace {
+::cilium::BpfMetadata getTestConfig(const ::cilium::TestBpfMetadata& config) {
+  ::cilium::BpfMetadata test_config;
+  test_config.set_is_ingress(config.is_ingress());
+  return test_config;
+}
+} // namespace
+
+TestConfig::TestConfig(const ::cilium::TestBpfMetadata& config,
                        Server::Configuration::ListenerFactoryContext& context)
-    : Config(config, context) {}
+    : Config(getTestConfig(config), context) {}
 
 TestConfig::~TestConfig() {
   hostmap.reset();
@@ -73,7 +81,7 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   }
   auto policy = getPolicy(pod_ip);
   if (policy == nullptr) {
-    ENVOY_LOG_MISC(warn, "cilium.bpf_metadata ({}): No policy found for {}",
+    ENVOY_LOG_MISC(warn, "tests.bpf_metadata ({}): No policy found for {}",
                    is_ingress_ ? "ingress" : "egress", pod_ip);
     return false;
   }
@@ -165,7 +173,7 @@ Network::ListenerFilterFactoryCb TestBpfMetadataConfigFactory::createListenerFil
   npmap = createPolicyMap(policy_config, context);
 
   auto config = std::make_shared<Cilium::BpfMetadata::TestConfig>(
-      MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(
+      MessageUtil::downcastAndValidate<const ::cilium::TestBpfMetadata&>(
           proto_config, context.messageValidationVisitor()),
       context);
 
@@ -177,7 +185,7 @@ Network::ListenerFilterFactoryCb TestBpfMetadataConfigFactory::createListenerFil
 }
 
 ProtobufTypes::MessagePtr TestBpfMetadataConfigFactory::createEmptyConfigProto() {
-  return std::make_unique<::cilium::BpfMetadata>();
+  return std::make_unique<::cilium::TestBpfMetadata>();
 }
 
 std::string TestBpfMetadataConfigFactory::name() const { return "test_bpf_metadata"; }
