@@ -27,7 +27,7 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
-// Proto representation of certificate details. Admin endpoint uses this wrapper for `/certs` to
+// Proto representation of certificate details. Admin endpoint uses this wrapper for “/certs“ to
 // display certificate information. See :ref:`/certs <operations_admin_interface_certs>` for more
 // information.
 type Certificates struct {
