@@ -209,7 +209,7 @@ public:
 private:
   ThreadLocal::SlotPtr tls_;
   ProtobufMessage::ValidationVisitor& validation_visitor_;
-  Stats::ScopePtr scope_;
+  Stats::ScopeSharedPtr scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   static uint64_t instance_id_;
   std::string name_;
