@@ -20,7 +20,9 @@ ENVOY_SHA = "9c4467263303640a81a7d0d2ee7da4eed2009369"
 
 ENVOY_SHA256 = "f9c29978f3f104431847133f7fa493c0d422f8be4467789cea2a320f25c3c867"
 
+# // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+# // clang-format on
 
 local_repository(
     name = "envoy_build_config",
@@ -42,7 +44,9 @@ http_archive(
     ],
     sha256 = ENVOY_SHA256,
     strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
+    # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     url = "https://github.com/" + ENVOY_PROJECT + "/" + ENVOY_REPO + "/archive/" + ENVOY_SHA + ".tar.gz",
+    # // clang-format on
 )
 
 #
