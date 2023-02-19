@@ -18,7 +18,7 @@ include Makefile.quiet
 
 PROTOC ?= bazel-out/host/bin/external/com_google_protobuf/protoc
 
-ENVOY_API_PROTO_PATH = bazel-proxy/external/envoy/api
+ENVOY_API_PROTO_PATH = bazel-proxy/external/envoy_api
 CILIUM_PROTO_PATH = .
 PROTO_DEPS = \
 	-I bazel-proxy/external/com_google_protobuf/src \

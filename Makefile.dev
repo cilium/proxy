@@ -27,11 +27,18 @@ all: precheck envoy-default
 
 # @envoy_api//:v3_protos must be built before invoking Makefile.api
 API_DEPS = @envoy_api//:v3_protos
-PROTOC_SED = "s/ *Outputs: \[\(.*bin\/external\/com_google_protobuf\/protoc\)\]/\1/p"
+PROTOC_TARGET = @com_google_protobuf//:protoc
 api: force-non-root Makefile.api install-bazel
-	bazel build $(API_DEPS)
-	PROTOC=`bazel aquery 'deps($(API_DEPS), 1)' | sed -n $(PROTOC_SED)` \
-	$(MAKE) -f Makefile.api all
+	PROTOC=`$(BAZEL) cquery --output=starlark --starlark:expr=target.files_to_run.executable.path $(PROTOC_TARGET) | grep fastbuild/bin/external`; \
+	$(BAZEL) build $(PROTOC_TARGET) $(API_DEPS); \
+	file $${PROTOC} && PROTOC=$${PROTOC} $(MAKE) -f Makefile.api all
+
+api-clean:
+	find go -name *.pb.go -delete
+	find go -name *.pb.validate.go -delete
+	find go -empty -type d -delete
+	mkdir -p go/contrib/envoy
+	mkdir go/envoy
 
 envoy-default: $(COMPILER_DEP) SOURCE_VERSION install-bazel
 	@$(ECHO_BAZEL)
