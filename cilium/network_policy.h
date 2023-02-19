@@ -153,7 +153,7 @@ private:
 
   ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map;
   ProtobufMessage::ValidationVisitor& validation_visitor_;
-  Stats::ScopePtr scope_;
+  Stats::ScopeSharedPtr scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   Envoy::Config::ScopedResume resume_;
   static uint64_t instance_id_;
