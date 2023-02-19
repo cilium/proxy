@@ -34,3 +34,8 @@
 # generated for docker builds via make
 /SOURCE_VERSION
 /.dockerignore
+
+# generated for Clion
+/.clwb
+
+/.vagrant
