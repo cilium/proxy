@@ -29,7 +29,7 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
-// Admin endpoint uses this wrapper for `/clusters` to display cluster status information.
+// Admin endpoint uses this wrapper for “/clusters“ to display cluster status information.
 // See :ref:`/clusters <operations_admin_interface_clusters>` for more information.
 type Clusters struct {
 	state         protoimpl.MessageState
@@ -93,10 +93,10 @@ type ClusterStatus struct {
 	// The success rate threshold used in the last interval.
 	// If
 	// :ref:`outlier_detection.split_external_local_origin_errors<envoy_v3_api_field_config.cluster.v3.OutlierDetection.split_external_local_origin_errors>`
-	// is *false*, all errors: externally and locally generated were used to calculate the threshold.
+	// is “false“, all errors: externally and locally generated were used to calculate the threshold.
 	// If
 	// :ref:`outlier_detection.split_external_local_origin_errors<envoy_v3_api_field_config.cluster.v3.OutlierDetection.split_external_local_origin_errors>`
-	// is *true*, only externally generated errors were used to calculate the threshold.
+	// is “true“, only externally generated errors were used to calculate the threshold.
 	// The threshold is used to eject hosts based on their success rate. See
 	// :ref:`Cluster outlier detection <arch_overview_outlier_detection>` documentation for details.
 	//
@@ -114,7 +114,7 @@ type ClusterStatus struct {
 	// taken into account and externally originated errors were treated as success.
 	// This field should be interpreted only when
 	// :ref:`outlier_detection.split_external_local_origin_errors<envoy_v3_api_field_config.cluster.v3.OutlierDetection.split_external_local_origin_errors>`
-	// is *true*. The threshold is used to eject hosts based on their success rate.
+	// is “true“. The threshold is used to eject hosts based on their success rate.
 	// See :ref:`Cluster outlier detection <arch_overview_outlier_detection>` documentation for
 	// details.
 	//
@@ -229,10 +229,10 @@ type HostStatus struct {
 	// Request success rate for this host over the last calculated interval.
 	// If
 	// :ref:`outlier_detection.split_external_local_origin_errors<envoy_v3_api_field_config.cluster.v3.OutlierDetection.split_external_local_origin_errors>`
-	// is *false*, all errors: externally and locally generated were used in success rate
+	// is “false“, all errors: externally and locally generated were used in success rate
 	// calculation. If
 	// :ref:`outlier_detection.split_external_local_origin_errors<envoy_v3_api_field_config.cluster.v3.OutlierDetection.split_external_local_origin_errors>`
-	// is *true*, only externally generated errors were used in success rate calculation.
+	// is “true“, only externally generated errors were used in success rate calculation.
 	// See :ref:`Cluster outlier detection <arch_overview_outlier_detection>` documentation for
 	// details.
 	//
@@ -251,7 +251,7 @@ type HostStatus struct {
 	// errors were treated as success.
 	// This field should be interpreted only when
 	// :ref:`outlier_detection.split_external_local_origin_errors<envoy_v3_api_field_config.cluster.v3.OutlierDetection.split_external_local_origin_errors>`
-	// is *true*.
+	// is “true“.
 	// See :ref:`Cluster outlier detection <arch_overview_outlier_detection>` documentation for
 	// details.
 	//

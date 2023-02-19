@@ -30,6 +30,7 @@ const _ = proto.ProtoPackageIsVersion4
 
 // Custom configuration for an :ref:`AccessLog <envoy_v3_api_msg_config.accesslog.v3.AccessLog>`
 // that writes log entries directly to the operating system's standard output.
+// [#extension: envoy.access_loggers.stdout]
 type StdoutAccessLog struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -101,6 +102,7 @@ func (*StdoutAccessLog_LogFormat) isStdoutAccessLog_AccessLogFormat() {}
 
 // Custom configuration for an :ref:`AccessLog <envoy_v3_api_msg_config.accesslog.v3.AccessLog>`
 // that writes log entries directly to the operating system's standard error.
+// [#extension: envoy.access_loggers.stderr]
 type StderrAccessLog struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
