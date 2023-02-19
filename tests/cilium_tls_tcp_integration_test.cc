@@ -56,7 +56,7 @@ static_resources:
     listener_filters:
     - name: test_bpf_metadata
       typed_config:
-        "@type": type.googleapis.com/cilium.BpfMetadata
+        "@type": type.googleapis.com/cilium.TestBpfMetadata
         is_ingress: {0}
     filter_chains:
     - filters:
@@ -509,7 +509,7 @@ static_resources:
     listener_filters:
     - name: test_bpf_metadata
       typed_config:
-        "@type": type.googleapis.com/cilium.BpfMetadata
+        "@type": type.googleapis.com/cilium.TestBpfMetadata
         is_ingress: {0}
     - name: "envoy.filters.listener.tls_inspector"
     filter_chains:

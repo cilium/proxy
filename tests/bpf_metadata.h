@@ -12,6 +12,7 @@
 #include "cilium/bpf_metadata.h"
 #include "cilium/host_map.h"
 #include "cilium/network_policy.h"
+#include "tests/bpf_metadata.pb.h"
 
 namespace Envoy {
 
@@ -28,7 +29,7 @@ namespace BpfMetadata {
 
 class TestConfig : public Config {
 public:
-  TestConfig(const ::cilium::BpfMetadata& config,
+  TestConfig(const ::cilium::TestBpfMetadata& config,
              Server::Configuration::ListenerFactoryContext& context);
   ~TestConfig();
 
