@@ -74,8 +74,8 @@ RAW_GO_MAPPINGS += opentelemetry/proto/common/v1/common.proto=github.com/open-te
 
 # Add mapping separators and remove the trailing slash
 # but first create "/ " and ",M"
-file_sep := /
-file_sep +=
+E = 
+file_sep := / $E
 map_sep := ,M
 GO_MAPPINGS := $(patsubst %/,%,$(map_sep)$(subst $(file_sep),$(map_sep),$(RAW_GO_MAPPINGS)))
 
