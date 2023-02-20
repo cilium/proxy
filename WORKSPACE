@@ -13,12 +13,12 @@ ENVOY_PROJECT = "envoyproxy"
 
 ENVOY_REPO = "envoy"
 
-# https://github.com/envoyproxy/envoy/tree/v1.23.4
+# https://github.com/envoyproxy/envoy/tree/v1.24.2
 # NOTE: Update version number to file 'ENVOY_VERSION' to keep test and build docker images
 # for different versions.
-ENVOY_SHA = "c5b7729c6ca304d1d8961790e8379358b6f1e233"
+ENVOY_SHA = "82e1102d6dff2863f2db652f84a92a6463fc3bd6"
 
-ENVOY_SHA256 = "171b91d089ca4159bc37681f92d204bdfbdc3b512df90320db761566de7fb7e7"
+ENVOY_SHA256 = "14e64642b52c492af4db301a2866ac874d42d094c4c9be6421c422efb7c22a79"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
