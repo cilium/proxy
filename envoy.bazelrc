@@ -29,7 +29,7 @@ common --experimental_allow_tags_propagation
 # (Workaround for https://github.com/bazelbuild/rules_foreign_cc/issues/421)
 build:linux --copt=-fPIC
 build:linux --copt=-Wno-deprecated-declarations
-build:linux --cxxopt=-std=c++17
+build:linux --cxxopt=-std=c++17 --host_cxxopt=-std=c++17
 build:linux --conlyopt=-fexceptions
 build:linux --fission=dbg,opt
 build:linux --features=per_object_debug_info
@@ -63,6 +63,9 @@ build:clang --linkopt=-fuse-ld=lld
 build:clang-pch --spawn_strategy=local
 build:clang-pch --define=ENVOY_CLANG_PCH=1
 
+# Use gold linker for gcc compiler.
+build:gcc --linkopt=-fuse-ld=gold
+
 # Basic ASAN/UBSAN that works for gcc
 build:asan --action_env=ENVOY_ASAN=1
 build:asan --config=sanitizer
@@ -92,7 +95,7 @@ build:clang-asan --linkopt --rtlib=compiler-rt
 build:clang-asan --linkopt --unwindlib=libgcc
 
 # macOS
-build:macos --cxxopt=-std=c++17
+build:macos --cxxopt=-std=c++17 --host_cxxopt=-std=c++17
 build:macos --action_env=PATH=/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin
 build:macos --host_action_env=PATH=/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin
 build:macos --define tcmalloc=disabled
@@ -166,7 +169,7 @@ build:coverage --define=dynamic_link_tests=true
 build:coverage --define=ENVOY_CONFIG_COVERAGE=1
 build:coverage --cxxopt="-DENVOY_CONFIG_COVERAGE=1"
 build:coverage --coverage_support=@envoy//bazel/coverage:coverage_support
-build:coverage --test_env=CC_CODE_COVERAGE_SCRIPT=external/envoy/bazel/coverage/collect_cc_coverage.sh
+build:coverage --test_env=CC_CODE_COVERAGE_SCRIPT=bazel/coverage/collect_cc_coverage.sh
 build:coverage --test_env=HEAPCHECK=
 build:coverage --combined_report=lcov
 build:coverage --strategy=TestRunner=sandboxed,local
@@ -174,7 +177,7 @@ build:coverage --strategy=CoverageReport=sandboxed,local
 build:coverage --experimental_use_llvm_covmap
 build:coverage --collect_code_coverage
 build:coverage --test_tag_filters=-nocoverage
-build:coverage --instrumentation_filter="//source(?!/common/quic/platform)[/:],//include[/:],//contrib(?!/.*/test)[/:]"
+build:coverage --instrumentation_filter="//source(?!/common/quic/platform)[/:],//envoy[/:],//contrib(?!/.*/test)[/:]"
 build:test-coverage --test_arg="-l trace"
 build:fuzz-coverage --config=plain-fuzzer
 build:fuzz-coverage --run_under=@envoy//bazel/coverage:fuzz_coverage_wrapper.sh
@@ -281,7 +284,7 @@ build:remote-clang-cl --config=rbe-toolchain-clang-cl
 
 # Docker sandbox
 # NOTE: Update this from https://github.com/envoyproxy/envoy-build-tools/blob/main/toolchains/rbe_toolchains_config.bzl#L8
-build:docker-sandbox --experimental_docker_image=envoyproxy/envoy-build-ubuntu:142e6d5662b98277a84c327da26ed266ab0e3191
+build:docker-sandbox --experimental_docker_image=envoyproxy/envoy-build-ubuntu:7304f974de2724617b7492ccb4c9c58cd420353a
 build:docker-sandbox --spawn_strategy=docker
 build:docker-sandbox --strategy=Javac=docker
 build:docker-sandbox --strategy=Closure=docker
@@ -363,6 +366,7 @@ build:windows --define tcmalloc=disabled
 build:windows --define wasm=disabled
 build:windows --define manual_stamp=manual_stamp
 build:windows --cxxopt="/std:c++17"
+build:windows --output_groups=+pdb_file
 
 # TODO(wrowe,sunjayBhatia): Resolve bugs upstream in curl and rules_foreign_cc
 # See issue https://github.com/bazelbuild/rules_foreign_cc/issues/301
