@@ -153,7 +153,7 @@ PolicyHostMap::PolicyHostMap(const LocalInfo::LocalInfo& local_info, Upstream::C
     : PolicyHostMap(tls) {
   scope_ = scope.createScope(name_);
   subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", local_info, cm,
-                            dispatcher, random, *scope_, *this, *this);
+                            dispatcher, random, *scope_, *this, this->shared_from_this());
 }
 
 void PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,

@@ -130,8 +130,9 @@ createHostMap(const std::string& config, Server::Configuration::ListenerFactoryC
             Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::PolicyHostMap>(context.threadLocal());
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path), *map, *map,
-            stats, ProtobufMessage::getNullValidationVisitor(), context.api());
+            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path), *map,
+            map->shared_from_this(), stats, ProtobufMessage::getNullValidationVisitor(),
+            context.api());
         map->startSubscription(std::move(subscription));
         return map;
       });
@@ -152,8 +153,9 @@ createPolicyMap(const std::string& config, Server::Configuration::FactoryContext
             Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path), *map, *map,
-            stats, ProtobufMessage::getNullValidationVisitor(), context.api());
+            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path), *map,
+            map->shared_from_this(), stats, ProtobufMessage::getNullValidationVisitor(),
+            context.api());
         map->startSubscription(std::move(subscription));
         return map;
       });

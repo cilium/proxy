@@ -677,9 +677,10 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
     : NetworkPolicyMap(context) {
   ctmap_ = ct;
   scope_ = context.scope().createScope(name_);
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
-                            context.clusterManager(), context.mainThreadDispatcher(),
-                            context.api().randomGenerator(), *scope_, *this, *this);
+  subscription_ =
+      subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
+                context.clusterManager(), context.mainThreadDispatcher(),
+                context.api().randomGenerator(), *scope_, *this, this->shared_from_this());
 }
 
 static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{nullptr};
