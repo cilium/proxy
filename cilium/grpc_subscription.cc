@@ -99,7 +99,7 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
           Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
           Random::RandomGenerator& random, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
-          Config::OpaqueResourceDecoder& resource_decoder) {
+          Config::OpaqueResourceDecoderSharedPtr resource_decoder) {
   // Hard-coded Cilium gRPC cluster
   // Note: No rate-limit settings are used, consider if needed.
   envoy::config::core::v3::ApiConfigSource api_config_source{};
@@ -125,7 +125,8 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
               ->createUncachedRawAsyncClient(),
           dispatcher, sotwGrpcMethod(type_url), random, scope,
           Config::Utility::parseRateLimitSettings(api_config_source),
-          api_config_source.set_node_on_first_message_only(), std::move(nop_config_validators)),
+          api_config_source.set_node_on_first_message_only(), std::move(nop_config_validators),
+          absl::nullopt, ""),
       callbacks, resource_decoder, stats, type_url, dispatcher,
       std::chrono::milliseconds(0) /* no initial fetch timeout */,
       /*is_aggregated*/ false, options);
