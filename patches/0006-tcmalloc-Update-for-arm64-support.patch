@@ -1,8 +1,9 @@
-From afa52df4a5ea962298f4f60921818947b0497262 Mon Sep 17 00:00:00 2001
+From 0afd3d8f94f2b1ccc87511f6b9d37f3c9921b170 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 27 Jan 2023 13:21:34 +0200
-Subject: [PATCH 6/7] tcmalloc: Update for arm64 support arm64 builds fail due
- to invalid flag output constraint being used:
+Subject: [PATCH 6/6] tcmalloc: Update for arm64 support
+
+arm64 builds fail due to invalid flag output constraint being used:
 
   error: unknown 'asm' flag output '=@ccbe'
 
@@ -14,25 +15,25 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/bazel/repository_locations.bzl b/bazel/repository_locations.bzl
-index ae568f87fb..b37e8d531c 100644
+index 613b3c0241..252c1f1b1f 100644
 --- a/bazel/repository_locations.bzl
 +++ b/bazel/repository_locations.bzl
-@@ -254,12 +254,12 @@ REPOSITORY_LOCATIONS_SPEC = dict(
+@@ -336,12 +336,12 @@ REPOSITORY_LOCATIONS_SPEC = dict(
          project_name = "tcmalloc",
          project_desc = "Fast, multi-threaded malloc implementation",
          project_url = "https://github.com/google/tcmalloc",
--        version = "a08f5483182f41ce626e3f66662966342bb448fa",
--        sha256 = "a3bd1b414ca534b5975187132f9a7ca6e392bc2c6379bb14bf096f403035a6c6",
+-        version = "59400332b9cff9920b6a1da203ac1575272a9f44",
+-        sha256 = "3e0a0c135318fa69e748b140d32cb24a64d885bedfeb5f23fa01cc0d7859bbf0",
 +        version = "e417bfa95505911554d6392263f85dfe6f5d8eef",
 +        sha256 = "7e2506568b222ddc1e4df4c9855e4e1e9906cb3ac4c6c7978b1d25577fd7131b",
          strip_prefix = "tcmalloc-{version}",
          urls = ["https://github.com/google/tcmalloc/archive/{version}.tar.gz"],
          use_category = ["dataplane_core", "controlplane"],
--        release_date = "2022-04-07",
+-        release_date = "2022-08-06",
 +        release_date = "2023-01-24",
          cpe = "N/A",
-     ),
-     com_github_gperftools_gperftools = dict(
+         license = "Apache-2.0",
+         license_url = "https://github.com/google/tcmalloc/blob/{version}/LICENSE",
 -- 
-2.36.0
+2.39.2
 
