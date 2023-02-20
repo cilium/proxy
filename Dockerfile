@@ -1,7 +1,7 @@
 # 
 # BUILDER_BASE is a multi-platform image with all the build tools
 #
-ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.0.0-pre.20220421.3-latest
+ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.0.0-latest
 
 #
 # ARCHIVE_IMAGE defaults to the result of the first stage below,
