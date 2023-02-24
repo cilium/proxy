@@ -54,6 +54,12 @@ BAZEL_PLATFORM := //bazel:linux_$(subst amd64,x86_64,$(subst arm64,aarch64,$(TAR
 $(info BUILDING on $(BUILDARCH) for $(TARGETARCH) using $(BAZEL_PLATFORM))
 BAZEL_BUILD_OPTS += --platforms=$(BAZEL_PLATFORM)
 
+ifdef DEBUG
+  BAZEL_BUILD_OPTS += -c dbg
+else
+  BAZEL_BUILD_OPTS += --config=release
+endif
+
 ifdef PKG_BUILD
   all: cilium-envoy
 else
@@ -93,7 +99,7 @@ clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-15
 
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) --config=release //:cilium-envoy $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 cilium-envoy: bazel-bin/cilium-envoy
 	mv $< $@
@@ -128,12 +134,12 @@ clean: force
 .PHONY: envoy-test-deps
 envoy-test-deps: $(COMPILER_DEP) proxylib/libcilium.so SOURCE_VERSION
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build --build_tests_only $(BAZEL_BUILD_OPTS) --config=release -c fastbuild $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) build --build_tests_only -c fastbuild $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
 .PHONY: envoy-tests
 envoy-tests: $(COMPILER_DEP) proxylib/libcilium.so SOURCE_VERSION
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) --config=release -c fastbuild $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) test  -c fastbuild $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
 .PHONY: \
 	install \
