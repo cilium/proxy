@@ -5,6 +5,7 @@
 #include "envoy/config/subscription.h"
 #include "envoy/event/dispatcher.h"
 #include "envoy/local_info/local_info.h"
+#include "envoy/server/factory_context.h"
 #include "envoy/singleton/instance.h"
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/upstream/cluster_manager.h"
@@ -60,20 +61,18 @@ class PolicyHostMap : public Singleton::Instance,
                       public std::enable_shared_from_this<PolicyHostMap>,
                       public Logger::Loggable<Logger::Id::config> {
 public:
-  PolicyHostMap(const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
-                Event::Dispatcher& dispatcher, Random::RandomGenerator& random, Stats::Scope& scope,
-                ThreadLocal::SlotAllocator& tls);
+  PolicyHostMap(Server::Configuration::CommonFactoryContext& context);
   PolicyHostMap(ThreadLocal::SlotAllocator& tls);
   ~PolicyHostMap() {
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 
-  void startSubscription() { subscription_->start({}); }
+  void startSubscription(Server::Configuration::CommonFactoryContext& context);
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
     subscription_ = std::move(subscription);
-    startSubscription();
+    subscription_->start({});
   }
 
   // A shared pointer to a immutable copy is held by each thread. Changes are

@@ -677,10 +677,18 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
     : NetworkPolicyMap(context) {
   ctmap_ = ct;
   scope_ = context.scope().createScope(name_);
+}
+
+// Both subscribe() call and subscription_->start() use
+// shared_from_this(), which cannot be called before a shared
+// pointer is formed by the caller of the constructor, hence this
+// can't be called from the constructor!
+void NetworkPolicyMap::startSubscription(Server::Configuration::FactoryContext& context) {
   subscription_ =
       subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
                 context.clusterManager(), context.mainThreadDispatcher(),
                 context.api().randomGenerator(), *scope_, *this, this->shared_from_this());
+  subscription_->start({});
 }
 
 static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{nullptr};

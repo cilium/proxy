@@ -97,12 +97,12 @@ public:
   // shared_from_this(), which cannot be called before a shared
   // pointer is formed by the caller of the constructor, hence this
   // can't be called from the constructor!
-  void startSubscription() { subscription_->start({}); }
+  void startSubscription(Server::Configuration::FactoryContext& context);
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
     subscription_ = std::move(subscription);
-    startSubscription();
+    subscription_->start({});
   }
 
   const PolicyInstanceConstSharedPtr

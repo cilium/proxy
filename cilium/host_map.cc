@@ -147,13 +147,17 @@ PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls)
 }
 
 // This is used in production
-PolicyHostMap::PolicyHostMap(const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
-                             Event::Dispatcher& dispatcher, Random::RandomGenerator& random,
-                             Stats::Scope& scope, ThreadLocal::SlotAllocator& tls)
-    : PolicyHostMap(tls) {
-  scope_ = scope.createScope(name_);
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", local_info, cm,
-                            dispatcher, random, *scope_, *this, this->shared_from_this());
+PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& context)
+    : PolicyHostMap(context.threadLocal()) {
+  scope_ = context.scope().createScope(name_);
+}
+
+void PolicyHostMap::startSubscription(Server::Configuration::CommonFactoryContext& context) {
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", context.localInfo(),
+			    context.clusterManager(), context.mainThreadDispatcher(),
+			    context.api().randomGenerator(), *scope_,
+			    *this, this->shared_from_this());
+  subscription_->start({});
 }
 
 void PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
