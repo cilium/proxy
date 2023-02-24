@@ -18,6 +18,8 @@
 /envoy_bootstrap*.json
 /clang.bazelrc
 /.dockerignore
+/.clwb
+/.vagrant
 /.gitignore
 /Dockerfile*
 /Makefile.dev
