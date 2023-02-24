@@ -112,6 +112,11 @@ ifdef NO_CACHE
   endif
 endif
 
+ifdef DEBUG
+  DOCKER_BUILD_OPTS += --build-arg DEBUG=$(DEBUG)
+  DEBUG_TAG := -debug
+endif
+
 ifdef ARCHIVE_IMAGE
   BUILD_IMAGE_OPTS += --build-arg ARCHIVE_IMAGE=$(ARCHIVE_IMAGE)
 endif
@@ -195,9 +200,9 @@ empty-docker-tests-archive: Dockerfile.tests Dockerfile.tests.dockerignore
 	$(DOCKER) build --target empty-builder-archive $(DOCKER_BUILD_OPTS) --build-arg BUILDER_BASE="$(TESTS_BUILDER_BASE)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_ARCHIVE_TAG) .
 
 ifeq ($(BRANCH_TAG),"master")
-  DOCKER_TESTS_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)-testlogs
+  DOCKER_TESTS_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)$(DEBUG_TAG)-testlogs
 else
-  DOCKER_TESTS_TAGS ?= -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(BRANCH_TAG)$(IMAGE_ARCH)-testlogs
+  DOCKER_TESTS_TAGS ?= -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(BRANCH_TAG)$(IMAGE_ARCH)$(DEBUG_TAG)-testlogs
 endif
 
 .PHONY: docker-tests
@@ -205,11 +210,11 @@ docker-tests: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore
 	$(DOCKER) build --progress=plain $(subst --push,--load,$(DOCKER_BUILD_OPTS)) $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< $(DOCKER_TESTS_TAGS) .
 
 ifeq ($(BRANCH_TAG),"master")
-  DOCKER_IMAGE_ENVOY_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)
-  DOCKER_IMAHE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)
+  DOCKER_IMAGE_ENVOY_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)$(DEBUG_TAG)
+  DOCKER_IMAHE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)$(DEBUG_TAG)
 else
-  DOCKER_IMAGE_ENVOY_TAGS ?= -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(BRANCH_TAG)$(IMAGE_ARCH)
-  DOCKER_IMAGE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)
+  DOCKER_IMAGE_ENVOY_TAGS ?= -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(BRANCH_TAG)$(IMAGE_ARCH)$(DEBUG_TAG)
+  DOCKER_IMAGE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)$(DEBUG_TAG)
 endif
 
 .PHONY: docker-image-envoy

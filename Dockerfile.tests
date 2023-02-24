@@ -26,6 +26,7 @@ COPY . ./
 COPY --from=proxylib /usr/lib/libcilium.so proxylib/libcilium.so
 ARG V
 ARG BAZEL_BUILD_OPTS
+ARG DEBUG
 ARG BUILDARCH
 ARG TARGETARCH
 ARG NO_CACHE
@@ -34,7 +35,7 @@ ENV TARGETARCH=$TARGETARCH
 #
 # Build dependencies
 #
-RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V make envoy-test-deps
+RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-test-deps
 
 # By default this stage picks up the result of the build above, but ARCHIVE_IMAGE can be
 # overridden to point to a saved image of an earlier run of that stage.
@@ -48,13 +49,14 @@ COPY --from=proxylib /usr/lib/libcilium.so proxylib/libcilium.so
 ARG V
 ARG COPY_CACHE_EXT
 ARG BAZEL_BUILD_OPTS
+ARG DEBUG
 ARG TARGETARCH
 ENV TARGETARCH=$TARGETARCH
 
 # Clear runner's cache when building deps
 RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private rm -rf /root/.cache/*
 RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,rw \
-    BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V make envoy-test-deps && \
+    BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-test-deps && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; fi
 
 FROM --platform=$BUILDPLATFORM $BUILDER_BASE as runner
@@ -64,6 +66,7 @@ COPY . ./
 COPY --from=proxylib /usr/lib/libcilium.so proxylib/libcilium.so
 ARG V
 ARG BAZEL_BUILD_OPTS
+ARG DEBUG
 ARG BUILDARCH
 ARG TARGETARCH
 ARG NO_CACHE
@@ -84,7 +87,7 @@ RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
         ln -s /usr/aarch64-linux-gnu/lib /usr/cilium-cross-compat/lib; \
       fi; \
     fi && \
-    BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V make envoy-tests && \
+    BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-tests && \
     cp -Lr /cilium/proxy/bazel-testlogs testlogs
 
 FROM scratch as empty-builder-archive
