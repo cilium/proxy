@@ -6,19 +6,26 @@
 
 namespace Envoy {
 
-class CiliumTcpIntegrationTest : public BaseIntegrationTest,
-                                 public testing::TestWithParam<Network::Address::IpVersion> {
+class CiliumBaseIntegrationTest : public BaseIntegrationTest {
 public:
-  CiliumTcpIntegrationTest(const std::string& config);
+  CiliumBaseIntegrationTest(Network::Address::IpVersion version, const std::string& config);
 
   void createEnvoy() override;
 
   virtual std::string testPolicyFmt();
 
   void initialize() override;
-  void TearDown() override;
 
+  Network::Address::IpVersion version_;
   AccessLogServer accessLogServer_;
+};
+
+class CiliumTcpIntegrationTest : public CiliumBaseIntegrationTest,
+                                 public testing::TestWithParam<Network::Address::IpVersion> {
+public:
+  CiliumTcpIntegrationTest(const std::string& config)
+      : CiliumBaseIntegrationTest(GetParam(), config) {}
+  void TearDown() override;
 };
 
 } // namespace Envoy

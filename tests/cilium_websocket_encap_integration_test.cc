@@ -14,7 +14,16 @@ namespace Envoy {
 // Cilium filters with TCP proxy
 //
 
+std::string testParamsToString(
+    const ::testing::TestParamInfo<std::tuple<Network::Address::IpVersion, bool>> params) {
+  const bool is_v4 = (std::get<0>(params.param) == Network::Address::IpVersion::v4);
+  const bool use_upstream_filter = std::get<1>(params.param);
+  return absl::StrCat(is_v4 ? "IPv4" : "IPv6",
+                      use_upstream_filter ? "downstreamFilter" : "upstreamFilter");
+}
+
 // params: is_ingress ("true", "false")
+// {0} == bool true if ingress
 const std::string cilium_tcp_proxy_config_fmt = R"EOF(
 admin:
   address:
@@ -28,6 +37,7 @@ static_resources:
     lb_policy: CLUSTER_PROVIDED
     connect_timeout:
       seconds: 1
+    filters:
   - name: xds-grpc-cilium
     connect_timeout:
       seconds: 5
@@ -79,11 +89,33 @@ static_resources:
           receive_before_connect: true
 )EOF";
 
-class CiliumWebSocketIntegrationTest : public CiliumTcpIntegrationTest {
+class CiliumWebSocketIntegrationTest
+    : public testing::TestWithParam<std::tuple<Network::Address::IpVersion, bool>>,
+      public CiliumBaseIntegrationTest {
 public:
   CiliumWebSocketIntegrationTest()
-      : CiliumTcpIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam()), "true")) {}
+      : CiliumBaseIntegrationTest(
+            std::get<0>(GetParam()),
+            TestEnvironment::substitute(fmt::format(cilium_tcp_proxy_config_fmt, "true"),
+                                        std::get<0>(GetParam()))) {}
+
+  void initialize() override {
+    config_helper_.addConfigModifier([](envoy::config::bootstrap::v3::Bootstrap& bootstrap) {
+      if (std::get<1>(GetParam())) {
+        // Move downstream cilium websocket filter to upstream
+        auto* filter_chain =
+            bootstrap.mutable_static_resources()->mutable_listeners(0)->mutable_filter_chains(0);
+        auto* cluster_0 = bootstrap.mutable_static_resources()->mutable_clusters(0);
+        auto* filter = cluster_0->add_filters();
+        filter->set_name(filter_chain->filters(0).name());
+        filter->mutable_typed_config()->CopyFrom(filter_chain->filters(0).typed_config());
+        auto* filters = filter_chain->mutable_filters();
+        filters->erase(filters->begin());
+      }
+    });
+    CiliumBaseIntegrationTest::initialize();
+  }
+
   size_t unmaskData(void* void_frame, size_t len, uint8_t opcode = OPCODE_BIN) {
     uint8_t* frame = reinterpret_cast<uint8_t*>(void_frame);
     if (frame[0] != (0x80 | opcode)) {
@@ -126,11 +158,14 @@ public:
     }
     return frame_offset;
   }
+
+  void TearDown() override { npmap.reset(); }
 };
 
-INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumWebSocketIntegrationTest,
-                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
-                         TestUtility::ipTestParamsToString);
+INSTANTIATE_TEST_SUITE_P(
+    IpVersions, CiliumWebSocketIntegrationTest,
+    testing::Combine(testing::ValuesIn(TestEnvironment::getIpVersionsForTest()), ::testing::Bool()),
+    testParamsToString); // TestUtility::ipTestParamsToString);
 
 #define X_REQUEST_ID_HEADER "x-request-id"
 #define HEADER_SEPARATOR ": "

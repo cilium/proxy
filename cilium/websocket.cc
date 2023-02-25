@@ -81,7 +81,7 @@ REGISTER_FACTORY(CiliumWebSocketServerConfigFactory,
                  Server::Configuration::NamedNetworkFilterConfigFactory);
 
 /**
- * Config registration for the WebSocket client filter. @see
+ * Config registration for the downstream WebSocket client filter. @see
  * NamedNetworkFilterConfigFactory.
  */
 class CiliumWebSocketClientConfigFactory
@@ -94,7 +94,7 @@ public:
     auto config = std::make_shared<Cilium::WebSocket::Config>(
         MessageUtil::downcastAndValidate<const ::cilium::WebSocketClient&>(
             proto_config, context.messageValidationVisitor()),
-        context);
+        false, context);
     return [config](Network::FilterManager& filter_manager) mutable -> void {
       filter_manager.addFilter(std::make_shared<Cilium::WebSocket::Instance>(config));
     };
@@ -113,14 +113,50 @@ public:
 REGISTER_FACTORY(CiliumWebSocketClientConfigFactory,
                  Server::Configuration::NamedNetworkFilterConfigFactory);
 
+/**
+ * Config registration for the upstream WebSocket client filter. @see
+ * NamedUpstreamNetworkFilterConfigFactory.
+ */
+class CiliumUpstreamWebSocketClientConfigFactory
+    : public Server::Configuration::NamedUpstreamNetworkFilterConfigFactory {
+public:
+  // NamedUpstreamNetworkFilterConfigFactory
+  Network::FilterFactoryCb
+  createFilterFactoryFromProto(const Protobuf::Message& proto_config,
+                               Server::Configuration::CommonFactoryContext& context) override {
+    auto config = std::make_shared<Cilium::WebSocket::Config>(
+        MessageUtil::downcastAndValidate<const ::cilium::WebSocketClient&>(
+            proto_config, context.messageValidationVisitor()),
+        true, context);
+    return [config](Network::FilterManager& filter_manager) mutable -> void {
+      filter_manager.addFilter(std::make_shared<Cilium::WebSocket::Instance>(config));
+    };
+  }
+
+  ProtobufTypes::MessagePtr createEmptyConfigProto() override {
+    return std::make_unique<::cilium::WebSocketClient>();
+  }
+
+  std::string name() const override { return "cilium.network.websocket.client"; }
+};
+
+/**
+ * Static registration for the websocket client network filter. @see RegisterFactory.
+ */
+REGISTER_FACTORY(CiliumUpstreamWebSocketClientConfigFactory,
+                 Server::Configuration::NamedUpstreamNetworkFilterConfigFactory);
+
 Network::FilterStatus Instance::onNewConnection() {
-  ENVOY_LOG(debug, "cilium.network.websocket: onNewConnection");
+  // Return immediately if already called
+  if (codec_)
+    return Network::FilterStatus::Continue;
+
+  auto& conn = callbacks_->connection();
+  ENVOY_CONN_LOG(debug, "cilium.network.websocket: onNewConnection", conn);
 
   std::string pod_ip;
   bool is_ingress;
   uint32_t identity, destination_identity;
-
-  auto& conn = callbacks_->connection();
 
   // Enable half close if not already enabled
   if (!conn.isHalfCloseEnabled()) {
@@ -166,10 +202,17 @@ Network::FilterStatus Instance::onNewConnection() {
 }
 
 Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(debug, "cilium.network.websocket: onData {} bytes, end_stream: {}", data.length(),
-            end_stream);
+  ENVOY_CONN_LOG(debug, "cilium.network.websocket: onData {} bytes, end_stream: {}",
+                 callbacks_->connection(), data.length(), end_stream);
+#ifdef NO_ENVOY_UPSTREAM_PATCH
+  // Upstream filters do not seem to get the onNewConnection call
+  if (!codec_) {
+    onNewConnection(); // initializes codec_
+  }
+#endif
   if (codec_) {
-    if (config_->client_) {
+    // Upstream client decodes when reading data via onData()
+    if (config_->client_ && !config_->upstream_) {
       codec_->encode(data, end_stream);
     } else {
       codec_->decode(data, end_stream);
@@ -180,10 +223,15 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
 }
 
 Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(trace, "cilium.network.websocket: onWrite {} bytes, end_stream: {}", data.length(),
-            end_stream);
+  ENVOY_CONN_LOG(trace, "cilium.network.websocket: onWrite {} bytes, end_stream: {}",
+                 callbacks_->connection(), data.length(), end_stream);
+  // Upstream filters do not seem to get the onNewConnection call
+  if (!codec_) {
+    onNewConnection(); // initializes codec_
+  }
   if (codec_) {
-    if (config_->client_) {
+    // Upstream client encodes when writing data via onWrite()
+    if (config_->client_ && !config_->upstream_) {
       codec_->decode(data, end_stream);
     } else {
       codec_->encode(data, end_stream);
@@ -194,7 +242,9 @@ Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream)
 }
 
 void Instance::injectEncoded(Buffer::Instance& data, bool end_stream) {
-  if (config_->client_) {
+  ENVOY_CONN_LOG(debug, "cilium.network.websocket: injectEncoded {} bytes, end_stream: {}",
+                 callbacks_->connection(), data.length(), end_stream);
+  if (config_->client_ && !config_->upstream_) {
     callbacks_->injectReadDataToFilterChain(data, end_stream);
   } else {
     write_callbacks_->injectWriteDataToFilterChain(data, end_stream);
@@ -202,7 +252,9 @@ void Instance::injectEncoded(Buffer::Instance& data, bool end_stream) {
 }
 
 void Instance::injectDecoded(Buffer::Instance& data, bool end_stream) {
-  if (config_->client_) {
+  ENVOY_CONN_LOG(debug, "cilium.network.websocket: injectDecoded {} bytes, end_stream: {}",
+                 callbacks_->connection(), data.length(), end_stream);
+  if (config_->client_ && !config_->upstream_) {
     write_callbacks_->injectWriteDataToFilterChain(data, end_stream);
   } else {
     callbacks_->injectReadDataToFilterChain(data, end_stream);
@@ -210,6 +262,8 @@ void Instance::injectDecoded(Buffer::Instance& data, bool end_stream) {
 }
 
 void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
+  ENVOY_CONN_LOG(debug, "cilium.network.websocket: onHandshakeRequest: {}",
+                 callbacks_->connection(), headers);
   Network::Address::InstanceConstSharedPtr orig_dst_address{nullptr};
   uint32_t destination_identity = 0;
   const auto& conn = callbacks_->connection();

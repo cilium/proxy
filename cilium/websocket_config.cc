@@ -42,7 +42,7 @@ std::vector<uint8_t> Config::getSha1Digest(const Buffer::Instance& buffer) {
   return digest;
 }
 
-Config::Config(Server::Configuration::FactoryContext& context, bool client,
+Config::Config(Server::Configuration::CommonFactoryContext& context, bool client, bool upstream,
                const std::string& access_log_path, const std::string& host, const std::string& path,
                const std::string& key, const std::string& version, const std::string& origin,
                const ProtobufWkt::Duration& handshake_timeout,
@@ -50,11 +50,11 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
     : time_source_(context.timeSource()),
       dispatcher_(context.mainThreadDispatcher()), stats_{ALL_WEBSOCKET_STATS(POOL_COUNTER_PREFIX(
                                                        context.serverScope(), "websocket"))},
-      random_(context.api().randomGenerator()), client_(client), host_(absl::AsciiStrToLower(host)),
-      path_(absl::AsciiStrToLower(path)), key_(key), version_(absl::AsciiStrToLower(version)),
-      origin_(absl::AsciiStrToLower(origin)), handshake_timeout_(std::chrono::seconds(5)),
-      ping_interval_(std::chrono::milliseconds(0)), ping_when_idle_(ping_when_idle),
-      access_log_(nullptr) {
+      random_(context.api().randomGenerator()), client_(client), upstream_(upstream),
+      host_(absl::AsciiStrToLower(host)), path_(absl::AsciiStrToLower(path)), key_(key),
+      version_(absl::AsciiStrToLower(version)), origin_(absl::AsciiStrToLower(origin)),
+      handshake_timeout_(std::chrono::seconds(5)), ping_interval_(std::chrono::milliseconds(0)),
+      ping_when_idle_(ping_when_idle), access_log_(nullptr) {
   envoy::extensions::filters::network::http_connection_manager::v3::RequestIDExtension x_rid_config;
   x_rid_config.mutable_typed_config()->PackFrom(
       envoy::extensions::request_id::uuid::v3::UuidRequestIdConfig());
@@ -87,11 +87,11 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
   }
 }
 
-Config::Config(const ::cilium::WebSocketClient& config,
-               Server::Configuration::FactoryContext& context)
-    : Config(context, true /* client */, config.access_log_path(), config.host(), config.path(),
-             config.key(), config.version(), config.origin(), config.handshake_timeout(),
-             config.ping_interval(), config.ping_when_idle()) {
+Config::Config(const ::cilium::WebSocketClient& config, bool upstream,
+               Server::Configuration::CommonFactoryContext& context)
+    : Config(context, true /* client */, upstream, config.access_log_path(), config.host(),
+             config.path(), config.key(), config.version(), config.origin(),
+             config.handshake_timeout(), config.ping_interval(), config.ping_when_idle()) {
   // Client defaults
   if (host_.empty()) {
     throw EnvoyException("cilium.network.websocket.client: host must be non-empty.");
@@ -113,10 +113,10 @@ Config::Config(const ::cilium::WebSocketClient& config,
 }
 
 Config::Config(const ::cilium::WebSocketServer& config,
-               Server::Configuration::FactoryContext& context)
-    : Config(context, false /* server */, config.access_log_path(), config.host(), config.path(),
-             config.key(), config.version(), config.origin(), config.handshake_timeout(),
-             config.ping_interval(), config.ping_when_idle()) {}
+               Server::Configuration::CommonFactoryContext& context)
+    : Config(context, false /* server */, false /* !upstream */, config.access_log_path(),
+             config.host(), config.path(), config.key(), config.version(), config.origin(),
+             config.handshake_timeout(), config.ping_interval(), config.ping_when_idle()) {}
 
 // Compute expected key response
 std::string Config::keyResponse(absl::string_view key) {
