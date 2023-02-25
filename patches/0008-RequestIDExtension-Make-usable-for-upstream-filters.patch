@@ -1,0 +1,87 @@
+From b99ad09008ad06e5381260bcd4ef0f5011f163ac Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Sat, 25 Feb 2023 18:14:41 +0200
+Subject: [PATCH 8/9] RequestIDExtension: Make usable for upstream filters
+
+Change factory context to CommonFactoryContext so that RequestIDExtension
+can also be used from upstream filters.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ envoy/server/request_id_extension_config.h                    | 4 ++--
+ source/common/http/request_id_extension_impl.cc               | 2 +-
+ source/common/http/request_id_extension_impl.h                | 2 +-
+ source/extensions/request_id/uuid/config.h                    | 2 +-
+ .../filters/network/http_connection_manager/config_test.cc    | 2 +-
+ 5 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/envoy/server/request_id_extension_config.h b/envoy/server/request_id_extension_config.h
+index fa2288ae7f..cd94e3cb1d 100644
+--- a/envoy/server/request_id_extension_config.h
++++ b/envoy/server/request_id_extension_config.h
+@@ -24,8 +24,8 @@ public:
+    * @param config the custom configuration for this request id extension type.
+    * @param context general filter context through which persistent resources can be accessed.
+    */
+-  virtual Http::RequestIDExtensionSharedPtr createExtensionInstance(const Protobuf::Message& config,
+-                                                                    FactoryContext& context) PURE;
++  virtual Http::RequestIDExtensionSharedPtr
++  createExtensionInstance(const Protobuf::Message& config, CommonFactoryContext& context) PURE;
+ 
+   std::string category() const override { return "envoy.request_id"; }
+ };
+diff --git a/source/common/http/request_id_extension_impl.cc b/source/common/http/request_id_extension_impl.cc
+index 482a32b60e..bbe173d4d6 100644
+--- a/source/common/http/request_id_extension_impl.cc
++++ b/source/common/http/request_id_extension_impl.cc
+@@ -8,7 +8,7 @@ namespace Http {
+ RequestIDExtensionSharedPtr RequestIDExtensionFactory::fromProto(
+     const envoy::extensions::filters::network::http_connection_manager::v3::RequestIDExtension&
+         config,
+-    Server::Configuration::FactoryContext& context) {
++    Server::Configuration::CommonFactoryContext& context) {
+   const std::string type{TypeUtil::typeUrlToDescriptorFullName(config.typed_config().type_url())};
+   auto* factory =
+       Registry::FactoryRegistry<Server::Configuration::RequestIDExtensionFactory>::getFactoryByType(
+diff --git a/source/common/http/request_id_extension_impl.h b/source/common/http/request_id_extension_impl.h
+index d188e3425f..1da07a88ed 100644
+--- a/source/common/http/request_id_extension_impl.h
++++ b/source/common/http/request_id_extension_impl.h
+@@ -17,7 +17,7 @@ public:
+   static RequestIDExtensionSharedPtr fromProto(
+       const envoy::extensions::filters::network::http_connection_manager::v3::RequestIDExtension&
+           config,
+-      Server::Configuration::FactoryContext& context);
++      Server::Configuration::CommonFactoryContext& context);
+ };
+ 
+ } // namespace Http
+diff --git a/source/extensions/request_id/uuid/config.h b/source/extensions/request_id/uuid/config.h
+index 61cb67a5c5..7528527a75 100644
+--- a/source/extensions/request_id/uuid/config.h
++++ b/source/extensions/request_id/uuid/config.h
+@@ -69,7 +69,7 @@ public:
+   }
+   Http::RequestIDExtensionSharedPtr
+   createExtensionInstance(const Protobuf::Message& config,
+-                          Server::Configuration::FactoryContext& context) override {
++                          Server::Configuration::CommonFactoryContext& context) override {
+     return std::make_shared<UUIDRequestIDExtension>(
+         MessageUtil::downcastAndValidate<
+             const envoy::extensions::request_id::uuid::v3::UuidRequestIdConfig&>(
+diff --git a/test/extensions/filters/network/http_connection_manager/config_test.cc b/test/extensions/filters/network/http_connection_manager/config_test.cc
+index a38d55207e..b2f96c463a 100644
+--- a/test/extensions/filters/network/http_connection_manager/config_test.cc
++++ b/test/extensions/filters/network/http_connection_manager/config_test.cc
+@@ -1933,7 +1933,7 @@ public:
+ 
+   Http::RequestIDExtensionSharedPtr
+   createExtensionInstance(const Protobuf::Message& config,
+-                          Server::Configuration::FactoryContext& context) override {
++                          Server::Configuration::CommonFactoryContext& context) override {
+     const auto& custom_config = MessageUtil::downcastAndValidate<
+         const test::http_connection_manager::CustomRequestIDExtension&>(
+         config, context.messageValidationVisitor());
+-- 
+2.39.2
+

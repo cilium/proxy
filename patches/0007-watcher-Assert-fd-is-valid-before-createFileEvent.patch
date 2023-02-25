@@ -1,0 +1,55 @@
+From 985122a33be649995fa3f866721a015c335f82b0 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Wed, 22 Feb 2023 20:46:32 +0200
+Subject: [PATCH 7/9] watcher: Assert fd is valid before createFileEvent()
+
+Assert that fd is valid before calling createFileEvent(), as it would
+also throw with less information when fd == 0.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ .../common/filesystem/inotify/watcher_impl.cc | 24 +++++++++++--------
+ 1 file changed, 14 insertions(+), 10 deletions(-)
+
+diff --git a/source/common/filesystem/inotify/watcher_impl.cc b/source/common/filesystem/inotify/watcher_impl.cc
+index 7935d550b4..8168309b72 100644
+--- a/source/common/filesystem/inotify/watcher_impl.cc
++++ b/source/common/filesystem/inotify/watcher_impl.cc
+@@ -13,20 +13,24 @@
+ #include "source/common/common/utility.h"
+ #include "source/common/filesystem/watcher_impl.h"
+ 
++#include "fmt/printf.h"
++
+ namespace Envoy {
+ namespace Filesystem {
+ 
+ WatcherImpl::WatcherImpl(Event::Dispatcher& dispatcher, Filesystem::Instance& file_system)
+-    : file_system_(file_system), inotify_fd_(inotify_init1(IN_NONBLOCK)),
+-      inotify_event_(dispatcher.createFileEvent(
+-          inotify_fd_,
+-          [this](uint32_t events) -> void {
+-            ASSERT(events == Event::FileReadyType::Read);
+-            onInotifyEvent();
+-          },
+-          Event::FileTriggerType::Edge, Event::FileReadyType::Read)) {
+-  RELEASE_ASSERT(inotify_fd_ >= 0,
+-                 "Consider increasing value of user.max_inotify_watches via sysctl");
++    : file_system_(file_system), inotify_fd_(inotify_init1(IN_NONBLOCK)) {
++  RELEASE_ASSERT(
++      inotify_fd_ >= 0,
++      fmt::sprintf("Consider increasing value of user.max_inotify_watches via sysctl: errno: %s",
++                   errorDetails(errno)));
++  inotify_event_ = dispatcher.createFileEvent(
++      inotify_fd_,
++      [this](uint32_t events) -> void {
++        ASSERT(events == Event::FileReadyType::Read);
++        onInotifyEvent();
++      },
++      Event::FileTriggerType::Edge, Event::FileReadyType::Read);
+ }
+ 
+ WatcherImpl::~WatcherImpl() { close(inotify_fd_); }
+-- 
+2.39.2
+

@@ -1,7 +1,7 @@
-From 0afd3d8f94f2b1ccc87511f6b9d37f3c9921b170 Mon Sep 17 00:00:00 2001
+From cd53acca309b1723d8c2c15c6219aa45e5106d7f Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 27 Jan 2023 13:21:34 +0200
-Subject: [PATCH 6/6] tcmalloc: Update for arm64 support
+Subject: [PATCH 6/9] tcmalloc: Update for arm64 support
 
 arm64 builds fail due to invalid flag output constraint being used:
 

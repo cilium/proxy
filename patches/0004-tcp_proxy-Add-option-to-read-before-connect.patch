@@ -1,7 +1,7 @@
-From 8eda35d0c057eae266c9ed95d91446f0bde9e0fb Mon Sep 17 00:00:00 2001
+From 8107e58d5968a85e892f9f77de6191469e59abbd Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Tue, 27 Sep 2022 15:51:46 +0300
-Subject: [PATCH 4/6] tcp_proxy: Add option to read before connect
+Subject: [PATCH 4/9] tcp_proxy: Add option to read before connect
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
@@ -34,7 +34,7 @@ index ee8cb68242..9acc30e66f 100644
 +  bool receive_before_connect = 15;
  }
 diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
-index 0d4a29bb2c..755b71eec7 100644
+index b3a13d7c6a..c49f79481b 100644
 --- a/source/common/tcp_proxy/tcp_proxy.cc
 +++ b/source/common/tcp_proxy/tcp_proxy.cc
 @@ -92,6 +92,8 @@ Config::SharedConfig::SharedConfig(
@@ -65,12 +65,12 @@ index 0d4a29bb2c..755b71eec7 100644
    }
 -  return Network::FilterStatus::StopIteration;
 +  // Allow OnData() to receive data before connect if so configured
-+  return config_->receiveBeforeConnect()
-+       ? Network::FilterStatus::Continue : Network::FilterStatus::StopIteration;
++  return config_->receiveBeforeConnect() ? Network::FilterStatus::Continue
++                                         : Network::FilterStatus::StopIteration;
  }
  
  void Filter::onClusterDiscoveryCompletion(Upstream::ClusterDiscoveryStatus cluster_status) {
-@@ -614,6 +621,12 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
+@@ -615,6 +622,12 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
    if (upstream_) {
      getStreamInfo().getUpstreamBytesMeter()->addWireBytesSent(data.length());
      upstream_->encodeData(data, end_stream);
@@ -83,7 +83,7 @@ index 0d4a29bb2c..755b71eec7 100644
    }
    // The upstream should consume all of the data.
    // Before there is an upstream the connection should be readDisabled. If the upstream is
-@@ -717,7 +730,12 @@ void Filter::onUpstreamConnection() {
+@@ -718,7 +731,12 @@ void Filter::onUpstreamConnection() {
    connecting_ = false;
    // Re-enable downstream reads now that the upstream connection is established
    // so we have a place to send downstream data to.
