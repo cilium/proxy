@@ -193,6 +193,16 @@ static_resources:
     lb_policy: CLUSTER_PROVIDED
     connect_timeout:
       seconds: 1
+    typed_extension_protocol_options:
+      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        upstream_http_protocol_options:
+          auto_sni: true
+          auto_san_validation: true
+        use_downstream_protocol_config: {{}}
+        common_http_protocol_options:
+          max_requests_per_connection: 1000
+          max_connection_duration: {{}}
   - name: xds-grpc-cilium
     connect_timeout:
       seconds: 5

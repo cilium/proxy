@@ -44,6 +44,9 @@ static_resources:
           auto_sni: true
           auto_san_validation: true
         use_downstream_protocol_config: {{}}
+        common_http_protocol_options:
+          max_requests_per_connection: 1000
+          max_connection_duration: {{}}
   - name: xds-grpc-cilium
     connect_timeout:
       seconds: 5
