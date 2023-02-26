@@ -49,7 +49,7 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
                const ProtobufWkt::Duration& ping_interval, bool ping_when_idle)
     : time_source_(context.timeSource()),
       dispatcher_(context.mainThreadDispatcher()), stats_{ALL_WEBSOCKET_STATS(POOL_COUNTER_PREFIX(
-                                                       context.scope(), "websocket"))},
+                                                       context.serverScope(), "websocket"))},
       random_(context.api().randomGenerator()), client_(client), host_(absl::AsciiStrToLower(host)),
       path_(absl::AsciiStrToLower(path)), key_(key), version_(absl::AsciiStrToLower(version)),
       origin_(absl::AsciiStrToLower(origin)), handshake_timeout_(std::chrono::seconds(5)),
