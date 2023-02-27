@@ -42,8 +42,8 @@ public:
 
   bool setOption(Network::Socket& socket,
                  envoy::config::core::v3::SocketOption::SocketState state) const override {
-    // sidecars do not have mark
-    if (mark_ == 0) {
+    // sidecars do not have mark (== 0), also skip when testing (== -1)
+    if (mark_ == 0 || mark_ == 0xffffffff) {
       return true;
     }
     // Only set the option once per socket
