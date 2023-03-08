@@ -93,18 +93,31 @@ message PortNetworkPolicy {
 message TLSContext {
   // CA certificates. If present, the counterparty must provide a valid
   // certificate.
+  // Deprecated, use 'validation_context_sds_secret' instead.
   string trusted_ca = 1;
 
-  // Certificate chain
+  // Certificate chain.
+  // Deprecated, use 'tls_sds_secret' instead.
   string certificate_chain = 2;
 
   // Private key
+  // Deprecated, use 'tls_sds_secret' instead.
   string private_key = 3;
 
   // Server Name Indicator. For downstream this helps choose the certificate to
   // present to the client. For upstream this will be used as the SNI on the
   // client connection.
   repeated string server_names = 4;
+
+  // Name of an SDS secret for CA certificates. Secret is fetched from the same gRPC source as
+  // this Network Policy. If present, the counterparty must provide a valid certificate.
+  // May not be used at the same time with 'trusted_ca'.
+  string validation_context_sds_secret = 5;
+
+  // Name of an SDS secret for both TLS private key and certificate chain. Secret is fetched
+  // from the same gRPC source as this Network Policy.
+  // May not be used at the same time with 'certificate_chain' or 'private_key'.
+  string tls_sds_secret = 6;
 }
 
 // A network policy rule, as a conjunction of predicates on L3/L7 flows.
@@ -169,7 +182,7 @@ message HttpNetworkPolicyRules {
 
 message HeaderMatch {
   string name = 1 [(validate.rules).string.min_len = 1];
-  string value = 2; // empty for presence match
+  string value = 2; // empty for presence match. For secret data use 'value_sds_secret' instead.
 
   // Action specifies what to do when the header matches.
   enum MatchAction {
@@ -187,6 +200,10 @@ message HeaderMatch {
     REPLACE_ON_MISMATCH = 4;  // Replace the whole mismatching header with 'value'
   }
   MismatchAction mismatch_action = 4;
+
+  // Generic secret name for fetching value via SDS. Secret is fetched from the same gRPC source as
+  // this Network Policy.
+  string value_sds_secret = 5;
 }
 
 // An HTTP network policy rule, as a conjunction of predicates on HTTP requests.
