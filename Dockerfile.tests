@@ -66,6 +66,7 @@ COPY . ./
 COPY --from=proxylib /usr/lib/libcilium.so proxylib/libcilium.so
 ARG V
 ARG BAZEL_BUILD_OPTS
+ARG BAZEL_TEST_OPTS
 ARG DEBUG
 ARG BUILDARCH
 ARG TARGETARCH
@@ -87,7 +88,7 @@ RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
         ln -s /usr/aarch64-linux-gnu/lib /usr/cilium-cross-compat/lib; \
       fi; \
     fi && \
-    BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-tests && \
+    BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" BAZEL_TEST_OPTS="${BAZEL_TEST_OPTS}" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-tests && \
     cp -Lr /cilium/proxy/bazel-testlogs testlogs
 
 FROM scratch as empty-builder-archive
