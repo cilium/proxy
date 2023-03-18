@@ -17,7 +17,7 @@ jobs:
         with:
           path: /tmp/buildx-cache
           key: docker-cache-${{ github.head_ref }}
-          restore-keys: docker-cache-master
+          restore-keys: docker-cache-${{ github.base_ref }}
 
       - name: Login to quay.io
         uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
@@ -34,7 +34,6 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
           echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
 
@@ -67,6 +66,17 @@ jobs:
           echo "Digests:"
           echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}@${{ steps.docker_build_builder_ci.outputs.digest }}"
 
+      - name: Retrieve Archive image
+        id: cilium_archive_tag
+        shell: bash
+        run: |
+          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.base_ref }}-archive-latest &>/dev/null; then
+            echo archive_image="quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.base_ref }}-archive-latest" >> $GITHUB_OUTPUT
+          else
+            # Fallback to master archive image
+            echo archive_image="quay.io/${{ github.repository_owner }}/cilium-envoy-builder:master-archive-latest" >> $GITHUB_OUTPUT
+          fi
+
       - name: PR Multi-arch build & push of cilium-envoy
         uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
         id: docker_build_ci
@@ -77,12 +87,14 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             BUILDER_BASE=quay.io/cilium/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
-            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:master-archive-latest
+            ARCHIVE_IMAGE=${{ steps.cilium_archive_tag.outputs.archive_image }}
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           cache-from: type=local,src=/tmp/buildx-cache
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
+          tags: |
+            quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
+            quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.base_ref }}-${{ github.event.pull_request.head.sha }}
 
       - name: Envoy binary version check
         shell: bash
@@ -91,11 +103,13 @@ jobs:
           docker cp cilium-envoy:/usr/bin/cilium-envoy ./cilium-envoy
           docker rm -fv cilium-envoy
           envoy_version=$(./cilium-envoy --version)
+          expected_ersion=$(echo ${{ github.base_ref }} | sed 's/^v//')
           echo ${envoy_version}
-          [[ "${envoy_version}" == *"${{ github.event.pull_request.head.sha }}"* ]]
+          [[ "${envoy_version}" == *"${{ github.event.pull_request.head.sha }}/$expected_ersion"* ]]
 
       - name: CI Image Digest
         shell: bash
         run: |
           echo "Digests:"
           echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ci.outputs.digest }}"
+          echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.base_ref }}-${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ci.outputs.digest }}"
