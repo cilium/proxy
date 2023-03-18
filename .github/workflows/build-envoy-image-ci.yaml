@@ -34,7 +34,7 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
+          echo "ENVOY_MINOR_RELEASE=$(cat ENVOY_VERSION | sed 's/envoy-\([0-9]\+\.[0-9]\+\)\..*/v\1/')" >> $GITHUB_ENV
           echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
 
@@ -82,7 +82,9 @@ jobs:
           cache-from: type=local,src=/tmp/buildx-cache
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
+          tags: |
+            quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
+            quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ env.ENVOY_MINOR_RELEASE }}-${{ github.event.pull_request.head.sha }}
 
       - name: Envoy binary version check
         shell: bash
@@ -99,3 +101,4 @@ jobs:
         run: |
           echo "Digests:"
           echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ci.outputs.digest }}"
+          echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ env.ENVOY_MINOR_RELEASE }}-${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ci.outputs.digest }}"
