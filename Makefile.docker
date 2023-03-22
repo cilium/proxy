@@ -76,7 +76,6 @@ SOURCE_VERSION := $(shell git rev-parse HEAD)
 SOURCE_VERSION: force
 	@if [ "$(SOURCE_VERSION)" != "`cat 2>/dev/null SOURCE_VERSION`" ] ; then echo "$(SOURCE_VERSION)" >SOURCE_VERSION; fi
 
-ENVOY_VERSION := $(shell cat ENVOY_VERSION)
 BAZEL_VERSION := $(shell cat .bazelversion)
 BRANCH_NAME ?= $(shell git rev-parse --abbrev-ref HEAD)
 BRANCH_TAG := $(shell echo $(BRANCH_NAME) | tr -c '[:alnum:]_.\n-' '-')
