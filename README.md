@@ -131,8 +131,8 @@ can override the first two parts of this by defining
 
 Pre-compiled Envoy dependencies need to be updated only when Envoy
 version is updated or patched enough to increase compilation time
-significantly. To do this you should update Envoy version in
-`ENVOY_VERSION` and supply `NO_CACHE=1` and `NO_ARCHIVE=1` on the make line, e.g.:
+significantly. To do this you should supply `NO_CACHE=1` and 
+`NO_ARCHIVE=1` on the make line, e.g.:
 
 ```
 ARCH=multi NO_CACHE=1 NO_ARCHIVE=1 BUILDER_ARCHIVE_TAG=master-archive-latest make docker-builder-archive
@@ -202,9 +202,8 @@ can override the first two parts of this by defining
 
 Pre-compiled Envoy test dependencies need to be updated only when
 Envoy version is updated or patched enough to increase compilation
-time significantly. To do this you should update Envoy version
-in `ENVOY_VERSION` and supply `NO_ARCHIVE=1` and `NO_CACHE=1` on
-the make line, e.g.:
+time significantly. To do this you should supply `NO_ARCHIVE=1` 
+and `NO_CACHE=1` on the make line, e.g.:
 
 ```
 ARCH=amd64 NO_ARCHIVE=1 NO_CACHE=1 make docker-tests-archive

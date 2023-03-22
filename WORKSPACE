@@ -14,8 +14,7 @@ ENVOY_PROJECT = "envoyproxy"
 ENVOY_REPO = "envoy"
 
 # https://github.com/envoyproxy/envoy/tree/v1.23.4
-# NOTE: Update version number to file 'ENVOY_VERSION' to keep test and build docker images
-# for different versions.
+# Note that this branch is only for envoy v1.23.x
 ENVOY_SHA = "c5b7729c6ca304d1d8961790e8379358b6f1e233"
 
 ENVOY_SHA256 = "171b91d089ca4159bc37681f92d204bdfbdc3b512df90320db761566de7fb7e7"
