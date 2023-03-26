@@ -102,8 +102,8 @@ resources:
           - name: 'header42'
             match_action: FAIL_ON_MATCH
             mismatch_action: CONTINUE_ON_MISMATCH
-          - name: 'header1'
-            value: 'value1'
+          - name: 'bearer-token'
+            value: 'd4ef0f5011f163ac'
             mismatch_action: REPLACE_ON_MISMATCH
         - headers:
           - name: ':path'
@@ -597,15 +597,17 @@ TEST_P(CiliumIntegrationTest, DeniedPathPrefix) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathPrefix) {
-  Accepted(
-      {{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}, {"header1", "value1"}});
+  Accepted({{":method", "GET"},
+            {":path", "/allowed"},
+            {":authority", "host"},
+            {"bearer-token", "d4ef0f5011f163ac"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
     const auto& http = entry.http();
     const auto& missing = http.missing_headers();
     return http.missing_headers_size() == 1 && hasHeader(missing, "header42") &&
-           http.rejected_headers_size() == 0;
+           http.rejected_headers_size() == 0 && !hasHeader(http.headers(), "header42");
   }));
 }
 
@@ -613,15 +615,21 @@ TEST_P(CiliumIntegrationTest, AllowedPathPrefixWrongHeader) {
   Accepted({{":method", "GET"},
             {":path", "/allowed"},
             {":authority", "host"},
-            {"header1", "value2"},
+            {"bearer-token", "wrong-value"},
             {"x-envoy-original-dst-host", "1.1.1.1:9999"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
     const auto& http = entry.http();
+    const auto& rejected = http.rejected_headers();
     const auto& missing = http.missing_headers();
-    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 2 &&
-           hasHeader(missing, "header42") && hasHeader(missing, "header1", "value1");
+    return http.rejected_headers_size() == 1 &&
+           hasHeader(rejected, "bearer-token", "wrong-value") && http.missing_headers_size() == 2 &&
+           hasHeader(missing, "header42") &&
+           hasHeader(missing, "bearer-token", "d4ef0f5011f163ac") &&
+           // Check that logged headers have the replaced value
+           hasHeader(http.headers(), "bearer-token", "d4ef0f5011f163ac") &&
+           !hasHeader(http.headers(), "header42");
   }));
 }
 
@@ -646,7 +654,7 @@ TEST_P(CiliumIntegrationTest, AllowedPathRegexDeleteHeader) {
     const auto& http = entry.http();
     const auto& rejected = http.rejected_headers();
     return http.missing_headers_size() == 0 && http.rejected_headers_size() == 1 &&
-           hasHeader(rejected, "user-agent", "test");
+           hasHeader(rejected, "user-agent", "test") && !hasHeader(http.headers(), "User-Agent");
   }));
 }
 
@@ -661,7 +669,8 @@ TEST_P(CiliumIntegrationTest, AllowedHostRegexDeleteHeader) {
     const auto& http = entry.http();
     const auto& rejected = http.rejected_headers();
     return http.missing_headers_size() == 0 && http.rejected_headers_size() == 1 &&
-           hasHeader(rejected, "header42", "test");
+           hasHeader(rejected, "header42", "test") &&
+           !hasHeader(http.headers(), "header42", "test");
   }));
 }
 
@@ -683,7 +692,8 @@ TEST_P(CiliumIntegrationTest, AllowedHostString) {
     const auto& http = entry.http();
     const auto& missing = http.missing_headers();
     return http.missing_headers_size() == 2 && hasHeader(missing, "header2", "value2") &&
-           hasHeader(missing, "header42") && http.rejected_headers_size() == 0;
+           hasHeader(missing, "header42") && http.rejected_headers_size() == 0 &&
+           !hasHeader(http.headers(), "header42") && hasHeader(http.headers(), "header2", "value2");
   }));
 }
 
@@ -694,9 +704,12 @@ TEST_P(CiliumIntegrationTest, AllowedReplaced) {
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
     const auto& http = entry.http();
     const auto& missing = http.missing_headers();
-    return http.missing_headers_size() == 3 && hasHeader(missing, "header1", "value1") &&
+    return http.missing_headers_size() == 3 &&
+           hasHeader(missing, "bearer-token", "d4ef0f5011f163ac") &&
            hasHeader(missing, "header2", "value2") && hasHeader(missing, "header42") &&
-           http.rejected_headers_size() == 0;
+           http.rejected_headers_size() == 0 && !hasHeader(http.headers(), "header42") &&
+           hasHeader(http.headers(), "header2", "value2") &&
+           hasHeader(http.headers(), "bearer-token", "d4ef0f5011f163ac");
   }));
 }
 
@@ -712,7 +725,10 @@ TEST_P(CiliumIntegrationTest, Denied42) {
     const auto& missing = http.missing_headers();
     const auto& rejected = http.rejected_headers();
     return http.rejected_headers_size() == 1 && hasHeader(rejected, "header42") &&
-           http.missing_headers_size() == 1 && hasHeader(missing, "header1", "value1");
+           http.missing_headers_size() == 1 &&
+           hasHeader(missing, "bearer-token", "d4ef0f5011f163ac") &&
+           hasHeader(http.headers(), "header42") &&
+           hasHeader(http.headers(), "bearer-token", "d4ef0f5011f163ac");
   }));
 }
 
@@ -728,8 +744,11 @@ TEST_P(CiliumIntegrationTest, AllowedReplacedAndDeleted) {
     const auto& missing = http.missing_headers();
     const auto& rejected = http.rejected_headers();
     return http.rejected_headers_size() == 1 && hasHeader(rejected, "header42") &&
-           http.missing_headers_size() == 2 && hasHeader(missing, "header1", "value1") &&
-           hasHeader(missing, "header2", "value2");
+           http.missing_headers_size() == 2 &&
+           hasHeader(missing, "bearer-token", "d4ef0f5011f163ac") &&
+           hasHeader(missing, "header2", "value2") && !hasHeader(http.headers(), "header42") &&
+           hasHeader(http.headers(), "header2", "value2") &&
+           hasHeader(http.headers(), "bearer-token", "d4ef0f5011f163ac");
   }));
 }
 

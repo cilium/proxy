@@ -236,7 +236,15 @@ protected:
               log_entry.AddRejected(header_data.name_.get(), header_value.result().value());
             }
             continue;
-          case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
+          case cilium::HeaderMatch::REPLACE_ON_MISMATCH: {
+            // otherwise need to find out if the header existed or not
+            const auto header_value =
+                Http::HeaderUtility::getAllOfHeaderAsString(headers, header_data.name_);
+            // Log the wrong value as rejected, if the header existed with a wrong value
+            if (header_value.result().has_value())
+              log_entry.AddRejected(header_data.name_.get(), header_value.result().value());
+          }
+            // Set the expected value
             headers.setReferenceKey(header_data.name_, header_data.value_);
             break;
           }

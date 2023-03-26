@@ -42,18 +42,18 @@ public:
   static absl::optional<std::string>
   getHeader(const Protobuf::RepeatedPtrField<::cilium::KeyValue>& headers,
             const std::string& name) {
-    absl::optional<std::string> ret;
     for (const auto& entry : headers) {
-      if (entry.key() == name)
-        ret = entry.value();
+      if (Http::LowerCaseString(entry.key()) == Http::LowerCaseString(name))
+        return entry.value();
     }
-    return ret;
+    return absl::nullopt;
   }
 
   static bool hasHeader(const Protobuf::RepeatedPtrField<::cilium::KeyValue>& headers,
                         const std::string& name, const std::string& value = "") {
     for (const auto& entry : headers) {
-      if (entry.key() == name && entry.value() == value)
+      if (Http::LowerCaseString(entry.key()) == Http::LowerCaseString(name) &&
+          (value == "" || entry.value() == value))
         return true;
     }
     return false;
