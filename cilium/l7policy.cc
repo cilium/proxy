@@ -134,10 +134,6 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     uint32_t destination_port = dip->port();
     uint32_t destination_identity = option->resolvePolicyId(dip);
 
-    // Update the log entry with the chosen destination address and current headers, as remaining
-    // filters and/or upstream may have altered headers.
-    log_entry_.UpdateFromRequest(destination_identity, dst_address, headers);
-
     const auto& policy = option->getPolicy();
     if (policy) {
       allowed_ = policy->Allowed(option->ingress_, destination_port,
@@ -146,13 +142,18 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
       ENVOY_LOG(debug, "cilium.l7policy: {} ({}->{}) policy lookup for endpoint {} for port {}: {}",
                 option->ingress_ ? "ingress" : "egress", option->identity_, destination_identity,
                 option->pod_ip_, destination_port, allowed_ ? "ALLOW" : "DENY");
-      if (allowed_) {
-        // Log as a forwarded request
-        config_->Log(log_entry_, ::cilium::EntryType::Request);
-      }
     } else {
       ENVOY_LOG(debug, "cilium.l7policy: No {} policy found for pod {}, defaulting to DENY",
                 option->ingress_ ? "ingress" : "egress", option->pod_ip_);
+    }
+
+    // Update the log entry with the chosen destination address and current headers, as remaining
+    // filters, upstream, and/or policy may have altered headers.
+    log_entry_.UpdateFromRequest(destination_identity, dst_address, headers);
+
+    if (allowed_) {
+      // Log as a forwarded request
+      config_->Log(log_entry_, ::cilium::EntryType::Request);
     }
 
     return allowed_;
