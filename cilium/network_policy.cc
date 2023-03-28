@@ -293,11 +293,11 @@ protected:
   class PortNetworkPolicyRule : public PortPolicy, public Logger::Loggable<Logger::Id::config> {
   public:
     PortNetworkPolicyRule(const NetworkPolicyMap& parent, const cilium::PortNetworkPolicyRule& rule)
-        : manager_(parent.transport_socket_factory_context_.sslContextManager()),
-          name_(rule.name()), l7_proto_(rule.l7_proto()) {
+        : manager_(parent.transportFactoryContext().sslContextManager()), name_(rule.name()),
+          l7_proto_(rule.l7_proto()) {
       for (const auto& remote : rule.remote_policies()) {
-        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule {}", remote,
-                  name_);
+        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule: {}",
+                  remote, name_);
         allowed_remotes_.emplace(remote);
       }
       if (rule.has_downstream_tls_context()) {
@@ -333,9 +333,9 @@ protected:
         }
         server_config_ =
             std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
-                context_config, parent.transport_socket_factory_context_);
-        server_context_ = manager_.createSslServerContext(
-            parent.transport_socket_factory_context_.scope(), *server_config_, server_names_);
+                context_config, parent.transportFactoryContext());
+        server_context_ = manager_.createSslServerContext(parent.transportFactoryContext().scope(),
+                                                          *server_config_, server_names_);
       }
       if (rule.has_upstream_tls_context()) {
         auto config = rule.upstream_tls_context();
@@ -369,9 +369,9 @@ protected:
         }
         client_config_ =
             std::make_unique<Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
-                context_config, parent.transport_socket_factory_context_);
-        client_context_ = manager_.createSslClientContext(
-            parent.transport_socket_factory_context_.scope(), *client_config_);
+                context_config, parent.transportFactoryContext());
+        client_context_ = manager_.createSslClientContext(parent.transportFactoryContext().scope(),
+                                                          *client_config_);
       }
       for (const auto& sni : rule.server_names()) {
         ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}", sni,
@@ -717,15 +717,24 @@ private:
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
     : tls_map_(context.threadLocal()),
-      transport_socket_factory_context_(context.getTransportSocketFactoryContext()),
       local_ip_str_(context.localInfo().address()->ip()->addressAsString()),
+      name_(fmt::format("cilium.policymap.{}.{}.", local_ip_str_, ++instance_id_)),
+      scope_(context.serverScope().createScope(name_)),
+      init_target_(fmt::format("Cilium Network Policy subscription start"),
+                   [this]() { subscription_->start({}); }),
+      transport_factory_context_(
+          std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
+              context.getServerFactoryContext(),
+              context.getTransportSocketFactoryContext().sslContextManager(), *scope_,
+              context.getServerFactoryContext().clusterManager(),
+              context.getTransportSocketFactoryContext().stats(),
+              context.messageValidationContext().dynamicValidationVisitor())),
       is_sidecar_(context.localInfo().nodeName().rfind("sidecar~", 0) == 0) {
-  instance_id_++;
-  name_ = fmt::format("cilium.policymap.{}.{}.", local_ip_str_, instance_id_);
-  scope_ = context.serverScope().createScope(name_);
+  // Use listener init manager for the first initialization
+  transport_factory_context_->setInitManager(context.initManager());
+  context.initManager().add(init_target_);
 
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
-
   tls_map_.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
 }
 
@@ -745,7 +754,6 @@ void NetworkPolicyMap::startSubscription(Server::Configuration::FactoryContext& 
                             context.clusterManager(), context.mainThreadDispatcher(),
                             context.api().randomGenerator(), *scope_, *this,
                             std::make_shared<NetworkPolicyDecoder>());
-  subscription_->start({});
 }
 
 static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{nullptr};
@@ -782,33 +790,54 @@ void NetworkPolicyMap::onConfigUpdate(
   absl::flat_hash_set<std::string> keeps;
   absl::flat_hash_set<std::string> ct_maps_to_keep;
 
+  std::string version_name = fmt::format("NetworkPolicyMap manager for version {}", version_info);
+
+  // Init manager for this version update.
+  // For the first initialization the listener's init manager is used.
+  // Setting the member here releases any previous manager as well.
+  version_init_manager_ = std::make_shared<Init::ManagerImpl>(version_name);
+
+  // Set the init manager to use via the transport factory context
+  // Use the local init manager after the first initialization
+  if (version_init_target_)
+    transport_factory_context_->setInitManager(*version_init_manager_);
+
   // Collect a shared vector of policies to be added
   auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
-  for (const auto& resource : resources) {
-    const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
-    ENVOY_LOG(debug,
-              "Received Network Policy for endpoint {} in onConfigUpdate() "
-              "version {}",
-              config.endpoint_id(), version_info);
-    if (config.endpoint_ips().size() == 0) {
-      throw EnvoyException("Network Policy has no endpoint ips");
-    }
-    for (const auto& endpoint_ip : config.endpoint_ips()) {
-      keeps.insert(endpoint_ip);
-    }
-    ct_maps_to_keep.insert(config.conntrack_map_name());
+  try {
+    for (const auto& resource : resources) {
+      const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
+      ENVOY_LOG(debug,
+                "Received Network Policy for endpoint {} in onConfigUpdate() "
+                "version {}",
+                config.endpoint_id(), version_info);
+      if (config.endpoint_ips().size() == 0) {
+        throw EnvoyException("Network Policy has no endpoint ips");
+      }
+      for (const auto& endpoint_ip : config.endpoint_ips()) {
+        keeps.insert(endpoint_ip);
+      }
+      ct_maps_to_keep.insert(config.conntrack_map_name());
 
-    // First find the old config to figure out if an update is needed.
-    const uint64_t new_hash = MessageUtil::hash(config);
-    const auto& old_policy = GetPolicyInstanceImpl(config.endpoint_ips()[0]);
-    if (old_policy && old_policy->hash_ == new_hash &&
-        Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_, config)) {
-      ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
-      continue;
-    }
+      // First find the old config to figure out if an update is needed.
+      const uint64_t new_hash = MessageUtil::hash(config);
+      const auto& old_policy = GetPolicyInstanceImpl(config.endpoint_ips()[0]);
+      if (old_policy && old_policy->hash_ == new_hash &&
+          Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_, config)) {
+        ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
+        continue;
+      }
 
-    // May throw
-    to_be_added->emplace_back(std::make_shared<PolicyInstanceImpl>(*this, new_hash, config));
+      // May throw
+      to_be_added->emplace_back(std::make_shared<PolicyInstanceImpl>(*this, new_hash, config));
+    }
+  } catch (const EnvoyException& e) {
+    ENVOY_LOG(debug, "NetworkPolicy update for version {} failed: {}", version_info, e.what());
+
+    // Allow main (Listener) init to continue after exceptions
+    init_target_.ready();
+
+    throw; // re-throw
   }
 
   // Collect a shared vector of policy names to be removed
@@ -830,42 +859,90 @@ void NetworkPolicyMap::onConfigUpdate(
     }
   }
 
-  // pause the subscription until the worker threads are done. No throws after
-  // this!
-  ENVOY_LOG(trace, "Pausing NPDS subscription");
-  pause();
+  // Allow main (Listener) init to continue before workers are started.
+  init_target_.ready();
 
-  // 'this' may be already deleted when the worker threads get to execute the
-  // updates. Manage this by taking a shared_ptr on 'this' for the duration of
-  // the posted lambda.
-  std::shared_ptr<NetworkPolicyMap> shared_this = shared_from_this();
+  // Create a local init target to track network policy updates on worker threads.
+  // This is added to the local init manager below in order to wait for all worker
+  // threads to have applied policy updates before NPDS ACK is sent.
+  // First setting of this also causes future updates to use the local init manager.
+  version_init_target_ = std::make_shared<Init::TargetImpl>(version_name, []() {});
 
-  // Execute changes on all threads.
-  tls_map_.runOnAllThreads(
-      [to_be_added, to_be_deleted](OptRef<ThreadLocalPolicyMap> npmap) {
-        ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
-                         "updates on the next thread");
-        for (const auto& policy_name : *to_be_deleted) {
-          ENVOY_LOG(trace, "Cilium deleting removed network policy for endpoint {}", policy_name);
-          npmap->policies_.erase(policy_name);
-        }
-        for (const auto& new_policy : *to_be_added) {
-          for (const auto& endpoint_ip : new_policy->policy_proto_.endpoint_ips()) {
-            ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", endpoint_ip);
-            npmap->policies_[endpoint_ip] = new_policy;
-          }
-        }
-      },
-      // Delete old cts when all threads have updated their policies,
-      // and resume NPDS after.
-      [shared_this, cts_to_be_closed]() {
-        if (shared_this->ctmap_ && cts_to_be_closed->size() > 0) {
-          shared_this->ctmap_->closeMaps(cts_to_be_closed);
-        }
-        // resume subscription
+  // Skip pausing if nothing to be done
+  if (to_be_added->size() == 0 && to_be_deleted->size() == 0 && cts_to_be_closed->size() == 0) {
+    ENVOY_LOG(trace, "Skipping empty or duplicate policy update.");
+  } else {
+    // pause the subscription until the worker threads are done. No throws after this!
+    // local init target is marked ready when all workers have updated.
+    version_init_manager_->add(*version_init_target_);
+    ENVOY_LOG(trace, "Pausing NPDS subscription");
+    pause();
+
+    // 'this' may be already deleted when the worker threads get to execute the
+    // updates. Manage this by taking a shared_ptr on 'this' for the duration of
+    // the posted lambda.
+    std::shared_ptr<NetworkPolicyMap> shared_this = shared_from_this();
+
+    // Resume subscription via an Init::Watcher when fully initialized
+    // This Watcher needs to be a member so that it exists after this function returns.
+    // It needs to be dynamically allocated so that we can initialize a new watcher for each
+    // network policy version.
+    // Since this is a member it must not hold a reference to the map to avoid a circular
+    // reference; so use a weak pointer instead.
+    // Setting the member here releases any previous watcher as well.
+    std::weak_ptr<NetworkPolicyMap> weak_this = shared_this;
+    version_init_watcher_ = std::make_shared<Init::WatcherImpl>(version_name, [weak_this]() {
+      if (std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock()) {
+        // resume subscription when fully initialized
         ENVOY_LOG(trace, "Resuming NPDS subscription");
         shared_this->resume();
-      });
+      } else {
+        ENVOY_LOG_MISC(debug, "NetworkPolicyMap expired on watcher completion!");
+      }
+    });
+
+    // Execute changes on all threads.
+    tls_map_.runOnAllThreads(
+        [to_be_added, to_be_deleted, version_info](OptRef<ThreadLocalPolicyMap> npmap) {
+          if (!npmap.has_value()) {
+            ENVOY_LOG(debug,
+                      "Cilium L7 NetworkPolicyMap::onConfigUpdate(): npmap has no value "
+                      "for version {}",
+                      version_info);
+            return;
+          }
+          ENVOY_LOG(trace,
+                    "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
+                    "updates on the next thread for version {}",
+                    version_info);
+          for (const auto& policy_name : *to_be_deleted) {
+            ENVOY_LOG(trace, "Cilium deleting removed network policy for endpoint {}", policy_name);
+            npmap->policies_.erase(policy_name);
+          }
+          for (const auto& new_policy : *to_be_added) {
+            for (const auto& endpoint_ip : new_policy->policy_proto_.endpoint_ips()) {
+              ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", endpoint_ip);
+              npmap->policies_[endpoint_ip] = new_policy;
+            }
+          }
+        },
+        // All threads have executed updates, delete old cts and mark the local init target ready.
+        [shared_this, cts_to_be_closed]() {
+          if (shared_this->ctmap_ && cts_to_be_closed->size() > 0) {
+            shared_this->ctmap_->closeMaps(cts_to_be_closed);
+          }
+          shared_this->version_init_target_->ready();
+        });
+    // Initialize SDS secrets, the watcher callback above will be called after all threads have
+    // updated policies and secrets have been fetched, or timeout (15 seconds) hits.
+    version_init_manager_->initialize(*version_init_watcher_);
+  }
+
+  // Remove the local init manager from the transport factory context
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnull-dereference"
+  transport_factory_context_->setInitManager(*static_cast<Init::Manager*>(nullptr));
+#pragma clang diagnostic pop
 }
 
 void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
