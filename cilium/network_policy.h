@@ -13,6 +13,9 @@
 #include "source/common/common/logger.h"
 #include "source/common/config/opaque_resource_decoder_impl.h"
 #include "source/common/http/header_utility.h"
+#include "source/common/init/manager_impl.h"
+#include "source/common/init/target_impl.h"
+#include "source/common/init/watcher_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/extensions/transport_sockets/tls/context_config_impl.h"
 #include "source/server/transport_socket_config_impl.h"
@@ -125,7 +128,6 @@ public:
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
     subscription_ = std::move(subscription);
-    subscription_->start({});
   }
 
   const PolicyInstanceConstSharedPtr
@@ -151,6 +153,10 @@ public:
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
                             const EnvoyException* e) override;
 
+  Server::Configuration::TransportSocketFactoryContext& transportFactoryContext() const {
+    return *transport_factory_context_;
+  }
+
 private:
   const std::shared_ptr<const PolicyInstanceImpl>&
   GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
@@ -158,17 +164,27 @@ private:
   void pause();
   void resume();
 
-  ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map_;
-  Stats::ScopeSharedPtr scope_;
-  std::unique_ptr<Envoy::Config::Subscription> subscription_;
-  Envoy::Config::ScopedResume resume_;
   static uint64_t instance_id_;
+
+  ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map_;
+  const std::string local_ip_str_;
   std::string name_;
+  Stats::ScopeSharedPtr scope_;
+
+  // init target which starts gRPC subscription
+  Init::TargetImpl init_target_;
+  std::shared_ptr<Init::ManagerImpl> version_init_manager_;
+  std::shared_ptr<Init::TargetImpl> version_init_target_;
+  std::shared_ptr<Init::WatcherImpl> version_init_watcher_;
+  std::shared_ptr<Server::Configuration::TransportSocketFactoryContextImpl>
+      transport_factory_context_;
+
   Cilium::CtMapSharedPtr ctmap_;
 
+  std::unique_ptr<Envoy::Config::Subscription> subscription_;
+  Envoy::Config::ScopedResume resume_;
+
 public:
-  Server::Configuration::TransportSocketFactoryContext& transport_socket_factory_context_;
-  const std::string local_ip_str_;
   const bool is_sidecar_;
 };
 
