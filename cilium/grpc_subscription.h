@@ -18,7 +18,8 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
           Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
           Random::RandomGenerator& random, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
-          Config::OpaqueResourceDecoderSharedPtr resource_decoder);
+          Config::OpaqueResourceDecoderSharedPtr resource_decoder,
+          std::chrono::milliseconds init_fetch_timeout = std::chrono::milliseconds(0));
 
 } // namespace Cilium
 } // namespace Envoy
