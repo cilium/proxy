@@ -158,7 +158,7 @@ private:
   void pause();
   void resume();
 
-  ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map;
+  ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map_;
   Stats::ScopeSharedPtr scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   Envoy::Config::ScopedResume resume_;
