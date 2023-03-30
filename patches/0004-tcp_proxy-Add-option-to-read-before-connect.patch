@@ -5,39 +5,30 @@ Subject: [PATCH 4/6] tcp_proxy: Add option to read before connect
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- .../network/tcp_proxy/v3/tcp_proxy.proto      |  7 +++++-
+ .../network/tcp_proxy/v3/tcp_proxy.proto      |  5 ++++
  source/common/tcp_proxy/tcp_proxy.cc          | 24 ++++++++++++++++---
  source/common/tcp_proxy/tcp_proxy.h           |  6 +++++
- 3 files changed, 33 insertions(+), 4 deletions(-)
+ 3 files changed, 32 insertions(+), 3 deletions(-)
 
 diff --git a/api/envoy/extensions/filters/network/tcp_proxy/v3/tcp_proxy.proto b/api/envoy/extensions/filters/network/tcp_proxy/v3/tcp_proxy.proto
-index ee8cb68242..9acc30e66f 100644
+index 6e6f39eca6..a8d189de6b 100644
 --- a/api/envoy/extensions/filters/network/tcp_proxy/v3/tcp_proxy.proto
 +++ b/api/envoy/extensions/filters/network/tcp_proxy/v3/tcp_proxy.proto
-@@ -24,7 +24,7 @@ option (udpa.annotations.file_status).package_version_status = ACTIVE;
- // TCP Proxy :ref:`configuration overview <config_network_filters_tcp_proxy>`.
- // [#extension: envoy.filters.network.tcp_proxy]
- 
--// [#next-free-field: 15]
-+// [#next-free-field: 16]
- message TcpProxy {
-   option (udpa.annotations.versioning).previous_message_type =
-       "envoy.config.filter.network.tcp_proxy.v2.TcpProxy";
-@@ -199,4 +199,9 @@ message TcpProxy {
-   // is reached the connection will be closed. Duration must be at least 1ms.
-   google.protobuf.Duration max_downstream_connection_duration = 13
+@@ -212,4 +212,9 @@ message TcpProxy {
+   // The interval must be at least 1ms.
+   google.protobuf.Duration access_log_flush_interval = 15
        [(validate.rules).duration = {gte {nanos: 1000000}}];
 +
 +  // Keep downstream read enabled before connecting upstream.
 +  // Note that enabling this may cause data to stall if preceding filter(s) do not buffer and/or
 +  // re-inject data after the upstream connection has been established.
-+  bool receive_before_connect = 15;
++  bool receive_before_connect = 16;
  }
 diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
-index 0d4a29bb2c..755b71eec7 100644
+index fc28bf5e13..88af6f1e4d 100644
 --- a/source/common/tcp_proxy/tcp_proxy.cc
 +++ b/source/common/tcp_proxy/tcp_proxy.cc
-@@ -92,6 +92,8 @@ Config::SharedConfig::SharedConfig(
+@@ -100,6 +100,8 @@ Config::SharedConfig::SharedConfig(
      on_demand_config_ =
          std::make_unique<OnDemandConfig>(config.on_demand(), context, *stats_scope_);
    }
@@ -46,7 +37,7 @@ index 0d4a29bb2c..755b71eec7 100644
  }
  
  Config::Config(const envoy::extensions::filters::network::tcp_proxy::v3::TcpProxy& config,
-@@ -209,7 +211,9 @@ void Filter::initialize(Network::ReadFilterCallbacks& callbacks, bool set_connec
+@@ -221,7 +223,9 @@ void Filter::initialize(Network::ReadFilterCallbacks& callbacks, bool set_connec
    // Need to disable reads so that we don't write to an upstream that might fail
    // in onData(). This will get re-enabled when the upstream connection is
    // established.
@@ -57,8 +48,8 @@ index 0d4a29bb2c..755b71eec7 100644
    getStreamInfo().setDownstreamBytesMeter(std::make_shared<StreamInfo::BytesMeter>());
    getStreamInfo().setUpstreamInfo(std::make_shared<StreamInfo::UpstreamInfoImpl>());
  
-@@ -420,8 +424,11 @@ Network::FilterStatus Filter::establishUpstreamConnection() {
-     // cluster->stats().upstream_cx_none_healthy in the latter case.
+@@ -432,8 +436,11 @@ Network::FilterStatus Filter::establishUpstreamConnection() {
+     // cluster->trafficStats()->upstream_cx_none_healthy in the latter case.
      getStreamInfo().setResponseFlag(StreamInfo::ResponseFlag::NoHealthyUpstream);
      onInitFailure(UpstreamFailureReason::NoHealthyUpstream);
 +    return Network::FilterStatus::StopIteration;
@@ -70,7 +61,7 @@ index 0d4a29bb2c..755b71eec7 100644
  }
  
  void Filter::onClusterDiscoveryCompletion(Upstream::ClusterDiscoveryStatus cluster_status) {
-@@ -614,6 +621,12 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
+@@ -632,6 +639,12 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
    if (upstream_) {
      getStreamInfo().getUpstreamBytesMeter()->addWireBytesSent(data.length());
      upstream_->encodeData(data, end_stream);
@@ -83,7 +74,7 @@ index 0d4a29bb2c..755b71eec7 100644
    }
    // The upstream should consume all of the data.
    // Before there is an upstream the connection should be readDisabled. If the upstream is
-@@ -717,7 +730,12 @@ void Filter::onUpstreamConnection() {
+@@ -745,7 +758,12 @@ void Filter::onUpstreamConnection() {
    connecting_ = false;
    // Re-enable downstream reads now that the upstream connection is established
    // so we have a place to send downstream data to.
@@ -98,10 +89,10 @@ index 0d4a29bb2c..755b71eec7 100644
    read_callbacks_->upstreamHost()->outlierDetector().putResult(
        Upstream::Outlier::Result::LocalOriginConnectSuccessFinal);
 diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
-index d5c9bc7d10..891ce4f07e 100644
+index 324e933192..548cdc780f 100644
 --- a/source/common/tcp_proxy/tcp_proxy.h
 +++ b/source/common/tcp_proxy/tcp_proxy.h
-@@ -21,6 +21,7 @@
+@@ -22,6 +22,7 @@
  #include "envoy/upstream/cluster_manager.h"
  #include "envoy/upstream/upstream.h"
  
@@ -109,31 +100,31 @@ index d5c9bc7d10..891ce4f07e 100644
  #include "source/common/common/logger.h"
  #include "source/common/formatter/substitution_format_string.h"
  #include "source/common/http/header_map_impl.h"
-@@ -210,6 +211,7 @@ public:
-         return OnDemandConfigOptConstRef();
+@@ -216,6 +217,7 @@ public:
+         return {};
        }
      }
 +    bool receiveBeforeConnect() { return receive_before_connect_; }
  
    private:
      static TcpProxyStats generateStats(Stats::Scope& scope);
-@@ -223,6 +225,7 @@ public:
-     absl::optional<std::chrono::milliseconds> max_downstream_connection_duration_;
+@@ -230,6 +232,7 @@ public:
+     absl::optional<std::chrono::milliseconds> access_log_flush_interval_;
      std::unique_ptr<TunnelingConfigHelper> tunneling_config_helper_;
      std::unique_ptr<OnDemandConfig> on_demand_config_;
 +    bool receive_before_connect_;
    };
  
    using SharedConfigSharedPtr = std::shared_ptr<SharedConfig>;
-@@ -271,6 +274,7 @@ public:
+@@ -281,6 +284,7 @@ public:
    }
    // This function must not be called if on demand is disabled.
    const OnDemandStats& onDemandStats() const { return shared_config_->onDemandConfig()->stats(); }
 +  bool receiveBeforeConnect() { return shared_config_->receiveBeforeConnect(); }
+   Random::RandomGenerator& randomGenerator() { return random_generator_; }
  
  private:
-   struct SimpleRouteImpl : public Route {
-@@ -500,6 +504,8 @@ protected:
+@@ -515,6 +519,8 @@ protected:
    uint32_t connect_attempts_{};
    bool connecting_{};
    bool downstream_closed_{};
