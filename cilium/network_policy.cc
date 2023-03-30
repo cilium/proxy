@@ -716,7 +716,7 @@ private:
 // Common base constructor
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
-    : tls_map(context.threadLocal()),
+    : tls_map_(context.threadLocal()),
       transport_socket_factory_context_(context.getTransportSocketFactoryContext()),
       local_ip_str_(context.localInfo().address()->ip()->addressAsString()),
       is_sidecar_(context.localInfo().nodeName().rfind("sidecar~", 0) == 0) {
@@ -726,7 +726,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
 
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
 
-  tls_map.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
+  tls_map_.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
 }
 
 // This is used in production
@@ -752,8 +752,8 @@ static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{nullpt
 
 const std::shared_ptr<const PolicyInstanceImpl>&
 NetworkPolicyMap::GetPolicyInstanceImpl(const std::string& endpoint_ip) const {
-  auto it = tls_map->policies_.find(endpoint_ip);
-  if (it == tls_map->policies_.end()) {
+  auto it = tls_map_->policies_.find(endpoint_ip);
+  if (it == tls_map_->policies_.end()) {
     return null_instance_impl;
   }
   return it->second;
@@ -815,7 +815,7 @@ void NetworkPolicyMap::onConfigUpdate(
   auto to_be_deleted = std::make_shared<std::vector<std::string>>();
   // Collect a shared vector of conntrack maps to close
   auto cts_to_be_closed = std::make_shared<absl::flat_hash_set<std::string>>();
-  const auto& policies = tls_map->policies_;
+  const auto& policies = tls_map_->policies_;
   for (auto& pair : policies) {
     if (keeps.find(pair.first) == keeps.end()) {
       to_be_deleted->emplace_back(pair.first);
@@ -841,7 +841,7 @@ void NetworkPolicyMap::onConfigUpdate(
   std::shared_ptr<NetworkPolicyMap> shared_this = shared_from_this();
 
   // Execute changes on all threads.
-  tls_map.runOnAllThreads(
+  tls_map_.runOnAllThreads(
       [to_be_added, to_be_deleted](OptRef<ThreadLocalPolicyMap> npmap) {
         ENVOY_LOG(trace, "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
                          "updates on the next thread");
