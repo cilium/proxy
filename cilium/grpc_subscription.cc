@@ -126,7 +126,7 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
           dispatcher, sotwGrpcMethod(type_url), random, scope,
           Config::Utility::parseRateLimitSettings(api_config_source),
           api_config_source.set_node_on_first_message_only(), std::move(nop_config_validators),
-          absl::nullopt, ""),
+          absl::nullopt, absl::nullopt, ""),
       callbacks, resource_decoder, stats, type_url, dispatcher,
       std::chrono::milliseconds(0) /* no initial fetch timeout */,
       /*is_aggregated*/ false, options);
