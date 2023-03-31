@@ -94,6 +94,25 @@ const Protobuf::MethodDescriptor& sotwGrpcMethod(absl::string_view type_url) {
       it->second.sotw_grpc_method_);
 }
 
+// Hard-coded Cilium gRPC cluster
+// Note: No rate-limit settings are used, consider if needed.
+envoy::config::core::v3::ConfigSource getCiliumXDSAPIConfig() {
+  auto config_source = envoy::config::core::v3::ConfigSource();
+  /* config_source.initial_fetch_timeout left at default 15 seconds.
+   * This applies only to SDS Secrets for now, as for NPDS and NPHDS we explicitly set the timeout
+   * as 0 (no timeout).
+   */
+  config_source.set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
+  auto api_config_source = config_source.mutable_api_config_source();
+  api_config_source->set_set_node_on_first_message_only(true);
+  api_config_source->set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
+  api_config_source->set_transport_api_version(envoy::config::core::v3::ApiVersion::V3);
+  api_config_source->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name("xds-grpc-cilium");
+  return config_source;
+}
+
+envoy::config::core::v3::ConfigSource cilium_xds_api_config = getCiliumXDSAPIConfig();
+
 std::unique_ptr<Config::GrpcSubscriptionImpl>
 subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
           Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
@@ -101,13 +120,8 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
           Config::SubscriptionCallbacks& callbacks,
           Config::OpaqueResourceDecoderSharedPtr resource_decoder,
           std::chrono::milliseconds init_fetch_timeout) {
-  // Hard-coded Cilium gRPC cluster
-  // Note: No rate-limit settings are used, consider if needed.
-  envoy::config::core::v3::ApiConfigSource api_config_source{};
-  api_config_source.set_set_node_on_first_message_only(true);
-  api_config_source.set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
-  api_config_source.add_grpc_services()->mutable_envoy_grpc()->set_cluster_name("xds-grpc-cilium");
-
+  const envoy::config::core::v3::ApiConfigSource& api_config_source =
+      cilium_xds_api_config.api_config_source();
   Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(cm.primaryClusters(),
                                                                   api_config_source);
 

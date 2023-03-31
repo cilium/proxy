@@ -13,6 +13,9 @@
 namespace Envoy {
 namespace Cilium {
 
+// Cilium XDS API config source. Used for all Cilium XDS.
+extern envoy::config::core::v3::ConfigSource cilium_xds_api_config;
+
 std::unique_ptr<Config::GrpcSubscriptionImpl>
 subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
           Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
