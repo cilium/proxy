@@ -21,6 +21,10 @@ public:
 
   virtual std::string testPolicyFmt() PURE;
 
+  virtual std::vector<std::pair<std::string, std::string>> testSecrets() {
+    return std::vector<std::pair<std::string, std::string>>{};
+  }
+
   absl::optional<::cilium::LogEntry>
   waitForAccessLogMessage(::cilium::EntryType entry_type,
                           std::chrono::milliseconds timeout = TestUtility::DefaultTimeout) {

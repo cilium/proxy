@@ -30,6 +30,8 @@ envoy_cc_library(
     name = "network_policy_lib",
     srcs = [
         "network_policy.cc",
+        "secret_watcher.cc",
+        "secret_watcher.h",
     ],
     hdrs = [
         "network_policy.h",

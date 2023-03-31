@@ -3,7 +3,7 @@
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/thread_local/thread_local_impl.h"
 
-#include "tests/bpf_metadata.h" // policy_config
+#include "tests/bpf_metadata.h" // host_map_config, original_dst_address
 #include "tests/cilium_http_integration.h"
 
 using namespace std::literals;

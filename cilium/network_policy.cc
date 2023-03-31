@@ -2,16 +2,20 @@
 
 #include <string>
 
+#include "envoy/type/matcher/v3/metadata.pb.h"
+
 #include "source/common/common/matchers.h"
 #include "source/common/config/utility.h"
+#include "source/common/init/manager_impl.h"
+#include "source/common/init/watcher_impl.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h"
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
-#include "cilium/api/npds.pb.validate.h"
 #include "cilium/grpc_subscription.h"
+#include "cilium/secret_watcher.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -113,6 +117,8 @@ IPAddressPair::IPAddressPair(const cilium::NetworkPolicy& proto) {
   }
 }
 
+// Construction is single-threaded, but all other use is from multiple worker threads using const
+// methods.
 class PolicyInstanceImpl : public PolicyInstance {
 public:
   PolicyInstanceImpl(const NetworkPolicyMap& parent, uint64_t hash,
@@ -124,29 +130,114 @@ public:
 
 protected:
   class HttpNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
-    static envoy::config::route::v3::HeaderMatcher matcher(const cilium::HeaderMatch& config) {
-      envoy::config::route::v3::HeaderMatcher match;
-      match.set_name(config.name());
-      if (config.value().length() == 0) {
-        match.set_present_match(true);
-      } else {
-        match.set_exact_match(config.value());
-      }
-      return match;
-    }
-    class HeaderMatch : public Http::HeaderUtility::HeaderData {
+    class HeaderMatch {
     public:
-      HeaderMatch(const cilium::HeaderMatch& config)
-          : HeaderData(matcher(config)), match_action_(config.match_action()),
-            mismatch_action_(config.mismatch_action()) {}
+      HeaderMatch(const NetworkPolicyMap& parent, const cilium::HeaderMatch& config)
+          : name_(config.name()), value_(config.value()), match_action_(config.match_action()),
+            mismatch_action_(config.mismatch_action()) {
+        if (config.value_sds_secret().length() > 0)
+          secret_ = std::make_unique<SecretWatcher>(parent, config.value_sds_secret());
+      }
 
+      void logRejected(Cilium::AccessLog::Entry& log_entry, absl::string_view value) const {
+        log_entry.AddRejected(name_.get(), !secret_ ? value : "[redacted]");
+      }
+
+      void logMissing(Cilium::AccessLog::Entry& log_entry, absl::string_view value) const {
+        log_entry.AddMissing(name_.get(), !secret_ ? value : "[redacted]");
+      }
+
+      // Returns 'true' if matching can continue
+      bool Matches(Envoy::Http::RequestHeaderMap& headers,
+                   Cilium::AccessLog::Entry& log_entry) const {
+        bool matches = false;
+        const std::string* match_value = &value_;
+        const auto header_value = Http::HeaderUtility::getAllOfHeaderAsString(headers, name_);
+        bool isPresentMatch = (value_.length() == 0 && !secret_);
+
+        if (isPresentMatch)
+          matches = header_value.result().has_value();
+        else {
+          // Value match, update secret?
+          if (secret_) {
+            auto* secret_value = secret_->value();
+            if (secret_value)
+              match_value = secret_value;
+            else if (value_.length() == 0)
+              ENVOY_LOG(info, "Cilium HeaderMatch missing SDS secret value for header {}", name_);
+          }
+          if (header_value.result().has_value())
+            matches = (header_value.result().value() == *match_value);
+        }
+
+        if (matches) {
+          // Match action
+          switch (match_action_) {
+          case cilium::HeaderMatch::CONTINUE_ON_MATCH:
+            return true;
+          case cilium::HeaderMatch::FAIL_ON_MATCH:
+          default: // fail closed if unknown action
+            logRejected(log_entry, *match_value);
+            return false;
+          case cilium::HeaderMatch::DELETE_ON_MATCH:
+            logRejected(log_entry, *match_value);
+            headers.remove(name_);
+            return true;
+          }
+        } else {
+          // Mismatch action
+          switch (mismatch_action_) {
+          case cilium::HeaderMatch::FAIL_ON_MISMATCH:
+          default:
+            logMissing(log_entry, *match_value);
+            return false;
+          case cilium::HeaderMatch::CONTINUE_ON_MISMATCH:
+            logMissing(log_entry, *match_value);
+            return true;
+          case cilium::HeaderMatch::ADD_ON_MISMATCH:
+            headers.addCopy(name_, *match_value);
+            logMissing(log_entry, *match_value);
+            return true;
+          case cilium::HeaderMatch::DELETE_ON_MISMATCH:
+            if (isPresentMatch) {
+              // presence match failed, nothing to do
+              return true;
+            }
+            if (!header_value.result().has_value())
+              return true; // nothing to remove
+
+            // Remove the header with an incorrect value
+            headers.remove(name_);
+            logRejected(log_entry, header_value.result().value());
+            return true;
+          case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
+            // Log the wrong value as rejected, if the header existed with a wrong value
+            if (header_value.result().has_value())
+              logRejected(log_entry, header_value.result().value());
+            // Set the expected value
+            ENVOY_LOG(debug, "secret replacing header {}={}", name_, *match_value);
+            headers.setCopy(name_, *match_value);
+            // Log the expected value as missing
+            logMissing(log_entry, *match_value);
+            return true;
+          }
+        }
+        IS_ENVOY_BUG("HeaderMatch reached unreachable return");
+        return true;
+      }
+
+      const Http::LowerCaseString name_;
+      std::string value_;
       cilium::HeaderMatch::MatchAction match_action_;
       cilium::HeaderMatch::MismatchAction mismatch_action_;
+      SecretWatcherPtr secret_;
     };
 
   public:
-    HttpNetworkPolicyRule(const cilium::HttpNetworkPolicyRule& rule) {
+    HttpNetworkPolicyRule(const NetworkPolicyMap& parent,
+                          const cilium::HttpNetworkPolicyRule& rule) {
       ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
+      headers_.reserve(rule.headers().size());
       for (const auto& header : rule.headers()) {
         headers_.emplace_back(std::make_unique<Http::HeaderUtility::HeaderData>(header));
         const auto& header_data = *headers_.back();
@@ -162,23 +253,17 @@ protected:
                       ? "<REGEX>"
                       : "<UNKNOWN>");
       }
+      header_matches_.reserve(rule.header_matches().size());
       for (const auto& config : rule.header_matches()) {
-        header_matches_.emplace_back(HeaderMatch(config));
-        const auto& header_data = header_matches_.back();
+        header_matches_.emplace_back(parent, config);
+        const auto& header_match = header_matches_.back();
         ENVOY_LOG(trace,
-                  "Cilium L7 HttpNetworkPolicyRule(): HeaderData for headers_action "
-                  "{}={} (match: {}, mismatch: {})",
-                  header_data.name_.get(),
-                  header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
-                      ? fmt::format("[{}-{})", header_data.range_.start(), header_data.range_.end())
-                  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
-                      ? header_data.value_
-                  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present
-                      ? "<PRESENT>"
-                  : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
-                      ? "<REGEX>"
-                      : "<UNKNOWN>",
-                  header_data.match_action_, header_data.mismatch_action_);
+                  "Cilium L7 HttpNetworkPolicyRule(): HeaderMatch {}={} (match: {}, mismatch: {})",
+                  header_match.name_.get(),
+                  header_match.secret_ ? fmt::format("<SECRET {}>", header_match.secret_->name())
+                  : header_match.value_.length() > 0 ? header_match.value_
+                                                     : "<PRESENT>",
+                  header_match.match_action_, header_match.mismatch_action_);
       }
     }
 
@@ -192,63 +277,9 @@ protected:
     bool HeaderMatches(Envoy::Http::RequestHeaderMap& headers,
                        Cilium::AccessLog::Entry& log_entry) const {
       bool accepted = true;
-      for (const auto& header_data : header_matches_) {
-        if (Http::HeaderUtility::matchHeaders(headers, header_data)) {
-          // Match action
-          switch (header_data.match_action_) {
-          case cilium::HeaderMatch::CONTINUE_ON_MATCH:
-            continue;
-          case cilium::HeaderMatch::FAIL_ON_MATCH:
-          default: // fail closed if unknown action
-            accepted = false;
-            break;
-          case cilium::HeaderMatch::DELETE_ON_MATCH:
-            headers.remove(header_data.name_);
-            break;
-          }
-          log_entry.AddRejected(header_data.name_.get(), header_data.value_);
-        } else {
-          // Mismatch action
-          switch (header_data.mismatch_action_) {
-          case cilium::HeaderMatch::FAIL_ON_MISMATCH:
-          default:
-            accepted = false;
-            break;
-          case cilium::HeaderMatch::CONTINUE_ON_MISMATCH:
-            break;
-          case cilium::HeaderMatch::ADD_ON_MISMATCH:
-            headers.addReferenceKey(header_data.name_, header_data.value_);
-            break;
-          case cilium::HeaderMatch::DELETE_ON_MISMATCH:
-            if (header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present) {
-              // presence match failed, nothing to do
-              continue;
-            }
-            {
-              // otherwise need to find out if the header existed or not
-              const auto header_value =
-                  Http::HeaderUtility::getAllOfHeaderAsString(headers, header_data.name_);
-              if (!header_value.result().has_value()) {
-                continue; // nothing to remove
-              }
-              // Remove the header with an incorrect value
-              headers.remove(header_data.name_);
-              log_entry.AddRejected(header_data.name_.get(), header_value.result().value());
-            }
-            continue;
-          case cilium::HeaderMatch::REPLACE_ON_MISMATCH: {
-            // otherwise need to find out if the header existed or not
-            const auto header_value =
-                Http::HeaderUtility::getAllOfHeaderAsString(headers, header_data.name_);
-            // Log the wrong value as rejected, if the header existed with a wrong value
-            if (header_value.result().has_value())
-              log_entry.AddRejected(header_data.name_.get(), header_value.result().value());
-          }
-            // Set the expected value
-            headers.setReferenceKey(header_data.name_, header_data.value_);
-            break;
-          }
-          log_entry.AddMissing(header_data.name_.get(), header_data.value_);
+      for (const auto& header_match : header_matches_) {
+        if (!header_match.Matches(headers, log_entry)) {
+          accepted = false;
         }
       }
       return accepted;
@@ -262,7 +293,7 @@ protected:
   public:
     L7NetworkPolicyRule(const cilium::L7NetworkPolicyRule& rule) : name_(rule.name()) {
       for (const auto& matcher : rule.metadata_rule()) {
-        ENVOY_LOG(debug, "Cilium L7NetworkPolicyRule() metadata_rule: {}", matcher.DebugString());
+        ENVOY_LOG(trace, "Cilium L7NetworkPolicyRule() metadata_rule: {}", matcher.DebugString());
         metadata_matchers_.emplace_back(matcher);
         matchers_.emplace_back(matcher);
       }
@@ -293,85 +324,19 @@ protected:
   class PortNetworkPolicyRule : public PortPolicy, public Logger::Loggable<Logger::Id::config> {
   public:
     PortNetworkPolicyRule(const NetworkPolicyMap& parent, const cilium::PortNetworkPolicyRule& rule)
-        : manager_(parent.transportFactoryContext().sslContextManager()), name_(rule.name()),
-          l7_proto_(rule.l7_proto()) {
+        : name_(rule.name()), l7_proto_(rule.l7_proto()) {
       for (const auto& remote : rule.remote_policies()) {
         ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule: {}",
-                  remote, name_);
+                  remote, rule.DebugString());
         allowed_remotes_.emplace(remote);
       }
       if (rule.has_downstream_tls_context()) {
         auto config = rule.downstream_tls_context();
-        envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext context_config;
-        auto tls_context = context_config.mutable_common_tls_context();
-        if (config.trusted_ca() != "") {
-          auto require_tls_certificate = context_config.mutable_require_client_certificate();
-          require_tls_certificate->set_value(true);
-          auto validation_context = tls_context->mutable_validation_context();
-          auto trusted_ca = validation_context->mutable_trusted_ca();
-          trusted_ca->set_inline_string(config.trusted_ca());
-        }
-        if (config.certificate_chain() != "") {
-          auto tls_certificate = tls_context->add_tls_certificates();
-          auto certificate_chain = tls_certificate->mutable_certificate_chain();
-          certificate_chain->set_inline_string(config.certificate_chain());
-          if (config.private_key() != "") {
-            auto private_key = tls_certificate->mutable_private_key();
-            private_key->set_inline_string(config.private_key());
-          } else {
-            throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: TLS context has no "
-                                              "private key in rule ",
-                                              name_));
-          }
-        } else {
-          throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: TLS context has no "
-                                            "certificate chain in rule ",
-                                            name_));
-        }
-        for (int i = 0; i < config.server_names_size(); i++) {
-          server_names_.emplace_back(config.server_names(i));
-        }
-        server_config_ =
-            std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
-                context_config, parent.transportFactoryContext());
-        server_context_ = manager_.createSslServerContext(parent.transportFactoryContext().scope(),
-                                                          *server_config_, server_names_);
+        server_context_ = std::make_unique<DownstreamTLSContext>(parent, config);
       }
       if (rule.has_upstream_tls_context()) {
         auto config = rule.upstream_tls_context();
-        envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext context_config;
-        auto tls_context = context_config.mutable_common_tls_context();
-        if (config.trusted_ca() != "") {
-          auto validation_context = tls_context->mutable_validation_context();
-          auto trusted_ca = validation_context->mutable_trusted_ca();
-          trusted_ca->set_inline_string(config.trusted_ca());
-        } else {
-          throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: Upstream TLS context has no "
-                                            "trusted CA in rule ",
-                                            name_));
-        }
-        if (config.certificate_chain() != "") {
-          auto tls_certificate = tls_context->add_tls_certificates();
-          auto certificate_chain = tls_certificate->mutable_certificate_chain();
-          certificate_chain->set_inline_string(config.certificate_chain());
-          if (config.private_key() != "") {
-            auto private_key = tls_certificate->mutable_private_key();
-            private_key->set_inline_string(config.private_key());
-          }
-        }
-        if (config.server_names_size() > 0) {
-          if (config.server_names_size() > 1) {
-            throw EnvoyException(absl::StrCat("PortNetworkPolicyRule: Upstream TLS context has "
-                                              "more than one server name in rule ",
-                                              name_));
-          }
-          context_config.set_sni(config.server_names(0));
-        }
-        client_config_ =
-            std::make_unique<Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
-                context_config, parent.transportFactoryContext());
-        client_context_ = manager_.createSslClientContext(parent.transportFactoryContext().scope(),
-                                                          *client_config_);
+        client_context_ = std::make_unique<UpstreamTLSContext>(parent, config);
       }
       for (const auto& sni : rule.server_names()) {
         ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}", sni,
@@ -383,7 +348,7 @@ protected:
           if (http_rule.header_matches_size() > 0) {
             have_header_matches_ = true;
           }
-          http_rules_.emplace_back(http_rule);
+          http_rules_.emplace_back(parent, http_rule);
         }
       }
       if (l7_proto_.length() > 0 && rule.has_l7_rules()) {
@@ -395,10 +360,6 @@ protected:
           l7_allow_rules_.emplace_back(l7_rule);
         }
       }
-    }
-    ~PortNetworkPolicyRule() {
-      manager_.removeContext(server_context_);
-      manager_.removeContext(client_context_);
     }
 
     bool Matches(uint64_t remote_id) const {
@@ -495,20 +456,27 @@ protected:
       return true; // allowed by default
     }
 
-    const Ssl::ContextConfig& getServerTlsContextConfig() const override { return *server_config_; }
-    Ssl::ContextSharedPtr getServerTlsContext() const override { return server_context_; }
-    const Ssl::ContextConfig& getClientTlsContextConfig() const override { return *client_config_; }
-    Ssl::ContextSharedPtr getClientTlsContext() const override { return client_context_; }
+    const Ssl::ContextConfig& getServerTlsContextConfig() const override {
+      return server_context_->getTlsContextConfig();
+    }
+    Ssl::ContextSharedPtr getServerTlsContext() const override {
+      if (server_context_)
+        return server_context_->getTlsContext();
+      return nullptr;
+    }
 
-    Envoy::Ssl::ContextManager& manager_;
-    Ssl::ServerContextConfigPtr server_config_;
-    std::vector<std::string> server_names_;
-    Ssl::ServerContextSharedPtr server_context_;
-
-    Ssl::ClientContextConfigPtr client_config_;
-    Ssl::ClientContextSharedPtr client_context_;
+    const Ssl::ContextConfig& getClientTlsContextConfig() const override {
+      return client_context_->getTlsContextConfig();
+    }
+    Ssl::ContextSharedPtr getClientTlsContext() const override {
+      if (client_context_)
+        return client_context_->getTlsContext();
+      return nullptr;
+    }
 
     std::string name_;
+    DownstreamTLSContextPtr server_context_;
+    UpstreamTLSContextPtr client_context_;
     absl::flat_hash_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
     // Use std::less<> to allow heterogeneous lookups (with string_view).
     std::set<std::string, std::less<>> allowed_snis_; // All SNIs allowed if empty.
@@ -950,6 +918,11 @@ void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureRe
   // We need to allow server startup to continue, even if we have a bad
   // config.
   ENVOY_LOG(debug, "Network Policy Update failed, keeping existing policy.");
+}
+
+void NetworkPolicyMap::runAfterAllThreads(std::function<void()> cb) const {
+  const_cast<NetworkPolicyMap*>(this)->tls_map_.runOnAllThreads([](OptRef<ThreadLocalPolicyMap>) {},
+                                                                cb);
 }
 
 PolicyInstanceConstSharedPtr NetworkPolicyMap::AllowAllEgressPolicy =

@@ -23,6 +23,7 @@ extern Network::Address::InstanceConstSharedPtr original_dst_address;
 extern std::shared_ptr<const Cilium::NetworkPolicyMap> npmap;
 
 extern std::string policy_config;
+extern std::vector<std::pair<std::string, std::string>> sds_configs;
 
 namespace Cilium {
 namespace BpfMetadata {
