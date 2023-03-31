@@ -16,7 +16,6 @@ public:
   virtual std::string testPolicyFmt();
 
   void initialize() override;
-  void TearDown() override;
 
   AccessLogServer accessLogServer_;
 };

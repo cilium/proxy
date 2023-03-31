@@ -63,6 +63,4 @@ void CiliumTcpIntegrationTest::initialize() {
   BaseIntegrationTest::initialize();
 }
 
-void CiliumTcpIntegrationTest::TearDown() { npmap.reset(); }
-
 } // namespace Envoy

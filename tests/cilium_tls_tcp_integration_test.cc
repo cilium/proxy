@@ -99,8 +99,6 @@ public:
     }
   }
 
-  void TearDown() override { CiliumTcpIntegrationTest::TearDown(); }
-
   // TODO(mattklein123): This logic is duplicated in various places. Cleanup in
   // a follow up.
   Network::DownstreamTransportSocketFactoryPtr createUpstreamSslContext() {

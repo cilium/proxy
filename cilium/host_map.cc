@@ -134,8 +134,7 @@ protected:
 uint64_t PolicyHostMap::instance_id_ = 0;
 
 // This is used directly for testing with a file-based subscription
-PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls)
-    : tls_(tls.allocateSlot()), validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {
+PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls) : tls_(tls.allocateSlot()) {
   instance_id_++;
   name_ = "cilium.hostmap." + fmt::format("{}", instance_id_) + ".";
   ENVOY_LOG(debug, "PolicyHostMap({}) created.", name_);
@@ -149,14 +148,14 @@ PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls)
 // This is used in production
 PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& context)
     : PolicyHostMap(context.threadLocal()) {
-  scope_ = context.scope().createScope(name_);
+  scope_ = context.serverScope().createScope(name_);
 }
 
 void PolicyHostMap::startSubscription(Server::Configuration::CommonFactoryContext& context) {
-  subscription_ =
-      subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", context.localInfo(),
-                context.clusterManager(), context.mainThreadDispatcher(),
-                context.api().randomGenerator(), *scope_, *this, this->shared_from_this());
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", context.localInfo(),
+                            context.clusterManager(), context.mainThreadDispatcher(),
+                            context.api().randomGenerator(), *scope_, *this,
+                            std::make_shared<Cilium::PolicyHostDecoder>());
   subscription_->start({});
 }
 

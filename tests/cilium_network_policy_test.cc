@@ -21,14 +21,22 @@ protected:
   }
   ~CiliumNetworkPolicyTest() override {}
 
-  void SetUp() override { policy_map_ = std::make_shared<NetworkPolicyMap>(factory_context_); }
-  void TearDown() override { policy_map_.reset(); }
+  void SetUp() override {
+    ON_CALL(factory_context_.transport_socket_factory_context_, stats())
+        .WillByDefault(testing::ReturnRef(store_));
+    policy_map_ = std::make_shared<NetworkPolicyMap>(factory_context_);
+  }
+  void TearDown() override {
+    ASSERT(policy_map_.use_count() == 1);
+    policy_map_.reset();
+  }
 
   std::string updateFromYaml(const std::string& config) {
     envoy::service::discovery::v3::DiscoveryResponse message;
     MessageUtil::loadFromYaml(config, message, ProtobufMessage::getNullValidationVisitor());
-    const auto decoded_resources =
-        Config::DecodedResourcesWrapper(*policy_map_, message.resources(), message.version_info());
+    NetworkPolicyDecoder network_policy_decoder;
+    const auto decoded_resources = Config::DecodedResourcesWrapper(
+        network_policy_decoder, message.resources(), message.version_info());
     policy_map_->onConfigUpdate(decoded_resources.refvec_, message.version_info());
     return message.version_info();
   }
@@ -56,6 +64,7 @@ protected:
 
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;
   std::shared_ptr<NetworkPolicyMap> policy_map_;
+  NiceMock<Stats::TestUtil::TestStore> store_;
 };
 
 TEST_F(CiliumNetworkPolicyTest, EmptyPolicyUpdate) {

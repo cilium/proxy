@@ -81,9 +81,32 @@ struct ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject {
   std::map<std::string, std::shared_ptr<const PolicyInstanceImpl>> policies_;
 };
 
+class NetworkPolicyDecoder : public Envoy::Config::OpaqueResourceDecoder {
+public:
+  NetworkPolicyDecoder() : validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {}
+
+  // Config::OpaqueResourceDecoder
+  ProtobufTypes::MessagePtr decodeResource(const ProtobufWkt::Any& resource) override {
+    auto typed_message = std::make_unique<cilium::NetworkPolicy>();
+    // If the Any is a synthetic empty message (e.g. because the resource field
+    // was not set in Resource, this might be empty, so we shouldn't decode.
+    if (!resource.type_url().empty()) {
+      MessageUtil::anyConvertAndValidate<cilium::NetworkPolicy>(resource, *typed_message,
+                                                                validation_visitor_);
+    }
+    return typed_message;
+  }
+
+  std::string resourceName(const Protobuf::Message& resource) override {
+    return fmt::format("{}", dynamic_cast<const cilium::NetworkPolicy&>(resource).endpoint_id());
+  }
+
+private:
+  ProtobufMessage::ValidationVisitor& validation_visitor_;
+};
+
 class NetworkPolicyMap : public Singleton::Instance,
                          public Envoy::Config::SubscriptionCallbacks,
-                         public Envoy::Config::OpaqueResourceDecoder,
                          public std::enable_shared_from_this<NetworkPolicyMap>,
                          public Logger::Loggable<Logger::Id::config> {
 public:
@@ -128,22 +151,6 @@ public:
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
                             const EnvoyException* e) override;
 
-  // Config::OpaqueResourceDecoder
-  ProtobufTypes::MessagePtr decodeResource(const ProtobufWkt::Any& resource) override {
-    auto typed_message = std::make_unique<cilium::NetworkPolicy>();
-    // If the Any is a synthetic empty message (e.g. because the resource field
-    // was not set in Resource, this might be empty, so we shouldn't decode.
-    if (!resource.type_url().empty()) {
-      MessageUtil::anyConvertAndValidate<cilium::NetworkPolicy>(resource, *typed_message,
-                                                                validation_visitor_);
-    }
-    return typed_message;
-  }
-
-  std::string resourceName(const Protobuf::Message& resource) override {
-    return fmt::format("{}", dynamic_cast<const cilium::NetworkPolicy&>(resource).endpoint_id());
-  }
-
 private:
   const std::shared_ptr<const PolicyInstanceImpl>&
   GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
@@ -152,7 +159,6 @@ private:
   void resume();
 
   ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map;
-  ProtobufMessage::ValidationVisitor& validation_visitor_;
   Stats::ScopeSharedPtr scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   Envoy::Config::ScopedResume resume_;

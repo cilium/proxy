@@ -55,9 +55,32 @@ enum ID : uint64_t {
   LocalIdentityFlag = 1 << 24,
 };
 
+class PolicyHostDecoder : public Envoy::Config::OpaqueResourceDecoder {
+public:
+  PolicyHostDecoder() : validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {}
+
+  // Config::OpaqueResourceDecoder
+  ProtobufTypes::MessagePtr decodeResource(const ProtobufWkt::Any& resource) override {
+    auto typed_message = std::make_unique<cilium::NetworkPolicyHosts>();
+    // If the Any is a synthetic empty message (e.g. because the resource field
+    // was not set in Resource, this might be empty, so we shouldn't decode.
+    if (!resource.type_url().empty()) {
+      MessageUtil::anyConvertAndValidate<cilium::NetworkPolicyHosts>(resource, *typed_message,
+                                                                     validation_visitor_);
+    }
+    return typed_message;
+  }
+
+  std::string resourceName(const Protobuf::Message& resource) override {
+    return fmt::format("{}", dynamic_cast<const cilium::NetworkPolicyHosts&>(resource).policy());
+  }
+
+private:
+  ProtobufMessage::ValidationVisitor& validation_visitor_;
+};
+
 class PolicyHostMap : public Singleton::Instance,
                       public Config::SubscriptionCallbacks,
-                      public Config::OpaqueResourceDecoder,
                       public std::enable_shared_from_this<PolicyHostMap>,
                       public Logger::Loggable<Logger::Id::config> {
 public:
@@ -189,25 +212,8 @@ public:
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
                             const EnvoyException* e) override;
 
-  // Config::OpaqueResourceDecoder
-  ProtobufTypes::MessagePtr decodeResource(const ProtobufWkt::Any& resource) override {
-    auto typed_message = std::make_unique<cilium::NetworkPolicyHosts>();
-    // If the Any is a synthetic empty message (e.g. because the resource field
-    // was not set in Resource, this might be empty, so we shouldn't decode.
-    if (!resource.type_url().empty()) {
-      MessageUtil::anyConvertAndValidate<cilium::NetworkPolicyHosts>(resource, *typed_message,
-                                                                     validation_visitor_);
-    }
-    return typed_message;
-  }
-
-  std::string resourceName(const Protobuf::Message& resource) override {
-    return fmt::format("{}", dynamic_cast<const cilium::NetworkPolicyHosts&>(resource).policy());
-  }
-
 private:
   ThreadLocal::SlotPtr tls_;
-  ProtobufMessage::ValidationVisitor& validation_visitor_;
   Stats::ScopeSharedPtr scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   static uint64_t instance_id_;

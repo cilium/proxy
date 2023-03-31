@@ -718,12 +718,13 @@ private:
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
     : tls_map(context.threadLocal()),
-      validation_visitor_(ProtobufMessage::getNullValidationVisitor()),
       transport_socket_factory_context_(context.getTransportSocketFactoryContext()),
       local_ip_str_(context.localInfo().address()->ip()->addressAsString()),
       is_sidecar_(context.localInfo().nodeName().rfind("sidecar~", 0) == 0) {
   instance_id_++;
   name_ = fmt::format("cilium.policymap.{}.{}.", local_ip_str_, instance_id_);
+  scope_ = context.serverScope().createScope(name_);
+
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
 
   tls_map.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
@@ -734,7 +735,6 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
                                    Cilium::CtMapSharedPtr& ct)
     : NetworkPolicyMap(context) {
   ctmap_ = ct;
-  scope_ = context.scope().createScope(name_);
 }
 
 // Both subscribe() call and subscription_->start() use
@@ -742,10 +742,10 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
 // pointer is formed by the caller of the constructor, hence this
 // can't be called from the constructor!
 void NetworkPolicyMap::startSubscription(Server::Configuration::FactoryContext& context) {
-  subscription_ =
-      subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
-                context.clusterManager(), context.mainThreadDispatcher(),
-                context.api().randomGenerator(), *scope_, *this, this->shared_from_this());
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
+                            context.clusterManager(), context.mainThreadDispatcher(),
+                            context.api().randomGenerator(), *scope_, *this,
+                            std::make_shared<NetworkPolicyDecoder>());
   subscription_->start({});
 }
 
