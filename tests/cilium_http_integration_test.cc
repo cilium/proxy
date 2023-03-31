@@ -3,7 +3,7 @@
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/thread_local/thread_local_impl.h"
 
-#include "tests/bpf_metadata.h" // policy_config
+#include "tests/bpf_metadata.h" // host_map_config
 #include "tests/cilium_http_integration.h"
 
 namespace Envoy {
@@ -83,6 +83,15 @@ resources:
             exact_match: '/only-2-allowed'
 )EOF";
 
+const std::string SECRET_TOKEN_CONFIG = R"EOF(version_info: "0"
+resources:
+- "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
+  name: bearer-token
+  generic_secret:
+    secret:
+      inline_string: "d4ef0f5011f163ac"
+)EOF";
+
 const std::string HEADER_ACTION_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
@@ -103,7 +112,7 @@ resources:
             match_action: FAIL_ON_MATCH
             mismatch_action: CONTINUE_ON_MISMATCH
           - name: 'bearer-token'
-            value: 'd4ef0f5011f163ac'
+            value_sds_secret: 'bearer-token'
             mismatch_action: REPLACE_ON_MISMATCH
         - headers:
           - name: ':path'
@@ -255,8 +264,14 @@ public:
   }
   CiliumIntegrationTest(const std::string& config) : CiliumHttpIntegrationTest(config) {}
 
-  std::string testPolicyFmt() {
+  std::string testPolicyFmt() override {
     return TestEnvironment::substitute(HEADER_ACTION_POLICY_fmt, GetParam());
+  }
+
+  std::vector<std::pair<std::string, std::string>> testSecrets() override {
+    return std::vector<std::pair<std::string, std::string>>{
+        {"bearer-token", SECRET_TOKEN_CONFIG},
+    };
   }
 
   void Denied(Http::TestRequestHeaderMapImpl&& headers) {
@@ -623,10 +638,9 @@ TEST_P(CiliumIntegrationTest, AllowedPathPrefixWrongHeader) {
     const auto& http = entry.http();
     const auto& rejected = http.rejected_headers();
     const auto& missing = http.missing_headers();
-    return http.rejected_headers_size() == 1 &&
-           hasHeader(rejected, "bearer-token", "wrong-value") && http.missing_headers_size() == 2 &&
-           hasHeader(missing, "header42") &&
-           hasHeader(missing, "bearer-token", "d4ef0f5011f163ac") &&
+    return http.rejected_headers_size() == 1 && hasHeader(rejected, "bearer-token", "[redacted]") &&
+           http.missing_headers_size() == 2 && hasHeader(missing, "header42") &&
+           hasHeader(missing, "bearer-token", "[redacted]") &&
            // Check that logged headers have the replaced value
            hasHeader(http.headers(), "bearer-token", "d4ef0f5011f163ac") &&
            !hasHeader(http.headers(), "header42");
@@ -704,8 +718,7 @@ TEST_P(CiliumIntegrationTest, AllowedReplaced) {
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
     const auto& http = entry.http();
     const auto& missing = http.missing_headers();
-    return http.missing_headers_size() == 3 &&
-           hasHeader(missing, "bearer-token", "d4ef0f5011f163ac") &&
+    return http.missing_headers_size() == 3 && hasHeader(missing, "bearer-token", "[redacted]") &&
            hasHeader(missing, "header2", "value2") && hasHeader(missing, "header42") &&
            http.rejected_headers_size() == 0 && !hasHeader(http.headers(), "header42") &&
            hasHeader(http.headers(), "header2", "value2") &&
@@ -725,8 +738,7 @@ TEST_P(CiliumIntegrationTest, Denied42) {
     const auto& missing = http.missing_headers();
     const auto& rejected = http.rejected_headers();
     return http.rejected_headers_size() == 1 && hasHeader(rejected, "header42") &&
-           http.missing_headers_size() == 1 &&
-           hasHeader(missing, "bearer-token", "d4ef0f5011f163ac") &&
+           http.missing_headers_size() == 1 && hasHeader(missing, "bearer-token", "[redacted]") &&
            hasHeader(http.headers(), "header42") &&
            hasHeader(http.headers(), "bearer-token", "d4ef0f5011f163ac");
   }));
@@ -744,8 +756,7 @@ TEST_P(CiliumIntegrationTest, AllowedReplacedAndDeleted) {
     const auto& missing = http.missing_headers();
     const auto& rejected = http.rejected_headers();
     return http.rejected_headers_size() == 1 && hasHeader(rejected, "header42") &&
-           http.missing_headers_size() == 2 &&
-           hasHeader(missing, "bearer-token", "d4ef0f5011f163ac") &&
+           http.missing_headers_size() == 2 && hasHeader(missing, "bearer-token", "[redacted]") &&
            hasHeader(missing, "header2", "value2") && !hasHeader(http.headers(), "header42") &&
            hasHeader(http.headers(), "header2", "value2") &&
            hasHeader(http.headers(), "bearer-token", "d4ef0f5011f163ac");

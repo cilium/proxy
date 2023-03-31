@@ -6,18 +6,21 @@
 
 #include "test/test_common/environment.h"
 
+#include "cilium/secret_watcher.h"
 #include "cilium/socket_option.h"
+#include "fmt/printf.h"
 #include "tests/bpf_metadata.pb.validate.h"
 
 namespace Envoy {
 
-std::string host_map_config;
+std::string host_map_config{};
 std::shared_ptr<const Cilium::PolicyHostMap> hostmap{nullptr}; // Keep reference to singleton
 
 Network::Address::InstanceConstSharedPtr original_dst_address;
 std::shared_ptr<const Cilium::NetworkPolicyMap> npmap{nullptr}; // Keep reference to singleton
 
-std::string policy_config;
+std::string policy_config{};
+std::vector<std::pair<std::string, std::string>> sds_configs{};
 
 namespace Cilium {
 namespace BpfMetadata {
@@ -139,9 +142,31 @@ createHostMap(const std::string& config, Server::Configuration::ListenerFactoryC
 }
 
 std::shared_ptr<const Cilium::NetworkPolicyMap>
-createPolicyMap(const std::string& config, Server::Configuration::FactoryContext& context) {
+createPolicyMap(const std::string& config,
+                const std::vector<std::pair<std::string, std::string>>& secret_configs,
+                Server::Configuration::FactoryContext& context) {
   return context.singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
-      "cilium_network_policy_singleton", [&config, &context] {
+      "cilium_network_policy_singleton", [&config, &secret_configs, &context] {
+        if (secret_configs.size() > 0) {
+          for (auto sds_pair : secret_configs) {
+            auto& name = sds_pair.first;
+            auto& sds_config = sds_pair.second;
+            std::string sds_path = TestEnvironment::writeStringToFileForTest(
+                fmt::sprintf("secret-%s.yaml", name), sds_config);
+            Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(sds_path, context.api());
+          }
+          Cilium::setSDSConfigFunc(
+              [](const std::string& name) -> envoy::config::core::v3::ConfigSource {
+                auto file_config = envoy::config::core::v3::ConfigSource();
+                /* initial_fetch_timeout left at default 15 seconds. */
+                file_config.set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
+                auto sds_path =
+                    TestEnvironment::temporaryPath(fmt::sprintf("secret-%s.yaml", name));
+                *file_config.mutable_path_config_source() =
+                    Envoy::Config::makePathConfigSource(sds_path);
+                return file_config;
+              });
+        }
         // File subscription.
         std::string path = TestEnvironment::writeStringToFileForTest("network_policy.yaml", config);
         ENVOY_LOG_MISC(debug,
@@ -172,7 +197,7 @@ Network::ListenerFilterFactoryCb TestBpfMetadataConfigFactory::createListenerFil
   hostmap = createHostMap(host_map_config, context);
   // Create the file-based policy map before the filter is created, so that the
   // singleton is set before the gRPC subscription is attempted.
-  npmap = createPolicyMap(policy_config, context);
+  npmap = createPolicyMap(policy_config, sds_configs, context);
 
   auto config = std::make_shared<Cilium::BpfMetadata::TestConfig>(
       MessageUtil::downcastAndValidate<const ::cilium::TestBpfMetadata&>(

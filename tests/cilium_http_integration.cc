@@ -25,6 +25,7 @@ void CiliumHttpIntegrationTest::createEnvoy() {
   // in policy.
   auto port = fake_upstreams_[0]->localAddress()->ip()->port();
   policy_config = fmt::format(testPolicyFmt(), port);
+  sds_configs = testSecrets();
   // Pass the fake upstream address to the cilium bpf filter that will set it as
   // an "original destination address".
   if (GetParam() == Network::Address::IpVersion::v4) {

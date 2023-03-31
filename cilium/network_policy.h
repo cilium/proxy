@@ -1,14 +1,10 @@
 #pragma once
 
 #include "envoy/config/subscription.h"
-#include "envoy/event/dispatcher.h"
 #include "envoy/http/header_map.h"
-#include "envoy/local_info/local_info.h"
 #include "envoy/server/filter_config.h"
 #include "envoy/singleton/instance.h"
 #include "envoy/thread_local/thread_local.h"
-#include "envoy/type/matcher/v3/metadata.pb.h"
-#include "envoy/upstream/cluster_manager.h"
 
 #include "source/common/common/logger.h"
 #include "source/common/config/opaque_resource_decoder_impl.h"
@@ -138,6 +134,9 @@ public:
   bool exists(const std::string& endpoint_policy_name) const {
     return GetPolicyInstanceImpl(endpoint_policy_name).get() != nullptr;
   }
+
+  // run the given function after all the threads have scheduled
+  void runAfterAllThreads(std::function<void()>) const;
 
   // Config::SubscriptionCallbacks
   void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
