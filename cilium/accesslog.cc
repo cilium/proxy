@@ -251,6 +251,24 @@ void AccessLog::Entry::UpdateFromResponse(const Http::ResponseHeaderMap& headers
       });
 }
 
+void AccessLog::Entry::AddRejected(absl::string_view key, absl::string_view value) {
+  for (auto entry : entry_.http().rejected_headers())
+    if (entry.key() == key && entry.value() == value)
+      return;
+  ::cilium::KeyValue* kv = entry_.mutable_http()->add_rejected_headers();
+  kv->set_key(key.data(), key.size());
+  kv->set_value(value.data(), value.size());
+}
+
+void AccessLog::Entry::AddMissing(absl::string_view key, absl::string_view value) {
+  for (auto entry : entry_.http().missing_headers())
+    if (entry.key() == key && entry.value() == value)
+      return;
+  ::cilium::KeyValue* kv = entry_.mutable_http()->add_missing_headers();
+  kv->set_key(key.data(), key.size());
+  kv->set_value(value.data(), value.size());
+}
+
 void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
   ::cilium::LogEntry& entry = entry__.entry_;
   int tries = 2;

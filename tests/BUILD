@@ -28,6 +28,7 @@ envoy_cc_test_library(
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/common:thread_lib",
         "@envoy//test/test_common:thread_factory_for_test_lib",
+        "@envoy//test/test_common:utility_lib",
     ],
 )
 

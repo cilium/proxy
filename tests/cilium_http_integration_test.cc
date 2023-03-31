@@ -265,6 +265,24 @@ public:
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     ASSERT_TRUE(response->waitForEndStream());
 
+    // Validate that request access log message with x-request-id is logged
+    absl::optional<std::string> maybe_x_request_id;
+    EXPECT_TRUE(expectAccessLogDeniedTo([&maybe_x_request_id](const ::cilium::LogEntry& entry) {
+      maybe_x_request_id = getHeader(entry.http().headers(), "x-request-id");
+      return entry.http().status() == 0;
+    }));
+    ASSERT_TRUE(maybe_x_request_id.has_value());
+
+    // Validate that response x-request-id is the same as in request
+    absl::optional<std::string> maybe_x_request_id_resp;
+    EXPECT_TRUE(
+        expectAccessLogResponseTo([&maybe_x_request_id_resp](const ::cilium::LogEntry& entry) {
+          maybe_x_request_id_resp = getHeader(entry.http().headers(), "x-request-id");
+          return entry.http().status() == 403;
+        }));
+    ASSERT_TRUE(maybe_x_request_id_resp.has_value());
+    EXPECT_EQ(maybe_x_request_id.value(), maybe_x_request_id_resp.value());
+
     EXPECT_TRUE(response->complete());
     EXPECT_EQ("403", response->headers().getStatusValue());
     cleanupUpstreamAndDownstream();
@@ -274,6 +292,24 @@ public:
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
+
+    // Validate that request access log message with x-request-id is logged
+    absl::optional<std::string> maybe_x_request_id;
+    EXPECT_TRUE(expectAccessLogRequestTo([&maybe_x_request_id](const ::cilium::LogEntry& entry) {
+      maybe_x_request_id = getHeader(entry.http().headers(), "x-request-id");
+      return entry.http().status() == 0;
+    }));
+    ASSERT_TRUE(maybe_x_request_id.has_value());
+
+    // Validate that response x-request-id is the same as in request
+    absl::optional<std::string> maybe_x_request_id_resp;
+    EXPECT_TRUE(
+        expectAccessLogResponseTo([&maybe_x_request_id_resp](const ::cilium::LogEntry& entry) {
+          maybe_x_request_id_resp = getHeader(entry.http().headers(), "x-request-id");
+          return entry.http().status() == 200;
+        }));
+    ASSERT_TRUE(maybe_x_request_id_resp.has_value());
+    EXPECT_EQ(maybe_x_request_id.value(), maybe_x_request_id_resp.value());
 
     EXPECT_TRUE(response->complete());
     EXPECT_EQ("200", response->headers().getStatusValue());
@@ -552,23 +588,51 @@ resources:
 
 TEST_P(CiliumIntegrationTest, DeniedPathPrefix) {
   Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    return http.missing_headers_size() == 0 && http.rejected_headers_size() == 0;
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathPrefix) {
   Accepted(
       {{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}, {"header1", "value1"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& missing = http.missing_headers();
+    return http.missing_headers_size() == 1 && hasHeader(missing, "header42") &&
+           http.rejected_headers_size() == 0;
+  }));
 }
 
-TEST_P(CiliumIntegrationTest, AllowedPathPrefixStrippedHeader) {
+TEST_P(CiliumIntegrationTest, AllowedPathPrefixWrongHeader) {
   Accepted({{":method", "GET"},
             {":path", "/allowed"},
             {":authority", "host"},
             {"header1", "value2"},
             {"x-envoy-original-dst-host", "1.1.1.1:9999"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& missing = http.missing_headers();
+    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 2 &&
+           hasHeader(missing, "header42") && hasHeader(missing, "header1", "value1");
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathRegex) {
   Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 0;
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathRegexDeleteHeader) {
@@ -576,6 +640,14 @@ TEST_P(CiliumIntegrationTest, AllowedPathRegexDeleteHeader) {
             {":path", "/maybe/public"},
             {":authority", "host"},
             {"User-Agent", "test"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& rejected = http.rejected_headers();
+    return http.missing_headers_size() == 0 && http.rejected_headers_size() == 1 &&
+           hasHeader(rejected, "user-agent", "test");
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, AllowedHostRegexDeleteHeader) {
@@ -583,18 +655,49 @@ TEST_P(CiliumIntegrationTest, AllowedHostRegexDeleteHeader) {
             {":path", "/maybe/private"},
             {":authority", "hostREGEXname"},
             {"header42", "test"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& rejected = http.rejected_headers();
+    return http.missing_headers_size() == 0 && http.rejected_headers_size() == 1 &&
+           hasHeader(rejected, "header42", "test");
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, DeniedPath) {
   Denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "host"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    return http.missing_headers_size() == 0 && http.rejected_headers_size() == 0;
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, AllowedHostString) {
   Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "allowedHOST"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& missing = http.missing_headers();
+    return http.missing_headers_size() == 2 && hasHeader(missing, "header2", "value2") &&
+           hasHeader(missing, "header42") && http.rejected_headers_size() == 0;
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, AllowedReplaced) {
   Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "allowedHOST"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& missing = http.missing_headers();
+    return http.missing_headers_size() == 3 && hasHeader(missing, "header1", "value1") &&
+           hasHeader(missing, "header2", "value2") && hasHeader(missing, "header42") &&
+           http.rejected_headers_size() == 0;
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, Denied42) {
@@ -602,6 +705,15 @@ TEST_P(CiliumIntegrationTest, Denied42) {
           {":path", "/allowed"},
           {":authority", "host"},
           {"header42", "anything"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& missing = http.missing_headers();
+    const auto& rejected = http.rejected_headers();
+    return http.rejected_headers_size() == 1 && hasHeader(rejected, "header42") &&
+           http.missing_headers_size() == 1 && hasHeader(missing, "header1", "value1");
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, AllowedReplacedAndDeleted) {
@@ -609,22 +721,56 @@ TEST_P(CiliumIntegrationTest, AllowedReplacedAndDeleted) {
             {":path", "/allowed"},
             {":authority", "allowedHOST"},
             {"header42", "anything"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& missing = http.missing_headers();
+    const auto& rejected = http.rejected_headers();
+    return http.rejected_headers_size() == 1 && hasHeader(rejected, "header42") &&
+           http.missing_headers_size() == 2 && hasHeader(missing, "header1", "value1") &&
+           hasHeader(missing, "header2", "value2");
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, AllowedHostRegex) {
   Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "hostREGEXname"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    return http.missing_headers_size() == 0 && http.rejected_headers_size() == 0;
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, DeniedMethod) {
   Denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "host"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    return http.missing_headers_size() == 0 && http.rejected_headers_size() == 0;
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, AcceptedMethod) {
   Accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "host"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    return http.missing_headers_size() == 0 && http.rejected_headers_size() == 0;
+  }));
 }
 
 TEST_P(CiliumIntegrationTest, L3DeniedPath) {
   Denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    return http.missing_headers_size() == 0 && http.rejected_headers_size() == 0;
+  }));
 }
 
 class CiliumIntegrationPortTest : public CiliumIntegrationTest {

@@ -193,7 +193,6 @@ protected:
                        Cilium::AccessLog::Entry& log_entry) const {
       bool accepted = true;
       for (const auto& header_data : header_matches_) {
-        ::cilium::KeyValue* kv;
         if (Http::HeaderUtility::matchHeaders(headers, header_data)) {
           // Match action
           switch (header_data.match_action_) {
@@ -207,21 +206,18 @@ protected:
             headers.remove(header_data.name_);
             break;
           }
-          kv = log_entry.entry_.mutable_http()->add_rejected_headers();
+          log_entry.AddRejected(header_data.name_.get(), header_data.value_);
         } else {
           // Mismatch action
           switch (header_data.mismatch_action_) {
           case cilium::HeaderMatch::FAIL_ON_MISMATCH:
           default:
-            kv = log_entry.entry_.mutable_http()->add_missing_headers();
             accepted = false;
             break;
           case cilium::HeaderMatch::CONTINUE_ON_MISMATCH:
-            kv = log_entry.entry_.mutable_http()->add_missing_headers();
-            continue;
+            break;
           case cilium::HeaderMatch::ADD_ON_MISMATCH:
             headers.addReferenceKey(header_data.name_, header_data.value_);
-            kv = log_entry.entry_.mutable_http()->add_missing_headers();
             break;
           case cilium::HeaderMatch::DELETE_ON_MISMATCH:
             if (header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present) {
@@ -237,20 +233,15 @@ protected:
               }
               // Remove the header with an incorrect value
               headers.remove(header_data.name_);
-              kv = log_entry.entry_.mutable_http()->add_rejected_headers();
-              kv->set_key(header_data.name_.get());
-              kv->set_value(header_value.result().value().data(),
-                            header_value.result().value().size());
+              log_entry.AddRejected(header_data.name_.get(), header_value.result().value());
             }
             continue;
           case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
             headers.setReferenceKey(header_data.name_, header_data.value_);
-            kv = log_entry.entry_.mutable_http()->add_missing_headers();
             break;
           }
+          log_entry.AddMissing(header_data.name_.get(), header_data.value_);
         }
-        kv->set_key(header_data.name_.get());
-        kv->set_value(header_data.value_);
       }
       return accepted;
     }
