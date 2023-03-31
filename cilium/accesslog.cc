@@ -291,12 +291,8 @@ void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
     if (sent < length) {
       ENVOY_LOG(debug, "Cilium access log send truncated by {} bytes.", length - sent);
     }
-    // trace level logs when message was sent
-    ENVOY_LOG(trace, "Cilium access log msg sent: {}", entry.DebugString());
     return;
   }
-  // Log the message in Envoy logs at debug level if it could not be sent to Cilium
-  ENVOY_LOG(debug, "Cilium access log send failed ({}) msg: {}", errno_, entry.DebugString());
 }
 
 bool AccessLog::Connect() {

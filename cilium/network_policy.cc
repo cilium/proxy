@@ -293,7 +293,6 @@ protected:
   public:
     L7NetworkPolicyRule(const cilium::L7NetworkPolicyRule& rule) : name_(rule.name()) {
       for (const auto& matcher : rule.metadata_rule()) {
-        ENVOY_LOG(trace, "Cilium L7NetworkPolicyRule() metadata_rule: {}", matcher.DebugString());
         metadata_matchers_.emplace_back(matcher);
         matchers_.emplace_back(matcher);
       }
@@ -301,12 +300,7 @@ protected:
 
     bool matches(const envoy::config::core::v3::Metadata& metadata) const {
       // All matchers must be satisfied for the rule to match
-      int i = 0; // Only used for trace-level debug
       for (const auto& metadata_matcher : metadata_matchers_) {
-        ENVOY_LOG(trace,
-                  "L7NetworkPolicyRule::matches(): checking rule {} against "
-                  "metadata {}",
-                  matchers_[i++].DebugString(), metadata.DebugString());
         if (!metadata_matcher.match(metadata)) {
           return false;
         }
@@ -327,7 +321,7 @@ protected:
         : name_(rule.name()), l7_proto_(rule.l7_proto()) {
       for (const auto& remote : rule.remote_policies()) {
         ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule: {}",
-                  remote, rule.DebugString());
+                  remote, name_);
         allowed_remotes_.emplace(remote);
       }
       if (rule.has_downstream_tls_context()) {

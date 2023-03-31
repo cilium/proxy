@@ -45,14 +45,10 @@ void SecretWatcher::store() {
   if (secret != nullptr) {
     Api::Api& api = parent_.transportFactoryContext().api();
     std::string* p = new std::string(Config::DataSource::read(secret->secret(), true, api));
-    ENVOY_LOG(debug, "allocated new secret value: {} ({})", static_cast<void*>(p), *p);
     std::string* old = ptr_.exchange(p, std::memory_order_release);
-    ENVOY_LOG(debug, "exchanged secret value, old: {}", static_cast<void*>(old));
     if (old != nullptr) {
-      ENVOY_LOG(debug, "old secret value not null: {}", *old);
       // Delete old value after all threads have scheduled
       parent_.runAfterAllThreads([old]() {
-        ENVOY_LOG(debug, "deleting old secret value: {}", static_cast<void*>(old));
         delete old;
       });
     }
