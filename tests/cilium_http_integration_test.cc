@@ -286,12 +286,13 @@ public:
     std::string path = TestEnvironment::writeStringToFileForTest("host_map_fail.yaml", config);
     envoy::service::discovery::v3::DiscoveryResponse message;
     ThreadLocal::InstanceImpl tls;
+    Cilium::PolicyHostDecoder host_decoder;
 
     MessageUtil::loadFromFile(path, message, ProtobufMessage::getNullValidationVisitor(),
                               *api_.get());
     Envoy::Cilium::PolicyHostMap hmap(tls);
-    const auto decoded_resources =
-        Envoy::Config::DecodedResourcesWrapper(hmap, message.resources(), message.version_info());
+    const auto decoded_resources = Envoy::Config::DecodedResourcesWrapper(
+        host_decoder, message.resources(), message.version_info());
 
     EXPECT_THROW_WITH_MESSAGE(
         hmap.onConfigUpdate(decoded_resources.refvec_, message.version_info()), EnvoyException,
@@ -323,12 +324,13 @@ resources:
   std::string path = TestEnvironment::writeStringToFileForTest("host_map_success.yaml", config);
   envoy::service::discovery::v3::DiscoveryResponse message;
   ThreadLocal::InstanceImpl tls;
+  Cilium::PolicyHostDecoder host_decoder;
 
   MessageUtil::loadFromFile(path, message, ProtobufMessage::getNullValidationVisitor(),
                             *api_.get());
   auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(tls);
-  const auto decoded_resources =
-      Envoy::Config::DecodedResourcesWrapper(*hmap, message.resources(), message.version_info());
+  const auto decoded_resources = Envoy::Config::DecodedResourcesWrapper(
+      host_decoder, message.resources(), message.version_info());
 
   VERBOSE_EXPECT_NO_THROW(hmap->onConfigUpdate(decoded_resources.refvec_, message.version_info()));
 
