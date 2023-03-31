@@ -40,6 +40,8 @@ public:
                             const Network::Address::InstanceConstSharedPtr& destination_address,
                             TimeSource* time_source);
     bool UpdateFromMetadata(const std::string& l7proto, const ProtobufWkt::Struct& metadata);
+    void AddRejected(absl::string_view key, absl::string_view value);
+    void AddMissing(absl::string_view key, absl::string_view value);
 
     ::cilium::LogEntry entry_{};
   };
