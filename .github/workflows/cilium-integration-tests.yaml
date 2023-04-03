@@ -1,0 +1,187 @@
+name: Cilium Integration Tests
+on:
+  push:
+    branches:
+      - master
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+    branches:
+      - master
+  issue_comment:
+    types:
+      - created
+env:
+  KIND_VERSION: v0.18.0
+  CILIUM_REPO_REF: master
+  CILIUM_CLI_TAG: latest
+
+jobs:
+  cilium-connectivity-tests:
+    timeout-minutes: 360
+    name: Cilium Connectivity Tests
+    if: |
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '/test-cilium-integration')) ||
+      github.event_name == 'push' ||
+      github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Prepare variables for pushes to master
+        if: github.event_name == 'push'
+        run: |
+          echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy" >> $GITHUB_ENV
+          echo "PROXY_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Prepare variables for PR
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy-dev" >> $GITHUB_ENV
+          echo "PROXY_TAG=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+
+      - name: Prepare variables for issue comment on a PR
+        if: github.event_name == 'issue_comment'
+        run: |
+          echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy-dev" >> $GITHUB_ENV
+          echo "PROXY_TAG=${{ github.event.issue.pull_request.head.sha }}" >> $GITHUB_ENV
+
+          commentBody="${{ github.event.comment.body }}"
+
+          ciliumRef=${CILIUM_REPO_REF}
+          if [[ "$commentBody" == *" cilium="* ]]; then
+            ciliumRef=$(echo "$commentBody" | sed -E 's|.* cilium=([^ ]*).*|\1|g')
+          fi
+          echo "CILIUM_REPO_REF=${ciliumRef}" >> $GITHUB_ENV
+
+          ciliumCliTag=${CILIUM_CLI_TAG}
+          if [[ "${{ github.event.comment.body }}" == *" ciliumCli="* ]]; then
+            ciliumCliTag=$(echo "$commentBody" | sed -E 's|.* ciliumCli=([^ ]*).*|\1|g')
+          fi
+          echo "CILIUM_CLI_TAG=${ciliumCliTag}" >> $GITHUB_ENV
+
+      - name: Reporting start to issue comment
+        uses: actions/github-script@98814c53be79b1d30f795b907e553d8679345975 # v6.4.0
+        if: github.event_name == 'issue_comment'
+        with:
+          script: |
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ github.event.comment.id }},
+              body: `${{ github.event.comment.body }}
+            
+              👋 https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/actions/runs/${{ github.run_id }}`
+            })
+            
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ github.event.comment.id }},
+              content: 'rocket'
+            })
+
+      - name: Checkout Cilium ${{ env.CILIUM_REPO_REF }}
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+        with:
+          repository: cilium/cilium # Be aware that this is the Cilium repository and not the one of the proxy itself!
+          ref: ${{ env.CILIUM_REPO_REF }}
+
+      - name: Install Cilium CLI ${{ env.CILIUM_CLI_TAG }}
+        run: |
+          cid=$(docker create quay.io/cilium/cilium-cli-ci:${{ env.CILIUM_CLI_TAG }} ls)
+          sudo docker cp $cid:/usr/local/bin/cilium /usr/local/bin
+          docker rm $cid
+          cilium version
+
+      - name: Create kind cluster
+        uses: helm/kind-action@d8ccf8fb623ce1bb360ae2f45f323d9d5c5e9f00 # v1.5.0
+        with:
+          version: ${{ env.KIND_VERSION }}
+          config: '.github/kind-config.yaml'
+          cluster_name: 'kind'
+
+      - name: Patch Cilium Agent Dockerfile
+        shell: bash
+        run: |
+          sed -i -E 's|(FROM )(quay\.io\/cilium\/cilium-envoy:)([0-9a-z]*)(@sha256:[0-9a-z]*)( as cilium-envoy)|\1${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }}\5|' ./images/cilium/Dockerfile
+          cat ./images/cilium/Dockerfile
+
+      - name: Wait for Cilium Proxy image to be available
+        timeout-minutes: 30
+        shell: bash
+        run: until docker manifest inspect ${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }} &> /dev/null; do sleep 15s; done
+
+      - name: Build Cilium Agent & Operator with patched Cilium Proxy Image
+        shell: bash
+        run: DOCKER_IMAGE_TAG=test make docker-cilium-image docker-operator-generic-image
+
+      - name: Load Cilium Images into kind
+        shell: bash
+        run: |
+          kind load docker-image \
+            --name kind \
+            quay.io/cilium/operator-generic:test \
+            quay.io/cilium/cilium:test
+
+      - name: Install Cilium
+        shell: bash
+        run: |
+          cilium install \
+            --chart-directory install/kubernetes/cilium \
+            --config monitor-aggregation=none \
+            --helm-set loadBalancer.l7.backend=envoy \
+            --helm-set tls.secretsBackend=k8s \
+            --agent-image=quay.io/cilium/cilium:test \
+            --operator-image=quay.io/cilium/operator-generic:test \
+            --helm-set image.pullPolicy=Never \
+            --helm-set operator.image.pullPolicy=Never \
+            --config debug=true \
+            --config debug-verbose=envoy
+
+          cilium hubble enable \
+            --chart-directory install/kubernetes/cilium
+
+          cilium hubble port-forward&
+
+      - name: Execute Cilium Connectivity Tests
+        shell: bash
+        run: cilium connectivity test
+
+      - name: Reporting success to issue comment
+        uses: actions/github-script@98814c53be79b1d30f795b907e553d8679345975 # v6.4.0
+        if: success() && github.event_name == 'issue_comment'
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ github.event.comment.id }},
+              content: '+1'
+            })
+
+      - name: Gather Cilium system dump
+        if: failure()
+        shell: bash
+        run: cilium sysdump --output-filename cilium-integration-test-sysdump
+
+
+      - name: Upload Cilium system dump
+        if: failure()
+        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce # v3.1.2
+        with:
+          name: cilium-integration-test-sysdump
+          path: cilium-integration-test-sysdump-*.zip
+          retention-days: 5
+
+      - name: Reporting failure to issue comment
+        uses: actions/github-script@98814c53be79b1d30f795b907e553d8679345975 # v6.4.0
+        if: failure() && github.event_name == 'issue_comment'
+        with:
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ github.event.comment.id }},
+              content: '-1'
+            })
