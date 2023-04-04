@@ -195,6 +195,7 @@ jobs:
           push: true
           tags: |
             quay.io/${{ github.repository_owner }}/cilium-envoy:latest
+            quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }}
             quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_MINOR_RELEASE }}-${{ github.sha }}
 
       - name: Envoy binary version check
