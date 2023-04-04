@@ -49,13 +49,15 @@ struct FilterStats {
  */
 class Config : public Logger::Loggable<Logger::Id::config> {
 public:
-  Config(Server::Configuration::FactoryContext& context, bool client,
+  Config(Server::Configuration::CommonFactoryContext& context, bool client, bool upstream,
          const std::string& access_log_path, const std::string& host, const std::string& path,
          const std::string& key, const std::string& version, const std::string& origin,
          const ProtobufWkt::Duration& handshake_timeout, const ProtobufWkt::Duration& ping_interval,
          bool ping_when_idle);
-  Config(const ::cilium::WebSocketClient& config, Server::Configuration::FactoryContext& context);
-  Config(const ::cilium::WebSocketServer& config, Server::Configuration::FactoryContext& context);
+  Config(const ::cilium::WebSocketClient& config, bool upstream,
+         Server::Configuration::CommonFactoryContext& context);
+  Config(const ::cilium::WebSocketServer& config,
+         Server::Configuration::CommonFactoryContext& context);
   virtual ~Config();
 
   static std::string keyResponse(absl::string_view key);
@@ -68,6 +70,7 @@ public:
   Random::RandomGenerator& random_;
   Http::RequestIDExtensionSharedPtr request_id_extension_;
   bool client_;
+  bool upstream_; // Run client as an upstream filter (with reversed encode/decode)
 
   std::string host_;
   std::string path_;

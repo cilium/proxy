@@ -1,0 +1,128 @@
+From 02a35d8514a0ed6362362c2f5c1deb38c046fe89 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Sun, 26 Feb 2023 15:27:06 +0200
+Subject: [PATCH 9/9] upstream: Initialize upstream network filters
+
+Initialize upstream network filters at onPoolReady() by calling the
+underlying connection's initializeReadFilters(). For downstream network
+filters this is done when the connection is created, as the incoming
+connection is already connected. For upstream network filters
+initializeReadFilters() was never called, causing each filter's
+onNewConnection() to be called only when first data was received.
+
+This change makes upstream network filter behavior more symmetric to
+downstream network filters. This ensures that filters may depend on their
+onNewConnection() being called after connection establishment also if
+there is no data being received on the connection for some time.
+
+It should be noted that upstream network filters may still have their
+onWrite() called before onNewConnection(), if data is written before the
+connection is established. onNewConnection() is always called
+before onData() is called the first time.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ source/common/http/codec_client.h                   |  7 +++++++
+ source/common/http/conn_pool_base.cc                |  2 ++
+ source/common/tcp/conn_pool.h                       |  2 ++
+ test/integration/cluster_filter_integration_test.cc | 12 ++++++++++--
+ 4 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/source/common/http/codec_client.h b/source/common/http/codec_client.h
+index c53fbf5c34..f51aaca556 100644
+--- a/source/common/http/codec_client.h
++++ b/source/common/http/codec_client.h
+@@ -71,6 +71,13 @@ public:
+    */
+   bool isHalfCloseEnabled() { return connection_->isHalfCloseEnabled(); }
+ 
++  /**
++   * Initialize all of the installed read filters on the underlying connection.
++   * This effectively calls onNewConnection() on each of them.
++   * @return true if read filters were initialized successfully, otherwise false.
++   */
++  bool initializeReadFilters() { return connection_->initializeReadFilters(); }
++
+   /**
+    * Close the underlying network connection. This is immediate and will not attempt to flush any
+    * pending write data.
+diff --git a/source/common/http/conn_pool_base.cc b/source/common/http/conn_pool_base.cc
+index 284e479a86..45a30770ee 100644
+--- a/source/common/http/conn_pool_base.cc
++++ b/source/common/http/conn_pool_base.cc
+@@ -84,6 +84,8 @@ HttpConnPoolImplBase::newPendingStream(Envoy::ConnectionPool::AttachContext& con
+ void HttpConnPoolImplBase::onPoolReady(Envoy::ConnectionPool::ActiveClient& client,
+                                        Envoy::ConnectionPool::AttachContext& context) {
+   ActiveClient* http_client = static_cast<ActiveClient*>(&client);
++  // Initialize upstream network read filters, if any
++  http_client->codec_client_->initializeReadFilters();
+   auto& http_context = typedContext<HttpAttachContext>(context);
+   Http::ResponseDecoder& response_decoder = *http_context.decoder_;
+   Http::ConnectionPool::Callbacks& callbacks = *http_context.callbacks_;
+diff --git a/source/common/tcp/conn_pool.h b/source/common/tcp/conn_pool.h
+index f9a8885591..86c48818f0 100644
+--- a/source/common/tcp/conn_pool.h
++++ b/source/common/tcp/conn_pool.h
+@@ -206,6 +206,8 @@ public:
+                    Envoy::ConnectionPool::AttachContext& context) override {
+     ActiveTcpClient* tcp_client = static_cast<ActiveTcpClient*>(&client);
+     tcp_client->readEnableIfNew();
++    // Initialize upstream network read filters, if any
++    tcp_client->connection_->initializeReadFilters();
+     auto* callbacks = typedContext<TcpAttachContext>(context).callbacks_;
+     std::unique_ptr<Envoy::Tcp::ConnectionPool::ConnectionData> connection_data =
+         std::make_unique<ActiveTcpClient::TcpConnectionData>(*tcp_client, *tcp_client->connection_);
+diff --git a/test/integration/cluster_filter_integration_test.cc b/test/integration/cluster_filter_integration_test.cc
+index 40ec3ec404..5632b948e5 100644
+--- a/test/integration/cluster_filter_integration_test.cc
++++ b/test/integration/cluster_filter_integration_test.cc
+@@ -17,7 +17,7 @@ public:
+   Network::FilterStatus onData(Buffer::Instance& data, bool end_stream) override {
+     ENVOY_CONN_LOG(debug, "polite: onData {} bytes {} end_stream", read_callbacks_->connection(),
+                    data.length(), end_stream);
+-    if (!read_greeted_) {
++    if (!read_greeted_ && on_new_connection_called_ == 1) {
+       Buffer::OwnedImpl greeter(greeting_);
+       read_callbacks_->injectReadDataToFilterChain(greeter, false);
+       read_greeted_ = true;
+@@ -27,7 +27,7 @@ public:
+   Network::FilterStatus onWrite(Buffer::Instance& data, bool end_stream) override {
+     ENVOY_CONN_LOG(debug, "polite: onWrite {} bytes {} end_stream", write_callbacks_->connection(),
+                    data.length(), end_stream);
+-    if (!write_greeted_) {
++    if (!write_greeted_ && on_new_connection_called_ == 1) {
+       Buffer::OwnedImpl greeter("please ");
+       write_callbacks_->injectWriteDataToFilterChain(greeter, false);
+       write_greeted_ = true;
+@@ -36,6 +36,7 @@ public:
+   }
+   Network::FilterStatus onNewConnection() override {
+     ENVOY_CONN_LOG(debug, "polite: new connection", read_callbacks_->connection());
++    on_new_connection_called_++;
+     return Network::FilterStatus::Continue;
+   }
+ 
+@@ -52,6 +53,7 @@ private:
+   Network::WriteFilterCallbacks* write_callbacks_{};
+   bool read_greeted_{false};
+   bool write_greeted_{false};
++  int on_new_connection_called_{0};
+ };
+ 
+ class PoliteFilterConfigFactory
+@@ -108,6 +110,12 @@ TEST_P(ClusterFilterIntegrationTest, TestClusterFilter) {
+   FakeRawConnectionPtr fake_upstream_connection;
+   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+ 
++  // Upstream read filters are now expected to be initialized, so that each upstream read filter's
++  // onNewConnection() is called exactly once. Otherwise "please " greeting will not be prepended to
++  // the written data and fake_upstream_connection->waitForData() fails. This is dependent on the
++  // fake_upstream_connection having not written yet, as then read filter's onNewConnection() will
++  // be called before onData(), if not called already before.
++
+   std::string observed_data;
+   ASSERT_TRUE(tcp_client->write("test"));
+   ASSERT_TRUE(fake_upstream_connection->waitForData(11, &observed_data));
+-- 
+2.39.2
+

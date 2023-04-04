@@ -326,7 +326,8 @@ void Codec::handshake() {
   }
 
   const Network::Address::InstanceConstSharedPtr& dst_address =
-      connection_.connectionInfoProvider().localAddress();
+      config->upstream_ ? connection_.connectionInfoProvider().remoteAddress()
+                        : connection_.connectionInfoProvider().localAddress();
 
   // Create WebSocket Handshake
   const Http::HeaderValues& header_values = Http::Headers::get();

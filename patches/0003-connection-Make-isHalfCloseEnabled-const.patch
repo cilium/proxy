@@ -1,19 +1,19 @@
-From a26dcb39b6e90ad477ea35443596eb3fbe7e4344 Mon Sep 17 00:00:00 2001
+From fb676e1e88d74f1774088fd5d3cd12798e7e687c Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Wed, 21 Sep 2022 18:48:03 +0300
-Subject: [PATCH 3/6] connection: Make isHalfCloseEnabled const
+Subject: [PATCH 3/9] connection: Make isHalfCloseEnabled const
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
  envoy/network/connection.h                                | 2 +-
  source/common/network/connection_impl.h                   | 2 +-
- source/common/network/multi_connection_base_impl.cc       | 2 +-
+ source/common/network/multi_connection_base_impl.cc       | 4 +++-
  source/common/network/multi_connection_base_impl.h        | 2 +-
  source/common/quic/quic_filter_manager_connection_impl.cc | 2 +-
  source/common/quic/quic_filter_manager_connection_impl.h  | 2 +-
  source/server/api_listener_impl.h                         | 2 +-
  test/mocks/network/connection.h                           | 2 +-
- 8 files changed, 8 insertions(+), 8 deletions(-)
+ 8 files changed, 10 insertions(+), 8 deletions(-)
 
 diff --git a/envoy/network/connection.h b/envoy/network/connection.h
 index 3cbada199d..1b8a8af456 100644
@@ -42,15 +42,17 @@ index bf9933f180..e1769c7ea7 100644
    std::string nextProtocol() const override { return transport_socket_->protocol(); }
    void noDelay(bool enable) override;
 diff --git a/source/common/network/multi_connection_base_impl.cc b/source/common/network/multi_connection_base_impl.cc
-index bebda20b03..407ad3ad32 100644
+index bebda20b03..7d8b815cb7 100644
 --- a/source/common/network/multi_connection_base_impl.cc
 +++ b/source/common/network/multi_connection_base_impl.cc
-@@ -102,7 +102,7 @@ void MultiConnectionBaseImpl::enableHalfClose(bool enabled) {
+@@ -102,7 +102,9 @@ void MultiConnectionBaseImpl::enableHalfClose(bool enabled) {
    }
  }
  
 -bool MultiConnectionBaseImpl::isHalfCloseEnabled() { return connections_[0]->isHalfCloseEnabled(); }
-+bool MultiConnectionBaseImpl::isHalfCloseEnabled() const { return connections_[0]->isHalfCloseEnabled(); }
++bool MultiConnectionBaseImpl::isHalfCloseEnabled() const {
++  return connections_[0]->isHalfCloseEnabled();
++}
  
  std::string MultiConnectionBaseImpl::nextProtocol() const {
    return connections_[0]->nextProtocol();
@@ -94,10 +96,10 @@ index 0c0083d4f1..43209699de 100644
    Event::Dispatcher& dispatcher() override { return dispatcher_; }
    std::string nextProtocol() const override { return EMPTY_STRING; }
 diff --git a/source/server/api_listener_impl.h b/source/server/api_listener_impl.h
-index c45ef959d8..d1ef5c789a 100644
+index 568eef9e4d..2a507dc7d6 100644
 --- a/source/server/api_listener_impl.h
 +++ b/source/server/api_listener_impl.h
-@@ -120,7 +120,7 @@ protected:
+@@ -122,7 +122,7 @@ protected:
          IS_ENVOY_BUG("Unexpected function call");
        }
        void enableHalfClose(bool) override { IS_ENVOY_BUG("Unexpected function call"); }

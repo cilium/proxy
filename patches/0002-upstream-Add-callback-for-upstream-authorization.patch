@@ -1,7 +1,7 @@
-From 7c98365f801962e885906ef9d3c7b57418651e78 Mon Sep 17 00:00:00 2001
+From a51e25df6bb89db517f5b10c820e12051d7938ed Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 21 Jan 2022 15:42:00 +0200
-Subject: [PATCH 2/6] upstream: Add callback for upstream authorization
+Subject: [PATCH 2/9] upstream: Add callback for upstream authorization
 
 Add new StreamDecoderFilterCallbacks addUpstreamCallback() and
 iterateUpstreamCallbacks(). Decoder filters can add callbacks using
@@ -21,15 +21,15 @@ done from the router filter in the same filter chain.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- envoy/http/filter.h                      | 29 ++++++++++++++++++++++++
- source/common/http/async_client_impl.h   |  5 ++++
- source/common/http/filter_manager.cc     | 22 ++++++++++++++++++
+ envoy/http/filter.h                      | 28 ++++++++++++++++++++++++
+ source/common/http/async_client_impl.h   |  4 ++++
+ source/common/http/filter_manager.cc     | 22 +++++++++++++++++++
  source/common/http/filter_manager.h      |  8 +++++++
  source/common/router/upstream_request.cc |  9 ++++++++
- 5 files changed, 73 insertions(+)
+ 5 files changed, 71 insertions(+)
 
 diff --git a/envoy/http/filter.h b/envoy/http/filter.h
-index 79a14f02dc..57eb91be45 100644
+index 79a14f02dc..4e79d76c00 100644
 --- a/envoy/http/filter.h
 +++ b/envoy/http/filter.h
 @@ -416,6 +416,23 @@ public:
@@ -44,7 +44,7 @@ index 79a14f02dc..57eb91be45 100644
 + * The callback is called right befere the request is encoded on the already connected
 + * upstream connection. At this stage all header manipulations in the Envoy configuration
 + * have been performed so that the callback may inspect the final headers.
-+ * 
++ *
 + * UpstreamCallback may not be called if a local reply is issued instead or forwarding
 + * the request.
 + *
@@ -56,13 +56,13 @@ index 79a14f02dc..57eb91be45 100644
  /**
   * Stream decoder filter callbacks add additional callbacks that allow a decoding filter to restart
   * decoding if they decide to hold data (e.g. for buffering or rate limiting).
-@@ -720,6 +737,18 @@ public:
+@@ -720,6 +737,17 @@ public:
     */
    virtual bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr,
                                          StreamInfo::StreamInfo&) PURE;
 +
 +  /*
-+   * Adds the given callback to be executed later via 
++   * Adds the given callback to be executed later via iterateUpstreamCallbacks().
 +   */
 +  virtual void addUpstreamCallback(const UpstreamCallback& cb) PURE;
 +
@@ -70,29 +70,27 @@ index 79a14f02dc..57eb91be45 100644
 +   * Invokes all the added callbacks before forwarding requests from this stream upstream.
 +   * Returns 'false' if any of the callbacks rejects the request, 'true' otherwise.
 +   */
-+  virtual bool iterateUpstreamCallbacks(Http::RequestHeaderMap&,
-+                                        StreamInfo::StreamInfo&) PURE;
++  virtual bool iterateUpstreamCallbacks(Http::RequestHeaderMap&, StreamInfo::StreamInfo&) PURE;
  };
  
  /**
 diff --git a/source/common/http/async_client_impl.h b/source/common/http/async_client_impl.h
-index f6f8c66bfd..db8d6edc94 100644
+index f6f8c66bfd..f72e71e919 100644
 --- a/source/common/http/async_client_impl.h
 +++ b/source/common/http/async_client_impl.h
-@@ -440,6 +440,11 @@ private:
+@@ -440,6 +440,10 @@ private:
                                  StreamInfo::StreamInfo&) override {
      return true;
    }
 +  void addUpstreamCallback(const UpstreamCallback&) override {}
-+  bool iterateUpstreamCallbacks(Http::RequestHeaderMap&,
-+                                StreamInfo::StreamInfo&) override {
++  bool iterateUpstreamCallbacks(Http::RequestHeaderMap&, StreamInfo::StreamInfo&) override {
 +    return true;
 +  }
  
    // ScopeTrackedObject
    void dumpState(std::ostream& os, int indent_level) const override {
 diff --git a/source/common/http/filter_manager.cc b/source/common/http/filter_manager.cc
-index 54cb2fefad..9fb1419c2b 100644
+index 6be6094c06..2b9bd1b1ef 100644
 --- a/source/common/http/filter_manager.cc
 +++ b/source/common/http/filter_manager.cc
 @@ -1381,6 +1381,19 @@ bool FilterManager::createFilterChain() {
@@ -102,7 +100,7 @@ index 54cb2fefad..9fb1419c2b 100644
 +void FilterManager::addUpstreamCallback(const UpstreamCallback& cb) {
 +  decoder_filter_upstream_cbs_.emplace_back(cb);
 +}
-+  
++
 +bool FilterManager::iterateUpstreamCallbacks(Http::RequestHeaderMap& headers,
 +                                             StreamInfo::StreamInfo& upstream_info) {
 +  bool accept = true;
@@ -115,8 +113,8 @@ index 54cb2fefad..9fb1419c2b 100644
  void ActiveStreamDecoderFilter::requestDataDrained() {
    // If this is called it means the call to requestDataTooLarge() was a
    // streaming call, or a 413 would have been sent.
-@@ -1607,5 +1620,14 @@ bool ActiveStreamDecoderFilter::iterateUpstreamCallbacks(Upstream::HostDescripti
- 
+@@ -1606,5 +1619,14 @@ bool ActiveStreamDecoderFilter::iterateUpstreamCallbacks(
+   return parent_.filter_manager_callbacks_.iterateUpstreamCallbacks(host, stream_info);
  }
  
 +void ActiveStreamDecoderFilter::addUpstreamCallback(const UpstreamCallback& cb) {
@@ -164,19 +162,19 @@ index 2fe290de97..15dfe31a65 100644
    std::list<ActiveStreamEncoderFilterPtr> encoder_filters_;
    std::list<StreamFilterBase*> filters_;
 diff --git a/source/common/router/upstream_request.cc b/source/common/router/upstream_request.cc
-index d6075e4863..203f520687 100644
+index d6075e4863..97d57b141b 100644
 --- a/source/common/router/upstream_request.cc
 +++ b/source/common/router/upstream_request.cc
 @@ -667,6 +667,15 @@ void UpstreamRequest::onPoolReady(std::unique_ptr<GenericUpstream>&& upstream,
      parent_.callbacks()->activeSpan().injectContext(*parent_.downstreamHeaders(), host);
    }
  
-+  bool accepted = parent_.callbacks()->iterateUpstreamCallbacks(*parent_.downstreamHeaders(),
-+                                                                stream_info_);
++  bool accepted =
++      parent_.callbacks()->iterateUpstreamCallbacks(*parent_.downstreamHeaders(), stream_info_);
 +  if (!accepted) {
 +    stream_info_.setResponseFlag(StreamInfo::ResponseFlag::UnauthorizedExternalService);
-+    parent_.callbacks()->sendLocalReply(Http::Code::Forbidden, "Access denied\r\n",
-+                                        nullptr, absl::nullopt, absl::string_view());
++    parent_.callbacks()->sendLocalReply(Http::Code::Forbidden, "Access denied\r\n", nullptr,
++                                        absl::nullopt, absl::string_view());
 +    return;
 +  }
 +

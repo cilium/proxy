@@ -26,8 +26,9 @@ resources:
       l7_proto: "test.passer"
 )EOF";
 
-CiliumTcpIntegrationTest::CiliumTcpIntegrationTest(const std::string& config)
-    : BaseIntegrationTest(GetParam(), config),
+CiliumBaseIntegrationTest::CiliumBaseIntegrationTest(Network::Address::IpVersion version,
+                                                     const std::string& config)
+    : BaseIntegrationTest(version, config), version_(version),
       accessLogServer_(TestEnvironment::unixDomainSocketPath("access_log.sock")) {
   enableHalfClose(true);
 #if 1
@@ -37,28 +38,28 @@ CiliumTcpIntegrationTest::CiliumTcpIntegrationTest(const std::string& config)
 #endif
 }
 
-std::string CiliumTcpIntegrationTest::testPolicyFmt() {
-  return TestEnvironment::substitute(TCP_POLICY_fmt, GetParam());
+std::string CiliumBaseIntegrationTest::testPolicyFmt() {
+  return TestEnvironment::substitute(TCP_POLICY_fmt, version_);
 }
 
-void CiliumTcpIntegrationTest::createEnvoy() {
+void CiliumBaseIntegrationTest::createEnvoy() {
   // fake upstreams have been created by now, use the port from the 1st upstream
   // in policy.
   auto port = fake_upstreams_[0]->localAddress()->ip()->port();
   policy_config = fmt::format(testPolicyFmt(), port);
   // Pass the fake upstream address to the cilium bpf filter that will set it as
   // an "original destination address".
-  if (GetParam() == Network::Address::IpVersion::v4) {
+  if (version_ == Network::Address::IpVersion::v4) {
     original_dst_address = std::make_shared<Network::Address::Ipv4Instance>(
-        Network::Test::getLoopbackAddressString(GetParam()), port);
+        Network::Test::getLoopbackAddressString(version_), port);
   } else {
     original_dst_address = std::make_shared<Network::Address::Ipv6Instance>(
-        Network::Test::getLoopbackAddressString(GetParam()), port);
+        Network::Test::getLoopbackAddressString(version_), port);
   }
   BaseIntegrationTest::createEnvoy();
 }
 
-void CiliumTcpIntegrationTest::initialize() {
+void CiliumBaseIntegrationTest::initialize() {
   config_helper_.renameListener("tcp_proxy");
   BaseIntegrationTest::initialize();
 }
