@@ -67,18 +67,7 @@ Config::Config(const std::string& access_log_path, const std::string& denied_403
 }
 
 Config::Config(const ::cilium::L7Policy& config, Server::Configuration::FactoryContext& context)
-    : Config(config.access_log_path(), config.denied_403_body(), context) {
-  if (config.policy_name() != "") {
-    throw EnvoyException(fmt::format(
-        "cilium.l7policy: 'policy_name' is no longer supported: \'{}\'", config.DebugString()));
-  }
-  if (config.has_is_ingress()) {
-    ENVOY_LOG(warn,
-              "cilium.l7policy: 'is_ingress' config option is deprecated and "
-              "is ignored: \'{}\'",
-              config.DebugString());
-  }
-}
+    : Config(config.access_log_path(), config.denied_403_body(), context) {}
 
 Config::~Config() {
   if (access_log_) {

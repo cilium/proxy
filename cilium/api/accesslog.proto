@@ -104,20 +104,4 @@ message LogEntry {
     KafkaLogEntry kafka = 101;
     L7LogEntry generic_l7 = 102;
   }
-
-  //
-  // Deprecated HTTP fields. Use the http field above instead.
-  //
-  HttpProtocol http_protocol = 2 [deprecated = true];
-
-  // Request info that is also retained for the response
-  string scheme = 9 [deprecated = true];  // Envoy "x-forwarded-proto", e.g., "http", "https"
-  string host = 10 [deprecated = true];   // Envoy ":authority" header
-  string path = 11 [deprecated = true];   // Envoy ":path" header
-  string method = 12 [deprecated = true]; // Envoy ":method" header
-
-  uint32 status = 13 [deprecated = true]; // Envoy ":status" header, zero for request
-
-  // Request headers not included above
-  repeated KeyValue headers = 14 [deprecated = true];
 }

@@ -67,11 +67,6 @@ Config::Config(const ::cilium::NetworkFilter& config,
   if (config.proxylib().length() > 0) {
     proxylib_ = std::make_shared<Cilium::GoFilter>(config.proxylib(), config.proxylib_params());
   }
-  if (config.policy_name() != "" || config.l7_proto() != "") {
-    throw EnvoyException(
-        fmt::format("network: 'policy_name' and 'go_proto' are no longer supported: \'{}\'",
-                    config.DebugString()));
-  }
 }
 
 Config::~Config() {
