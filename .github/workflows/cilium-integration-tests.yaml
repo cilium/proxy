@@ -44,7 +44,7 @@ jobs:
         if: github.event_name == 'issue_comment'
         run: |
           echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy-dev" >> $GITHUB_ENV
-          echo "PROXY_TAG=${{ github.event.issue.pull_request.head.sha }}" >> $GITHUB_ENV
+          echo "PROXY_TAG=$(curl -s ${{ github.event.issue.pull_request.url }} | jq -r '.head.sha')" >> $GITHUB_ENV
 
           commentBody="${{ github.event.comment.body }}"
 
