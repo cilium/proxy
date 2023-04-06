@@ -34,7 +34,7 @@ jobs:
         )
       ) ||
       github.event_name == 'push' ||
-      github.event_name == 'pull_request'
+      github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
       - name: Prepare variables for pushes to master
@@ -44,7 +44,7 @@ jobs:
           echo "PROXY_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Prepare variables for PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
         run: |
           echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy-dev" >> $GITHUB_ENV
           echo "PROXY_TAG=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
@@ -64,7 +64,7 @@ jobs:
           echo "CILIUM_REPO_REF=${ciliumRef}" >> $GITHUB_ENV
 
           ciliumCliTag=${CILIUM_CLI_TAG}
-          if [[ "${{ github.event.comment.body }}" == *" ciliumCli="* ]]; then
+          if [[ "$commentBody" == *" ciliumCli="* ]]; then
             ciliumCliTag=$(echo "$commentBody" | sed -E 's|.* ciliumCli=([^ ]*).*|\1|g')
           fi
           echo "CILIUM_CLI_TAG=${ciliumCliTag}" >> $GITHUB_ENV
