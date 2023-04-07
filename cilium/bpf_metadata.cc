@@ -99,15 +99,14 @@ createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSha
 Config::Config(const ::cilium::BpfMetadata& config,
                Server::Configuration::ListenerFactoryContext& context)
     : is_ingress_(config.is_ingress()),
-      may_use_original_source_address_(config.may_use_original_source_address()),
-      egress_mark_source_endpoint_id_(config.egress_mark_source_endpoint_id()),
+      use_original_source_address_(config.use_original_source_address()),
+      is_l7lb_(config.is_l7lb()),
       ipv4_source_address_(
           Network::Utility::parseInternetAddressNoThrow(config.ipv4_source_address())),
       ipv6_source_address_(
           Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address())) {
-  if (egress_mark_source_endpoint_id_ && is_ingress_) {
-    throw EnvoyException(
-        "cilium.bpf_metadata: egress_mark_source_endpoint_id may not be set with is_ingress");
+  if (is_l7lb_ && is_ingress_) {
+    throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
   if ((ipv4_source_address_ &&
        ipv4_source_address_->ip()->version() != Network::Address::IpVersion::v4) ||
@@ -180,10 +179,10 @@ uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
 const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) const {
   auto& policy = npmap_->GetPolicyInstance(pod_ip);
   if (policy == nullptr) {
-    // Allow all traffic for egress without a policy when 'egress_mark_source_endpoint_id_' is true.
+    // Allow all traffic for egress without a policy when 'is_l7lb_' is true.
     // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
     // Ingress (which is implemented as an egress listener!).
-    if (!is_ingress_ && egress_mark_source_endpoint_id_) {
+    if (!is_ingress_ && is_l7lb_) {
       return npmap_->AllowAllEgressPolicy;
     }
   }
@@ -256,10 +255,10 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // connection may fail in case of a 5-tuple collision that the host networking namespace is aware
   // of.
   //
-  // NOTE: Both of these options (egress_mark_source_endpoint_id_ and
-  // may_use_original_source_address_) are only used for egress, so the local
+  // NOTE: Both of these options (is_l7lb_ and
+  // use_original_source_address_) are only used for egress, so the local
   // endpoint is the source, and the other node is the destination.
-  if (egress_mark_source_endpoint_id_ && policy->getEndpointID() != 0) {
+  if (is_l7lb_ && policy->getEndpointID() != 0) {
     // Use original source address for Ingress/CEC for a local source EP
     const auto& ips = policy->getEndpointIPs();
     if (ips.ipv4_ && ips.ipv6_) {
@@ -289,7 +288,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     // Otherwise only use the original source address if permitted and the destination is not in the
     // same node, is not a locally allocated identity, and is not classified as WORLD.
     //
-  } else if (!(may_use_original_source_address_ &&
+  } else if (!(use_original_source_address_ &&
                !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
                destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
     // Original source address is not used
@@ -327,7 +326,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   bool isL7LB = false;
   if (!npmap_->is_sidecar_) {
     // Mark with source endpoint ID if requested and available
-    if (egress_mark_source_endpoint_id_ && policy->getEndpointID() != 0) {
+    if (is_l7lb_ && policy->getEndpointID() != 0) {
       mark = 0x0900 | policy->getEndpointID() << 16;
       isL7LB = true;
     } else {
