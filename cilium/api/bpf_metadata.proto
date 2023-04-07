@@ -13,14 +13,17 @@ message BpfMetadata {
 
   // Use of the original source address requires kernel datapath support which
   // may or may not be available. 'true' if original source address
-  // functionality is availeble. Original source address use may still be
+  // should be used. Original source address use may still be
   // skipped in scenarios where it is knows to not work.
-  bool may_use_original_source_address = 3;
+  bool use_original_source_address = 3;
 
-  // Set source endpoint ID in socket mark instead of source security ID on
-  // upstream connections. This is needed for L7 LB listeners. Only valid for
-  // egress.
-  bool egress_mark_source_endpoint_id = 4;
+  // True if the listener is used for an L7 LB. In this case policy enforcement is done on the
+  // destination selected by the listener rather than on the original destination address. For
+  // local sources the source endpoint ID is set in socket mark instead of source security ID if
+  // 'use_original_source_address' is also true, so that the local source's egress policy is
+  // enforced on the bpf datapath.
+  // Only valid for egress.
+  bool is_l7lb = 4;
 
   // Source address to be used whenever the original source address is not used.
   // Either ipv4_source_address or ipv6_source_address depending on the address

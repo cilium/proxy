@@ -37,8 +37,8 @@ public:
   virtual bool getMetadata(Network::ConnectionSocket& socket);
 
   bool is_ingress_;
-  bool may_use_original_source_address_;
-  bool egress_mark_source_endpoint_id_;
+  bool use_original_source_address_;
+  bool is_l7lb_;
   Network::Address::InstanceConstSharedPtr ipv4_source_address_;
   Network::Address::InstanceConstSharedPtr ipv6_source_address_;
 
