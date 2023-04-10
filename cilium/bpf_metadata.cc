@@ -202,8 +202,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     return false;
   }
 
-  // We do this first as this likely restores the destination address
-  // Let the OriginalDstCluster know the destination address can be used.
+  // We do this first as this likely restores the destination address and
+  // lets the OriginalDstCluster know the destination address can be used.
   socket.connectionInfoProvider().restoreLocalAddress(dst_address); // mark as `restored`
 
   std::string pod_ip, other_ip;
@@ -217,7 +217,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {}", pod_ip, other_ip);
   }
 
-  const auto& policy = getPolicy(pod_ip);
+  auto policy = getPolicy(pod_ip);
   if (policy == nullptr) {
     ENVOY_LOG(warn, "cilium.bpf_metadata ({}): No policy found for {}",
               is_ingress_ ? "ingress" : "egress", pod_ip);
@@ -225,7 +225,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   }
 
   uint32_t source_identity = 0;
-  // Resolve the source security ID, if not already resolved
+  // Resolve the source security ID from conntrack map, or from ip cache
   if (ct_maps_ != nullptr) {
     auto ct_name = policy->conntrackName();
     if (ct_name.length() > 0) {
@@ -245,29 +245,28 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr ipv4_source_address = ipv4_source_address_;
   Network::Address::InstanceConstSharedPtr ipv6_source_address = ipv6_source_address_;
 
-  // Use original source address with L7 LB for local endpoint sources as policy enforcement after
-  // the proxy depends on it (i.e., for "east/west" LB). As L7 LB does not use the original
-  // destination, there is a possibility of a 5-tuple collision if the same source pod is
-  // communicating with the same backends on same destination port directly, maybe via some other,
-  // non-L7 LB service. We keep the original source port number to not allocate random source ports
-  // for the source pod in the host networking namespace that could then blackhole existing
-  // connections between the source pod and the backend. This means that the L7 LB backend
-  // connection may fail in case of a 5-tuple collision that the host networking namespace is aware
-  // of.
+  // Use original source address with L7 LB for local endpoint sources if requested, as policy
+  // enforcement after the proxy depends on it (i.e., for "east/west" LB).
   //
-  // NOTE: Both of these options (is_l7lb_ and
-  // use_original_source_address_) are only used for egress, so the local
+  // NOTE: As L7 LB does not use the original destination, there is a possibility of a 5-tuple
+  // collision if the same source pod is communicating with the same backends on same destination
+  // port directly, maybe via some other, non-L7 LB service. We keep the original source port number
+  // to not allocate random source ports for the source pod in the host networking namespace that
+  // could then blackhole existing connections between the source pod and the backend. This means
+  // that the L7 LB backend connection may fail in case of a 5-tuple collision that the host
+  // networking namespace is aware of.
+  //
+  // NOTE: is_l7lb_ is only used for egress, so the local
   // endpoint is the source, and the other node is the destination.
-  if (is_l7lb_ && policy->getEndpointID() != 0) {
-    // Use original source address for Ingress/CEC for a local source EP
+  bool east_west_l7_lb = is_l7lb_ && use_original_source_address_ && policy->getEndpointID() != 0;
+
+  if (east_west_l7_lb) {
+    // Use source pod's IP address for east/west l7 LB
     const auto& ips = policy->getEndpointIPs();
     if (ips.ipv4_ && ips.ipv6_) {
-      // Give precedence to locally configured source addresses when both are configured,
-      // as in this case the upstream connection may go to either IPv4 or IPv6 and the
-      // source address must match that version.
-      // Keep the original source address for the matching version, create a new source IP
-      // for the other version with the same port number as in the other version. Hopefully the
-      // 5-tuple will be unique. A bind and
+      // Keep the original source address for the matching IP version, create a new source IP for
+      // the other version (with the same source port number) in case an upstream of a different IP
+      // version is chosen.
       switch (sip->version()) {
       case Network::Address::IpVersion::v4: {
         ipv4_source_address = src_address;
@@ -285,9 +284,36 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       }
       src_address = nullptr;
     }
-    // Otherwise only use the original source address if permitted and the destination is not in the
-    // same node, is not a locally allocated identity, and is not classified as WORLD.
-    //
+  } else if (is_l7lb_) {
+    // North/south L7 LB, assume the source security identity of the configured source addresses, if
+    // any and policy for this identity exists.
+    const Network::Address::Ip* ip = nullptr;
+    if (ipv4_source_address && ipv4_source_address->ip()) {
+      ip = ipv4_source_address->ip();
+    } else if (ipv6_source_address && ipv6_source_address->ip()) {
+      ip = ipv6_source_address->ip();
+    }
+    if (ip) {
+      auto new_id = resolvePolicyId(ip);
+      if (new_id != Cilium::ID::WORLD) {
+        auto new_pod_ip = ip->addressAsString();
+        // AllowAllEgressPolicy will be returned if no explicit Ingress policy exists
+        const auto& new_policy = getPolicy(new_pod_ip);
+        if (new_policy) {
+          source_identity = new_id;
+          pod_ip = new_pod_ip;
+          policy = new_policy;
+        }
+      } // The configured IP is used, but the original source identity, pod IP and policy are kept
+    }
+    // Original source address is never used for north/south LB
+    // This means that a local host IP is used if no IP is configured to be used instead of it
+    // ('ip' above is null).
+    src_address = nullptr;
+
+    // Otherwise only use the original source address if permitted, destination identity is not a
+    // locally allocated identity, is not classified as WORLD, and the destination is not in the
+    // same node.
   } else if (!(use_original_source_address_ &&
                !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
                destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
@@ -323,12 +349,11 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Pass the metadata to an Envoy socket option we can retrieve later in other
   // Cilium filters.
   uint32_t mark = 0;
-  bool isL7LB = false;
   if (!npmap_->is_sidecar_) {
-    // Mark with source endpoint ID if requested and available
-    if (is_l7lb_ && policy->getEndpointID() != 0) {
+    // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
+    // processed by the the source endpoint's policy enforcement in the datapath.
+    if (east_west_l7_lb) {
       mark = 0x0900 | policy->getEndpointID() << 16;
-      isL7LB = true;
     } else {
       // Mark with source identity
       uint32_t cluster_id = (source_identity >> 16) & 0xFF;
@@ -337,7 +362,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     }
   }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, mark, source_identity, is_ingress_, isL7LB, dip->port(), std::move(pod_ip),
+      policy, mark, source_identity, is_ingress_, is_l7lb_, dip->port(), std::move(pod_ip),
       std::move(src_address), std::move(ipv4_source_address), std::move(ipv6_source_address),
       shared_from_this()));
   return true;

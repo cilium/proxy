@@ -234,18 +234,18 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   const auto option = Cilium::GetSocketOption(socket_.options());
   EXPECT_NE(nullptr, option);
 
-  EXPECT_EQ(2, option->identity_);
+  EXPECT_EQ(8, option->identity_);
   EXPECT_EQ(false, option->ingress_);
-  EXPECT_EQ(false, option->is_l7lb_); // Now only 'true' for east/west l7 lb!
+  EXPECT_EQ(true, option->is_l7lb_);
   EXPECT_EQ(nullptr, option->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
   EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
-  EXPECT_EQ("192.168.1.1", option->pod_ip_);
+  EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_NE(nullptr, option->initial_policy_);
 
-  // Check that the world ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 2);
+  // Check that Ingress security ID is used in the socket mark
+  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 }
 
 TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
@@ -265,18 +265,18 @@ TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
   const auto option = Cilium::GetSocketOption(socket_.options());
   EXPECT_NE(nullptr, option);
 
-  EXPECT_EQ(2, option->identity_);
+  EXPECT_EQ(8, option->identity_);
   EXPECT_EQ(false, option->ingress_);
-  EXPECT_EQ(false, option->is_l7lb_); // Now only 'true' for east/west l7 lb!
+  EXPECT_EQ(true, option->is_l7lb_);
   EXPECT_EQ(nullptr, option->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
   EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
-  EXPECT_EQ("192.168.1.1", option->pod_ip_);
+  EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_NE(nullptr, option->initial_policy_);
 
   // Check that the world ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 2);
+  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 }
 
 TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
@@ -320,18 +320,18 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   const auto option = Cilium::GetSocketOption(socket_.options());
   EXPECT_NE(nullptr, option);
 
-  EXPECT_EQ(111, option->identity_);
+  EXPECT_EQ(8, option->identity_);
   EXPECT_EQ(false, option->ingress_);
   EXPECT_EQ(true, option->is_l7lb_);
   EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.1:41234", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::1:1:1]:41234", option->ipv6_source_address_->asString());
+  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
-  EXPECT_EQ("10.1.1.1", option->pod_ip_);
+  EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_NE(nullptr, option->initial_policy_);
 
   // Check that Endpoint's ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0900 && (option->mark_ >> 16) == 2048);
+  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 }
 
 } // namespace
