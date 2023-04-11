@@ -15,6 +15,7 @@ on:
       - created
 env:
   KIND_VERSION: v0.18.0
+  CILIUM_REPO_OWNER: cilium
   CILIUM_REPO_REF: master
   CILIUM_CLI_TAG: latest
 
@@ -57,6 +58,12 @@ jobs:
 
           commentBody="${{ github.event.comment.body }}"
 
+          ciliumRepoOwner=${CILIUM_REPO_OWNER}
+          if [[ "$commentBody" == *" ciliumRepoOwner="* ]]; then
+            ciliumRepoOwner=$(echo "$commentBody" | sed -E 's|.* ciliumRepoOwner=([^ ]*).*|\1|g')
+          fi
+          echo "CILIUM_REPO_OWNER=${ciliumRepoOwner}" >> $GITHUB_ENV
+
           ciliumRef=${CILIUM_REPO_REF}
           if [[ "$commentBody" == *" cilium="* ]]; then
             ciliumRef=$(echo "$commentBody" | sed -E 's|.* cilium=([^ ]*).*|\1|g')
@@ -93,7 +100,7 @@ jobs:
       - name: Checkout Cilium ${{ env.CILIUM_REPO_REF }}
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
         with:
-          repository: cilium/cilium # Be aware that this is the Cilium repository and not the one of the proxy itself!
+          repository: ${{ env.CILIUM_REPO_OWNER }}/cilium # Be aware that this is the Cilium repository and not the one of the proxy itself!
           ref: ${{ env.CILIUM_REPO_REF }}
 
       - name: Install Cilium CLI ${{ env.CILIUM_CLI_TAG }}
