@@ -273,13 +273,14 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       case Network::Address::IpVersion::v4: {
         ipv4_source_address = src_address;
         sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(ips.ipv6_->sockAddr());
-        sa6.sin6_port = sip->port();
+        sa6.sin6_port = htons(sip->port());
         ipv6_source_address = std::make_shared<Network::Address::Ipv6Instance>(sa6);
+
       } break;
       case Network::Address::IpVersion::v6: {
         ipv6_source_address = src_address;
         sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(ips.ipv4_->sockAddr());
-        sa4.sin_port = sip->port();
+        sa4.sin_port = htons(sip->port());
         ipv4_source_address = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
       } break;
       }
