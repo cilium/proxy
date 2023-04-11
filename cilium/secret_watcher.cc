@@ -48,9 +48,7 @@ void SecretWatcher::store() {
     std::string* old = ptr_.exchange(p, std::memory_order_release);
     if (old != nullptr) {
       // Delete old value after all threads have scheduled
-      parent_.runAfterAllThreads([old]() {
-        delete old;
-      });
+      parent_.runAfterAllThreads([old]() { delete old; });
     }
   }
 }

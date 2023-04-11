@@ -124,8 +124,7 @@ void Instance::initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callb
   // filter chain.
   callbacks_->connection().streamInfo().filterState()->setData(
       TcpProxy::ReceiveBeforeConnectKey, std::make_unique<StreamInfo::BoolAccessorImpl>(true),
-      StreamInfo::FilterState::StateType::Mutable,
-      StreamInfo::FilterState::LifeSpan::Connection);
+      StreamInfo::FilterState::StateType::Mutable, StreamInfo::FilterState::LifeSpan::Connection);
 }
 
 Network::FilterStatus Instance::onNewConnection() {
