@@ -24,6 +24,8 @@ extern std::shared_ptr<const Cilium::NetworkPolicyMap> npmap;
 
 extern std::string policy_config;
 
+extern void initTestMaps(Server::Configuration::ListenerFactoryContext& context);
+
 namespace Cilium {
 namespace BpfMetadata {
 
@@ -34,34 +36,8 @@ public:
   ~TestConfig();
 
   bool getMetadata(Network::ConnectionSocket& socket) override;
-  const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const override;
-};
-
-class TestInstance : public Instance {
-public:
-  TestInstance(const ConfigSharedPtr& config);
 };
 
 } // namespace BpfMetadata
 } // namespace Cilium
-
-namespace Server {
-namespace Configuration {
-
-class TestBpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
-public:
-  // NamedListenerFilterConfigFactory
-  Network::ListenerFilterFactoryCb createListenerFilterFactoryFromProto(
-      const Protobuf::Message& proto_config,
-      const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
-      ListenerFactoryContext& context) override;
-
-  ProtobufTypes::MessagePtr createEmptyConfigProto() override;
-
-  std::string name() const override;
-};
-
-} // namespace Configuration
-} // namespace Server
-
 } // namespace Envoy
