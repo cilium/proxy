@@ -173,11 +173,13 @@ public:
         policy_id_resolver_(policy_id_resolver) {
     ENVOY_LOG(debug,
               "Cilium SocketOption(): source_identity: {}, "
-              "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {}",
+              "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {:x} (magic "
+              "mark: {:x}, cluster: {}, ID: {})",
               identity_, ingress_, port_, pod_ip_,
               original_source_address_ ? original_source_address_->asString() : "",
               ipv4_source_address_ ? ipv4_source_address_->asString() : "",
-              ipv6_source_address_ ? ipv6_source_address_->asString() : "", mark_);
+              ipv6_source_address_ ? ipv6_source_address_->asString() : "", mark_, mark & 0xff00,
+              mark & 0xff, mark >> 16);
     ASSERT(initial_policy_ != nullptr);
   }
 
