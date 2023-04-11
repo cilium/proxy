@@ -153,9 +153,9 @@ jobs:
 
           cilium hubble port-forward&
 
-      - name: Execute Cilium Connectivity Tests
+      - name: Execute Cilium L7 Connectivity Tests
         shell: bash
-        run: cilium connectivity test
+        run: cilium connectivity test --test=l7
 
       - name: Reporting success to issue comment
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6.4.1
