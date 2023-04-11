@@ -19,102 +19,6 @@ std::shared_ptr<const Cilium::NetworkPolicyMap> npmap{nullptr}; // Keep referenc
 
 std::string policy_config;
 
-namespace Cilium {
-namespace BpfMetadata {
-
-namespace {
-::cilium::BpfMetadata getTestConfig(const ::cilium::TestBpfMetadata& config) {
-  ::cilium::BpfMetadata test_config;
-  test_config.set_is_ingress(config.is_ingress());
-  return test_config;
-}
-} // namespace
-
-TestConfig::TestConfig(const ::cilium::TestBpfMetadata& config,
-                       Server::Configuration::ListenerFactoryContext& context)
-    : Config(getTestConfig(config), context) {}
-
-TestConfig::~TestConfig() {
-  hostmap.reset();
-  npmap.reset();
-}
-
-const PolicyInstanceConstSharedPtr TestConfig::getPolicy(const std::string& pod_ip) const {
-  auto& policy = npmap->GetPolicyInstance(pod_ip);
-  if (policy == nullptr) {
-    // Allow all traffic for egress without a policy when 'egress_mark_source_endpoint_id_' is true.
-    // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
-    // Ingress (which is implemented as an egress listener!).
-    if (!is_ingress_ && egress_mark_source_endpoint_id_) {
-      return npmap->AllowAllEgressPolicy;
-    }
-  }
-  return policy;
-}
-
-bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
-  // fake setting the local address. It remains the same as required by the test
-  // infra, but it will be marked as restored as required by the original_dst
-  // cluster.
-  socket.connectionInfoProvider().restoreLocalAddress(original_dst_address);
-
-  // TLS filter chain matches this, make namespace part of this (e.g.,
-  // "default")?
-  socket.setDetectedTransportProtocol("cilium:default");
-
-  // This must be the full domain name
-  socket.setRequestedServerName("localhost");
-
-  std::string pod_ip;
-  uint64_t source_identity;
-  uint64_t destination_identity;
-  if (is_ingress_) {
-    source_identity = 1;
-    destination_identity = 173;
-    pod_ip = original_dst_address->ip()->addressAsString();
-    ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
-  } else {
-    source_identity = 173;
-    destination_identity = hosts_->resolve(socket.connectionInfoProvider().localAddress()->ip());
-    pod_ip = socket.connectionInfoProvider().localAddress()->ip()->addressAsString();
-    ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
-  }
-  auto policy = getPolicy(pod_ip);
-  if (policy == nullptr) {
-    ENVOY_LOG_MISC(warn, "tests.bpf_metadata ({}): No policy found for {}",
-                   is_ingress_ ? "ingress" : "egress", pod_ip);
-    return false;
-  }
-
-  auto port = original_dst_address->ip()->port();
-
-  // Set metadata for policy based listener filter chain matching
-  // Note: tls_inspector may overwrite this value, if it executes after us!
-  std::string l7proto;
-  if (policy &&
-      policy->useProxylib(is_ingress_, port, is_ingress_ ? source_identity : destination_identity,
-                          l7proto)) {
-    std::vector<absl::string_view> protocols;
-    protocols.emplace_back(l7proto);
-    socket.setRequestedApplicationProtocols(protocols);
-    ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
-  }
-
-  socket.addOption(std::make_shared<Cilium::SocketOption>(policy, 0, source_identity, is_ingress_,
-                                                          false, port, std::move(pod_ip), nullptr,
-                                                          nullptr, nullptr, shared_from_this()));
-
-  return true;
-}
-
-TestInstance::TestInstance(const ConfigSharedPtr& config) : Instance(config) {}
-
-} // namespace BpfMetadata
-} // namespace Cilium
-
-namespace Server {
-namespace Configuration {
-
 namespace {
 
 std::shared_ptr<const Cilium::PolicyHostMap>
@@ -161,34 +65,125 @@ createPolicyMap(const std::string& config, Server::Configuration::FactoryContext
 
 } // namespace
 
-Network::ListenerFilterFactoryCb TestBpfMetadataConfigFactory::createListenerFilterFactoryFromProto(
-    const Protobuf::Message& proto_config,
-    const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
-    ListenerFactoryContext& context) {
+void initTestMaps(Server::Configuration::ListenerFactoryContext& context) {
   // Create the file-based policy map before the filter is created, so that the
   // singleton is set before the gRPC subscription is attempted.
   hostmap = createHostMap(host_map_config, context);
   // Create the file-based policy map before the filter is created, so that the
   // singleton is set before the gRPC subscription is attempted.
   npmap = createPolicyMap(policy_config, context);
-
-  auto config = std::make_shared<Cilium::BpfMetadata::TestConfig>(
-      MessageUtil::downcastAndValidate<const ::cilium::TestBpfMetadata&>(
-          proto_config, context.messageValidationVisitor()),
-      context);
-
-  return [listener_filter_matcher,
-          config](Network::ListenerFilterManager& filter_manager) mutable -> void {
-    filter_manager.addAcceptFilter(listener_filter_matcher,
-                                   std::make_unique<Cilium::BpfMetadata::TestInstance>(config));
-  };
 }
 
-ProtobufTypes::MessagePtr TestBpfMetadataConfigFactory::createEmptyConfigProto() {
-  return std::make_unique<::cilium::TestBpfMetadata>();
+namespace Cilium {
+namespace BpfMetadata {
+
+namespace {
+::cilium::BpfMetadata getTestConfig(const ::cilium::TestBpfMetadata& config) {
+  ::cilium::BpfMetadata test_config;
+  test_config.set_is_ingress(config.is_ingress());
+  return test_config;
+}
+} // namespace
+
+TestConfig::TestConfig(const ::cilium::TestBpfMetadata& config,
+                       Server::Configuration::ListenerFactoryContext& context)
+    : Config(getTestConfig(config), context) {}
+
+TestConfig::~TestConfig() {
+  hostmap.reset();
+  npmap.reset();
 }
 
-std::string TestBpfMetadataConfigFactory::name() const { return "test_bpf_metadata"; }
+bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
+  // fake setting the local address. It remains the same as required by the test
+  // infra, but it will be marked as restored as required by the original_dst
+  // cluster.
+  socket.connectionInfoProvider().restoreLocalAddress(original_dst_address);
+
+  // TLS filter chain matches this, make namespace part of this (e.g.,
+  // "default")?
+  socket.setDetectedTransportProtocol("cilium:default");
+
+  // This must be the full domain name
+  socket.setRequestedServerName("localhost");
+
+  std::string pod_ip;
+  uint64_t source_identity;
+  uint64_t destination_identity;
+  if (is_ingress_) {
+    source_identity = 1;
+    destination_identity = 173;
+    pod_ip = original_dst_address->ip()->addressAsString();
+    ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
+  } else {
+    source_identity = 173;
+    auto ip = socket.connectionInfoProvider().localAddress()->ip();
+    destination_identity = hosts_->resolve(ip);
+    pod_ip = ip->addressAsString();
+    ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
+  }
+  auto policy = getPolicy(pod_ip);
+  if (policy == nullptr) {
+    ENVOY_LOG_MISC(warn, "tests.bpf_metadata ({}): No policy found for {}",
+                   is_ingress_ ? "ingress" : "egress", pod_ip);
+    return false;
+  }
+
+  auto port = original_dst_address->ip()->port();
+
+  // Set metadata for policy based listener filter chain matching
+  // Note: tls_inspector may overwrite this value, if it executes after us!
+  std::string l7proto;
+  if (policy &&
+      policy->useProxylib(is_ingress_, port, is_ingress_ ? source_identity : destination_identity,
+                          l7proto)) {
+    std::vector<absl::string_view> protocols;
+    protocols.emplace_back(l7proto);
+    socket.setRequestedApplicationProtocols(protocols);
+    ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
+  }
+
+  socket.addOption(std::make_shared<Cilium::SocketOption>(policy, 0, source_identity, is_ingress_,
+                                                          false, port, std::move(pod_ip), nullptr,
+                                                          nullptr, nullptr, shared_from_this()));
+
+  return true;
+}
+
+} // namespace BpfMetadata
+} // namespace Cilium
+
+namespace Server {
+namespace Configuration {
+
+class TestBpfMetadataConfigFactory : public NamedListenerFilterConfigFactory {
+public:
+  // NamedListenerFilterConfigFactory
+  Network::ListenerFilterFactoryCb createListenerFilterFactoryFromProto(
+      const Protobuf::Message& proto_config,
+      const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
+      ListenerFactoryContext& context) override {
+
+    initTestMaps(context);
+
+    auto config = std::make_shared<Cilium::BpfMetadata::TestConfig>(
+        MessageUtil::downcastAndValidate<const ::cilium::TestBpfMetadata&>(
+            proto_config, context.messageValidationVisitor()),
+        context);
+
+    return [listener_filter_matcher,
+            config](Network::ListenerFilterManager& filter_manager) mutable -> void {
+      filter_manager.addAcceptFilter(listener_filter_matcher,
+                                     std::make_unique<Cilium::BpfMetadata::Instance>(config));
+    };
+  }
+
+  ProtobufTypes::MessagePtr createEmptyConfigProto() override {
+    return std::make_unique<::cilium::TestBpfMetadata>();
+  }
+
+  std::string name() const override { return "test_bpf_metadata"; }
+};
 
 /**
  * Static registration for the bpf metadata filter. @see RegisterFactory.
