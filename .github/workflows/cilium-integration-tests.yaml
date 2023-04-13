@@ -103,6 +103,10 @@ jobs:
           repository: ${{ env.CILIUM_REPO_OWNER }}/cilium # Be aware that this is the Cilium repository and not the one of the proxy itself!
           ref: ${{ env.CILIUM_REPO_REF }}
 
+      - name: Extracting Cilium version
+        run: |
+          echo "CILIUM_IMAGE_TAG=v$(cat ./VERSION)" >> $GITHUB_ENV
+
       - name: Install Cilium CLI ${{ env.CILIUM_CLI_REF }}
         run: |
           versionPattern="^v[0-9]+\.[0-9]+\.[0-9]+$"
@@ -138,15 +142,15 @@ jobs:
 
       - name: Build Cilium Agent & Operator with patched Cilium Proxy Image
         shell: bash
-        run: DOCKER_IMAGE_TAG=test make docker-cilium-image docker-operator-generic-image
+        run: DOCKER_IMAGE_TAG=${{ env.CILIUM_IMAGE_TAG }} make docker-cilium-image docker-operator-generic-image
 
       - name: Load Cilium Images into kind
         shell: bash
         run: |
           kind load docker-image \
             --name kind \
-            quay.io/cilium/operator-generic:test \
-            quay.io/cilium/cilium:test
+            quay.io/cilium/operator-generic:${{ env.CILIUM_IMAGE_TAG }} \
+            quay.io/cilium/cilium:${{ env.CILIUM_IMAGE_TAG }}
 
       - name: Install Cilium
         shell: bash
@@ -156,8 +160,8 @@ jobs:
             --config monitor-aggregation=none \
             --helm-set loadBalancer.l7.backend=envoy \
             --helm-set tls.secretsBackend=k8s \
-            --agent-image=quay.io/cilium/cilium:test \
-            --operator-image=quay.io/cilium/operator-generic:test \
+            --agent-image=quay.io/cilium/cilium:${{ env.CILIUM_IMAGE_TAG }} \
+            --operator-image=quay.io/cilium/operator-generic:${{ env.CILIUM_IMAGE_TAG }} \
             --helm-set image.pullPolicy=Never \
             --helm-set operator.image.pullPolicy=Never \
             --config debug=true \
