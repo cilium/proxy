@@ -13,11 +13,11 @@ ENVOY_PROJECT = "envoyproxy"
 
 ENVOY_REPO = "envoy"
 
-# https://github.com/envoyproxy/envoy/tree/v1.23.7
+# https://github.com/envoyproxy/envoy/tree/v1.23.8
 # Note that this branch is only for envoy v1.23.x
-ENVOY_SHA = "0865d3a1ec82b7f55de60f02a668ab2b2b3e3427"
+ENVOY_SHA = "ae7ea959ac468ef21da6eb85e2892c8101a6eb54"
 
-ENVOY_SHA256 = "e8796bfa8e763ae01421f25a468f8253b27ef7ef5cacd80a49b5abe8852093f2"
+ENVOY_SHA256 = "237ee7e686bbcaa8d5952743cfe3587baf0812e870cf574faaee9b9820b996d5"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
