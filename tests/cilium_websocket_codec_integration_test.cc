@@ -71,7 +71,6 @@ static_resources:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
           stat_prefix: tcp_stats
           cluster: cluster1
-          receive_before_connect: true
 )EOF";
 
 class CiliumWebSocketIntegrationTest : public CiliumTcpIntegrationTest {

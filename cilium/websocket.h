@@ -26,17 +26,15 @@ public:
   Instance(const ConfigSharedPtr& config) : config_(config) {}
 
   // Network::ReadFilter
-  Network::FilterStatus onData(Buffer::Instance&, bool end_stream) override;
+  void initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) override;
   Network::FilterStatus onNewConnection() override;
-  void initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) override {
-    callbacks_ = &callbacks;
-  }
+  Network::FilterStatus onData(Buffer::Instance&, bool end_stream) override;
 
   // Network::WriteFilter
-  Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;
   void initializeWriteFilterCallbacks(Network::WriteFilterCallbacks& callbacks) override {
     write_callbacks_ = &callbacks;
   }
+  Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;
 
   // WebSocket::CodecCallbacks
   const ConfigSharedPtr& config() override { return config_; }

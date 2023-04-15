@@ -1,7 +1,7 @@
-From afa52df4a5ea962298f4f60921818947b0497262 Mon Sep 17 00:00:00 2001
+From d2f425a0472d576d9d337eea66ba930274748db7 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 27 Jan 2023 13:21:34 +0200
-Subject: [PATCH 6/7] tcmalloc: Update for arm64 support arm64 builds fail due
+Subject: [PATCH 6/6] tcmalloc: Update for arm64 support arm64 builds fail due
  to invalid flag output constraint being used:
 
   error: unknown 'asm' flag output '=@ccbe'
@@ -14,10 +14,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/bazel/repository_locations.bzl b/bazel/repository_locations.bzl
-index ae568f87fb..b37e8d531c 100644
+index 0141d55412..ccef771dae 100644
 --- a/bazel/repository_locations.bzl
 +++ b/bazel/repository_locations.bzl
-@@ -254,12 +254,12 @@ REPOSITORY_LOCATIONS_SPEC = dict(
+@@ -293,12 +293,12 @@ REPOSITORY_LOCATIONS_SPEC = dict(
          project_name = "tcmalloc",
          project_desc = "Fast, multi-threaded malloc implementation",
          project_url = "https://github.com/google/tcmalloc",
@@ -34,5 +34,5 @@ index ae568f87fb..b37e8d531c 100644
      ),
      com_github_gperftools_gperftools = dict(
 -- 
-2.36.0
+2.39.2
 
