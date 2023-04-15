@@ -1,12 +1,14 @@
-From 92487390f714a1ef6ec41d7e42e0f8c4bfd4546a Mon Sep 17 00:00:00 2001
+From a42e08581b40bfe0903191aad05123d8143076a9 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Wed, 21 Sep 2022 18:48:03 +0300
-Subject: [PATCH 3/7] connection: Make isHalfCloseEnabled const
+Subject: [PATCH 3/6] connection: Make isHalfCloseEnabled const
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
  envoy/network/connection.h                                | 2 +-
  source/common/network/connection_impl.h                   | 2 +-
+ source/common/network/multi_connection_base_impl.cc       | 2 +-
+ source/common/network/multi_connection_base_impl.h        | 2 +-
  source/common/quic/quic_filter_manager_connection_impl.cc | 2 +-
  source/common/quic/quic_filter_manager_connection_impl.h  | 2 +-
  source/server/api_listener_impl.h                         | 2 +-
@@ -27,7 +29,7 @@ index 3cbada199d..1b8a8af456 100644
    /**
     * Close the connection.
 diff --git a/source/common/network/connection_impl.h b/source/common/network/connection_impl.h
-index cfdb2482a2..ba6df8b8f5 100644
+index 2f41945311..900375162d 100644
 --- a/source/common/network/connection_impl.h
 +++ b/source/common/network/connection_impl.h
 @@ -65,7 +65,7 @@ public:
@@ -65,9 +67,8 @@ index 9734df18a6..5b8f8ee5dd 100644
    std::string nextProtocol() const override;
    // Note, this might change before connect finishes.
    ConnectionInfoSetter& connectionInfoSetter() override;
-
 diff --git a/source/common/quic/quic_filter_manager_connection_impl.cc b/source/common/quic/quic_filter_manager_connection_impl.cc
-index 26d48eb50c..2f88407fc3 100644
+index 51e0513cda..cec6e10e58 100644
 --- a/source/common/quic/quic_filter_manager_connection_impl.cc
 +++ b/source/common/quic/quic_filter_manager_connection_impl.cc
 @@ -52,7 +52,7 @@ void QuicFilterManagerConnectionImpl::enableHalfClose(bool enabled) {
@@ -119,5 +120,5 @@ index d86f6f6775..4ce8a8d175 100644
    MOCK_METHOD(Event::Dispatcher&, dispatcher, ());                                                 \
    MOCK_METHOD(uint64_t, id, (), (const));                                                          \
 -- 
-2.36.0
+2.39.2
 

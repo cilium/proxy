@@ -1,7 +1,7 @@
-From a7e2a15a3750a290e3fc53cf4547da3f1fd37ab8 Mon Sep 17 00:00:00 2001
+From f8131a12fc6b00b9516c06483c4c5347ab46072e Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 21 Jan 2022 15:42:00 +0200
-Subject: [PATCH 2/7] upstream: Add callback for upstream authorization
+Subject: [PATCH 2/6] upstream: Add callback for upstream authorization
 
 Add new StreamDecoderFilterCallbacks addUpstreamCallback() and
 iterateUpstreamCallbacks(). Decoder filters can add callbacks using
@@ -29,10 +29,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  5 files changed, 73 insertions(+)
 
 diff --git a/envoy/http/filter.h b/envoy/http/filter.h
-index d67178857e..8f88ef0292 100644
+index fe2494284d..faa3a71a03 100644
 --- a/envoy/http/filter.h
 +++ b/envoy/http/filter.h
-@@ -320,6 +320,23 @@ public:
+@@ -335,6 +335,23 @@ public:
  using RouteConfigUpdatedCallback = std::function<void(bool)>;
  using RouteConfigUpdatedCallbackSharedPtr = std::shared_ptr<RouteConfigUpdatedCallback>;
  
@@ -56,7 +56,7 @@ index d67178857e..8f88ef0292 100644
  /**
   * Stream decoder filter callbacks add additional callbacks that allow a decoding filter to restart
   * decoding if they decide to hold data (e.g. for buffering or rate limiting).
-@@ -632,6 +649,18 @@ public:
+@@ -647,6 +664,18 @@ public:
     */
    virtual bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr,
                                          StreamInfo::StreamInfo&) PURE;
@@ -76,10 +76,10 @@ index d67178857e..8f88ef0292 100644
  
  /**
 diff --git a/source/common/http/async_client_impl.h b/source/common/http/async_client_impl.h
-index 5ee3d555b7..f8e7f96319 100644
+index 4d83b5a747..6fd27ffa0a 100644
 --- a/source/common/http/async_client_impl.h
 +++ b/source/common/http/async_client_impl.h
-@@ -339,6 +339,11 @@ private:
+@@ -348,6 +348,11 @@ private:
                                  StreamInfo::StreamInfo&) override {
      return true;
    }
@@ -92,10 +92,10 @@ index 5ee3d555b7..f8e7f96319 100644
    Router::RouteConstSharedPtr route(const Router::RouteCallback&) override { return nullptr; }
    void setRoute(Router::RouteConstSharedPtr) override {}
 diff --git a/source/common/http/filter_manager.cc b/source/common/http/filter_manager.cc
-index ac3acb4257..d6a264e2dc 100644
+index 4c59d0d9ef..40700256a0 100644
 --- a/source/common/http/filter_manager.cc
 +++ b/source/common/http/filter_manager.cc
-@@ -1459,10 +1459,31 @@ bool FilterManager::createFilterChain() {
+@@ -1377,10 +1377,31 @@ bool FilterManager::createFilterChain() {
    return !upgrade_rejected;
  }
  
@@ -128,10 +128,10 @@ index ac3acb4257..d6a264e2dc 100644
  
  void ActiveStreamDecoderFilter::requestDataDrained() {
 diff --git a/source/common/http/filter_manager.h b/source/common/http/filter_manager.h
-index 14e8ef4603..84bc0db2f1 100644
+index df33d8fcdd..dd0c8ca07c 100644
 --- a/source/common/http/filter_manager.h
 +++ b/source/common/http/filter_manager.h
-@@ -302,6 +302,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
+@@ -252,6 +252,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
  
    bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr host,
                                  StreamInfo::StreamInfo& stream_info) override;
@@ -141,7 +141,7 @@ index 14e8ef4603..84bc0db2f1 100644
  
    StreamDecoderFilterSharedPtr handle_;
    bool is_grpc_request_{};
-@@ -1012,6 +1015,9 @@ private:
+@@ -966,6 +969,9 @@ private:
      return request_metadata_map_vector_.get();
    }
  
@@ -151,7 +151,7 @@ index 14e8ef4603..84bc0db2f1 100644
    FilterManagerCallbacks& filter_manager_callbacks_;
    Event::Dispatcher& dispatcher_;
    const Network::Connection& connection_;
-@@ -1019,6 +1025,8 @@ private:
+@@ -973,6 +979,8 @@ private:
    Buffer::BufferMemoryAccountSharedPtr account_;
    const bool proxy_100_continue_;
  
@@ -161,10 +161,10 @@ index 14e8ef4603..84bc0db2f1 100644
    std::list<ActiveStreamEncoderFilterPtr> encoder_filters_;
    std::list<StreamFilterBase*> filters_;
 diff --git a/source/common/router/upstream_request.cc b/source/common/router/upstream_request.cc
-index c336eaffaf..cfbf6e06d6 100644
+index 4d460e6e20..b57dccbbc7 100644
 --- a/source/common/router/upstream_request.cc
 +++ b/source/common/router/upstream_request.cc
-@@ -516,6 +516,16 @@ void UpstreamRequest::onPoolReady(
+@@ -536,6 +536,16 @@ void UpstreamRequest::onPoolReady(
      max_stream_duration_timer_->enableTimer(*max_stream_duration);
    }
  
@@ -182,5 +182,5 @@ index c336eaffaf..cfbf6e06d6 100644
        upstream_->encodeHeaders(*parent_.downstreamHeaders(), shouldSendEndStream());
    calling_encode_headers_ = false;
 -- 
-2.36.0
+2.39.2
 

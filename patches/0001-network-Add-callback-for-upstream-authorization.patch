@@ -1,7 +1,7 @@
-From 421389d742e170107b58db297009021a2192ef3f Mon Sep 17 00:00:00 2001
+From 0920d44b92f292542ed78fed2461105f21c77d81 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 24 Jan 2022 15:40:28 +0200
-Subject: [PATCH 1/7] network: Add callback for upstream authorization
+Subject: [PATCH 1/6] network: Add callback for upstream authorization
 
 Add new ReadFilterCallbacks addUpstreamCallback() and
 iterateUpstreamCallbacks(). Network filters can add callbacks using
@@ -41,10 +41,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  14 files changed, 115 insertions(+)
 
 diff --git a/envoy/http/filter.h b/envoy/http/filter.h
-index da1b579dd6..d67178857e 100644
+index 03df0a36a7..fe2494284d 100644
 --- a/envoy/http/filter.h
 +++ b/envoy/http/filter.h
-@@ -624,6 +624,14 @@ public:
+@@ -639,6 +639,14 @@ public:
     * load balancing.
     */
    virtual absl::optional<absl::string_view> upstreamOverrideHost() const PURE;
@@ -60,10 +60,10 @@ index da1b579dd6..d67178857e 100644
  
  /**
 diff --git a/envoy/network/filter.h b/envoy/network/filter.h
-index d0fa799982..3572469ecb 100644
+index ec6d14f904..df5799b747 100644
 --- a/envoy/network/filter.h
 +++ b/envoy/network/filter.h
-@@ -110,6 +110,22 @@ public:
+@@ -111,6 +111,22 @@ public:
  
  using WriteFilterSharedPtr = std::shared_ptr<WriteFilter>;
  
@@ -86,7 +86,7 @@ index d0fa799982..3572469ecb 100644
  /**
   * Callbacks used by individual read filter instances to communicate with the filter manager.
   */
-@@ -160,6 +176,18 @@ public:
+@@ -161,6 +177,18 @@ public:
     * Set the currently selected upstream host for the connection.
     */
    virtual void upstreamHost(Upstream::HostDescriptionConstSharedPtr host) PURE;
@@ -106,10 +106,10 @@ index d0fa799982..3572469ecb 100644
  
  /**
 diff --git a/envoy/tcp/upstream.h b/envoy/tcp/upstream.h
-index 40b65fd458..5a2114eeeb 100644
+index be6170c8ae..f40e2931ef 100644
 --- a/envoy/tcp/upstream.h
 +++ b/envoy/tcp/upstream.h
-@@ -51,6 +51,11 @@ public:
+@@ -53,6 +53,11 @@ public:
     * @param callbacks callbacks to communicate stream failure or creation on.
     */
    virtual void newStream(GenericConnectionPoolCallbacks& callbacks) PURE;
@@ -122,10 +122,10 @@ index 40b65fd458..5a2114eeeb 100644
  
  // An API for the UpstreamRequest to get callbacks from either an HTTP or TCP
 diff --git a/source/common/http/async_client_impl.h b/source/common/http/async_client_impl.h
-index e68856ade3..5ee3d555b7 100644
+index 6e13c150e3..4d83b5a747 100644
 --- a/source/common/http/async_client_impl.h
 +++ b/source/common/http/async_client_impl.h
-@@ -335,6 +335,10 @@ private:
+@@ -344,6 +344,10 @@ private:
    const Network::Connection* connection() override { return nullptr; }
    Event::Dispatcher& dispatcher() override { return parent_.dispatcher_; }
    void resetStream() override;
@@ -137,7 +137,7 @@ index e68856ade3..5ee3d555b7 100644
    Router::RouteConstSharedPtr route(const Router::RouteCallback&) override { return nullptr; }
    void setRoute(Router::RouteConstSharedPtr) override {}
 diff --git a/source/common/http/conn_manager_impl.h b/source/common/http/conn_manager_impl.h
-index 7724620de2..114ee3c931 100644
+index 41412f624b..5e8bb972ed 100644
 --- a/source/common/http/conn_manager_impl.h
 +++ b/source/common/http/conn_manager_impl.h
 @@ -285,6 +285,11 @@ private:
@@ -153,10 +153,10 @@ index 7724620de2..114ee3c931 100644
  
      // Updates the snapped_route_config_ (by reselecting scoped route configuration), if a scope is
 diff --git a/source/common/http/filter_manager.cc b/source/common/http/filter_manager.cc
-index 5f0671be37..ac3acb4257 100644
+index 4cf3d769a3..4c59d0d9ef 100644
 --- a/source/common/http/filter_manager.cc
 +++ b/source/common/http/filter_manager.cc
-@@ -1459,6 +1459,12 @@ bool FilterManager::createFilterChain() {
+@@ -1377,6 +1377,12 @@ bool FilterManager::createFilterChain() {
    return !upgrade_rejected;
  }
  
@@ -170,10 +170,10 @@ index 5f0671be37..ac3acb4257 100644
    // If this is called it means the call to requestDataTooLarge() was a
    // streaming call, or a 413 would have been sent.
 diff --git a/source/common/http/filter_manager.h b/source/common/http/filter_manager.h
-index 80df07ecb1..14e8ef4603 100644
+index d709e78f8f..df33d8fcdd 100644
 --- a/source/common/http/filter_manager.h
 +++ b/source/common/http/filter_manager.h
-@@ -300,6 +300,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
+@@ -250,6 +250,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
        Http::RouteConfigUpdatedCallbackSharedPtr route_config_updated_cb) override;
    absl::optional<Router::ConfigConstSharedPtr> routeConfig();
  
@@ -183,7 +183,7 @@ index 80df07ecb1..14e8ef4603 100644
    StreamDecoderFilterSharedPtr handle_;
    bool is_grpc_request_{};
  };
-@@ -577,6 +580,12 @@ public:
+@@ -530,6 +533,12 @@ public:
     * Returns the tracked scope to use for this stream.
     */
    virtual const ScopeTrackedObject& scope() PURE;
@@ -236,10 +236,10 @@ index 8797316093..6ff42ffa43 100644
    const Socket& socket_;
    Upstream::HostDescriptionConstSharedPtr host_description_;
 diff --git a/source/common/router/router.cc b/source/common/router/router.cc
-index 641023a5ae..6d2107af2a 100644
+index 8ad142d67d..fccf07c171 100644
 --- a/source/common/router/router.cc
 +++ b/source/common/router/router.cc
-@@ -610,6 +610,14 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
+@@ -611,6 +611,14 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
      return Http::FilterHeadersStatus::StopIteration;
    }
  
@@ -255,10 +255,10 @@ index 641023a5ae..6d2107af2a 100644
  
    timeout_ = FilterUtility::finalTimeout(*route_entry_, headers, !config_.suppress_envoy_headers_,
 diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
-index a42116ab1e..70427be439 100644
+index f0c1c5d42f..5bb7c5a585 100644
 --- a/source/common/tcp_proxy/tcp_proxy.cc
 +++ b/source/common/tcp_proxy/tcp_proxy.cc
-@@ -468,6 +468,13 @@ bool Filter::maybeTunnel(Upstream::ThreadLocalCluster& cluster) {
+@@ -470,6 +470,13 @@ bool Filter::maybeTunnel(Upstream::ThreadLocalCluster& cluster) {
    generic_conn_pool_ = factory->createGenericConnPool(cluster, config_->tunnelingConfigHelper(),
                                                        this, *upstream_callbacks_);
    if (generic_conn_pool_) {
@@ -273,10 +273,10 @@ index a42116ab1e..70427be439 100644
      connect_attempts_++;
      getStreamInfo().setAttemptCount(connect_attempts_);
 diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
-index 1fdca8cb75..c64bec9776 100644
+index 0f3705c9d2..ab44713d9c 100644
 --- a/source/common/tcp_proxy/tcp_proxy.h
 +++ b/source/common/tcp_proxy/tcp_proxy.h
-@@ -419,6 +419,7 @@ protected:
+@@ -420,6 +420,7 @@ protected:
      NoHealthyUpstream,
      ResourceLimitExceeded,
      NoRoute,
@@ -285,7 +285,7 @@ index 1fdca8cb75..c64bec9776 100644
  
    // Callbacks for different error and success states during connection establishment
 diff --git a/source/common/tcp_proxy/upstream.cc b/source/common/tcp_proxy/upstream.cc
-index 53dbff2a2e..05e0ee7b58 100644
+index 53dbff2a2e..9ea545496d 100644
 --- a/source/common/tcp_proxy/upstream.cc
 +++ b/source/common/tcp_proxy/upstream.cc
 @@ -173,6 +173,10 @@ void TcpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
@@ -310,9 +310,8 @@ index 53dbff2a2e..05e0ee7b58 100644
  void HttpConnPool::onPoolFailure(ConnectionPool::PoolFailureReason reason,
                                   absl::string_view failure_reason,
                                   Upstream::HostDescriptionConstSharedPtr host) {
-
 diff --git a/source/common/tcp_proxy/upstream.h b/source/common/tcp_proxy/upstream.h
-index 5aef2b4ef3..25e839c3d9 100644
+index 2597804939..5dccfc1b29 100644
 --- a/source/common/tcp_proxy/upstream.h
 +++ b/source/common/tcp_proxy/upstream.h
 @@ -26,6 +26,7 @@ public:
@@ -346,5 +345,5 @@ index 13bd63e3fe..49e6a83071 100644
      // Synthetic class that acts as a stub for the connection backing the
      // Network::ReadFilterCallbacks.
 -- 
-2.36.0
+2.39.2
 
