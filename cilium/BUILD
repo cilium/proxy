@@ -134,6 +134,8 @@ envoy_cc_library(
         "@envoy//source/common/http:request_id_extension_lib",
         "@envoy//source/common/http:utility_lib",
         "@envoy//source/common/network:filter_manager_lib",
+        "@envoy//source/common/stream_info:bool_accessor_lib",
+        "@envoy//source/common/tcp_proxy:tcp_proxy",
         "@envoy_api//envoy/extensions/request_id/uuid/v3:pkg_cc_proto",
     ],
 )
