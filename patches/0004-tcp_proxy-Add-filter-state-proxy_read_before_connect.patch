@@ -1,0 +1,401 @@
+From efb84d93003d784f81e6cb8f24f36208e5662c1a Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Wed, 19 Apr 2023 16:11:37 -0700
+Subject: [PATCH 4/6] tcp_proxy: Add filter state proxy_read_before_connect
+
+Add filter state object bool proxy_receive_before_connect that tcp_proxy
+filter checks for and when set to 'true' will not set readDisable on the
+downstream connection before upstream connection is established.
+
+This change allows advanced cases where a network read filter needs to
+receive (and possibly send) downstream data that may change the
+destination of the upstream TCP connection, e.g. via metadata set based
+on the received data. If this is the case, then the read filter preceding
+the tcp_proxy filter must return StopIteration from its onNewConnection()
+call, causing tcp_proxy filter to postpone its upstream connection
+establishment until onData() returns Continue.
+
+Any data reaching the tcp_proxy filter before the upstream connection is
+established is buffered so that the downstream filters do not see the
+same data again which would be the case if it would remaining in the buffer
+and more data is received. This also allows downstream filters inject
+data before the upstream connection is established; such injected data
+would be lost if tcp_proxy would not buffer it while connection
+establishment is still ongoing.
+
+An existing dynamic metadata integration test is modified to use
+proxy_receive_before_connect=true. This makes the use case less
+reliant on the tcp_proxy internal detail, such as balancing and timing of
+the readDisable() calls on the downstream connection.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ envoy/stream_info/BUILD                       |  8 +++
+ envoy/stream_info/bool_accessor.h             | 21 ++++++
+ source/common/stream_info/BUILD               |  8 +++
+ .../common/stream_info/bool_accessor_impl.h   | 30 ++++++++
+ source/common/tcp_proxy/BUILD                 |  1 +
+ source/common/tcp_proxy/tcp_proxy.cc          | 34 ++++++++--
+ source/common/tcp_proxy/tcp_proxy.h           |  6 ++
+ test/integration/BUILD                        |  1 +
+ .../integration/tcp_proxy_integration_test.cc | 68 +++++++++++++------
+ 9 files changed, 151 insertions(+), 26 deletions(-)
+ create mode 100644 envoy/stream_info/bool_accessor.h
+ create mode 100644 source/common/stream_info/bool_accessor_impl.h
+
+diff --git a/envoy/stream_info/BUILD b/envoy/stream_info/BUILD
+index fb517d70d9..8320b72131 100644
+--- a/envoy/stream_info/BUILD
++++ b/envoy/stream_info/BUILD
+@@ -45,3 +45,11 @@ envoy_cc_library(
+         ":filter_state_interface",
+     ],
+ )
++
++envoy_cc_library(
++    name = "bool_accessor_interface",
++    hdrs = ["bool_accessor.h"],
++    deps = [
++        ":filter_state_interface",
++    ],
++)
+diff --git a/envoy/stream_info/bool_accessor.h b/envoy/stream_info/bool_accessor.h
+new file mode 100644
+index 0000000000..13a112e110
+--- /dev/null
++++ b/envoy/stream_info/bool_accessor.h
+@@ -0,0 +1,21 @@
++#pragma once
++
++#include "envoy/common/pure.h"
++#include "envoy/stream_info/filter_state.h"
++
++namespace Envoy {
++namespace StreamInfo {
++
++/**
++ * A FilterState object that tracks a single boolean value.
++ */
++class BoolAccessor : public FilterState::Object {
++public:
++  /**
++   * @return the tracked value.
++   */
++  virtual bool value() const PURE;
++};
++
++} // namespace StreamInfo
++} // namespace Envoy
+diff --git a/source/common/stream_info/BUILD b/source/common/stream_info/BUILD
+index 40cddbe6b6..37b04bfee8 100644
+--- a/source/common/stream_info/BUILD
++++ b/source/common/stream_info/BUILD
+@@ -60,3 +60,11 @@ envoy_cc_library(
+         "//envoy/stream_info:filter_state_interface",
+     ],
+ )
++
++envoy_cc_library(
++    name = "bool_accessor_lib",
++    hdrs = ["bool_accessor_impl.h"],
++    deps = [
++        "//envoy/stream_info:bool_accessor_interface",
++    ],
++)
+diff --git a/source/common/stream_info/bool_accessor_impl.h b/source/common/stream_info/bool_accessor_impl.h
+new file mode 100644
+index 0000000000..868bfefab9
+--- /dev/null
++++ b/source/common/stream_info/bool_accessor_impl.h
+@@ -0,0 +1,30 @@
++#pragma once
++
++#include "envoy/stream_info/bool_accessor.h"
++
++namespace Envoy {
++namespace StreamInfo {
++
++/*
++ * A FilterState object that tracks a single boolean value.
++ */
++class BoolAccessorImpl : public BoolAccessor {
++public:
++  BoolAccessorImpl(bool value) : value_(value) {}
++
++  // From FilterState::Object
++  ProtobufTypes::MessagePtr serializeAsProto() const override {
++    auto message = std::make_unique<ProtobufWkt::BoolValue>();
++    message->set_value(value_);
++    return message;
++  }
++
++  // From BoolAccessor.
++  bool value() const override { return value_; }
++
++private:
++  bool value_;
++};
++
++} // namespace StreamInfo
++} // namespace Envoy
+diff --git a/source/common/tcp_proxy/BUILD b/source/common/tcp_proxy/BUILD
+index 01743ff308..49ab0a885c 100644
+--- a/source/common/tcp_proxy/BUILD
++++ b/source/common/tcp_proxy/BUILD
+@@ -50,6 +50,7 @@ envoy_cc_library(
+         "//envoy/stats:stats_interface",
+         "//envoy/stats:stats_macros",
+         "//envoy/stats:timespan_interface",
++        "//envoy/stream_info:bool_accessor_interface",
+         "//envoy/stream_info:filter_state_interface",
+         "//envoy/tcp:conn_pool_interface",
+         "//envoy/tcp:upstream_interface",
+diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
+index 5bb7c5a585..67a7660e4b 100644
+--- a/source/common/tcp_proxy/tcp_proxy.cc
++++ b/source/common/tcp_proxy/tcp_proxy.cc
+@@ -11,6 +11,7 @@
+ #include "envoy/extensions/filters/network/tcp_proxy/v3/tcp_proxy.pb.h"
+ #include "envoy/extensions/filters/network/tcp_proxy/v3/tcp_proxy.pb.validate.h"
+ #include "envoy/stats/scope.h"
++#include "envoy/stream_info/bool_accessor.h"
+ #include "envoy/upstream/cluster_manager.h"
+ #include "envoy/upstream/upstream.h"
+ 
+@@ -208,7 +209,17 @@ void Filter::initialize(Network::ReadFilterCallbacks& callbacks, bool set_connec
+   // Need to disable reads so that we don't write to an upstream that might fail
+   // in onData(). This will get re-enabled when the upstream connection is
+   // established.
+-  read_callbacks_->connection().readDisable(true);
++  auto receive_before_connect =
++      read_callbacks_->connection()
++          .streamInfo()
++          .filterState()
++          ->getDataReadOnly<StreamInfo::BoolAccessor>(ReceiveBeforeConnectKey);
++  if (receive_before_connect && receive_before_connect->value()) {
++    receive_before_connect_ = true;
++  } else {
++    read_callbacks_->connection().readDisable(true);
++  }
++
+   getStreamInfo().setDownstreamBytesMeter(std::make_shared<StreamInfo::BytesMeter>());
+   getStreamInfo().setUpstreamInfo(std::make_shared<StreamInfo::UpstreamInfoImpl>());
+ 
+@@ -419,8 +430,11 @@ Network::FilterStatus Filter::establishUpstreamConnection() {
+     // cluster->stats().upstream_cx_none_healthy in the latter case.
+     getStreamInfo().setResponseFlag(StreamInfo::ResponseFlag::NoHealthyUpstream);
+     onInitFailure(UpstreamFailureReason::NoHealthyUpstream);
++    return Network::FilterStatus::StopIteration;
+   }
+-  return Network::FilterStatus::StopIteration;
++  // Allow OnData() to receive data before connect if so configured
++  return receive_before_connect_ ? Network::FilterStatus::Continue
++                                 : Network::FilterStatus::StopIteration;
+ }
+ 
+ void Filter::onClusterDiscoveryCompletion(Upstream::ClusterDiscoveryStatus cluster_status) {
+@@ -585,12 +599,18 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
+   if (upstream_) {
+     getStreamInfo().getUpstreamBytesMeter()->addWireBytesSent(data.length());
+     upstream_->encodeData(data, end_stream);
++    resetIdleTimer(); // TODO(ggreenway) PERF: do we need to reset timer on both send and receive?
++  } else if (receive_before_connect_) {
++    // Buffer data received before upstream connection exists
++    early_data_buffer_.move(data);
++    if (!early_data_end_stream_) {
++      early_data_end_stream_ = end_stream;
++    }
+   }
+   // The upstream should consume all of the data.
+   // Before there is an upstream the connection should be readDisabled. If the upstream is
+   // destroyed, there should be no further reads as well.
+   ASSERT(0 == data.length());
+-  resetIdleTimer(); // TODO(ggreenway) PERF: do we need to reset timer on both send and receive?
+   return Network::FilterStatus::StopIteration;
+ }
+ 
+@@ -686,7 +706,13 @@ void Filter::onUpstreamConnection() {
+   connecting_ = false;
+   // Re-enable downstream reads now that the upstream connection is established
+   // so we have a place to send downstream data to.
+-  read_callbacks_->connection().readDisable(false);
++  if (!receive_before_connect_) {
++    read_callbacks_->connection().readDisable(false);
++  } else if (early_data_buffer_.length() > 0) {
++    getStreamInfo().getUpstreamBytesMeter()->addWireBytesSent(early_data_buffer_.length());
++    upstream_->encodeData(early_data_buffer_, early_data_end_stream_);
++    ASSERT(0 == early_data_buffer_.length());
++  }
+ 
+   read_callbacks_->upstreamHost()->outlierDetector().putResult(
+       Upstream::Outlier::Result::LocalOriginConnectSuccessFinal);
+diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
+index ab44713d9c..7dfe2ab0ae 100644
+--- a/source/common/tcp_proxy/tcp_proxy.h
++++ b/source/common/tcp_proxy/tcp_proxy.h
+@@ -21,6 +21,7 @@
+ #include "envoy/upstream/cluster_manager.h"
+ #include "envoy/upstream/upstream.h"
+ 
++#include "source/common/buffer/buffer_impl.h"
+ #include "source/common/common/logger.h"
+ #include "source/common/formatter/substitution_format_string.h"
+ #include "source/common/http/header_map_impl.h"
+@@ -37,6 +38,8 @@
+ namespace Envoy {
+ namespace TcpProxy {
+ 
++constexpr absl::string_view ReceiveBeforeConnectKey = "envoy.tcp_proxy.receive_before_connect";
++
+ /**
+  * All tcp proxy stats. @see stats_macros.h
+  */
+@@ -479,6 +482,9 @@ protected:
+   uint32_t connect_attempts_{};
+   bool connecting_{};
+   bool downstream_closed_{};
++  bool receive_before_connect_{false};
++  bool early_data_end_stream_{false};
++  Buffer::OwnedImpl early_data_buffer_{};
+ };
+ 
+ // This class deals with an upstream connection that needs to finish flushing, when the downstream
+diff --git a/test/integration/BUILD b/test/integration/BUILD
+index a6f9685f3c..6d4b860ab2 100644
+--- a/test/integration/BUILD
++++ b/test/integration/BUILD
+@@ -1383,6 +1383,7 @@ envoy_cc_test(
+         "//source/common/event:dispatcher_includes",
+         "//source/common/event:dispatcher_lib",
+         "//source/common/network:utility_lib",
++        "//source/common/stream_info:bool_accessor_lib",
+         "//source/extensions/access_loggers/file:config",
+         "//source/extensions/filters/network/common:factory_base_lib",
+         "//source/extensions/filters/network/tcp_proxy:config",
+diff --git a/test/integration/tcp_proxy_integration_test.cc b/test/integration/tcp_proxy_integration_test.cc
+index 0f3f9459ee..7e3b2bbb8d 100644
+--- a/test/integration/tcp_proxy_integration_test.cc
++++ b/test/integration/tcp_proxy_integration_test.cc
+@@ -12,6 +12,8 @@
+ 
+ #include "source/common/config/api_version.h"
+ #include "source/common/network/utility.h"
++#include "source/common/stream_info/bool_accessor_impl.h"
++#include "source/common/tcp_proxy/tcp_proxy.h"
+ #include "source/extensions/filters/network/common/factory_base.h"
+ #include "source/extensions/transport_sockets/tls/context_manager_impl.h"
+ 
+@@ -1157,18 +1159,27 @@ public:
+   Network::FilterStatus onData(Buffer::Instance& data, bool) override {
+     if (!metadata_set_) {
+       // To allow testing a write that returns `StopIteration`, only proceed
+-      // when more than 1 byte is received.
+-      if (data.length() < 2) {
+-        ASSERT(data.length() == 1);
+-
+-        // Echo data back to test can verify it was received.
+-        Buffer::OwnedImpl copy(data);
+-        read_callbacks_->connection().write(copy, false);
++      // when more than 1 word is received.
++
++      // locate the first space in data
++      char space = ' ';
++      ssize_t index = data.search(&space, sizeof(space), 0);
++      if (index < 0) {
++        // When returning StopIteration the received data remains in the buffer
++        // so that we can get to it later when enough data has been received.
+         return Network::FilterStatus::StopIteration;
+       }
+ 
++      void* p = data.linearize(index);
++      std::string first_word(static_cast<char*>(p), index);
++
++      // Echo first word back so tests can verify it was received
++      Buffer::OwnedImpl copy(first_word);
++      read_callbacks_->connection().write(copy, false);
++
++      // Use the first word as dynamic metadata value
+       ProtobufWkt::Value val;
+-      val.set_string_value(data.toString());
++      val.set_string_value(first_word);
+ 
+       ProtobufWkt::Struct& map =
+           (*read_callbacks_->connection()
+@@ -1177,24 +1188,25 @@ public:
+                 .mutable_filter_metadata())[Envoy::Config::MetadataFilters::get().ENVOY_LB];
+       (*map.mutable_fields())[key_] = val;
+ 
+-      // Put this back in the state that TcpProxy expects.
+-      read_callbacks_->connection().readDisable(true);
+-
+       metadata_set_ = true;
+     }
+     return Network::FilterStatus::Continue;
+   }
+ 
+   Network::FilterStatus onNewConnection() override {
+-    // TcpProxy disables read; must re-enable so we can read headers.
+-    read_callbacks_->connection().readDisable(false);
+-
+     // Stop until we read the value and can set the metadata for TcpProxy.
++    // TcpProxy proceeds with upstream connection once onData() returns FilterStatus::Continue.
+     return Network::FilterStatus::StopIteration;
+   }
+ 
+   void initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) override {
+     read_callbacks_ = &callbacks;
++
++    // Tell TcpProxy to not disable read so that we can read headers
++    read_callbacks_->connection().streamInfo().filterState()->setData(
++        TcpProxy::ReceiveBeforeConnectKey, std::make_unique<StreamInfo::BoolAccessorImpl>(true),
++        StreamInfo::FilterState::StateType::ReadOnly,
++        StreamInfo::FilterState::LifeSpan::Connection);
+   }
+ 
+   const std::string key_;
+@@ -1252,14 +1264,26 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataMatch) {
+   initialize();
+ 
+   expectEndpointToMatchRoute([](IntegrationTcpClient& tcp_client) -> std::string {
+-    // Break the write into two; validate that the first is received before sending the second. This
+-    // validates that a downstream filter can use this functionality, even if it can't make a
+-    // decision after the first `onData()`.
+-    EXPECT_TRUE(tcp_client.write("p", false));
+-    tcp_client.waitForData("p");
++    // Break the write into multiple chunks; validate that the first word is received before sending
++    // the rest. This validates that a downstream filter can use this functionality, even if it
++    // can't make a decision after the first `onData()`.
++    EXPECT_TRUE(tcp_client.write("pri", false));
++    // Writing additional data in multiple chunks to show that buffering of early data in tcp_buffer
++    // works properly
++    EXPECT_TRUE(tcp_client.write("mary is ", false));
++    EXPECT_TRUE(tcp_client.write("selected ", false));
++    EXPECT_TRUE(tcp_client.write("before ", false));
++    // check that the 1st word is returned
++    tcp_client.waitForData("primary");
++
+     tcp_client.clearData();
+-    EXPECT_TRUE(tcp_client.write("rimary", false));
+-    return "primary";
++    // some more data, most likely the upstream connection has already been established as we waited
++    // for the return data above.
++    EXPECT_TRUE(tcp_client.write("upstream connection ", false));
++    EXPECT_TRUE(tcp_client.write("exists", false));
++
++    // All data expected at the destination
++    return "primary is selected before upstream connection exists";
+   });
+ }
+ 
+@@ -1276,7 +1300,7 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataNonMatch) {
+ 
+   initialize();
+ 
+-  expectEndpointNotToMatchRoute("does_not_match_role_primary");
++  expectEndpointNotToMatchRoute("does not match role primary");
+ }
+ 
+ INSTANTIATE_TEST_SUITE_P(TcpProxyIntegrationTestParams, TcpProxySslIntegrationTest,
+-- 
+2.39.2
+
