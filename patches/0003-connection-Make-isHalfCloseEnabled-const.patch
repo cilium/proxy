@@ -1,25 +1,25 @@
-From a26dcb39b6e90ad477ea35443596eb3fbe7e4344 Mon Sep 17 00:00:00 2001
+From 46e79bc285181e92f3394b2a6619042632c0a6fc Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Wed, 21 Sep 2022 18:48:03 +0300
-Subject: [PATCH 3/6] connection: Make isHalfCloseEnabled const
+Subject: [PATCH 3/5] connection: Make isHalfCloseEnabled const
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
  envoy/network/connection.h                                | 2 +-
  source/common/network/connection_impl.h                   | 2 +-
- source/common/network/multi_connection_base_impl.cc       | 2 +-
+ source/common/network/multi_connection_base_impl.cc       | 4 +++-
  source/common/network/multi_connection_base_impl.h        | 2 +-
  source/common/quic/quic_filter_manager_connection_impl.cc | 2 +-
  source/common/quic/quic_filter_manager_connection_impl.h  | 2 +-
  source/server/api_listener_impl.h                         | 2 +-
  test/mocks/network/connection.h                           | 2 +-
- 8 files changed, 8 insertions(+), 8 deletions(-)
+ 8 files changed, 10 insertions(+), 8 deletions(-)
 
 diff --git a/envoy/network/connection.h b/envoy/network/connection.h
-index 3cbada199d..1b8a8af456 100644
+index 554bee0e11..0a9a113319 100644
 --- a/envoy/network/connection.h
 +++ b/envoy/network/connection.h
-@@ -129,7 +129,7 @@ public:
+@@ -131,7 +131,7 @@ public:
    /**
     * @return true if half-close semantics are enabled, false otherwise.
     */
@@ -29,7 +29,7 @@ index 3cbada199d..1b8a8af456 100644
    /**
     * Close the connection.
 diff --git a/source/common/network/connection_impl.h b/source/common/network/connection_impl.h
-index bf9933f180..e1769c7ea7 100644
+index e958b07f62..fa943d454c 100644
 --- a/source/common/network/connection_impl.h
 +++ b/source/common/network/connection_impl.h
 @@ -65,7 +65,7 @@ public:
@@ -42,15 +42,17 @@ index bf9933f180..e1769c7ea7 100644
    std::string nextProtocol() const override { return transport_socket_->protocol(); }
    void noDelay(bool enable) override;
 diff --git a/source/common/network/multi_connection_base_impl.cc b/source/common/network/multi_connection_base_impl.cc
-index bebda20b03..407ad3ad32 100644
+index bebda20b03..7d8b815cb7 100644
 --- a/source/common/network/multi_connection_base_impl.cc
 +++ b/source/common/network/multi_connection_base_impl.cc
-@@ -102,7 +102,7 @@ void MultiConnectionBaseImpl::enableHalfClose(bool enabled) {
+@@ -102,7 +102,9 @@ void MultiConnectionBaseImpl::enableHalfClose(bool enabled) {
    }
  }
  
 -bool MultiConnectionBaseImpl::isHalfCloseEnabled() { return connections_[0]->isHalfCloseEnabled(); }
-+bool MultiConnectionBaseImpl::isHalfCloseEnabled() const { return connections_[0]->isHalfCloseEnabled(); }
++bool MultiConnectionBaseImpl::isHalfCloseEnabled() const {
++  return connections_[0]->isHalfCloseEnabled();
++}
  
  std::string MultiConnectionBaseImpl::nextProtocol() const {
    return connections_[0]->nextProtocol();
@@ -68,7 +70,7 @@ index 9734df18a6..5b8f8ee5dd 100644
    // Note, this might change before connect finishes.
    ConnectionInfoSetter& connectionInfoSetter() override;
 diff --git a/source/common/quic/quic_filter_manager_connection_impl.cc b/source/common/quic/quic_filter_manager_connection_impl.cc
-index 6f8fd2f6c6..3910fbfc51 100644
+index a131dbcf21..591d8f1f25 100644
 --- a/source/common/quic/quic_filter_manager_connection_impl.cc
 +++ b/source/common/quic/quic_filter_manager_connection_impl.cc
 @@ -53,7 +53,7 @@ void QuicFilterManagerConnectionImpl::enableHalfClose(bool enabled) {
@@ -81,10 +83,10 @@ index 6f8fd2f6c6..3910fbfc51 100644
    return false;
  }
 diff --git a/source/common/quic/quic_filter_manager_connection_impl.h b/source/common/quic/quic_filter_manager_connection_impl.h
-index 0c0083d4f1..43209699de 100644
+index b07636f7ac..298b0056f8 100644
 --- a/source/common/quic/quic_filter_manager_connection_impl.h
 +++ b/source/common/quic/quic_filter_manager_connection_impl.h
-@@ -49,7 +49,7 @@ public:
+@@ -51,7 +51,7 @@ public:
      IS_ENVOY_BUG("unexpected call to addBytesSentCallback");
    }
    void enableHalfClose(bool enabled) override;
@@ -94,10 +96,10 @@ index 0c0083d4f1..43209699de 100644
    Event::Dispatcher& dispatcher() override { return dispatcher_; }
    std::string nextProtocol() const override { return EMPTY_STRING; }
 diff --git a/source/server/api_listener_impl.h b/source/server/api_listener_impl.h
-index c45ef959d8..d1ef5c789a 100644
+index cd4c5377a5..d2dc24eddc 100644
 --- a/source/server/api_listener_impl.h
 +++ b/source/server/api_listener_impl.h
-@@ -120,7 +120,7 @@ protected:
+@@ -118,7 +118,7 @@ protected:
          IS_ENVOY_BUG("Unexpected function call");
        }
        void enableHalfClose(bool) override { IS_ENVOY_BUG("Unexpected function call"); }

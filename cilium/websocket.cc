@@ -18,6 +18,8 @@
 #include "source/common/http/utility.h"
 #include "source/common/network/filter_manager_impl.h"
 #include "source/common/network/utility.h"
+#include "source/common/stream_info/bool_accessor_impl.h"
+#include "source/common/tcp_proxy/tcp_proxy.h"
 
 #include "cilium/api/websocket.pb.validate.h"
 #include "cilium/socket_option.h"
@@ -112,6 +114,19 @@ public:
  */
 REGISTER_FACTORY(CiliumWebSocketClientConfigFactory,
                  Server::Configuration::NamedNetworkFilterConfigFactory);
+
+void Instance::initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) {
+  callbacks_ = &callbacks;
+
+  // Tell TcpProxy to not disable read so that we do WebSocket handshake before upstream
+  // connection is established.
+  // Use Mutable StateType so that tests can have both client and server filters in the same
+  // filter chain.
+  callbacks_->connection().streamInfo().filterState()->setData(
+      TcpProxy::ReceiveBeforeConnectKey, std::make_unique<StreamInfo::BoolAccessorImpl>(true),
+      StreamInfo::FilterState::StateType::Mutable,
+      StreamInfo::FilterState::LifeSpan::Connection);
+}
 
 Network::FilterStatus Instance::onNewConnection() {
   ENVOY_LOG(debug, "cilium.network.websocket: onNewConnection");
