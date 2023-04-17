@@ -76,6 +76,7 @@ paths:
   # @envoyproxy/dependency-shepherds.
   build_urls:
     include:
+    - api/bazel/envoy_git_repository.bzl
     - api/bazel/envoy_http_archive.bzl
     - api/bazel/repository_locations.bzl
     - bazel/external/cargo/crates.bzl
