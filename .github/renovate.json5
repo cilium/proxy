@@ -7,7 +7,9 @@
   ],
   "includePaths": [
     ".github/workflows/**",
-    "Dockerfile.builder"
+    "Dockerfile.builder",
+    "WORKSPACE",
+    "ENVOY_VERSION"
   ],
   "pinDigests": true,
   "ignorePresets": [":prHourlyLimit2"],
@@ -48,6 +50,42 @@
       "allowedVersions": "20.04",
       "matchBaseBranches": [
         "master"
+      ]
+    },
+    {
+      // Group envoy updates
+      "groupName": "envoy",
+      "matchDepNames": [
+        "envoyproxy/envoy"
+      ]
+    }
+  ],
+  "regexManagers": [
+    {
+      "fileMatch": [
+        "^WORKSPACE$",
+      ],
+      // These regexes manage version and digest strings in shell scripts,
+      // similar to the examples shown here:
+      //   https://docs.renovatebot.com/modules/manager/regex/#advanced-capture
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+_VERSION = \"(?<currentValue>.*)\"",
+        // The digestVersion in this regex is required for Renovate to be able
+        // to match the digest to the pinned version. It will not work without it.
+        // Note that for GitHub release artifact digests, you likely want to use
+        // github-release-attachments as the datasource here.
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?) digestVersion=(?<currentValue>.*)\\s+.+_SHA = \"(?<currentDigest>.*)\""
+      ]
+    },
+    {
+      "fileMatch": [
+        "^ENVOY_VERSION$"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "envoyproxy/envoy",
+      "extractVersionTemplate": "^v?(?<version>.+)$",
+      "matchStrings": [
+        "envoy-(?<currentValue>.*)"
       ]
     }
   ]
