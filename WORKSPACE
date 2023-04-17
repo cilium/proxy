@@ -2,6 +2,11 @@ workspace(name = "cilium")
 
 register_toolchains("//bazel/toolchains:all")
 
+ENVOY_PROJECT = "envoyproxy"
+
+ENVOY_REPO = "envoy"
+
+# Envoy GIT commit SHA of release
 #
 # We grep for the following line to generate SOURCE_VERSION file for non-git
 # distribution builds. This line must start with the string ENVOY_SHA followed by
@@ -9,19 +14,10 @@ register_toolchains("//bazel/toolchains:all")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_PROJECT = "envoyproxy"
-
-ENVOY_REPO = "envoy"
-
-# https://github.com/envoyproxy/envoy/tree/v1.25.5
-# NOTE: Update version number to file 'ENVOY_VERSION' to keep test and build docker images
-# for different versions.
 ENVOY_SHA = "4b5f5474f35763423684c0fe25c99cc7b2a01fcf"
 
-ENVOY_SHA256 = "00191a1e702040ec8f92ba18344b001e862e55cc6e24a60509db450bdeb8c0ee"
-
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 # // clang-format on
 
 local_repository(
@@ -29,8 +25,12 @@ local_repository(
     path = "envoy_build_config",
 )
 
-http_archive(
+git_repository(
     name = "envoy",
+    # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
+    remote = "https://github.com/envoyproxy/envoy.git",
+    # // clang-format on
+    commit = ENVOY_SHA,
     patch_args = ["apply"],
     patch_tool = "git",
     patches = [
@@ -40,11 +40,6 @@ http_archive(
         "@//patches:0004-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
         "@//patches:0005-router-Do-not-set-SNI-or-SAN-due-to-auto_sni-or-auto.patch",
     ],
-    sha256 = ENVOY_SHA256,
-    strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
-    # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
-    url = "https://github.com/" + ENVOY_PROJECT + "/" + ENVOY_REPO + "/archive/" + ENVOY_SHA + ".tar.gz",
-    # // clang-format on
 )
 
 #
