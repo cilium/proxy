@@ -698,6 +698,15 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
 
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
   tls_map_.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
+
+  if (context.admin().has_value()) {
+    ENVOY_LOG(debug, "Registering NetworkPolicies to config tracker");
+    config_tracker_entry_ = context.admin()->getConfigTracker().add(
+      "networkpolicies", [this](const Matchers::StringMatcher& name_matcher) {
+        return dumpNetworkPolicyConfigs(name_matcher);
+      });
+    RELEASE_ASSERT(config_tracker_entry_, "");
+  }
 }
 
 // This is used in production
@@ -917,6 +926,20 @@ void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureRe
 void NetworkPolicyMap::runAfterAllThreads(std::function<void()> cb) const {
   const_cast<NetworkPolicyMap*>(this)->tls_map_.runOnAllThreads([](OptRef<ThreadLocalPolicyMap>) {},
                                                                 cb);
+}
+
+ProtobufTypes::MessagePtr NetworkPolicyMap::dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher) {
+  ENVOY_LOG(debug, "Writing NetworkPolicies to NetworkPoliciesConfigDump");
+
+  auto config_dump = std::make_unique<cilium::NetworkPoliciesConfigDump>();
+  for (const auto &item: tls_map_->policies_) {
+    if (!name_matcher.match(item.first)) {
+      continue;
+    }
+    config_dump->mutable_networkpolicies()->Add()->CopyFrom(item.second->policy_proto_);
+  }
+
+  return config_dump;
 }
 
 PolicyInstanceConstSharedPtr NetworkPolicyMap::AllowAllEgressPolicy =
