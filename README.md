@@ -12,7 +12,7 @@ for the cluster. Cilium proxy is distributed within the Cilium images.
 
 Cilium proxy is best built with the provided build containers. For a
 local host build consult [the builder
-Dockerfile](https://github.com/cilium/proxy/blob/master/Dockerfile.builder)
+Dockerfile](https://github.com/cilium/proxy/blob/main/Dockerfile.builder)
 for the required dependencies.
 
 Container builds require Docker Buildkit and optionally Buildx for
@@ -82,7 +82,7 @@ to `default`.
 ### Using custom pre-compiled Envoy dependencies
 
 Docker build uses cached Bazel artifacts from
-`quay.io/cilium/cilium-envoy-builder:master-archive-latest` by
+`quay.io/cilium/cilium-envoy-builder:main-archive-latest` by
 default. You can override this by defining `ARCHIVE_IMAGE=<ref>`:
 
 ```
@@ -123,7 +123,7 @@ ARCH=multi make docker-builder-archive
 ```
 
 By default the pre-compiled dependencies image is tagged as
-`quay.io/cilium/cilium-envoy-builder:master-archive-latest`. You
+`quay.io/cilium/cilium-envoy-builder:main-archive-latest`. You
 can override the first two parts of this by defining
 `DOCKER_DEV_ACCOUNT=docker.io/me`,
 `BUILDER_ARCHIVE_TAG=my-builder-archive`, or completely by defining
@@ -135,7 +135,7 @@ significantly. To do this you should update Envoy version in
 `ENVOY_VERSION` and supply `NO_CACHE=1` and `NO_ARCHIVE=1` on the make line, e.g.:
 
 ```
-ARCH=multi NO_CACHE=1 NO_ARCHIVE=1 BUILDER_ARCHIVE_TAG=master-archive-latest make docker-builder-archive
+ARCH=multi NO_CACHE=1 NO_ARCHIVE=1 BUILDER_ARCHIVE_TAG=main-archive-latest make docker-builder-archive
 ```
 
 
@@ -174,7 +174,7 @@ make docker-tests
 
 This runs the integration tests after loading Bazel build cache for
 Envoy dependencies from
-`quay.io/cilium/cilium-envoy-builder:test-master-archive-latest`. Define
+`quay.io/cilium/cilium-envoy-builder:test-main-archive-latest`. Define
 `NO_ARCHIVE=1` and `NO_CACHE=1` to compile tests from scratch.
 
 This command fails if any of the integration tests fail, printing the
@@ -194,7 +194,7 @@ make docker-tests-archive
 ```
 
 By default the pre-compiled test dependencies image is tagged as
-`quay.io/cilium/cilium-envoy-builder:test-master-archive-latest`. You
+`quay.io/cilium/cilium-envoy-builder:test-main-archive-latest`. You
 can override the first two parts of this by defining
 `DOCKER_DEV_ACCOUNT=docker.io/me`,
 `TESTS_ARCHIVE_TAG=my-test-archive`, or completely by defining
