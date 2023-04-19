@@ -183,6 +183,9 @@ private:
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   Envoy::Config::ScopedResume resume_;
 
+  ProtobufTypes::MessagePtr dumpNetworkPolicyConfigs(const Matchers::StringMatcher &name_matcher);
+  Server::ConfigTracker::EntryOwnerPtr config_tracker_entry_;
+
 public:
   const bool is_sidecar_;
 };
