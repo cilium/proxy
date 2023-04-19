@@ -58,6 +58,17 @@
       "matchDepNames": [
         "envoyproxy/envoy"
       ]
+    },
+    {
+      // Disable major & minor updates of Envoy
+      "enabled": false,
+      "matchDepNames": [
+        "envoyproxy/envoy"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+      ]
     }
   ],
   "regexManagers": [
