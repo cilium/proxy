@@ -280,3 +280,10 @@ message L7NetworkPolicyRule {
   // request. Not allowed if 'rule' is present.
   repeated envoy.type.matcher.v3.MetadataMatcher metadata_rule = 2;
 }
+
+// Cilium's network policy manager fills this message with all currently known network policies.
+message NetworkPoliciesConfigDump {
+
+  // The loaded networkpolicy configs.
+  repeated NetworkPolicy networkpolicies = 1;
+}
