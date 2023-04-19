@@ -160,6 +160,9 @@ private:
   std::string name_;
   Cilium::CtMapSharedPtr ctmap_;
 
+  ProtobufTypes::MessagePtr dumpNetworkPolicyConfigs(const Matchers::StringMatcher &name_matcher);
+  Server::ConfigTracker::EntryOwnerPtr config_tracker_entry_;
+
 public:
   Server::Configuration::TransportSocketFactoryContext& transport_socket_factory_context_;
   const std::string local_ip_str_;

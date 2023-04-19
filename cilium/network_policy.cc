@@ -727,6 +727,13 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
 
   tls_map.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
+
+  ENVOY_LOG(debug, "Registering NetworkPolicies to config tracker");
+  config_tracker_entry_ = context.admin().getConfigTracker().add(
+    "networkpolicies", [this](const Matchers::StringMatcher& name_matcher) {
+      return dumpNetworkPolicyConfigs(name_matcher);
+    });
+  RELEASE_ASSERT(config_tracker_entry_, "");
 }
 
 // This is used in production
@@ -874,6 +881,20 @@ void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureRe
   // We need to allow server startup to continue, even if we have a bad
   // config.
   ENVOY_LOG(debug, "Network Policy Update failed, keeping existing policy.");
+}
+
+ProtobufTypes::MessagePtr NetworkPolicyMap::dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher) {
+  ENVOY_LOG(debug, "Writing NetworkPolicies to NetworkPoliciesConfigDump");
+
+  auto config_dump = std::make_unique<cilium::NetworkPoliciesConfigDump>();
+  for (const auto &item: tls_map->policies_) {
+    if (!name_matcher.match(item.first)) {
+      continue;
+    }
+    config_dump->mutable_networkpolicies()->Add()->CopyFrom(item.second->policy_proto_);
+  }
+
+  return config_dump;
 }
 
 PolicyInstanceConstSharedPtr NetworkPolicyMap::AllowAllEgressPolicy =
