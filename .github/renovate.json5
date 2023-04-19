@@ -18,7 +18,7 @@
   "separateMinorPatch": true,
   "pruneStaleBranches": true,
   "baseBranches": [
-    "master"
+    "main"
   ],
   "labels": [
     "kind/enhancement",
@@ -49,7 +49,7 @@
       ],
       "allowedVersions": "20.04",
       "matchBaseBranches": [
-        "master"
+        "main"
       ]
     },
     {
