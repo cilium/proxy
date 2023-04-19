@@ -2,7 +2,7 @@ name: Refresh test & build cache & build latest
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   test-cache-refresh:

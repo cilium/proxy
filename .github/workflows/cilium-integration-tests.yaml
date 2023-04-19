@@ -2,14 +2,14 @@ name: Cilium Integration Tests
 on:
   push:
     branches:
-      - master
+      - main
   pull_request_target:
     types:
       - opened
       - reopened
       - synchronize
     branches:
-      - master
+      - main
   issue_comment:
     types:
       - created
