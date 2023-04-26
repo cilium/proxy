@@ -79,7 +79,7 @@ jobs:
             BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
             BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1
           push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-master-archive-latest
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
 
       - name: Cache Docker layers
         uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
@@ -100,7 +100,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
-            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-master-archive-latest
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
             BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
@@ -166,7 +166,7 @@ jobs:
             COPY_CACHE_EXT=.new
             BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
           push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:master-archive-latest
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
 
       - name: Cache Docker layers
         uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
@@ -190,7 +190,7 @@ jobs:
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
-            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:master-archive-latest
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: true
           tags: |
