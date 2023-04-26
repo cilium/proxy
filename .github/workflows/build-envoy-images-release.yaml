@@ -201,13 +201,10 @@ jobs:
       - name: Envoy binary version check
         shell: bash
         run: |
-          docker create -ti --name cilium-envoy quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }} bash
-          docker cp cilium-envoy:/usr/bin/cilium-envoy ./cilium-envoy
-          docker rm -fv cilium-envoy
-          envoy_version=$(./cilium-envoy --version)
-          expected_ersion=$(echo ${{ env.ENVOY_MINOR_RELEASE }} | sed 's/^v//')
+          envoy_version=$(docker run -it --rm quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }} cilium-envoy --version)
+          expected_version=$(echo ${{ env.ENVOY_MINOR_RELEASE }} | sed 's/^v//')
           echo ${envoy_version}
-          [[ "${envoy_version}" == *"${{ github.sha }}/$expected_ersion"* ]]
+          [[ "${envoy_version}" == *"${{ github.sha }}/$expected_version"* ]]
 
       - name: Release Image Digest
         shell: bash
