@@ -7,6 +7,7 @@
   ],
   "includePaths": [
     ".github/workflows/**",
+    "Dockerfile",
     "Dockerfile.builder",
     "WORKSPACE",
     "ENVOY_VERSION"
@@ -44,6 +45,21 @@
       ]
     },
     {
+      "matchFiles": [
+        "Dockerfile",
+      ],
+      "matchPackageNames": [
+        "docker.io/library/ubuntu"
+      ],
+      "allowedVersions": "22.04",
+      "matchBaseBranches": [
+        "main"
+      ]
+    },
+    {
+      "matchFiles": [
+        "Dockerfile.builder",
+      ],
       "matchPackageNames": [
         "docker.io/library/ubuntu"
       ],
