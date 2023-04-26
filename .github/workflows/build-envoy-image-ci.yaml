@@ -35,6 +35,7 @@ jobs:
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_MINOR_RELEASE=$(cat ENVOY_VERSION | sed 's/envoy-\([0-9]\+\.[0-9]\+\)\..*/v\1/')" >> $GITHUB_ENV
+          echo "ENVOY_PATCH_RELEASE=$(cat ENVOY_VERSION | sed 's/^envoy-\([0-9]\+\.[0-9]\+\.[0-9]\+$\)/v\1/')" >> $GITHUB_ENV
           echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
 
@@ -88,7 +89,7 @@ jobs:
         shell: bash
         run: |
           envoy_version=$(docker run -it --rm quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }} cilium-envoy --version)
-          expected_version=$(echo ${{ env.ENVOY_MINOR_RELEASE }} | sed 's/^v//')
+          expected_version=$(echo ${{ env.ENVOY_PATCH_RELEASE }} | sed 's/^v//')
           echo ${envoy_version}
           [[ "${envoy_version}" == *"${{ github.event.pull_request.head.sha }}/$expected_version"* ]]
 
