@@ -1,5 +1,9 @@
 workspace(name = "cilium")
 
+ENVOY_PROJECT = "envoyproxy"
+ENVOY_REPO = "envoy"
+
+# Envoy GIT commit SHA of release
 #
 # We grep for the following line to generate SOURCE_VERSION file for non-git
 # distribution builds. This line must start with the string ENVOY_SHA followed by
@@ -7,24 +11,21 @@ workspace(name = "cilium")
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-ENVOY_PROJECT = "envoyproxy"
-ENVOY_REPO = "envoy"
-
-# https://github.com/envoyproxy/envoy/tree/v1.22.10
-# NOTE: Update version number to file 'ENVOY_VERSION' to keep test and build docker images
-# for different versions.
 ENVOY_SHA = "ad105d154ff3e422b8e9ccc8525d46a78ee88330"
-ENVOY_SHA256 = "73856e0bec62adf480b483227858c34accfc6246f34c9a67872fe36f7526081e"
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 local_repository(
     name = "envoy_build_config",
     path = "envoy_build_config",
 )
 
-http_archive(
+git_repository(
     name = "envoy",
+    # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
+    remote = "https://github.com/envoyproxy/envoy.git",
+    # // clang-format on
+    commit = ENVOY_SHA,
     patch_tool = "git",
     patch_args = ["apply"],
     patches = [
@@ -36,9 +37,6 @@ http_archive(
         "@//patches:0006-tcmalloc-Update-for-arm64-support.patch",
         "@//patches:0007-boringssl-Compat-with-cross-compile-using-legacy-cpu.patch",
     ],
-    sha256 = ENVOY_SHA256,
-    strip_prefix = ENVOY_REPO + "-" + ENVOY_SHA,
-    url = "https://github.com/" + ENVOY_PROJECT + "/" + ENVOY_REPO + "/archive/" + ENVOY_SHA + ".tar.gz",
 )
 
 #
