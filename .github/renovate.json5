@@ -57,6 +57,16 @@
       ]
     },
     {
+      // Do not allow any updates/pinning of image quay.io/cilium/cilium-envoy-builder
+      "enabled": false,
+      "matchFiles": [
+        "Dockerfile",
+      ],
+      "matchPackageNames": [
+        "quay.io/cilium/cilium-envoy-builder"
+      ]
+    },
+    {
       "matchFiles": [
         "Dockerfile.builder",
       ],
