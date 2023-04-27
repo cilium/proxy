@@ -19,7 +19,9 @@
   "separateMinorPatch": true,
   "pruneStaleBranches": true,
   "baseBranches": [
-    "main"
+    "main",
+    "v1.23",
+    "v1.22"
   ],
   "labels": [
     "kind/enhancement",
@@ -65,25 +67,39 @@
       ],
       "allowedVersions": "20.04",
       "matchBaseBranches": [
+        "main",
+        "v1.23",
+        "v1.22"
+      ]
+    },
+    {
+      "groupName": "envoy 1.25.x",
+      "matchDepNames": [
+        "envoyproxy/envoy"
+      ],
+      "allowedVersions": "<=1.25",
+      "matchBaseBranches": [
         "main"
       ]
     },
     {
-      // Group envoy updates
-      "groupName": "envoy",
-      "matchDepNames": [
-        "envoyproxy/envoy"
-      ]
-    },
-    {
-      // Disable major & minor updates of Envoy
-      "enabled": false,
+      "groupName": "envoy 1.23.x",
       "matchDepNames": [
         "envoyproxy/envoy"
       ],
-      "matchUpdateTypes": [
-        "major",
-        "minor",
+      "allowedVersions": "<=1.23",
+      "matchBaseBranches": [
+        "v1.23"
+      ]
+    },
+    {
+      "groupName": "envoy 1.22.x",
+      "matchDepNames": [
+        "envoyproxy/envoy"
+      ],
+      "allowedVersions": "<=1.22",
+      "matchBaseBranches": [
+        "v1.22"
       ]
     }
   ],
