@@ -88,7 +88,7 @@ jobs:
       - name: Envoy binary version check
         shell: bash
         run: |
-          envoy_version=$(docker run -it --rm quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }} cilium-envoy --version)
+          envoy_version=$(docker run --rm quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }} cilium-envoy --version)
           expected_version=$(echo ${{ env.ENVOY_PATCH_RELEASE }} | sed 's/^v//')
           echo ${envoy_version}
           [[ "${envoy_version}" == *"${{ github.event.pull_request.head.sha }}/$expected_version"* ]]
