@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest-64-cores-256gb
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8c0edbc76e98fa90f69d9a2c020dcb50019dc325
+        uses: docker/setup-buildx-action@a946f06b5ddbde456d0115dc585e8dc3c7a0c3e0
         with:
           version: v0.9.1
       - name: Enable Docker IPv6
@@ -19,13 +19,13 @@ jobs:
           sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json || echo '{ "ipv6": true, "fixed-cidr-v6": "fd00::/80" }' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
       - name: Cache Docker layers
-        uses: actions/cache@58c146cc91c5b9e778e71775dfe9bf1442ad9a12
+        uses: actions/cache@04f198bf0b2a39f7230a4304bf07747a0bddf146
         with:
           path: /tmp/buildx-cache
           key: docker-cache-tests
           restore-keys: docker-cache-master
       - name: Checkout PR Source Code
-        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8
+        uses: actions/checkout@f095bcc56b7c2baf48f3ac70d6d6782f4f553222
       - name: Pull proxylib/libcilium.so
         run: |
           docker create -ti --name cilium-proxylib quay.io/cilium/cilium:v1.12.0 bash
@@ -36,7 +36,7 @@ jobs:
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
       - name: Run integration tests on amd64
-        uses: docker/build-push-action@37abcedcc1da61a57767b7588cb9d03eb57e28b3
+        uses: docker/build-push-action@eafaea8d0f5853934deece2ffa67af59d936562b
         id: docker_tests_ci
         with:
           context: .
