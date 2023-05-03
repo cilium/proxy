@@ -75,6 +75,6 @@ COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 #
 # Extract installed cilium-envoy binaries to an otherwise empty image
 #
-FROM docker.io/library/ubuntu:22.04@sha256:c66cc4eb5a9b748f93f76d804699adaba59501dda2dfe40b260e7133fe3dfe14
+FROM docker.io/library/ubuntu:22.04@sha256:b24c5a75097671e95e6ddb19f9640d61e6a45adbcef7dd5e9b9f86d703325410
 LABEL maintainer="maintainer@cilium.io"
 COPY --from=builder /tmp/install /
