@@ -36,7 +36,7 @@ jobs:
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
       - name: Run integration tests on amd64
-        uses: docker/build-push-action@eafaea8d0f5853934deece2ffa67af59d936562b
+        uses: docker/build-push-action@91df6b874e498451163feb47610c87c4a218c1ee
         id: docker_tests_ci
         with:
           context: .
