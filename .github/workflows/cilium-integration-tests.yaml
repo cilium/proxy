@@ -128,8 +128,12 @@ jobs:
       - name: Patch Cilium Agent Dockerfile
         shell: bash
         run: |
-          sed -i -E 's|(FROM )(quay\.io\/cilium\/cilium-envoy:)([0-9a-z]*)(@sha256:[0-9a-z]*)( as cilium-envoy)|\1${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }}\5|' ./images/cilium/Dockerfile
+          sed -i -E 's|(FROM )(quay\.io\/cilium\/cilium-envoy:)(.*)(@sha256:[0-9a-z]*)( as cilium-envoy)|\1${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }}\5|' ./images/cilium/Dockerfile
           cat ./images/cilium/Dockerfile
+          if git diff --exit-code ./images/cilium/Dockerfile; then
+            echo "Dockerfile not modified"
+            exit 1
+          fi
 
       - name: Wait for Cilium Proxy image to be available
         timeout-minutes: 30
