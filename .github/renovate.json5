@@ -132,6 +132,17 @@
     },
     {
       "fileMatch": [
+        "^\\.github/workflows/[^/]+\\.ya?ml$"
+      ],
+      // These regexes manage version strings in env blocks in GH actions,
+      // similar to the examples shown here:
+      //   https://docs.renovatebot.com/modules/manager/regex/#advanced-capture
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+_VERSION: (?<currentValue>.*)",
+      ]
+    },
+    {
+      "fileMatch": [
         "^ENVOY_VERSION$"
       ],
       "datasourceTemplate": "github-releases",
