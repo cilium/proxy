@@ -27,6 +27,7 @@ secretProvider(Server::Configuration::TransportSocketFactoryContext& context,
 
 getSDSConfigFunc getSDSConfig = &getCiliumSDSConfig;
 void setSDSConfigFunc(getSDSConfigFunc func) { getSDSConfig = func; }
+void resetSDSConfigFunc() { getSDSConfig = &getCiliumSDSConfig; }
 
 SecretWatcher::SecretWatcher(const NetworkPolicyMap& parent, const std::string& sds_name)
     : parent_(parent), name_(sds_name),
