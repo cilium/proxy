@@ -1,6 +1,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/config/decoded_resource_impl.h"
 #include "source/common/protobuf/utility.h"
+#include "source/common/secret/secret_provider_impl.h"
 
 #include "test/mocks/server/factory_context.h"
 #include "test/test_common/environment.h"
@@ -24,6 +25,21 @@ protected:
   void SetUp() override {
     ON_CALL(factory_context_.transport_socket_factory_context_, stats())
         .WillByDefault(testing::ReturnRef(store_));
+
+    // Mock SDS secrets with a real implementation, which will not return anything if there is no SDS server.
+    // This is only useful for testing functionality with a missing secret.
+    auto& secret_manager = factory_context_.server_factory_context_.cluster_manager_.cluster_manager_factory_.secretManager();
+    ON_CALL(secret_manager, findOrCreateGenericSecretProvider(_, _, _, _))
+      .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,
+			       const std::string& config_name,
+			       Server::Configuration::TransportSocketFactoryContext& secret_provider_context,
+			       Init::Manager& init_manager) {
+	auto secret_provider = Secret::GenericSecretSdsApi::create(secret_provider_context, sds_config_source,
+								   config_name, [](){});
+	init_manager.add(*secret_provider->initTarget());
+	return secret_provider;
+      }));
+
     policy_map_ = std::make_shared<NetworkPolicyMap>(factory_context_);
   }
   void TearDown() override {
@@ -592,6 +608,79 @@ resources:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 79, {{":path", "/allows"}}));
   // Port out of range:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 91, {{":path", "/public"}}));
+}
+
+TEST_F(CiliumNetworkPolicyTest, HttpPolicyUpdateToMissingSDS) {
+  std::string version;
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "0"
+)EOF"));
+  EXPECT_EQ(version, "0");
+  EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
+  // No policy for the pod
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+
+  // 1st update
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+)EOF"));
+  EXPECT_EQ(version, "1");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Wrong path:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+
+  // 2nd update
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+          header_matches:
+          - name: 'bearer-token'
+            value_sds_secret: 'nonexisting-sds-secret'
+            mismatch_action: REPLACE_ON_MISMATCH
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Wrong path:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 }
 
 } // namespace
