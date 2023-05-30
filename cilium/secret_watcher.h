@@ -17,6 +17,7 @@ namespace Cilium {
 typedef envoy::config::core::v3::ConfigSource (*getSDSConfigFunc)(const std::string& name);
 extern getSDSConfigFunc getSDSConfig;
 void setSDSConfigFunc(getSDSConfigFunc);
+void resetSDSConfigFunc();
 
 class SecretWatcher : public Logger::Loggable<Logger::Id::config> {
 public:
