@@ -20,6 +20,7 @@ Network::Address::InstanceConstSharedPtr original_dst_address;
 std::shared_ptr<const Cilium::NetworkPolicyMap> npmap{nullptr}; // Keep reference to singleton
 
 std::string policy_config = "version_info: \"0\"";
+std::string policy_path = "";
 
 std::vector<std::pair<std::string, std::string>> sds_configs{};
 
@@ -73,17 +74,17 @@ createPolicyMap(const std::string& config,
               });
         }
         // File subscription.
-        std::string path = TestEnvironment::writeStringToFileForTest("network_policy.yaml", config);
+        policy_path = TestEnvironment::writeStringToFileForTest("network_policy.yaml", config);
         ENVOY_LOG_MISC(debug,
                        "Loading Cilium Network Policy from file \'{}\' instead "
                        "of using gRPC",
-                       path);
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path, context.api());
+                       policy_path);
+        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(policy_path, context.api());
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path), *map,
+            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(policy_path), *map,
             std::make_shared<Cilium::NetworkPolicyDecoder>(), stats,
             ProtobufMessage::getNullValidationVisitor(), context.api());
         map->startSubscription(std::move(subscription));
