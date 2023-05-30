@@ -215,7 +215,6 @@ protected:
             if (header_value.result().has_value())
               logRejected(log_entry, header_value.result().value());
             // Set the expected value
-            ENVOY_LOG(debug, "secret replacing header {}={}", name_, *match_value);
             headers.setCopy(name_, *match_value);
             // Log the expected value as missing
             logMissing(log_entry, *match_value);
