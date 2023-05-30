@@ -3,6 +3,7 @@
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/thread_local/thread_local_impl.h"
 
+#include "cilium/secret_watcher.h"
 #include "tests/bpf_metadata.h" // host_map_config
 #include "tests/cilium_http_integration.h"
 
@@ -235,6 +236,8 @@ static_resources:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
           stat_prefix: config_test
           codec_type: auto
+          use_remote_address: true
+          skip_xff_append: true
           http_filters:
           - name: test_l7policy
             typed_config:
@@ -260,8 +263,7 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
 public:
   CiliumIntegrationTest()
       : CiliumHttpIntegrationTest(
-            fmt::format(TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()), "true")) {
-  }
+            fmt::format(TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()), "true")) {}
   CiliumIntegrationTest(const std::string& config) : CiliumHttpIntegrationTest(config) {}
 
   std::string testPolicyFmt() override {
@@ -272,6 +274,14 @@ public:
     return std::vector<std::pair<std::string, std::string>>{
         {"bearer-token", SECRET_TOKEN_CONFIG},
     };
+  }
+
+  void initialize() override {
+    accessLogServer_.clear();
+    if (!initialized_) {
+      HttpIntegrationTest::initialize();
+      initialized_ = true;
+    }
   }
 
   void Denied(Http::TestRequestHeaderMapImpl&& headers) {
@@ -333,6 +343,23 @@ public:
     cleanupUpstreamAndDownstream();
   }
 
+  bool initialized_ = false;
+};
+
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+
+class HostMapTest : public CiliumHttpIntegrationTest {
+public:
+  HostMapTest()
+      : CiliumHttpIntegrationTest(
+            fmt::format(TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()), "true")) {
+  }
+
+  std::string testPolicyFmt() override {
+    return "version_info: \"0\"";
+  }
+
   void InvalidHostMap(const std::string& config, const char* exmsg) {
     std::string path = TestEnvironment::writeStringToFileForTest("host_map_fail.yaml", config);
     envoy::service::discovery::v3::DiscoveryResponse message;
@@ -352,10 +379,10 @@ public:
   }
 };
 
-INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationTest,
+INSTANTIATE_TEST_SUITE_P(IpVersions, HostMapTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
-TEST_P(CiliumIntegrationTest, HostMapValid) {
+TEST_P(HostMapTest, HostMapValid) {
   std::string config = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -404,7 +431,7 @@ resources:
   tls.shutdownGlobalThreading();
 }
 
-TEST_P(CiliumIntegrationTest, HostMapInvalidNonCIDRBits) {
+TEST_P(HostMapTest, HostMapInvalidNonCIDRBits) {
   if (GetParam() == Network::Address::IpVersion::v4) {
     InvalidHostMap(R"EOF(version_info: "0"
 resources:
@@ -424,7 +451,7 @@ resources:
   }
 }
 
-TEST_P(CiliumIntegrationTest, HostMapInvalidPrefixLengths) {
+TEST_P(HostMapTest, HostMapInvalidPrefixLengths) {
   if (GetParam() == Network::Address::IpVersion::v4) {
     InvalidHostMap(
         R"EOF(version_info: "0"
@@ -445,7 +472,7 @@ resources:
   }
 }
 
-TEST_P(CiliumIntegrationTest, HostMapInvalidPrefixLengths2) {
+TEST_P(HostMapTest, HostMapInvalidPrefixLengths2) {
   if (GetParam() == Network::Address::IpVersion::v4) {
     InvalidHostMap(
         R"EOF(version_info: "0"
@@ -466,7 +493,7 @@ resources:
   }
 }
 
-TEST_P(CiliumIntegrationTest, HostMapInvalidPrefixLengths3) {
+TEST_P(HostMapTest, HostMapInvalidPrefixLengths3) {
   if (GetParam() == Network::Address::IpVersion::v4) {
     InvalidHostMap(
         R"EOF(version_info: "0"
@@ -487,7 +514,7 @@ resources:
   }
 }
 
-TEST_P(CiliumIntegrationTest, HostMapDuplicateEntry) {
+TEST_P(HostMapTest, HostMapDuplicateEntry) {
   if (GetParam() == Network::Address::IpVersion::v4) {
     InvalidHostMap(R"EOF(version_info: "0"
 resources:
@@ -509,7 +536,7 @@ resources:
   }
 }
 
-TEST_P(CiliumIntegrationTest, HostMapDuplicateEntry2) {
+TEST_P(HostMapTest, HostMapDuplicateEntry2) {
   if (GetParam() == Network::Address::IpVersion::v4) {
     InvalidHostMap(R"EOF(version_info: "0"
 resources:
@@ -537,7 +564,7 @@ resources:
   }
 }
 
-TEST_P(CiliumIntegrationTest, HostMapInvalidAddress) {
+TEST_P(HostMapTest, HostMapInvalidAddress) {
   if (GetParam() == Network::Address::IpVersion::v4) {
     InvalidHostMap(
         R"EOF(version_info: "0"
@@ -559,7 +586,7 @@ resources:
   }
 }
 
-TEST_P(CiliumIntegrationTest, HostMapInvalidAddress2) {
+TEST_P(HostMapTest, HostMapInvalidAddress2) {
   if (GetParam() == Network::Address::IpVersion::v4) {
     InvalidHostMap(
         R"EOF(version_info: "0"
@@ -581,7 +608,7 @@ resources:
   }
 }
 
-TEST_P(CiliumIntegrationTest, HostMapInvalidDefaults) {
+TEST_P(HostMapTest, HostMapInvalidDefaults) {
   if (GetParam() == Network::Address::IpVersion::v4) {
     InvalidHostMap(R"EOF(version_info: "0"
 resources:
@@ -627,6 +654,42 @@ TEST_P(CiliumIntegrationTest, AllowedPathPrefix) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathPrefixWrongHeader) {
+  Accepted({{":method", "GET"},
+            {":path", "/allowed"},
+            {":authority", "host"},
+            {"bearer-token", "wrong-value"},
+            {"x-envoy-original-dst-host", "1.1.1.1:9999"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& rejected = http.rejected_headers();
+    const auto& missing = http.missing_headers();
+    return http.rejected_headers_size() == 1 && hasHeader(rejected, "bearer-token", "[redacted]") &&
+           http.missing_headers_size() == 2 && hasHeader(missing, "header42") &&
+           hasHeader(missing, "bearer-token", "[redacted]") &&
+           // Check that logged headers have the replaced value
+           hasHeader(http.headers(), "bearer-token", "d4ef0f5011f163ac") &&
+           !hasHeader(http.headers(), "header42");
+  }));
+}
+
+TEST_P(CiliumIntegrationTest, MultipleRequests) {
+  // 1st request
+  Accepted({{":method", "GET"},
+            {":path", "/allowed"},
+            {":authority", "host"},
+            {"bearer-token", "d4ef0f5011f163ac"}});
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    const auto& http = entry.http();
+    const auto& missing = http.missing_headers();
+    return http.missing_headers_size() == 1 && hasHeader(missing, "header42") &&
+           http.rejected_headers_size() == 0 && !hasHeader(http.headers(), "header42");
+  }));
+
+  // 2nd request
   Accepted({{":method", "GET"},
             {":path", "/allowed"},
             {":authority", "host"},
@@ -966,6 +1029,213 @@ TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix) {
 
 TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix2) {
   Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
+}
+
+
+const std::string HEADER_ACTION_MISSING_SDS_POLICY_fmt = R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
+  endpoint_id: 3
+  ingress_per_port_policies:
+  - port: {0}
+    rules:
+    - remote_policies: [ 1 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed2'
+    - remote_policies: [ 42 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/only42'
+)EOF";
+
+const std::string HEADER_ACTION_MISSING_SDS_POLICY2_fmt = R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
+  endpoint_id: 3
+  ingress_per_port_policies:
+  - port: {0}
+    rules:
+    - remote_policies: [ 1 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+          header_matches:
+          - name: 'header42'
+            match_action: FAIL_ON_MATCH
+            mismatch_action: CONTINUE_ON_MISMATCH
+          - name: 'bearer-token'
+            value_sds_secret: 'nonexisting-sds-secret'
+            mismatch_action: REPLACE_ON_MISMATCH
+)EOF";
+
+class SDSIntegrationTest : public CiliumIntegrationTest {
+public:
+  SDSIntegrationTest() : CiliumIntegrationTest() {
+    // switch back to SDS secrets so that we can test with a missing secret.
+    // File based secret fails if the file does not exist, while SDS should allow for secret to be
+    // created in future.
+    Cilium::resetSDSConfigFunc();
+
+    host_map_config = R"EOF(version_info: "0"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicyHosts
+  policy: 42
+  host_addresses: [ "192.168.1.1", "f00d::1:1" ]
+- "@type": type.googleapis.com/cilium.NetworkPolicyHosts
+  policy: 1
+  host_addresses: [ "127.0.0.0/8", "::/104" ]
+- "@type": type.googleapis.com/cilium.NetworkPolicyHosts
+  policy: 2
+  host_addresses: [ "0.0.0.0/0", "::/0" ]
+)EOF";
+
+  }
+
+  std::string testPolicyFmt2() {
+    return TestEnvironment::substitute(HEADER_ACTION_MISSING_SDS_POLICY2_fmt, GetParam());
+  }
+
+  std::string testPolicyFmt() override {
+    return TestEnvironment::substitute(HEADER_ACTION_MISSING_SDS_POLICY_fmt, GetParam());
+  }
+
+  std::vector<std::pair<std::string, std::string>> testSecrets() override {
+    return std::vector<std::pair<std::string, std::string>>{}; // No secrets
+  }
+};
+
+
+INSTANTIATE_TEST_SUITE_P(IpVersions, SDSIntegrationTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
+
+TEST_P(SDSIntegrationTest, TestDeniedL3) {
+  Denied({
+      {":method", "GET"},
+      {":path", "/only42"},
+      {":authority", "host"}
+    });
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    const auto& http = entry.http();
+
+    ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
+
+    return http.rejected_headers_size() == 0 &&
+      http.missing_headers_size() == 0 &&
+      entry.source_security_id() == 1 &&
+      source_ip == ((GetParam() == Network::Address::IpVersion::v4) ? "127.0.0.1" : "::1");
+  }));
+}
+
+TEST_P(SDSIntegrationTest, TestDeniedL3SpoofedXFF) {
+  Denied({
+      {":method", "GET"},
+      {":path", "/only42"},
+      {":authority", "host"},
+      {"x-forwarded-for", "192.168.1.1"}
+    });
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    const auto& http = entry.http();
+
+    ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
+
+    return http.rejected_headers_size() == 0 &&
+      http.missing_headers_size() == 0 &&
+      entry.source_security_id() == 1 &&
+      source_ip == ((GetParam() == Network::Address::IpVersion::v4) ? "127.0.0.1" : "::1");
+  }));
+}
+
+TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
+  Accepted({
+      {":method", "GET"},
+      {":path", "/allowed2"},
+      {":authority", "host"}
+    });
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    const auto& http = entry.http();
+
+    ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
+
+    return http.rejected_headers_size() == 0 &&
+      http.missing_headers_size() == 0;
+  }));
+
+  // Update policy that still has the missing secret
+  auto port = fake_upstreams_[0]->localAddress()->ip()->port();
+  auto config = fmt::format(testPolicyFmt2(), port);
+  std::string temp_path = TestEnvironment::writeStringToFileForTest("network_policy_tmp.yaml", config);
+  std::string backup_path = policy_path + ".backup";
+  TestEnvironment::renameFile(policy_path, backup_path);
+  TestEnvironment::renameFile(temp_path, policy_path);
+  ENVOY_LOG_MISC(debug,
+		 "Updating Cilium Network Policy from file \'{}\'->\'{}\' instead "
+		 "of using gRPC",
+		 temp_path, policy_path);
+
+  // 2nd round, on updated policy
+  Accepted({
+      {":method", "GET"},
+      {":path", "/allowed"},
+      {":authority", "host"}
+    });
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    const auto& http = entry.http();
+    const auto& missing = http.missing_headers();
+
+    ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
+
+    return http.rejected_headers_size() == 0 &&
+      http.missing_headers_size() == 2 &&
+      hasHeader(missing, "header42") &&
+      hasHeader(missing, "bearer-token", "[redacted]");
+  }));
+
+  // 3rd round back to the initial policy
+  TestEnvironment::renameFile(backup_path, policy_path);
+  ENVOY_LOG_MISC(debug,
+		 "Updating Cilium Network Policy from file \'{}\'->\'{}\' instead "
+		 "of using gRPC",
+		 backup_path, policy_path);
+
+  Denied({
+      {":method", "GET"},
+      {":path", "/allowed"},
+      {":authority", "host"}
+    });
+
+  // Validate that missing headers are access logged correctly
+  EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    const auto& http = entry.http();
+
+    ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
+
+    return http.rejected_headers_size() == 0 &&
+      http.missing_headers_size() == 0;
+  }));
 }
 
 } // namespace Envoy
