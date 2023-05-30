@@ -23,6 +23,7 @@ extern Network::Address::InstanceConstSharedPtr original_dst_address;
 extern std::shared_ptr<const Cilium::NetworkPolicyMap> npmap;
 
 extern std::string policy_config;
+extern std::string policy_path;
 extern std::vector<std::pair<std::string, std::string>> sds_configs;
 
 extern void initTestMaps(Server::Configuration::ListenerFactoryContext& context);
