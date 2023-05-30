@@ -98,10 +98,11 @@ const Protobuf::MethodDescriptor& sotwGrpcMethod(absl::string_view type_url) {
 // Note: No rate-limit settings are used, consider if needed.
 envoy::config::core::v3::ConfigSource getCiliumXDSAPIConfig() {
   auto config_source = envoy::config::core::v3::ConfigSource();
-  /* config_source.initial_fetch_timeout left at default 15 seconds.
+  /* config_source.initial_fetch_timeout is set to 5 seconds.
    * This applies only to SDS Secrets for now, as for NPDS and NPHDS we explicitly set the timeout
    * as 0 (no timeout).
    */
+  config_source.mutable_initial_fetch_timeout()->set_seconds(5);
   config_source.set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
   auto api_config_source = config_source.mutable_api_config_source();
   api_config_source->set_set_node_on_first_message_only(true);
