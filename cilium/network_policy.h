@@ -76,8 +76,14 @@ using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
 
 class PolicyInstanceImpl;
 
-struct ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject {
+class ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject,
+                             public Logger::Loggable<Logger::Id::config> {
+public:
   std::map<std::string, std::shared_ptr<const PolicyInstanceImpl>> policies_;
+
+  void Update(std::vector<std::shared_ptr<PolicyInstanceImpl>>& added,
+              std::vector<std::string>& deleted,
+              const std::string& version_info);
 };
 
 class NetworkPolicyDecoder : public Envoy::Config::OpaqueResourceDecoder {

@@ -751,6 +751,26 @@ void NetworkPolicyMap::pause() {
 
 void NetworkPolicyMap::resume() { resume_.reset(); }
 
+void ThreadLocalPolicyMap::Update(std::vector<std::shared_ptr<PolicyInstanceImpl>>& added,
+                                  std::vector<std::string>& deleted,
+                                  const std::string& version_info) {
+  ENVOY_LOG(trace,
+            "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
+            "updates on the {} thread for version {}",
+            Thread::MainThread::isMainThread() ? "main" : "worker",
+            version_info);
+  for (const auto& policy_name : deleted) {
+    ENVOY_LOG(trace, "Cilium deleting removed network policy for endpoint {}", policy_name);
+    policies_.erase(policy_name);
+  }
+  for (const auto& new_policy : added) {
+    for (const auto& endpoint_ip : new_policy->policy_proto_.endpoint_ips()) {
+      ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", endpoint_ip);
+      policies_[endpoint_ip] = new_policy;
+    }
+  }
+}
+
 void NetworkPolicyMap::onConfigUpdate(
     const std::vector<Envoy::Config::DecodedResourceRef>& resources,
     const std::string& version_info) {
@@ -874,6 +894,10 @@ void NetworkPolicyMap::onConfigUpdate(
     // Execute changes on all threads.
     tls_map_.runOnAllThreads(
         [to_be_added, to_be_deleted, version_info](OptRef<ThreadLocalPolicyMap> npmap) {
+	  // Main thread done after the worker threads
+	  if (Thread::MainThread::isMainThread())
+	    return;
+	  
           if (!npmap.has_value()) {
             ENVOY_LOG(debug,
                       "Cilium L7 NetworkPolicyMap::onConfigUpdate(): npmap has no value "
@@ -881,23 +905,14 @@ void NetworkPolicyMap::onConfigUpdate(
                       version_info);
             return;
           }
-          ENVOY_LOG(trace,
-                    "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
-                    "updates on the next thread for version {}",
-                    version_info);
-          for (const auto& policy_name : *to_be_deleted) {
-            ENVOY_LOG(trace, "Cilium deleting removed network policy for endpoint {}", policy_name);
-            npmap->policies_.erase(policy_name);
-          }
-          for (const auto& new_policy : *to_be_added) {
-            for (const auto& endpoint_ip : new_policy->policy_proto_.endpoint_ips()) {
-              ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", endpoint_ip);
-              npmap->policies_[endpoint_ip] = new_policy;
-            }
-          }
+	  npmap->Update(*to_be_added, *to_be_deleted, version_info);
         },
         // All threads have executed updates, delete old cts and mark the local init target ready.
-        [shared_this, cts_to_be_closed]() {
+        [shared_this, to_be_added, to_be_deleted, version_info, cts_to_be_closed]() {
+	  // Update on the main thread last, so that deletes happen on the same thread as allocs
+	  auto npmap = shared_this->tls_map_.get();
+	  npmap->Update(*to_be_added, *to_be_deleted, version_info);
+
           if (shared_this->ctmap_ && cts_to_be_closed->size() > 0) {
             shared_this->ctmap_->closeMaps(cts_to_be_closed);
           }
