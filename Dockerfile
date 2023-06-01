@@ -77,4 +77,10 @@ COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 #
 FROM docker.io/library/ubuntu:22.04@sha256:dfd64a3b4296d8c9b62aa3309984f8620b98d87e47492599ee20739e8eb54fbf
 LABEL maintainer="maintainer@cilium.io"
+# install ca-certificates package
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install --no-install-recommends -y ca-certificates \
+    && apt-get autoremove -y && apt-get clean \
+    && rm -rf /tmp/* /var/tmp/* \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /tmp/install /
