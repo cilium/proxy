@@ -228,7 +228,7 @@ EXTENSIONS = {
     # "envoy.transport_sockets.tap":                      "//source/extensions/transport_sockets/tap:config",
     # "envoy.transport_sockets.starttls":                 "//source/extensions/transport_sockets/starttls:config",
     # "envoy.transport_sockets.tcp_stats":                "//source/extensions/transport_sockets/tcp_stats:config",
-    # "envoy.transport_sockets.internal_upstream":        "//source/extensions/transport_sockets/internal_upstream:config",
+    "envoy.transport_sockets.internal_upstream":        "//source/extensions/transport_sockets/internal_upstream:config",
 
     #
     # Retry host predicates
@@ -292,7 +292,7 @@ EXTENSIONS = {
     #
 
     # "envoy.io_socket.user_space":                       "//source/extensions/io_socket/user_space:config",
-    # "envoy.bootstrap.internal_listener":                "//source/extensions/bootstrap/internal_listener:config",
+    "envoy.bootstrap.internal_listener":                "//source/extensions/bootstrap/internal_listener:config",
 
     #
     # TLS peer certification validators
