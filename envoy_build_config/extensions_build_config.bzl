@@ -18,7 +18,7 @@ EXTENSIONS = {
     #
 
     # "envoy.clusters.aggregate":                         "//source/extensions/clusters/aggregate:cluster",
-    # "envoy.clusters.dynamic_forward_proxy":             "//source/extensions/clusters/dynamic_forward_proxy:cluster",
+    "envoy.clusters.dynamic_forward_proxy":             "//source/extensions/clusters/dynamic_forward_proxy:cluster",
     "envoy.clusters.eds":                               "//source/extensions/clusters/eds:eds_lib",
     # "envoy.clusters.redis":                             "//source/extensions/clusters/redis:redis_cluster",
     "envoy.clusters.static":                            "//source/extensions/clusters/static:static_cluster_lib",
@@ -150,6 +150,7 @@ EXTENSIONS = {
     # Network filters
     #
 
+    # "envoy.filters.network.client_ssl_auth":                      "//contrib/client_ssl_auth/filters/network/source:config",
     "envoy.filters.network.connection_limit":                     "//source/extensions/filters/network/connection_limit:config",
     # "envoy.filters.network.direct_response":                      "//source/extensions/filters/network/direct_response:config",
     # "envoy.filters.network.dubbo_proxy":                          "//source/extensions/filters/network/dubbo_proxy:config",
@@ -391,7 +392,7 @@ EXTENSIONS = {
     # Early Data option
     #
 
-    # "envoy.route.early_data_policy.default":           "//source/extensions/early_data:default_early_data_policy_lib",
+    "envoy.route.early_data_policy.default":           "//source/extensions/early_data:default_early_data_policy_lib",
 
     #
     # Load balancing policies for upstream
