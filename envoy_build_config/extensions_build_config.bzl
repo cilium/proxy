@@ -386,8 +386,8 @@ EXTENSIONS = {
     #
     # Path Pattern Match and Path Pattern Rewrite
     #
-    # "envoy.path.match.uri_template.uri_template_matcher": "//source/extensions/path/match/uri_template:config",
-    # "envoy.path.rewrite.uri_template.uri_template_rewriter": "//source/extensions/path/rewrite/uri_template:config",
+    "envoy.path.match.uri_template.uri_template_matcher": "//source/extensions/path/match/uri_template:config",
+    "envoy.path.rewrite.uri_template.uri_template_rewriter": "//source/extensions/path/rewrite/uri_template:config",
     #
     # Early Data option
     #
@@ -404,7 +404,7 @@ EXTENSIONS = {
 
     # HTTP Early Header Mutation
     #
-    # "envoy.http.early_header_mutation.header_mutation": "//source/extensions/http/early_header_mutation/header_mutation:config",
+    "envoy.http.early_header_mutation.header_mutation": "//source/extensions/http/early_header_mutation/header_mutation:config",
 }
 
 # These can be changed to ["//visibility:public"], for  downstream builds which
