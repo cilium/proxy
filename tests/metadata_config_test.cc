@@ -86,7 +86,7 @@ protected:
     EXPECT_TRUE(remote_address_);
     EXPECT_NE(nullptr, remote_address_->ip());
 
-    ON_CALL(io_handle_, localAddress()).WillByDefault(Return(original_dst_address));
+    ON_CALL(io_handle_, localAddress()).WillByDefault(testing::Return(original_dst_address));
     EXPECT_EQ(&io_handle_, &socket_.ioHandle());
     auto addr = socket_.ioHandle().localAddress().get();
     EXPECT_NE(nullptr, addr);
