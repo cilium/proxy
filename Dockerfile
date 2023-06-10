@@ -1,7 +1,7 @@
 # 
 # BUILDER_BASE is a multi-platform image with all the build tools
 #
-ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.0.0-latest
+ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.1.0-latest
 
 # Common Builder image used in cilium/cilium
 # We need gcc for cgo cross-compilation at least, we can swap to something smaller later on
