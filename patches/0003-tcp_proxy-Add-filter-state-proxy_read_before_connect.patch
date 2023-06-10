@@ -30,116 +30,15 @@ the readDisable() calls on the downstream connection.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- envoy/stream_info/BUILD                       |  8 +++
- envoy/stream_info/bool_accessor.h             | 21 ++++++
- source/common/stream_info/BUILD               |  8 +++
- .../common/stream_info/bool_accessor_impl.h   | 30 +++++++++
  source/common/tcp_proxy/BUILD                 |  1 +
  source/common/tcp_proxy/tcp_proxy.cc          | 34 ++++++++--
  source/common/tcp_proxy/tcp_proxy.h           |  6 ++
  test/integration/BUILD                        |  1 +
  .../integration/tcp_proxy_integration_test.cc | 67 +++++++++++++------
- 9 files changed, 150 insertions(+), 26 deletions(-)
- create mode 100644 envoy/stream_info/bool_accessor.h
- create mode 100644 source/common/stream_info/bool_accessor_impl.h
+ 5 files changed, 83 insertions(+), 26 deletions(-)
 
-diff --git a/envoy/stream_info/BUILD b/envoy/stream_info/BUILD
-index 0cbf7df216..10c253696c 100644
---- a/envoy/stream_info/BUILD
-+++ b/envoy/stream_info/BUILD
-@@ -51,3 +51,11 @@ envoy_cc_library(
-     name = "stream_id_provider_interface",
-     hdrs = ["stream_id_provider.h"],
- )
-+
-+envoy_cc_library(
-+    name = "bool_accessor_interface",
-+    hdrs = ["bool_accessor.h"],
-+    deps = [
-+        ":filter_state_interface",
-+    ],
-+)
-diff --git a/envoy/stream_info/bool_accessor.h b/envoy/stream_info/bool_accessor.h
-new file mode 100644
-index 0000000000..13a112e110
---- /dev/null
-+++ b/envoy/stream_info/bool_accessor.h
-@@ -0,0 +1,21 @@
-+#pragma once
-+
-+#include "envoy/common/pure.h"
-+#include "envoy/stream_info/filter_state.h"
-+
-+namespace Envoy {
-+namespace StreamInfo {
-+
-+/**
-+ * A FilterState object that tracks a single boolean value.
-+ */
-+class BoolAccessor : public FilterState::Object {
-+public:
-+  /**
-+   * @return the tracked value.
-+   */
-+  virtual bool value() const PURE;
-+};
-+
-+} // namespace StreamInfo
-+} // namespace Envoy
-diff --git a/source/common/stream_info/BUILD b/source/common/stream_info/BUILD
-index 1dc253ab6c..7aa5f32ec7 100644
---- a/source/common/stream_info/BUILD
-+++ b/source/common/stream_info/BUILD
-@@ -70,3 +70,11 @@ envoy_cc_library(
-         "//source/common/common:utility_lib",
-     ],
- )
-+
-+envoy_cc_library(
-+    name = "bool_accessor_lib",
-+    hdrs = ["bool_accessor_impl.h"],
-+    deps = [
-+        "//envoy/stream_info:bool_accessor_interface",
-+    ],
-+)
-diff --git a/source/common/stream_info/bool_accessor_impl.h b/source/common/stream_info/bool_accessor_impl.h
-new file mode 100644
-index 0000000000..868bfefab9
---- /dev/null
-+++ b/source/common/stream_info/bool_accessor_impl.h
-@@ -0,0 +1,30 @@
-+#pragma once
-+
-+#include "envoy/stream_info/bool_accessor.h"
-+
-+namespace Envoy {
-+namespace StreamInfo {
-+
-+/*
-+ * A FilterState object that tracks a single boolean value.
-+ */
-+class BoolAccessorImpl : public BoolAccessor {
-+public:
-+  BoolAccessorImpl(bool value) : value_(value) {}
-+
-+  // From FilterState::Object
-+  ProtobufTypes::MessagePtr serializeAsProto() const override {
-+    auto message = std::make_unique<ProtobufWkt::BoolValue>();
-+    message->set_value(value_);
-+    return message;
-+  }
-+
-+  // From BoolAccessor.
-+  bool value() const override { return value_; }
-+
-+private:
-+  bool value_;
-+};
-+
-+} // namespace StreamInfo
-+} // namespace Envoy
 diff --git a/source/common/tcp_proxy/BUILD b/source/common/tcp_proxy/BUILD
-index 43e2844854..d8c777ed6e 100644
+index db2c5b1895..94a36240ad 100644
 --- a/source/common/tcp_proxy/BUILD
 +++ b/source/common/tcp_proxy/BUILD
 @@ -50,6 +50,7 @@ envoy_cc_library(
@@ -151,7 +50,7 @@ index 43e2844854..d8c777ed6e 100644
          "//envoy/tcp:conn_pool_interface",
          "//envoy/tcp:upstream_interface",
 diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
-index fc28bf5e13..cac5948ee9 100644
+index 897c52a4c8..d4a0343c71 100644
 --- a/source/common/tcp_proxy/tcp_proxy.cc
 +++ b/source/common/tcp_proxy/tcp_proxy.cc
 @@ -12,6 +12,7 @@
@@ -162,7 +61,7 @@ index fc28bf5e13..cac5948ee9 100644
  #include "envoy/upstream/cluster_manager.h"
  #include "envoy/upstream/upstream.h"
  
-@@ -221,7 +222,17 @@ void Filter::initialize(Network::ReadFilterCallbacks& callbacks, bool set_connec
+@@ -243,7 +244,17 @@ void Filter::initialize(Network::ReadFilterCallbacks& callbacks, bool set_connec
    // Need to disable reads so that we don't write to an upstream that might fail
    // in onData(). This will get re-enabled when the upstream connection is
    // established.
@@ -181,7 +80,7 @@ index fc28bf5e13..cac5948ee9 100644
    getStreamInfo().setDownstreamBytesMeter(std::make_shared<StreamInfo::BytesMeter>());
    getStreamInfo().setUpstreamInfo(std::make_shared<StreamInfo::UpstreamInfoImpl>());
  
-@@ -432,8 +443,11 @@ Network::FilterStatus Filter::establishUpstreamConnection() {
+@@ -461,8 +472,11 @@ Network::FilterStatus Filter::establishUpstreamConnection() {
      // cluster->trafficStats()->upstream_cx_none_healthy in the latter case.
      getStreamInfo().setResponseFlag(StreamInfo::ResponseFlag::NoHealthyUpstream);
      onInitFailure(UpstreamFailureReason::NoHealthyUpstream);
@@ -194,7 +93,7 @@ index fc28bf5e13..cac5948ee9 100644
  }
  
  void Filter::onClusterDiscoveryCompletion(Upstream::ClusterDiscoveryStatus cluster_status) {
-@@ -632,12 +646,18 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
+@@ -677,12 +691,18 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
    if (upstream_) {
      getStreamInfo().getUpstreamBytesMeter()->addWireBytesSent(data.length());
      upstream_->encodeData(data, end_stream);
@@ -214,7 +113,7 @@ index fc28bf5e13..cac5948ee9 100644
    return Network::FilterStatus::StopIteration;
  }
  
-@@ -745,7 +765,13 @@ void Filter::onUpstreamConnection() {
+@@ -790,7 +810,13 @@ void Filter::onUpstreamConnection() {
    connecting_ = false;
    // Re-enable downstream reads now that the upstream connection is established
    // so we have a place to send downstream data to.
@@ -230,7 +129,7 @@ index fc28bf5e13..cac5948ee9 100644
    read_callbacks_->upstreamHost()->outlierDetector().putResult(
        Upstream::Outlier::Result::LocalOriginConnectSuccessFinal);
 diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
-index 324e933192..e86441524d 100644
+index 6abaea2f6c..72c28f2bfe 100644
 --- a/source/common/tcp_proxy/tcp_proxy.h
 +++ b/source/common/tcp_proxy/tcp_proxy.h
 @@ -22,6 +22,7 @@
@@ -250,7 +149,7 @@ index 324e933192..e86441524d 100644
  /**
   * All tcp proxy stats. @see stats_macros.h
   */
-@@ -515,6 +518,9 @@ protected:
+@@ -541,6 +544,9 @@ protected:
    uint32_t connect_attempts_{};
    bool connecting_{};
    bool downstream_closed_{};
@@ -261,10 +160,10 @@ index 324e933192..e86441524d 100644
  
  // This class deals with an upstream connection that needs to finish flushing, when the downstream
 diff --git a/test/integration/BUILD b/test/integration/BUILD
-index c06277ed8b..4f967f6da7 100644
+index 4412dea7fd..8a300d7952 100644
 --- a/test/integration/BUILD
 +++ b/test/integration/BUILD
-@@ -1460,6 +1460,7 @@ envoy_cc_test(
+@@ -1532,6 +1532,7 @@ envoy_cc_test(
          "//source/common/event:dispatcher_includes",
          "//source/common/event:dispatcher_lib",
          "//source/common/network:utility_lib",
@@ -273,7 +172,7 @@ index c06277ed8b..4f967f6da7 100644
          "//source/extensions/filters/network/common:factory_base_lib",
          "//source/extensions/filters/network/tcp_proxy:config",
 diff --git a/test/integration/tcp_proxy_integration_test.cc b/test/integration/tcp_proxy_integration_test.cc
-index 0f019cbd46..eb5ddc230e 100644
+index 23ec227d1d..7a302cfbca 100644
 --- a/test/integration/tcp_proxy_integration_test.cc
 +++ b/test/integration/tcp_proxy_integration_test.cc
 @@ -12,6 +12,8 @@
@@ -285,7 +184,7 @@ index 0f019cbd46..eb5ddc230e 100644
  #include "source/extensions/filters/network/common/factory_base.h"
  #include "source/extensions/transport_sockets/tls/context_manager_impl.h"
  
-@@ -1198,18 +1200,27 @@ public:
+@@ -1247,18 +1249,27 @@ public:
    Network::FilterStatus onData(Buffer::Instance& data, bool) override {
      if (!metadata_set_) {
        // To allow testing a write that returns `StopIteration`, only proceed
@@ -321,7 +220,7 @@ index 0f019cbd46..eb5ddc230e 100644
  
        ProtobufWkt::Struct& map =
            (*read_callbacks_->connection()
-@@ -1218,24 +1229,25 @@ public:
+@@ -1267,24 +1278,25 @@ public:
                  .mutable_filter_metadata())[Envoy::Config::MetadataFilters::get().ENVOY_LB];
        (*map.mutable_fields())[key_] = val;
  
@@ -353,7 +252,7 @@ index 0f019cbd46..eb5ddc230e 100644
    }
  
    const std::string key_;
-@@ -1293,14 +1305,25 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataMatch) {
+@@ -1342,14 +1354,25 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataMatch) {
    initialize();
  
    expectEndpointToMatchRoute([](IntegrationTcpClient& tcp_client) -> std::string {
@@ -386,7 +285,7 @@ index 0f019cbd46..eb5ddc230e 100644
    });
  }
  
-@@ -1317,7 +1340,7 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataNonMatch) {
+@@ -1366,7 +1389,7 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataNonMatch) {
  
    initialize();
  
