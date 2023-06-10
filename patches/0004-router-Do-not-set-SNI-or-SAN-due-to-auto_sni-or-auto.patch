@@ -18,10 +18,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  2 files changed, 54 insertions(+), 20 deletions(-)
 
 diff --git a/source/common/router/router.cc b/source/common/router/router.cc
-index cbfe4b32cd..5e9334ddbb 100644
+index 2007b2ebcd..5e7f5cbd32 100644
 --- a/source/common/router/router.cc
 +++ b/source/common/router/router.cc
-@@ -539,14 +539,18 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
+@@ -547,14 +547,18 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
      // `host_` returns a string_view so doing this should be safe.
      absl::string_view sni_value = parsed_authority.host_;
  
@@ -43,11 +43,11 @@ index cbfe4b32cd..5e9334ddbb 100644
            Network::UpstreamSubjectAltNames::key(),
            std::make_unique<Network::UpstreamSubjectAltNames>(
 diff --git a/test/common/router/router_test.cc b/test/common/router/router_test.cc
-index 64453e284e..d0ec627847 100644
+index 0eaaa8d5d6..d38eec5afc 100644
 --- a/test/common/router/router_test.cc
 +++ b/test/common/router/router_test.cc
-@@ -162,10 +162,15 @@ public:
-     router_.onDestroy();
+@@ -161,10 +161,15 @@ public:
+     router_->onDestroy();
    }
  
 +  // testAutoSniOptions checks that UpstreamServerName is server_name if non-empty,
@@ -64,7 +64,7 @@ index 64453e284e..d0ec627847 100644
      NiceMock<StreamInfo::MockStreamInfo> stream_info;
      ON_CALL(*cm_.thread_local_cluster_.cluster_.info_, upstreamHttpProtocolOptions())
          .WillByDefault(ReturnRef(dummy_option));
-@@ -173,18 +178,26 @@ public:
+@@ -172,18 +177,26 @@ public:
          .WillByDefault(ReturnRef(stream_info.filterState()));
      EXPECT_CALL(cm_.thread_local_cluster_.conn_pool_, newStream(_, _, _))
          .WillOnce(Return(&cancellable_));
@@ -83,7 +83,7 @@ index 64453e284e..d0ec627847 100644
      expectResponseTimerCreate();
  
      HttpTestUtility::addDefaultHeaders(headers);
-     router_.decodeHeaders(headers, true);
+     router_->decodeHeaders(headers, true);
 -    EXPECT_EQ(server_name,
 -              stream_info.filterState()
 -                  ->getDataReadOnly<Network::UpstreamServerName>(Network::UpstreamServerName::key())
@@ -99,7 +99,7 @@ index 64453e284e..d0ec627847 100644
        EXPECT_EQ(alt_server_name, stream_info.filterState()
                                       ->getDataReadOnly<Network::UpstreamSubjectAltNames>(
                                           Network::UpstreamSubjectAltNames::key())
-@@ -205,7 +218,24 @@ TEST_F(RouterTest, UpdateServerNameFilterStateWithoutHeaderOverride) {
+@@ -204,7 +217,24 @@ TEST_F(RouterTest, UpdateServerNameFilterStateWithoutHeaderOverride) {
    dummy_option.value().set_auto_sni(true);
  
    Http::TestRequestHeaderMapImpl headers{};
@@ -125,7 +125,7 @@ index 64453e284e..d0ec627847 100644
  }
  
  TEST_F(RouterTest, UpdateServerNameFilterStateWithHostHeaderOverride) {
-@@ -214,7 +244,7 @@ TEST_F(RouterTest, UpdateServerNameFilterStateWithHostHeaderOverride) {
+@@ -213,7 +243,7 @@ TEST_F(RouterTest, UpdateServerNameFilterStateWithHostHeaderOverride) {
    dummy_option.value().set_override_auto_sni_header(":authority");
  
    Http::TestRequestHeaderMapImpl headers{};
@@ -134,7 +134,7 @@ index 64453e284e..d0ec627847 100644
  }
  
  TEST_F(RouterTest, UpdateServerNameFilterStateWithHeaderOverride) {
-@@ -233,7 +263,7 @@ TEST_F(RouterTest, UpdateServerNameFilterStateWithEmptyValueHeaderOverride) {
+@@ -232,7 +262,7 @@ TEST_F(RouterTest, UpdateServerNameFilterStateWithEmptyValueHeaderOverride) {
    dummy_option.value().set_override_auto_sni_header("x-host");
  
    Http::TestRequestHeaderMapImpl headers{{"x-host", ""}};
@@ -143,7 +143,7 @@ index 64453e284e..d0ec627847 100644
  }
  
  TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithoutHeaderOverride) {
-@@ -242,7 +272,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithoutHeaderOverride) {
+@@ -241,7 +271,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithoutHeaderOverride) {
    dummy_option.value().set_auto_san_validation(true);
  
    Http::TestRequestHeaderMapImpl headers{};
@@ -152,7 +152,7 @@ index 64453e284e..d0ec627847 100644
  }
  
  TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithHostHeaderOverride) {
-@@ -252,7 +282,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithHostHeaderOverride) {
+@@ -251,7 +281,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithHostHeaderOverride) {
    dummy_option.value().set_override_auto_sni_header(":authority");
  
    Http::TestRequestHeaderMapImpl headers{};
@@ -161,7 +161,7 @@ index 64453e284e..d0ec627847 100644
  }
  
  TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithHeaderOverride) {
-@@ -263,7 +293,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithHeaderOverride) {
+@@ -262,7 +292,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithHeaderOverride) {
  
    const auto server_name = "foo.bar";
    Http::TestRequestHeaderMapImpl headers{{"x-host", server_name}};
@@ -170,7 +170,7 @@ index 64453e284e..d0ec627847 100644
  }
  
  TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithEmptyValueHeaderOverride) {
-@@ -273,7 +303,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithEmptyValueHeaderOverride)
+@@ -272,7 +302,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithEmptyValueHeaderOverride)
    dummy_option.value().set_override_auto_sni_header("x-host");
  
    Http::TestRequestHeaderMapImpl headers{{"x-host", ""}};
@@ -179,7 +179,7 @@ index 64453e284e..d0ec627847 100644
  }
  
  TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithIpHeaderOverride) {
-@@ -284,7 +314,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithIpHeaderOverride) {
+@@ -283,7 +313,7 @@ TEST_F(RouterTest, UpdateSubjectAltNamesFilterStateWithIpHeaderOverride) {
  
    const auto server_name = "127.0.0.1";
    Http::TestRequestHeaderMapImpl headers{{"x-host", server_name}};

@@ -37,9 +37,8 @@ git_repository(
     patches = [
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
         "@//patches:0002-upstream-Add-callback-for-upstream-authorization.patch",
-        "@//patches:0003-connection-Make-isHalfCloseEnabled-const.patch",
-        "@//patches:0004-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
-        "@//patches:0005-router-Do-not-set-SNI-or-SAN-due-to-auto_sni-or-auto.patch",
+        "@//patches:0003-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
+        "@//patches:0004-router-Do-not-set-SNI-or-SAN-due-to-auto_sni-or-auto.patch",
     ],
 )
 
