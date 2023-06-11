@@ -39,3 +39,6 @@
 /.clwb
 
 /.vagrant
+
+/proxylib/libcilium.so*
+/proxylib/_obj*
