@@ -3,6 +3,10 @@
 #
 ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.0.0-latest
 
+# Common Builder image used in cilium/cilium
+# We need gcc for cgo cross-compilation at least, we can swap to something smaller later on
+ARG PROXYLIB_BUILDER=quay.io/cilium/cilium-builder:832f86bb0f7c7129c1536d5620174deeec645117@sha256:6dbac9f9eba3e20f8edad4676689aa8c11b172035fe5e25b533552f42dea4e9a
+
 #
 # ARCHIVE_IMAGE defaults to the result of the first stage below,
 # refreshing the build caches from Envoy dependencies before the final
@@ -14,10 +18,18 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.0.0-latest
 #
 ARG ARCHIVE_IMAGE=builder-fresh
 
+FROM --platform=$BUILDPLATFORM $PROXYLIB_BUILDER as proxylib
+WORKDIR /go/src/github.com/cilium/proxy
+ARG TARGETARCH
+ENV TARGETARCH=$TARGETARCH
+RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/proxy --mount=target=/root/.cache,type=cache --mount=target=/go/pkg,type=cache \
+    GOARCH=${TARGETARCH} make -C proxylib all && mv proxylib/libcilium.so /tmp/libcilium.so
+
 FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
+COPY --from=proxylib /tmp/libcilium.so /tmp/install/usr/lib/libcilium.so
 ARG V
 ARG BAZEL_BUILD_OPTS
 ARG DEBUG
@@ -49,6 +61,7 @@ FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
+COPY --from=proxylib /tmp/libcilium.so /tmp/install/usr/lib/libcilium.so
 ARG V
 ARG COPY_CACHE_EXT
 ARG BAZEL_BUILD_OPTS

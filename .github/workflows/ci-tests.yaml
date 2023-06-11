@@ -37,12 +37,6 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Pull proxylib/libcilium.so
-        run: |
-          docker create -ti --name cilium-proxylib quay.io/cilium/cilium:stable bash
-          docker cp -L cilium-proxylib:/usr/lib/libcilium.so proxylib/libcilium.so
-          docker rm -fv cilium-proxylib
-
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION

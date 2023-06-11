@@ -139,17 +139,12 @@ Dockerfile.builder.tests.dockerignore:
 Dockerfile.dockerignore: .dockerignore Makefile.docker
 	cp $< $@
 	echo "/.clang-format" >>$@
-	echo "/go/" >>$@
-	echo "/go.*" >>$@
 	echo "/tests/" >>$@
 	echo "/Makefile.api" >>$@
 	echo "/envoy_binary_test.sh" >>$@
 
-# Tests do not need Go APIs
 Dockerfile.tests.dockerignore: .dockerignore Makefile.docker
 	cp $< $@
-	echo "/go/" >>$@
-	echo "/go.*" >>$@
 	echo "/Makefile.api" >>$@
 
 # None of the docker builds need these. '-H' to not follow symbolic links.
