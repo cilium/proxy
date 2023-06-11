@@ -34,11 +34,6 @@ jobs:
 
       - name: Checkout PR
         uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
-      - name: Pull proxylib/libcilium.so
-        run: |
-          docker create -ti --name cilium-proxylib quay.io/cilium/cilium:stable bash
-          docker cp -L cilium-proxylib:/usr/lib/libcilium.so proxylib/libcilium.so
-          docker rm -fv cilium-proxylib
 
       - name: Prep for build
         run: |

@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This image is used to extract proxylib/libcilium.so only for "tests" target.
-CILIUM_REF=quay.io/cilium/cilium:stable
-
 CHECK_FORMAT ?= ./bazel-bin/check_format.py
 
 BAZEL_CACHE ?= ~/.cache/bazel
@@ -72,23 +69,11 @@ check: $(CHECK_FORMAT) $(BUILDIFIER) $(BUILDOZER) force-non-root
 fix: $(CHECK_FORMAT) $(BUILDIFIER) $(BUILDOZER) force-non-root
 	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes "./linux/" "./proxylib/" --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
 
-# Fetch proxylib for the target architecture.
-# Run rule even if file exists, as it can be for a wrong architecture.
-# This is only used for local tests runs, as this Makefile.dev is not imported to Docker test runs.
-.PHONY: proxylib/libcilium.so
-proxylib/libcilium.so:
-	if ! file $@ | grep $(subst amd64,x86-64,$(subst arm64,aarch64,$(TARGETARCH))); then \
-		PROXYLIB_DIGEST=$$(docker buildx imagetools inspect quay.io/cilium/cilium:stable --raw | jq -r '.manifests[] | select(.platform.architecture == "$(TARGETARCH)") | .digest') && \
-		docker create -ti --name cilium-proxylib $(CILIUM_REF)@$${PROXYLIB_DIGEST} bash && \
-		docker cp -L cilium-proxylib:/usr/lib/libcilium.so $@ && \
-		docker rm -fv cilium-proxylib ; \
-	fi
-
 # Run tests without debug by default.
-tests:  $(COMPILER_DEP) proxylib/libcilium.so force-non-root SOURCE_VERSION install-bazel
+tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION install-bazel
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
-debug-tests:  $(COMPILER_DEP) proxylib/libcilium.so force-non-root SOURCE_VERSION install-bazel
+debug-tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION install-bazel
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c dbg $(BAZEL_TEST_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c dbg $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)

@@ -26,6 +26,4 @@
 /Makefile.docker
 /README*
 /envoy_bootstrap_v2.patch
-/go/
-/go.*
 /Makefile.api

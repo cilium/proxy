@@ -132,12 +132,12 @@ clean: force
 	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
 
 .PHONY: envoy-test-deps
-envoy-test-deps: $(COMPILER_DEP) proxylib/libcilium.so SOURCE_VERSION
+envoy-test-deps: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build --build_tests_only -c fastbuild $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
 .PHONY: envoy-tests
-envoy-tests: $(COMPILER_DEP) proxylib/libcilium.so SOURCE_VERSION
+envoy-tests: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) test  -c fastbuild $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 

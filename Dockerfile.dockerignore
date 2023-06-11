@@ -20,6 +20,7 @@
 /.dockerignore
 /.clwb
 /.vagrant
+/proxylib/_obj*
 /.gitignore
 /Dockerfile*
 /Makefile.dev
@@ -27,8 +28,6 @@
 /README*
 /envoy_bootstrap_v2.patch
 /.clang-format
-/go/
-/go.*
 /tests/
 /Makefile.api
 /envoy_binary_test.sh
