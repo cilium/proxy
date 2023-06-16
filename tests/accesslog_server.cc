@@ -95,29 +95,6 @@ void AccessLogServer::threadRoutine() {
         if (!entry.ParseFromString(data)) {
           ENVOY_LOG(warn, "Access log parse failed!");
         } else {
-          if (entry.method().length() > 0) {
-            ENVOY_LOG(warn, "Access log deprecated format detected");
-            // Deprecated format detected, map to the new one
-            auto http = entry.mutable_http();
-            http->set_http_protocol(entry.http_protocol());
-            entry.clear_http_protocol();
-            http->set_scheme(entry.scheme());
-            entry.clear_scheme();
-            http->set_host(entry.host());
-            entry.clear_host();
-            http->set_path(entry.path());
-            entry.clear_path();
-            http->set_method(entry.method());
-            entry.clear_method();
-            for (const auto& dep_hdr : entry.headers()) {
-              auto hdr = http->add_headers();
-              hdr->set_key(dep_hdr.key());
-              hdr->set_value(dep_hdr.value());
-            }
-            entry.clear_headers();
-            http->set_status(entry.status());
-            entry.clear_status();
-          }
           ENVOY_LOG(info, "Access log entry: {}", entry.DebugString());
         }
       }
