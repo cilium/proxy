@@ -9,81 +9,90 @@ jobs:
     name: Run integration tests on amd64
     runs-on: ubuntu-latest-64-cores-256gb
     steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4b4e9c3e2d4531116a6f8ba8e71fc6e2cb6e6c8c # v2.5.0
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@ecf95283f03858871ff00b787d79c419715afc34 # v2.7.0
 
-      - name: Login to quay.io
-        uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a # v2.1.0
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
-          password: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
+    - name: Login to quay.io
+      uses: docker/login-action@465a07811f14bebb1938fbed4728c6a1ff8901fc # v2.2.0
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
+        password: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
 
-      - name: Enable Docker IPv6
-        run: |
-          modprobe -v ipv6
-          sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json || echo '{ "ipv6": true, "fixed-cidr-v6": "fd00::/80" }' | sudo tee /etc/docker/daemon.json
-          sudo systemctl restart docker
+    - name: Enable Docker IPv6
+      run: |
+        modprobe -v ipv6
+        sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json || echo '{ "ipv6": true, "fixed-cidr-v6": "fd00::/80" }' | sudo tee /etc/docker/daemon.json
+        sudo systemctl restart docker
 
-      - name: Cache Docker layers
-        uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
-        with:
-          path: /tmp/buildx-cache
-          key: docker-cache-tests
-          restore-keys: docker-cache-master
+    - name: Cache Docker layers
+      uses: actions/cache@88522ab9f39a2ea568f7027eddc7d8d8bc9d59c8 # v3.3.1
+      with:
+        path: /tmp/buildx-cache
+        key: docker-cache-tests-${{ github.base_ref }}
+        restore-keys: docker-cache-${{ github.base_ref }}
 
-      - name: Checkout PR Source Code
-        uses: actions/checkout@8f4b7f84864484a7bf31766abe9204da3cbe65b3 # v3.5.0
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
+    - name: Checkout PR Source Code
+      uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Pull proxylib/libcilium.so
-        run: |
-          docker create -ti --name cilium-proxylib quay.io/cilium/cilium:stable bash
-          docker cp -L cilium-proxylib:/usr/lib/libcilium.so proxylib/libcilium.so
-          docker rm -fv cilium-proxylib
+    - name: Pull proxylib/libcilium.so
+      run: |
+        docker create -ti --name cilium-proxylib quay.io/cilium/cilium:stable bash
+        docker cp -L cilium-proxylib:/usr/lib/libcilium.so proxylib/libcilium.so
+        docker rm -fv cilium-proxylib
 
-      - name: Prep for build
-        run: |
-          echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
-          echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $3 }')" >> $GITHUB_ENV
+    - name: Prep for build
+      run: |
+        echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+        echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
+        echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $3 }')" >> $GITHUB_ENV
 
-      - name: Checking if cilium-envoy-builder image exists
-        id: cilium-builder-tests-tag-in-repositories
-        shell: bash
-        run: |
-          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
-            echo exists="true" >> $GITHUB_OUTPUT
-          else
-            echo exists="false" >> $GITHUB_OUTPUT
-          fi
+    - name: Checking if cilium-envoy-builder image exists
+      id: cilium-builder-tests-tag-in-repositories
+      shell: bash
+      run: |
+        if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+          echo exists="true" >> $GITHUB_OUTPUT
+        else
+          echo exists="false" >> $GITHUB_OUTPUT
+        fi
 
-      - name: PR Multi-arch build & push of Builder image (dev)
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
-        if: steps.cilium-builder-tests-tag-in-repositories.outputs.exists == 'false'
-        id: docker_build_builder_tests_ci
-        with:
-          provenance: false
-          context: .
-          file: ./Dockerfile.builder.tests
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+    - name: PR Multi-arch build & push of Builder image (dev)
+      uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4.1.1
+      if: steps.cilium-builder-tests-tag-in-repositories.outputs.exists == 'false'
+      id: docker_build_builder_tests_ci
+      with:
+        provenance: false
+        context: .
+        file: ./Dockerfile.builder.tests
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
 
-      - name: Run integration tests on amd64
-        uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671 # v4.0.0
-        id: docker_tests_ci
-        with:
-          provenance: false
-          context: .
-          file: ./Dockerfile.tests
-          platforms: linux/amd64
-          build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
-            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-master-archive-latest
-            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
-            BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1
-          cache-from: type=local,src=/tmp/buildx-cache
-          push: false
+    - name: Retrieve Archive image
+      id: cilium_archive_tag
+      shell: bash
+      run: |
+        if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.base_ref }}-archive-latest &>/dev/null; then
+          echo archive_image="quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.base_ref }}-archive-latest" >> $GITHUB_OUTPUT
+        else
+          # Fallback to master archive image
+          echo archive_image="quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-master-archive-latest" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Run integration tests on amd64
+      uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4.1.1
+      id: docker_tests_ci
+      with:
+        provenance: false
+        context: .
+        file: ./Dockerfile.tests
+        platforms: linux/amd64
+        build-args: |
+          BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+          ARCHIVE_IMAGE=${{ steps.cilium_archive_tag.outputs.archive_image }}
+          BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+        cache-from: type=local,src=/tmp/buildx-cache
+        push: false
