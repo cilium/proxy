@@ -60,7 +60,7 @@ jobs:
           fi
 
       - name: PR Multi-arch build & push of Builder image (dev)
-        uses: docker/build-push-action@44ea916f6c540f9302d50c2b1e5a8dc071f15cdf # v4.1.0
+        uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4.1.1
         if: steps.cilium-builder-tests-tag-in-repositories.outputs.exists == 'false'
         id: docker_build_builder_tests_ci
         with:
@@ -83,7 +83,7 @@ jobs:
           fi
 
       - name: Run integration tests on amd64
-        uses: docker/build-push-action@44ea916f6c540f9302d50c2b1e5a8dc071f15cdf # v4.1.0
+        uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4.1.1
         id: docker_tests_ci
         with:
           provenance: false
