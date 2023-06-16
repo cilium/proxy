@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest-64-cores-256gb
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bdd549bec0b79f87fdf6064e966f34404a39cc33
+        uses: docker/setup-buildx-action@ecf95283f03858871ff00b787d79c419715afc34
         with:
           version: v0.9.1
       - name: Enable Docker IPv6
@@ -19,7 +19,7 @@ jobs:
           sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json || echo '{ "ipv6": true, "fixed-cidr-v6": "fd00::/80" }' | sudo tee /etc/docker/daemon.json
           sudo systemctl restart docker
       - name: Cache Docker layers
-        uses: actions/cache@04f198bf0b2a39f7230a4304bf07747a0bddf146
+        uses: actions/cache@67b839edb68371cc5014f6cea11c9aa77238de78
         with:
           path: /tmp/buildx-cache
           key: docker-cache-tests
@@ -36,7 +36,7 @@ jobs:
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
       - name: Run integration tests on amd64
-        uses: docker/build-push-action@44ea916f6c540f9302d50c2b1e5a8dc071f15cdf
+        uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825
         id: docker_tests_ci
         with:
           context: .
