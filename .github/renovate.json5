@@ -20,8 +20,7 @@
   "pruneStaleBranches": true,
   "baseBranches": [
     "main",
-    "v1.23",
-    "v1.22"
+    "v1.24",
   ],
   "labels": [
     "kind/enhancement",
@@ -78,8 +77,7 @@
       "allowedVersions": "20.04",
       "matchBaseBranches": [
         "main",
-        "v1.23",
-        "v1.22"
+        "v1.24",
       ]
     },
     {
@@ -93,23 +91,13 @@
       ]
     },
     {
-      "groupName": "envoy 1.23.x",
+      "groupName": "envoy 1.24.x",
       "matchDepNames": [
         "envoyproxy/envoy"
       ],
-      "allowedVersions": "<=1.23",
+      "allowedVersions": "<=1.24",
       "matchBaseBranches": [
-        "v1.23"
-      ]
-    },
-    {
-      "groupName": "envoy 1.22.x",
-      "matchDepNames": [
-        "envoyproxy/envoy"
-      ],
-      "allowedVersions": "<=1.22",
-      "matchBaseBranches": [
-        "v1.22"
+        "v1.24"
       ]
     }
   ],
