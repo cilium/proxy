@@ -21,7 +21,7 @@ EXTRA_GO_BUILD_LDFLAGS = -extldflags -Wl,-soname,libcilium.so
 
 TARGET := libcilium.so
 
-.PHONY: all $(TARGET) clean header libcilium.h
+.PHONY: all $(TARGET) clean header libcilium.h test
 
 all: $(TARGET)
 
@@ -35,3 +35,6 @@ clean:
 header: libcilium.h
 libcilium.h: proxylib.go
 	$(GO) tool cgo -exportheader libcilium.h proxylib.go
+
+test:
+	$(GO) test -v -mod=vendor -cover ./...
