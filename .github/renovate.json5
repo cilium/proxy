@@ -21,6 +21,7 @@
   "baseBranches": [
     "main",
     "v1.24",
+    "v1.25",
   ],
   "labels": [
     "kind/enhancement",
@@ -78,6 +79,7 @@
       "matchBaseBranches": [
         "main",
         "v1.24",
+        "v1.25",
       ]
     },
     {
@@ -98,6 +100,16 @@
       "allowedVersions": "<=1.24",
       "matchBaseBranches": [
         "v1.24"
+      ]
+    },
+    {
+      "groupName": "envoy 1.25.x",
+      "matchDepNames": [
+        "envoyproxy/envoy"
+      ],
+      "allowedVersions": "<=1.25",
+      "matchBaseBranches": [
+        "v1.25"
       ]
     }
   ],
