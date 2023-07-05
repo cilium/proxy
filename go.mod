@@ -3,11 +3,11 @@ module github.com/cilium/proxy
 go 1.20
 
 require (
-	github.com/census-instrumentation/opencensus-proto v0.3.0
+	github.com/census-instrumentation/opencensus-proto v0.4.1
 	github.com/cilium/checkmate v1.0.3
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
-	github.com/cncf/xds/go v0.0.0-20211130200136-a8f946100490
-	github.com/envoyproxy/protoc-gen-validate v0.6.2
+	github.com/cncf/xds/go v0.0.0-20230105202645-06c439db220b
+	github.com/envoyproxy/protoc-gen-validate v0.9.1
 	github.com/golang/protobuf v1.5.2
 	github.com/google/uuid v1.3.0
 	github.com/prometheus/client_model v0.3.0
@@ -16,8 +16,8 @@ require (
 	github.com/stretchr/testify v1.8.1
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.5.0
-	google.golang.org/genproto v0.0.0-20221024183307-1bc688fe9f3e
-	google.golang.org/grpc v1.51.0
+	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f
+	google.golang.org/grpc v1.53.0
 	google.golang.org/protobuf v1.28.1
 	k8s.io/klog/v2 v2.100.1
 )
