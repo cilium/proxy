@@ -166,10 +166,11 @@ public:
                Network::Address::InstanceConstSharedPtr original_source_address,
                Network::Address::InstanceConstSharedPtr ipv4_source_address,
                Network::Address::InstanceConstSharedPtr ipv6_source_address,
-               const std::shared_ptr<PolicyResolver>& policy_id_resolver)
+               const std::shared_ptr<PolicyResolver>& policy_id_resolver,
+               uint32_t proxy_id)
       : SocketMarkOption(mark, source_identity, ingress, l7lb, original_source_address,
                          ipv4_source_address, ipv6_source_address),
-        initial_policy_(policy), port_(port), pod_ip_(std::move(pod_ip)),
+        initial_policy_(policy), port_(port), pod_ip_(std::move(pod_ip)), proxy_id_(proxy_id),
         policy_id_resolver_(policy_id_resolver) {
     ENVOY_LOG(debug,
               "Cilium SocketOption(): source_identity: {}, "
@@ -194,6 +195,7 @@ public:
   const PolicyInstanceConstSharedPtr initial_policy_; // Never NULL
   uint16_t port_;
   std::string pod_ip_;
+  uint32_t proxy_id_;
 
 private:
   const std::shared_ptr<PolicyResolver> policy_id_resolver_;

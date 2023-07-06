@@ -96,7 +96,7 @@ createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSha
 
 Config::Config(const ::cilium::BpfMetadata& config,
                Server::Configuration::ListenerFactoryContext& context)
-    : is_ingress_(config.is_ingress()),
+    : proxy_id_(config.proxy_id()), is_ingress_(config.is_ingress()),
       use_original_source_address_(config.use_original_source_address()),
       is_l7lb_(config.is_l7lb()),
       ipv4_source_address_(
@@ -362,7 +362,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   socket.addOption(std::make_shared<Cilium::SocketOption>(
       policy, mark, source_identity, is_ingress_, is_l7lb_, dip->port(), std::move(pod_ip),
       std::move(src_address), std::move(ipv4_source_address), std::move(ipv6_source_address),
-      shared_from_this()));
+      shared_from_this(), proxy_id_));
   return true;
 }
 
