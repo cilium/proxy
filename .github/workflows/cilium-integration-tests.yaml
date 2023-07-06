@@ -13,6 +13,14 @@ on:
   issue_comment:
     types:
       - created
+
+# By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
+permissions:
+  # To be able to access the repository with actions/checkout
+  contents: read
+  # To allow writing PR comments and setting emojis
+  pull-requests: write
+
 env:
   KIND_VERSION: v0.18.0
   CILIUM_REPO_OWNER: cilium
@@ -98,6 +106,7 @@ jobs:
         with:
           repository: ${{ env.CILIUM_REPO_OWNER }}/cilium # Be aware that this is the Cilium repository and not the one of the proxy itself!
           ref: ${{ env.CILIUM_REPO_REF }}
+          persist-credentials: false
 
       - name: Extracting Cilium version
         run: |

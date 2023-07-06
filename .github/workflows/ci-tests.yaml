@@ -3,6 +3,11 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened]
 
+# By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
+permissions:
+  # To be able to access the repository with actions/checkout
+  contents: read
+
 jobs:
   proxylib:
     timeout-minutes: 360
@@ -59,6 +64,7 @@ jobs:
         uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3.5.3
         with:
           ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
 
       - name: Prep for build
         run: |
