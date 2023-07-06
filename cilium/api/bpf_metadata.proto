@@ -28,4 +28,8 @@ message BpfMetadata {
   // Config is provided, the source address will be picked by the local IP stack.
   string ipv4_source_address = 5;
   string ipv6_source_address = 6;
+
+  // proxy_id is passed to access log messages and allows relating access log messages to
+  // listeners.
+  uint32 proxy_id = 7;
 }

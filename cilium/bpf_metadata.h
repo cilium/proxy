@@ -36,6 +36,7 @@ public:
 
   virtual bool getMetadata(Network::ConnectionSocket& socket);
 
+  uint32_t proxy_id_;
   bool is_ingress_;
   bool may_use_original_source_address_;
   bool egress_mark_source_endpoint_id_;
