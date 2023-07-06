@@ -182,7 +182,8 @@ Network::FilterStatus Instance::onNewConnection() {
           return false;
         }
       } else { // no Go parser, initialize logging for metadata based access control
-        log_entry_.InitFromConnection(policy_name, option->ingress_, option->identity_,
+        log_entry_.InitFromConnection(policy_name, option->proxy_id_, option->ingress_,
+                        	      option->identity_,
                                       stream_info.downstreamAddressProvider().remoteAddress(),
                                       destination_identity, dst_address, &config_->time_source_);
       }

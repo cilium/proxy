@@ -105,7 +105,8 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   }
 
   // Initialize the log entry
-  log_entry_.InitFromRequest(option->pod_ip_, option->ingress_, option->identity_,
+  log_entry_.InitFromRequest(option->pod_ip_, option->proxy_id_, option->ingress_,
+			     option->identity_,
                              callbacks_->streamInfo().downstreamAddressProvider().remoteAddress(),
                              0, callbacks_->streamInfo().downstreamAddressProvider().localAddress(),
                              callbacks_->streamInfo(), headers);
