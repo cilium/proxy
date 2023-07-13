@@ -206,7 +206,7 @@ docker-tests: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore
 
 ifeq ($(BRANCH_TAG),"main")
   DOCKER_IMAGE_ENVOY_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:$(SOURCE_VERSION)$(IMAGE_ARCH)$(DEBUG_TAG)
-  DOCKER_IMAHE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)$(DEBUG_TAG)
+  DOCKER_IMAGE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)$(DEBUG_TAG)
 else
   DOCKER_IMAGE_ENVOY_TAGS ?= -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(BRANCH_TAG)$(IMAGE_ARCH)$(DEBUG_TAG)
   DOCKER_IMAGE_ENVOY_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)$(DEBUG_TAG)
