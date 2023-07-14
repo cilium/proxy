@@ -115,7 +115,7 @@ public:
 
     static auto* upstream_stats_store = new Stats::IsolatedStoreImpl();
     return std::make_unique<Extensions::TransportSockets::Tls::ServerSslSocketFactory>(
-        std::move(cfg), context_manager_, *upstream_stats_store, std::vector<std::string>{});
+        std::move(cfg), context_manager_, *upstream_stats_store->rootScope(), std::vector<std::string>{});
   }
 
   void setupConnections() {
@@ -177,7 +177,7 @@ public:
 
     // Now send data downstream and make sure it arrives.
     ASSERT_TRUE(fake_upstream_connection->write(data_to_send_downstream));
-    payload_reader_->set_data_to_wait_for(data_to_send_downstream);
+    payload_reader_->setDataToWaitFor(data_to_send_downstream);
     ssl_client_->dispatcher().run(Event::Dispatcher::RunType::Block);
 
     // Clean up.
@@ -581,7 +581,7 @@ TEST_P(CiliumDownstreamTLSIntegrationTest, DownstreamHalfClose) {
 
   const std::string data("data");
   ASSERT_TRUE(fake_upstream_connection->write(data, false));
-  payload_reader_->set_data_to_wait_for(data);
+  payload_reader_->setDataToWaitFor(data);
   ssl_client_->dispatcher().run(Event::Dispatcher::RunType::Block);
   EXPECT_FALSE(payload_reader_->readLastByte());
 
