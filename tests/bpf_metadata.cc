@@ -1,7 +1,7 @@
 #include "tests/bpf_metadata.h"
 
 #include "source/common/common/logger.h"
-#include "source/common/config/filesystem_subscription_impl.h"
+#include "source/extensions/config_subscription/filesystem/filesystem_subscription_impl.h"
 #include "source/common/config/utility.h"
 
 #include "test/test_common/environment.h"
