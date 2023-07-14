@@ -121,7 +121,7 @@ bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
     auto it = old_fields->find(pair.first);
     if (it == old_fields->cend()) {
       (*old_fields)[pair.first] =
-          MessageUtil::getJsonStringFromMessageOrDie(pair.second, false, true);
+          MessageUtil::getJsonStringFromMessageOrError(pair.second, false, true);
       changed = true;
     }
   }
