@@ -1,9 +1,8 @@
+#include <cstdint>
 #include "envoy/http/protocol.h"
-#include "envoy/network/socket.h"
 
 #include "source/common/network/address_impl.h"
 
-#include "test/mocks/event/mocks.h"
 #include "test/mocks/network/connection.h"
 #include "test/mocks/stream_info/mocks.h"
 #include "test/test_common/utility.h"
