@@ -42,7 +42,7 @@ envoy_cc_test_library(
         "//cilium:bpf_metadata_lib",
         "//cilium:network_policy_lib",
         "//cilium:socket_option_lib",
-        "@envoy//source/common/config:filesystem_subscription_lib",
+        "@envoy//source/extensions/config_subscription/filesystem:filesystem_subscription_lib",
         "@envoy//test/test_common:environment_lib",
     ],
 )
