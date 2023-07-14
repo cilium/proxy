@@ -88,7 +88,7 @@ COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 #
 # Extract installed cilium-envoy binaries to an otherwise empty image
 #
-FROM docker.io/library/ubuntu:22.04@sha256:0bced47fffa3361afa981854fcabcd4577cd43cebbb808cea2b1f33a3dd7f508
+FROM docker.io/library/ubuntu:22.10@sha256:e322f4808315c387868a9135beeb11435b5b83130a8599fd7d0014452c34f489
 LABEL maintainer="maintainer@cilium.io"
 # install ca-certificates package
 RUN apt-get update && apt-get upgrade -y \
