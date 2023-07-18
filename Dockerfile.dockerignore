@@ -20,6 +20,7 @@
 /.dockerignore
 /.clwb
 /.vagrant
+/proxylib/libcilium.so*
 /proxylib/_obj*
 /.gitignore
 /Dockerfile*
