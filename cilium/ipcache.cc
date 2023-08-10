@@ -40,6 +40,7 @@ PACKED_STRUCT(struct ipcache_key {
 struct remote_endpoint_info {
   __u32 sec_label;
   __u32 tunnel_endpoint;
+  __u16 pad;
   __u8 key;
 };
 
