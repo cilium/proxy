@@ -30,10 +30,9 @@ apt-get update && \
       libc6-dev \
       autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf \
       python3 python-is-python3 unzip virtualenv wget zip \
-      libcap-dev && \
+      libcap-dev software-properties-common && \
     wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
-    echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main" >> /etc/apt/sources.list && \
-    echo "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main" >> /etc/apt/sources.list && \
+    apt-add-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main" && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       clang-15 clang-tools-15 lldb-15 lld-15 clang-format-15 libc++-15-dev libc++abi-15-dev && \
