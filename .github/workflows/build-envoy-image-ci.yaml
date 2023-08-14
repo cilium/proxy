@@ -73,7 +73,7 @@ jobs:
         shell: bash
         run: |
           echo "Digests:"
-          echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}@${{ steps.docker_build_builder_ci.outputs.digest }}"
+          echo "quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}@${{ steps.docker_build_builder_ci.outputs.digest }}"
 
       - name: PR Multi-arch build & push of cilium-envoy
         uses: docker/build-push-action@2eb1c1961a95fc15694676618e422e8ba1d63825 # v4.1.1
