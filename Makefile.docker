@@ -37,7 +37,7 @@ else ifeq ($(ARCH),multi)
 endif
 DOCKER_BUILDER := $(shell docker buildx ls | grep -E -e "[a-zA-Z0-9-]+ \*" | cut -d ' ' -f1)
 ifdef DOCKER_PLATFORMS
-  ifeq ($(DOCKER_BUILDER),default)
+  ifneq (,$(filter $(DOCKER_BUILDER),default desktop-linux))
     DOCKER_BUILDKIT_DRIVER :=
     ifdef DOCKER_BUILDKIT_IMAGE
       DOCKER_BUILDKIT_DRIVER := --driver docker-container --driver-opt image=$(DOCKER_BUILDKIT_IMAGE)
