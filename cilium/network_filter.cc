@@ -107,7 +107,7 @@ Network::FilterStatus Instance::onNewConnection() {
 
   // Pass metadata from tls_inspector to the filterstate, if any & not already
   // set via upstream cluster config, but not in a sidecar, which have no mark
-  if (sni != "" && option->mark_ != 0) {
+  if (sni != "" && !option->isSidecar()) {
     auto filterState = conn.streamInfo().filterState();
     auto have_sni =
         filterState->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
@@ -128,7 +128,8 @@ Network::FilterStatus Instance::onNewConnection() {
                                                       StreamInfo::StreamInfo& stream_info) -> bool {
     ENVOY_LOG(trace, "cilium.network: in upstream callback");
     auto& conn = callbacks_->connection();
-
+    uint32_t source_identity = option->identity_;
+    
     // Resolve the destination security ID and port
     uint32_t destination_identity = 0;
     uint32_t destination_port = option->port_;
@@ -152,19 +153,20 @@ Network::FilterStatus Instance::onNewConnection() {
       destination_identity = option->resolvePolicyId(dip);
     }
 
+    uint32_t identity = option->ingress_ ? source_identity : destination_identity;
+
     port_policy_ = option->initial_policy_->findPortPolicy(option->ingress_, destination_port,
-                                                           option->ingress_ ? option->identity_
-                                                                            : destination_identity);
+                                                           identity);
     if (port_policy_ == nullptr) {
       ENVOY_CONN_LOG(warn, "cilium.network: Policy NOT FOUND for id: {} port: {}", conn,
-                     option->ingress_ ? option->identity_ : destination_identity, destination_port);
+                     identity, destination_port);
       return false;
     }
 
-    if (!port_policy_->Matches(sni, option->ingress_ ? option->identity_ : destination_identity)) {
+    if (!port_policy_->Matches(sni, identity)) {
       // Connection not allowed by policy
       ENVOY_CONN_LOG(warn, "cilium.network: Policy DENY on id: {} port: {}", conn,
-                     option->ingress_ ? option->identity_ : destination_identity, destination_port);
+                     identity, destination_port);
       return false;
     }
 
@@ -174,7 +176,7 @@ Network::FilterStatus Instance::onNewConnection() {
       // Initialize Go parser if requested
       if (config_->proxylib_.get() != nullptr) {
         go_parser_ = config_->proxylib_->NewInstance(
-            conn, l7proto_, option->ingress_, option->identity_, destination_identity,
+            conn, l7proto_, option->ingress_, source_identity, destination_identity,
             stream_info.downstreamAddressProvider().remoteAddress()->asString(),
             dst_address->asString(), policy_name);
         if (go_parser_.get() == nullptr) {
@@ -182,7 +184,7 @@ Network::FilterStatus Instance::onNewConnection() {
           return false;
         }
       } else { // no Go parser, initialize logging for metadata based access control
-        log_entry_.InitFromConnection(policy_name, option->ingress_, option->identity_,
+        log_entry_.InitFromConnection(policy_name, option->ingress_, source_identity,
                                       stream_info.downstreamAddressProvider().remoteAddress(),
                                       destination_identity, dst_address, &config_->time_source_);
       }

@@ -175,6 +175,7 @@ envoy_cc_library(
     ],
     repository = "@envoy",
     deps = [
+        "//cilium:privileged_calls_lib",
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/common:utility_lib",
     ],
@@ -278,6 +279,7 @@ envoy_cc_library(
     ],
     repository = "@envoy",
     deps = [
+        "//cilium:privileged_calls_lib",
         "//cilium:conntrack_lib",
         "//cilium:grpc_subscription_lib",
         "//cilium:ipcache_lib",
@@ -296,5 +298,23 @@ envoy_cc_library(
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/network:address_lib",
         "@envoy//source/common/router:config_utility_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "privileged_calls_lib",
+    srcs = [
+        "privileged_calls.cc",
+    ],
+    hdrs = [
+        "privileged_calls.h",
+        "//:linux/bpf.h",
+        "//:linux/bpf_common.h",
+        "//:linux/type_mapper.h",
+    ],
+    repository = "@envoy",
+    deps = [
+        "@envoy//source/common/common:assert_lib",
+        "@envoy//envoy/api:os_sys_calls_interface",
     ],
 )
