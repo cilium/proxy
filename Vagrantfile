@@ -29,7 +29,8 @@ apt-get update && \
       gcc-x86-64-linux-gnu g++-x86-64-linux-gnu libc6-dev-amd64-cross binutils-x86-64-linux-gnu \
       libc6-dev \
       autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf \
-      python3 python-is-python3 unzip virtualenv wget zip && \
+      python3 python-is-python3 unzip virtualenv wget zip \
+      libcap-dev && \
     wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
     echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main" >> /etc/apt/sources.list && \
     echo "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main" >> /etc/apt/sources.list && \
