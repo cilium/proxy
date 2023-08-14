@@ -83,9 +83,7 @@ define add_clang_apt_source
 	  $(SUDO) wget -q -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key; \
 	fi
 	apt_source="deb http://apt.llvm.org/$(1)/ llvm-toolchain-$(1)-15 main" && \
-	grep $${apt_source} /etc/apt/sources.list || echo $${apt_source} | $(SUDO) tee -a /etc/apt/sources.list
-	apt_source="deb-src http://apt.llvm.org/$(1)/ llvm-toolchain-$(1)-15 main" && \
-	grep $${apt_source} /etc/apt/sources.list || echo $${apt_source} | $(SUDO) tee -a /etc/apt/sources.list
+	$(SUDO) apt-add-repository -y "$${apt_source}" && \
 	$(SUDO) apt update
 endef
 
