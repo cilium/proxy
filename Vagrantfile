@@ -30,7 +30,7 @@ apt-get update && \
       libc6-dev \
       autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf \
       python3 python-is-python3 unzip virtualenv wget zip \
-      libcap-dev software-properties-common && \
+      software-properties-common && \
     wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
     apt-add-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main" && \
     apt-get update && \
