@@ -37,14 +37,6 @@ public:
         MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(
             proto_config, context.messageValidationVisitor()),
         context);
-    // Set the socket mark option for the listen socket.
-    // Can use identity 0 on the listen socket option, as the bpf datapath is only interested
-    // in whether the proxy is ingress, egress, or if there is no proxy at all.
-    std::shared_ptr<Envoy::Network::Socket::Options> options = std::make_shared<Envoy::Network::Socket::Options>();
-    uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
-    options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
-    context.addListenSocketOptions(options);
-
     return [listener_filter_matcher,
             config](Network::ListenerFilterManager& filter_manager) mutable -> void {
       filter_manager.addAcceptFilter(listener_filter_matcher,
@@ -325,6 +317,12 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
                destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
     // Original source address is not used
     src_address = nullptr;
+  }
+
+  // Add transparent options if either original or explicitly set source address is used
+  if (src_address || ipv4_source_address || ipv6_source_address) {
+    socket.addOptions(Network::SocketOptionFactory::buildIpTransparentOptions());
+    socket.addOptions(Network::SocketOptionFactory::buildReusePortOptions());
   }
 
   // Add metadata for policy based listener filter chain matching.

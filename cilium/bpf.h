@@ -88,6 +88,9 @@ public:
    */
   bool lookup(const void* key, void* value);
 
+private:
+  int bpfSyscall(int cmd, union bpf_attr* attr);
+
 protected:
   int fd_;
 

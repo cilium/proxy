@@ -1,7 +1,7 @@
 #include "cilium/bpf.h"
-#include "cilium/privileged_calls.h"
 
 #include <string.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 #include <cstdint>
@@ -24,7 +24,10 @@ enum {
 };
 
 Bpf::Bpf(uint32_t map_type, uint32_t key_size, uint32_t value_size)
-    : fd_(-1), map_type_(map_type), key_size_(key_size), value_size_(value_size) {}
+    : fd_(-1), map_type_(map_type), key_size_(key_size), value_size_(value_size) {
+  struct rlimit rl = {RLIM_INFINITY, RLIM_INFINITY};
+  setrlimit(RLIMIT_MEMLOCK, &rl);
+}
 
 Bpf::~Bpf() { close(); }
 
@@ -106,7 +109,6 @@ bool Bpf::open(const std::string& path) {
   return false;
 }
 
-#if 0
 bool Bpf::create(uint32_t max_entries, uint32_t flags) {
   union bpf_attr attr = {};
   attr.map_type = map_type_;
@@ -145,7 +147,6 @@ bool Bpf::remove(const void* key) {
 
   return bpfSyscall(BPF_MAP_DELETE_ELEM, &attr) == 0;
 }
-#endif
 
 bool Bpf::lookup(const void* key, void* value) {
   union bpf_attr attr = {};
@@ -167,6 +168,10 @@ bool Bpf::lookup(const void* key, void* value) {
 #error __NR_bpf not defined.
 #endif
 #endif
+
+int Bpf::bpfSyscall(int cmd, union bpf_attr* attr) {
+  return ::syscall(__NR_bpf, cmd, attr, sizeof(*attr));
+}
 
 } // namespace Cilium
 } // namespace Envoy
