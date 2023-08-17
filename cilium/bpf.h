@@ -47,39 +47,6 @@ public:
   bool open(const std::string& path);
 
   /**
-   * Create a new bpf map.
-   * @param max_entries the maximum capacity of the bpf map to be created. For
-   * many map types memory for this number of entries is allocated when the map
-   * is created.
-   * @param flags the required flags for the map type. Typically 0.
-   * @returns boolean for success of the operation.
-   */
-  bool create(uint32_t max_entries, uint32_t flags);
-
-  /**
-   * Pin the map to a file system path.
-   * @param path the file system path where to pin the bpf map.
-   * @returns boolean for success of the operation.
-   */
-  bool pin(const std::string& path);
-
-  /**
-   * Insert an entry with value and identified with the key to the map.
-   * @param key pointer to the key identifying the new entry to be inserted.
-   * @param value pointer to the value to be stored in the new entry to be
-   * inserted.
-   * @returns boolean for success of the operation.
-   */
-  bool insert(const void* key, const void* value);
-
-  /**
-   * Delete the entry identified with the key from the map, if it exists.
-   * @param key pointer to the key identifying the new entry to be inserted.
-   * @returns boolean for success of the operation.
-   */
-  bool remove(const void* key);
-
-  /**
    * Lookup an entry from the bpf map identified with the key, storing the found
    * value, if any.
    * @param key pointer to the key identifying the entry to be found.
@@ -87,9 +54,6 @@ public:
    * @returns boolean for success of the operation.
    */
   bool lookup(const void* key, void* value);
-
-private:
-  int bpfSyscall(int cmd, union bpf_attr* attr);
 
 protected:
   int fd_;

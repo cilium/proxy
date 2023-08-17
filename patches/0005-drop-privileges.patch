@@ -1,6 +1,6 @@
-From 5bc8d6920f9e6ea28f17e042386b387be8d7ae6c Mon Sep 17 00:00:00 2001
+From 946a0323b32b27c47f9185602dfdbe55a301a69e Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
-Date: Thu, 17 Aug 2023 15:53:06 +0300
+Date: Fri, 18 Aug 2023 14:22:01 +0300
 Subject: [PATCH] linux: Drop privileges
 
 Drop Linux capabilities from the main thread before any of the worker
@@ -30,7 +30,7 @@ index 0ee05a7447..392bd93772 100644
          "//bazel:android": [
              "posix/os_sys_calls_impl.h",
 diff --git a/source/common/api/posix/os_sys_calls_impl.cc b/source/common/api/posix/os_sys_calls_impl.cc
-index e6f3542238..25762a7c26 100644
+index e6f3542238..075e5252da 100644
 --- a/source/common/api/posix/os_sys_calls_impl.cc
 +++ b/source/common/api/posix/os_sys_calls_impl.cc
 @@ -8,6 +8,10 @@
@@ -49,7 +49,7 @@ index e6f3542238..25762a7c26 100644
      }
      int val = 1;
 +#if defined(__linux__)
-+    bool result = (0 == Privileged::setsockopt(fd, SOL_IP, IP_TRANSPARENT, &val, sizeof(val)).return_value_);
++    bool result = (0 == PrivilegedSyscalls::setsockopt(fd, SOL_IP, IP_TRANSPARENT, &val, sizeof(val)).return_value_);
 +#else
      bool result = (0 == ::setsockopt(fd, IPPROTO_IP, IP_TRANSPARENT, &val, sizeof(val)));
 +#endif
@@ -61,7 +61,7 @@ index e6f3542238..25762a7c26 100644
      }
      val = 1;
 +#if defined(__linux__)
-+    result = (0 == Privileged::setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &val, sizeof(val)).return_value_);
++    result = (0 == PrivilegedSyscalls::setsockopt(fd, SOL_IPV6, IPV6_TRANSPARENT, &val, sizeof(val)).return_value_);
 +#else
      result = (0 == ::setsockopt(fd, IPPROTO_IPV6, IPV6_TRANSPARENT, &val, sizeof(val)));
 +#endif
@@ -87,7 +87,7 @@ index e6f3542238..25762a7c26 100644
 +      ((level == SOL_SOCKET && optname == SO_MARK) ||
 +       (level == SOL_IP && optname == IP_TRANSPARENT) ||
 +       (level == SOL_IPV6 && optname == IPV6_TRANSPARENT))) {
-+    return Privileged::setsockopt(sockfd, level, optname, optval, optlen);
++    return PrivilegedSyscalls::setsockopt(sockfd, level, optname, optval, optlen);
 +  }
 +  // fall back to direct syscall
 +#endif
@@ -96,10 +96,10 @@ index e6f3542238..25762a7c26 100644
  }
 diff --git a/source/common/api/posix/os_sys_calls_impl_linux_privileged.cc b/source/common/api/posix/os_sys_calls_impl_linux_privileged.cc
 new file mode 100644
-index 0000000000..1c316709fb
+index 0000000000..d89beb8bba
 --- /dev/null
 +++ b/source/common/api/posix/os_sys_calls_impl_linux_privileged.cc
-@@ -0,0 +1,663 @@
+@@ -0,0 +1,661 @@
 +#if !defined(__linux__)
 +#error "Linux platform file is part of non-Linux build."
 +#endif
@@ -109,14 +109,11 @@ index 0000000000..1c316709fb
 +#include <linux/bpf.h>
 +#include <linux/capability.h>
 +#include <sys/prctl.h>
-+#include <sys/resource.h>
 +
 +#include "source/common/api/os_sys_calls_impl_linux_privileged.h"
 +#include "source/common/common/assert.h"
 +
-+namespace Envoy {
-+namespace Api {
-+namespace Privileged {
++namespace PrivilegedSyscalls {
 +namespace {
 +
 +// Drop all capabilities before Envoy is initialized. If the process is started with any granted
@@ -148,15 +145,17 @@ index 0000000000..1c316709fb
 +
 +// Supported message types
 +typedef enum {
-+  TYPE_SYSCALL_RESPONSE = 1,
-+  TYPE_VALUE_RESPONSE = 2,
-+  TYPE_DUMP_REQUEST = 3,
-+  TYPE_BPF_OPEN_REQUEST = 4,
-+  TYPE_BPF_LOOKUP_REQUEST = 5,
-+  TYPE_SETSOCKOPT32_REQUEST = 6,
++  TYPE_RESPONSE = 1,
++  TYPE_DUMP_REQUEST = 2,
++  TYPE_BPF_OPEN_REQUEST = 3,
++  TYPE_BPF_LOOKUP_REQUEST = 4,
++  TYPE_SETSOCKOPT32_REQUEST = 5,
 +} MessageType;
 +
 +// Common message header
++// Note that C++ inheritance can not be used as all the data members need to be on the same struct
++// definition. This means that we must contain the MessageHeader as the first member of each message
++// definition.
 +struct MessageHeader {
 +  uint32_t msg_type_ = 0;
 +  uint32_t msg_seq_ = 0; // reflected in response
@@ -165,13 +164,24 @@ index 0000000000..1c316709fb
 +  MessageHeader(MessageType t) : msg_type_(t) {}
 +};
 +
-+// Dump requests consists only of the message header, but with the TYPE_DUMP_REQUEST.
-+// Must be responded to with a ValueResponse containing the effective capabilitites in
-+// a string form.
-+struct DumpRequest {
-+  struct MessageHeader hdr_;
++// Response passes the return value and errno code from the system call, followed by optional
++// data depending on the request type. Note that file descriptor return value is passed using the
++// message control channel (ref. man 2 recvmsg).
++struct Response {
++  Response() : hdr_(TYPE_RESPONSE) {}
 +
++  struct MessageHeader hdr_;
++  Envoy::Api::SysCallIntResult ret_;
++  uint8_t data_[];
++};
++
++
++// Dump requests consists only of the message header, but with the TYPE_DUMP_REQUEST.
++// Response contains the effective capabilitites in a string form.
++struct DumpRequest {
 +  DumpRequest() : hdr_(TYPE_DUMP_REQUEST) {}
++
++  struct MessageHeader hdr_;
 +};
 +
 +// BpfOpenRequest has a variable length path after the message header.
@@ -179,55 +189,36 @@ index 0000000000..1c316709fb
 +// Response must be a SyscallResponse. The file descriptor is returned in the message control
 +// channel (see man 2 recvmsg).
 +struct BpfOpenRequest {
++  BpfOpenRequest() : hdr_(TYPE_BPF_OPEN_REQUEST) {}
++
 +  struct MessageHeader hdr_;
 +  char path_[];
-+
-+  BpfOpenRequest() : hdr_(TYPE_BPF_OPEN_REQUEST) {}
 +};
 +
 +// BpfLookupRequest passes the expected value size and a variable length key.
 +// Key size is not explicitly passed, as it is deduced from the message length.
-+// In a successful case the response is of type ValueResponse containing the found map value.
-+// In the fail case the response is SyscallResponse containing the return code and errno value.
++// In a successful case the response contains the value returned by the bpf map lookup.
 +struct BpfLookupRequest {
++  BpfLookupRequest(uint32_t value_size) : hdr_(TYPE_BPF_LOOKUP_REQUEST), value_size_(value_size) {}
++
 +  struct MessageHeader hdr_;
 +  uint32_t value_size_;
 +  uint8_t key_[];
-+
-+  BpfLookupRequest(uint32_t value_size) : hdr_(TYPE_BPF_LOOKUP_REQUEST), value_size_(value_size) {}
 +};
 +
 +// SetSockOptRequest only supports setting 4-byte options.
 +// Response is SyscallResponse.
 +struct SetSockOptRequest {
-+  struct MessageHeader hdr_;
-+  int level_;
-+  int optname_;
-+  uint32_t optval_;
-+
 +  SetSockOptRequest(int level, int optname, const void *optval, socklen_t optlen)
 +    : hdr_(TYPE_SETSOCKOPT32_REQUEST), level_(level), optname_(optname) {
 +    RELEASE_ASSERT(optlen == sizeof(uint32_t), "optlen must be 4 bytes");
 +    memcpy(&optval_, optval, optlen);
 +  }
-+};
 +
-+// SyscallResponse passes the return value and errno code from the system call. Note that file
-+// descriptor return value is passed using the message control channel (ref. man 2 recvmsg).
-+struct SyscallResponse {
 +  struct MessageHeader hdr_;
-+  SysCallIntResult ret_;
-+
-+  SyscallResponse() : hdr_(TYPE_SYSCALL_RESPONSE) {}
-+};
-+
-+// ValueResponse carries variable length data after the message header. Length of the data is
-+// computed from the message length.
-+struct ValueResponse {
-+  struct MessageHeader hdr_;
-+  uint8_t data_[];
-+
-+  ValueResponse() : hdr_(TYPE_VALUE_RESPONSE) {}
++  int level_;
++  int optname_;
++  uint32_t optval_;
 +};
 +
 +// Capabiilty names used in DumpCapabilites responses.
@@ -321,21 +312,29 @@ index 0000000000..1c316709fb
 +}
 +
 +// dumpCaps returns the capabilities of the given kind in string form.
-+static std::string dumpCaps(cap_flag_t kind) {
++static size_t dumpCaps(cap_flag_t kind, char *buf, size_t buf_size) {
++  size_t remaining = buf_size;
 +  uint64_t caps = getCaps(kind);
 +
-+  std::string output;
-+  bool first = true;
-+  for (int i=0; i < 64; i++) {
-+    if (caps & (1 << i)) {
-+      if (!first) {
-+	output.append(", ");
-+      }
-+      first = false;
-+      output.append(cap_names[i]);
++  auto append = [&](const char *str) {
++    auto len = strlen(str);
++    if (len < remaining) {
++      memcpy(buf, str, len);
++      remaining -= len;
++      buf += len;
++    }
++  };
++  
++  for (int i=0, n=0; i < 64; i++) {
++    if (caps & (1UL << i)) {
++      if (n > 0)
++        append(", ");
++      append(cap_names[i]);
++      n++;
 +    }
 +  }
-+  return output;
++
++  return buf_size - remaining;
 +}
 +
 +// DropCaps implements the logic for forking a privileged thread and dropping all capabilities from
@@ -348,20 +347,20 @@ index 0000000000..1c316709fb
 +      close(fd_);
 +      // Wait for the privileged process to terminate
 +      if (pid_ != 0) {
-+	int rc;
-+	do {
-+	  rc = ::waitpid(pid_, nullptr, 0);
-+	} while (rc == -1 && errno == EINTR);
++        int rc;
++        do {
++          rc = ::waitpid(pid_, nullptr, 0);
++        } while (rc == -1 && errno == EINTR);
 +      }
 +    }
 +  }
 +
-+  DropCaps() : caps_(getCaps(CAP_EFFECTIVE)) {
++  DropCaps() {
 +    // Make sure no child processes exist yet
 +    // waitpid(-1) raises ECHILD when children do not exist,
 +    // WNOHANG prevents the calling thread to not hang when there are child processes.
 +    RELEASE_ASSERT(::waitpid(-1, nullptr, WNOHANG) < 0 && errno == ECHILD,
-+		   "Capabilities must be dropped before any child processes are forked");
++                   "Capabilities must be dropped before any child processes are forked");
 +
 +    // Assert that the task has no other threads than the main thread,
 +    // for which the thread id is the process id
@@ -371,7 +370,7 @@ index 0000000000..1c316709fb
 +    struct dirent *entry;
 +    while ((entry = readdir(proc_dir)) != nullptr) {
 +      if(entry->d_name[0] == '.')
-+	continue;
++        continue;
 +      // dir entry name is the thread id
 +      int id = atoi(entry->d_name);
 +      RELEASE_ASSERT(id == pid, "Capabilities must be dropped before any threads are created");
@@ -388,10 +387,10 @@ index 0000000000..1c316709fb
 +      RELEASE_ASSERT(pid_ != -1, "fork failed");
 +
 +      if (pid_ == 0) {
-+	// in privileged process, close the parent end of the pipe
-+	close(fds[0]);
-+	privileged_process(fds[1]);
-+	exit(0);
++        // in privileged process, close the parent end of the pipe
++        close(fds[0]);
++        privileged_process(fds[1]);
++        exit(0);
 +      }
 +
 +      // in parent, close the child end of the pipe
@@ -422,11 +421,11 @@ index 0000000000..1c316709fb
 +    }
 +
 +    RELEASE_ASSERT(getCaps(CAP_EFFECTIVE) == 0 && getCaps(CAP_PERMITTED) == 0,
-+		   "Failed dropping privileges");
++                   "Failed dropping privileges");
 +    fprintf(stderr, "Envoy process capabilities successfully dropped\n");
 +
 +#ifndef CAP_BPF
-+#define CAP_BPF			39
++#define CAP_BPF                 39
 +#endif
 +    // Validate BPF if have CAP_BPF or CAP_SYS_ADMIN
 +    if (caps_ & (1UL << CAP_BPF | 1UL << CAP_SYS_ADMIN)) {
@@ -469,11 +468,11 @@ index 0000000000..1c316709fb
 +  static std::string dump_capabilities();
 +  static void privileged_process(int pipe);
 +  static ssize_t send_fd_msg(int pipe, const void *header, ssize_t headerlen,
-+			       const void *data = nullptr, ssize_t datalen = 0, int fd = -1);
++                               const void *data = nullptr, ssize_t datalen = 0, int fd = -1);
 +  static ssize_t recv_fd_msg(int pipe, const void *header, ssize_t headersize,
-+			       const void *data = nullptr, ssize_t datasize = 0, int *fd = nullptr);
++                               const void *data = nullptr, ssize_t datasize = 0, int *fd = nullptr);
 +
-+  ssize_t transact(MessageHeader& req, size_t req_len, const void *data, size_t datalen, int *fd, MessageHeader& resp, size_t resp_size, void *buf = nullptr, size_t bufsize = 0) {
++  ssize_t transact(MessageHeader& req, size_t req_len, const void *data, size_t datalen, int *fd, Response& resp, void *buf = nullptr, size_t bufsize = 0) {
 +    // Serialize privileged calls
 +    int rc = pthread_mutex_lock(&call_mutex_);
 +    RELEASE_ASSERT(rc == 0, "pthread_mutex_lock");
@@ -483,40 +482,41 @@ index 0000000000..1c316709fb
 +    RELEASE_ASSERT(size != 0, "privileged process closed pipe");
 +    RELEASE_ASSERT(size > 0, "privileged process send failed");
 +
-+    uint32_t expected_response_type = resp.msg_type_;
-+    size = recv_fd_msg(fd_, &resp, resp_size, buf, bufsize, fd);
++    uint32_t expected_response_type = resp.hdr_.msg_type_;
++    size = recv_fd_msg(fd_, &resp, sizeof(resp), buf, bufsize, fd);
 +    RELEASE_ASSERT(size != 0, "privileged process closed pipe");
-+    RELEASE_ASSERT(size < 0 || size_t(size) >= resp_size, "privileged process truncated response");
-+    RELEASE_ASSERT(resp.msg_seq_ == req.msg_seq_, "privileged process response out of sequence");
-+    RELEASE_ASSERT(expected_response_type == 0 || resp.msg_type_ == expected_response_type,
-+		   "privileged process unexpected response type");
++    RELEASE_ASSERT(size < 0 || size_t(size) >= sizeof(resp), "privileged process truncated response");
++    RELEASE_ASSERT(resp.hdr_.msg_seq_ == req.msg_seq_, "privileged process response out of sequence");
++    RELEASE_ASSERT(expected_response_type == 0 || resp.hdr_.msg_type_ == expected_response_type,
++                   "privileged process unexpected response type");
 +
 +    rc = pthread_mutex_unlock(&call_mutex_);
 +    RELEASE_ASSERT(rc == 0, "pthread_mutex_unlock");
 +    return size;
 +  }
 +
-+private:
-+  uint64_t caps_; // Effective capabilities at start
-+  pthread_mutex_t call_mutex_ = PTHREAD_MUTEX_INITIALIZER;
-+  static uint32_t seq_; // access protected by call_mutex_
++  static bool privileged_process_started() {
++    return fd_ != 0;
++  }
 +
-+  int pid_ = 0; // child pid
-+  int fd_ = -1; // our end of the datagram pipe
++private:
++  static uint64_t caps_; // Effective capabilities at start
++  static pthread_mutex_t call_mutex_;
++  static uint32_t seq_; // access protected by call_mutex_
++  static int pid_; // child pid
++  static int fd_; // our end of the datagram pipe
 +};
++
++uint64_t DropCaps::caps_ = getCaps(CAP_EFFECTIVE);
++pthread_mutex_t DropCaps::call_mutex_ = PTHREAD_MUTEX_INITIALIZER;
 +uint32_t DropCaps::seq_ = 0;
++int DropCaps::pid_      = 0;
++int DropCaps::fd_       = -1;
 +
 +// static initialization of DropCaps singleton
 +static DropCaps caps;
 +
 +void DropCaps::privileged_process(int pipe) {
-+  // Bpf needs relaxed limits on memory
-+  struct rlimit rl = {RLIM_INFINITY, RLIM_INFINITY};
-+  int ret = setrlimit(RLIMIT_MEMLOCK, &rl);
-+  if (ret != 0) {
-+    perror("setrlimit(RLIMIT_MEMLOCK)");
-+  }
-+
 +  while (true) {
 +    // receive buffer
 +    union {
@@ -527,20 +527,19 @@ index 0000000000..1c316709fb
 +      SetSockOptRequest setsockopt_req;
 +      
 +      // resposes use the same buffer, so they inherit the message sequence number from the request
-+      SyscallResponse syscall_response;
-+      ValueResponse value_response;
++      Response response;
 +
 +      // make space for the largest possible request
 +      char buf[sizeof(BpfOpenRequest) + PATH_MAX + 1];
 +    } msg = {};
 +
 +    // wait for message
-+    int fd;
-+    ssize_t size = recv_fd_msg(pipe, &msg, sizeof(msg) - 1, nullptr, 0, &fd);
++    int fd_in;
++    ssize_t size = recv_fd_msg(pipe, &msg, sizeof(msg) - 1, nullptr, 0, &fd_in);
 +    if (size < 0) {
 +      perror("recvmsg");
 +      if (errno == EPIPE || errno == EPERM) {
-+	break;
++        break;
 +      }
 +      continue;
 +    }
@@ -554,73 +553,73 @@ index 0000000000..1c316709fb
 +    }
 +
 +    size_t msg_len = size_t(size);
-+    int rc;
++    // Use the message buffer after request/response for the return value
++    size_t header_size = std::max(msg_len, sizeof(Response));
++    char *buf = msg.buf + header_size;
++    size_t buf_size = sizeof(msg) - header_size;
++    size_t value_len = 0; // set below to the actual length of the value to be returned
++    int rc = 0;
++    int fd_out = -1; // set below when 'rc' is a file descriptor
++
 +    switch (msg.hdr.msg_type_) {
-+    case TYPE_DUMP_REQUEST: {
-+      std::string caps = dumpCaps(CAP_EFFECTIVE);
-+      msg.hdr.msg_type_ = TYPE_VALUE_RESPONSE;
-+      send_fd_msg(pipe, &msg, sizeof(msg.value_response), caps.data(), caps.length());
-+    }
++    case TYPE_DUMP_REQUEST:
++      value_len = dumpCaps(CAP_EFFECTIVE, buf, buf_size);
 +      break;
 +    case TYPE_BPF_OPEN_REQUEST: {
 +      // zero terminate path name
 +      msg.bpf_open_req.path_[msg_len - sizeof(msg.bpf_open_req)] = '\0';
 +      union bpf_attr attr = {};
 +      attr.pathname = uintptr_t(msg.bpf_open_req.path_);
-+      fd = ::syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
-+      msg.hdr.msg_type_ = TYPE_SYSCALL_RESPONSE;
-+      msg.syscall_response.ret_ = {fd, fd != -1 ? 0 : errno};
-+      size = send_fd_msg(pipe, &msg, sizeof(msg.syscall_response), nullptr, 0, fd);
-+      if (size != ssize_t(sizeof(msg.syscall_response))) {
-+	perror("bpf open sendmsg");
-+      }
++      fd_out = rc = ::syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
 +    }
 +      break;
 +    case TYPE_BPF_LOOKUP_REQUEST: {
-+      // Use the remainder of the message buffer for the return value
-+      char *buf = msg.buf + msg_len;
++      value_len = msg.bpf_lookup_req.value_size_;
 +      // Make sure the value fits into available space
-+      if (msg.bpf_lookup_req.value_size_ > sizeof(msg) - msg_len) {
-+	rc = -1;
-+	errno = EINVAL;
++      if (buf_size < value_len) {
++        rc = -1;
++        errno = EINVAL;
 +      } else {
-+	union bpf_attr attr = {};
-+	attr.map_fd = uint32_t(fd);
-+	attr.key = uintptr_t(msg.bpf_lookup_req.key_);
-+	attr.value = uintptr_t(buf);
-+	rc = ::syscall(__NR_bpf, BPF_MAP_LOOKUP_ELEM, &attr, sizeof(attr));
++        union bpf_attr attr = {};
++        attr.map_fd = uint32_t(fd_in);
++        attr.key = uintptr_t(msg.bpf_lookup_req.key_);
++        attr.value = uintptr_t(buf);
++        rc = ::syscall(__NR_bpf, BPF_MAP_LOOKUP_ELEM, &attr, sizeof(attr));
 +      }
 +      if (rc != 0) {
-+	msg.hdr.msg_type_ = TYPE_SYSCALL_RESPONSE;
-+	msg.syscall_response.ret_ = {rc, errno};
-+	size = send_fd_msg(pipe, &msg, sizeof(msg.syscall_response));
-+	if (size != ssize_t(sizeof(msg.syscall_response))) {
-+	  perror("bpf lookup fail sendmsg");
-+	}
-+      } else {
-+	msg.hdr.msg_type_ = TYPE_VALUE_RESPONSE;
-+	size = send_fd_msg(pipe, &msg, sizeof(msg.value_response), buf, msg.bpf_lookup_req.value_size_);
-+	if (size < ssize_t(sizeof(msg.value_response)) + msg.bpf_lookup_req.value_size_) {
-+	  perror("bpf lookup sendmsg");
-+	}
++        value_len = 0;
 +      }
 +    }
 +      break;
 +    case TYPE_SETSOCKOPT32_REQUEST:
-+      rc = ::syscall(__NR_setsockopt, fd, msg.setsockopt_req.level_, msg.setsockopt_req.optname_, &msg.setsockopt_req.optval_, sizeof(msg.setsockopt_req.optval_));
-+      msg.hdr.msg_type_ = TYPE_SYSCALL_RESPONSE;
-+      msg.syscall_response.ret_ = {rc, rc != -1 ? 0 : errno};
-+      size = send_fd_msg(pipe, &msg, sizeof(msg.syscall_response));
-+      if (size < ssize_t(sizeof(msg.syscall_response))) {
-+	perror("setsockopt sendmsg");
-+      }
++      rc = ::syscall(__NR_setsockopt, fd_in, msg.setsockopt_req.level_, msg.setsockopt_req.optname_, &msg.setsockopt_req.optval_, sizeof(msg.setsockopt_req.optval_));
 +      break;
 +    default:
-+      fprintf(stderr, "Unknown privileged call type: %d\n", msg.hdr.msg_type_);
++      IS_ENVOY_BUG(fmt::format("Unexpected privileged call type: {}", msg.hdr.msg_type_));
 +    }
++
 +    // Close the received file descriptor
-+    if (fd != -1) {
-+      close(fd);
++    if (fd_in != -1) {
++      close(fd_in);
++    }
++
++    // Form the response in place
++    msg.response.hdr_.msg_type_ = TYPE_RESPONSE;
++    if (fd_out != -1) {
++      // Pass a poitive but invalid fd in ret_, to be replaced with the passed
++      // fd by the receiver.
++      msg.response.ret_ = {INT_MAX, 0};
++    } else {
++      msg.response.ret_ = {rc, rc != -1 ? 0 : errno};
++    }
++    size = send_fd_msg(pipe, &msg, sizeof(msg.response), buf, value_len, fd_out);
++    if (size < ssize_t(sizeof(msg.response) + value_len)) {
++      perror("sendmsg");
++    }
++
++    // Close the sent file descriptor
++    if (fd_out != -1) {
++      close(fd_out);
 +    }
 +  }
 +}
@@ -649,7 +648,7 @@ index 0000000000..1c316709fb
 +  } cmsgu;
 +  struct cmsghdr *cmsg;
 +
-+  // set up msg control, optionally with an fd
++  // set up msg control for an fd?
 +  if (fd != -1) {
 +    msg.msg_control = cmsgu.control;
 +    msg.msg_controllen = sizeof(cmsgu.control);
@@ -690,7 +689,7 @@ index 0000000000..1c316709fb
 +  if (size >= 0 && fd) {
 +    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
 +    if (cmsg && cmsg->cmsg_len == CMSG_LEN(sizeof(int)) &&
-+	cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
++        cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS) {
 +      *fd = *reinterpret_cast<int *>(CMSG_DATA(cmsg));
 +    } else {
 +      *fd = -1;
@@ -700,75 +699,74 @@ index 0000000000..1c316709fb
 +}
 +
 +std::string DropCaps::dump_capabilities() {
-+  auto req = DumpRequest();
-+  auto resp = ValueResponse();
++  if (!caps.privileged_process_started()) {
++      return "";
++  }
++
++  DumpRequest req;
++  Response resp;
 +  uint8_t buf[1024];
 +  int fd = -1;
-+  auto size = caps.transact(req.hdr_, sizeof(req), nullptr, 0, &fd, resp.hdr_, sizeof(resp), buf, sizeof(buf));
++  ssize_t size = caps.transact(req.hdr_, sizeof(req), nullptr, 0, &fd, resp, buf, sizeof(buf));
++  RELEASE_ASSERT(size >= ssize_t(sizeof(resp)), "invalid received response size");
 +  return std::string(reinterpret_cast<char *>(buf), size - sizeof(resp));
 +}
 +
 +} // namespace
 +
-+SysCallIntResult bpf_open(const char *path) {
-+  auto req = BpfOpenRequest();
++Envoy::Api::SysCallIntResult bpf_open(const char *path) {
++  if (!caps.privileged_process_started()) {
++      return {-1, EPERM};
++  }
++
++  BpfOpenRequest req;
++  Response resp;
 +  size_t path_len = strlen(path);
 +  RELEASE_ASSERT(path_len <= PATH_MAX, "bpf open path too long");
-+  auto resp = SyscallResponse();
 +  int fd = -1;
-+  caps.transact(req.hdr_, sizeof(req), path, path_len, &fd, resp.hdr_, sizeof(resp));
-+  resp.ret_.return_value_ = fd;
++  ssize_t size = caps.transact(req.hdr_, sizeof(req), path, path_len, &fd, resp);
++  RELEASE_ASSERT(size == ssize_t(sizeof(resp)), "invalid received response size");
++  if (resp.ret_.return_value_ == INT_MAX) {
++    resp.ret_.return_value_ = fd;
++  }
 +  return resp.ret_;
 +}
 +
-+SysCallIntResult bpf_lookup(int fd, const void *key, uint32_t key_size, void* value,
-+			    uint32_t value_size) {
-+  auto req = BpfLookupRequest(value_size);
-+  MessageHeader resp; // untyped response
-+  SysCallIntResult ret;  // the only documented value for bpf lookup
-+  // Use ret as buffer for values smaller than SysCallResult
-+  void *buf = &ret;
-+  uint32_t buf_size = sizeof(ret);
-+  // Write directly to the value, if it is big enough to hold the syscall response when needed
-+  if (value_size >= buf_size) {
-+    buf = value;
-+    buf_size = value_size;
++Envoy::Api::SysCallIntResult bpf_lookup(int fd, const void *key, uint32_t key_size, void* value,
++                                        uint32_t value_size) {
++  if (!caps.privileged_process_started()) {
++      return {-1, EPERM};
 +  }
-+  ssize_t size = caps.transact(req.hdr_, sizeof(req), key, key_size, &fd, resp, sizeof(resp), buf, buf_size);
-+  if (resp.msg_type_ == TYPE_VALUE_RESPONSE) {
-+    RELEASE_ASSERT(size == ssize_t(sizeof(ValueResponse) + value_size),
-+		   "bpfLookup wrong value size");
-+    // Small values are in &ret, larger values are already at 'value'
-+    if (buf != value) {
-+      memcpy(value, buf, value_size);
-+    }
-+    return {0, 0};
-+  }
-+  RELEASE_ASSERT(resp.msg_type_ == TYPE_SYSCALL_RESPONSE, "bpfLookup invalid response type");
-+  // Copy syscall response to ret if needed to avoid alignment problems
-+  if (buf != &ret) {
-+    memcpy(&ret, buf, sizeof(ret));
-+  }
-+  return ret;
-+}
 +
-+SysCallIntResult setsockopt(int sockfd, int level, int optname, const void *optval,
-+			    socklen_t optlen) {
-+  auto req = SetSockOptRequest(level, optname, optval, optlen);
-+  auto resp = SyscallResponse();
-+  caps.transact(req.hdr_, sizeof(req), nullptr, 0, &sockfd, resp.hdr_, sizeof(resp));
++  BpfLookupRequest req(value_size);
++  Response resp;
++  ssize_t size = caps.transact(req.hdr_, sizeof(req), key, key_size, &fd, resp, value, value_size);
++  RELEASE_ASSERT((size == ssize_t(sizeof(resp)) && resp.ret_.return_value_ == -1)
++                 || size == ssize_t(sizeof(resp) + value_size),
++                 "invalid received bpf lookup value size");
 +  return resp.ret_;
 +}
 +
-+} // namespace Privileged
-+} // namespace Api
-+} // namespace Envoy
++Envoy::Api::SysCallIntResult setsockopt(int sockfd, int level, int optname, const void *optval,
++                                        socklen_t optlen) {
++  if (!caps.privileged_process_started()) {
++      return {-1, EPERM};
++  }
++
++  SetSockOptRequest req(level, optname, optval, optlen);
++  Response resp;
++  ssize_t size = caps.transact(req.hdr_, sizeof(req), nullptr, 0, &sockfd, resp);
++  RELEASE_ASSERT(size == ssize_t(sizeof(resp)), "invalid received response size");
++  return resp.ret_;
++}
++
++} // namespace PrivilegedSyscalls
 diff --git a/source/common/api/posix/os_sys_calls_impl_linux_privileged.h b/source/common/api/posix/os_sys_calls_impl_linux_privileged.h
 new file mode 100644
-index 0000000000..d18982b248
+index 0000000000..37a26f4c42
 --- /dev/null
 +++ b/source/common/api/posix/os_sys_calls_impl_linux_privileged.h
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,22 @@
 +#pragma once
 +
 +#if !defined(__linux__)
@@ -779,22 +777,18 @@ index 0000000000..d18982b248
 +
 +#include "envoy/api/os_sys_calls_common.h"
 +
-+namespace Envoy {
-+namespace Api {
-+namespace Privileged {
++namespace PrivilegedSyscalls {
 +
 +// Read-only bpf syscalls
-+SysCallIntResult bpf_open(const char *path);
-+SysCallIntResult bpf_lookup(int fd, const void *key, uint32_t key_size, void* value,
-+			    uint32_t value_size);
++Envoy::Api::SysCallIntResult bpf_open(const char *path);
++Envoy::Api::SysCallIntResult bpf_lookup(int fd, const void *key, uint32_t key_size, void* value,
++                                        uint32_t value_size);
 +
 +// Set a privileged socket option
-+SysCallIntResult setsockopt(int sockfd, int level, int optname, const void *optval,
-+			    socklen_t optlen);
++Envoy::Api::SysCallIntResult setsockopt(int sockfd, int level, int optname, const void *optval,
++                                        socklen_t optlen);
 +
-+} // Privileged
-+} // namespace Api
-+} // namespace Envoy
++} // PrivilegedSyscalls
 -- 
 2.41.0
 
