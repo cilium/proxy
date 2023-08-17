@@ -36,9 +36,10 @@ void Bpf::close() {
 
 bool Bpf::open(const std::string& path) {
   bool log_on_error = ENVOY_LOG_CHECK_LEVEL(trace);
+  union bpf_attr attr = {};
+  attr.pathname = uintptr_t(path.c_str());
 
-  auto ret = bpfOpen(path.c_str());
-  fd_ = ret.return_value_;
+  fd_ = bpfSyscall(BPF_OBJ_GET, &attr);
   if (fd_ >= 0) {
     // Open fdinfo to check the map type and key and value size.
     std::string line;
@@ -94,12 +95,12 @@ bool Bpf::open(const std::string& path) {
                 bpf_file_path);
     }
     close();
-  } else if (ret.errno_ == ENOENT && log_on_error) {
+  } else if (errno == ENOENT && log_on_error) {
     ENVOY_LOG(debug, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path,
-              Envoy::errorDetails(ret.errno_));
+              Envoy::errorDetails(errno));
   } else if (log_on_error) {
     ENVOY_LOG(warn, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path,
-              Envoy::errorDetails(ret.errno_));
+              Envoy::errorDetails(errno));
   }
 
   return false;
@@ -152,7 +153,7 @@ bool Bpf::lookup(const void* key, void* value) {
   attr.key = uintptr_t(key);
   attr.value = uintptr_t(value);
 
-  return bpfLookup(fd_, key, key_size_, value, value_size_).return_value_ == 0;
+  return bpfSyscall(BPF_MAP_LOOKUP_ELEM, &attr) == 0;
 }
 
 #ifndef __NR_bpf

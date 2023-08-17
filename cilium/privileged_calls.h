@@ -10,8 +10,7 @@
 std::string dumpCapabilities();
 
 // Perform a read-only bpf syscall
-Envoy::Api::SysCallIntResult bpfOpen(const char *path);
-Envoy::Api::SysCallIntResult bpfLookup(int fd, const void *key, uint32_t key_size, void* value, uint32_t value_size);
+int bpfSyscall(int cmd, union bpf_attr* attr);
 
 // Set a privileged socket option
-Envoy::Api::SysCallIntResult setSockOpt(int sockfd, int level, int optname, const void *optval, socklen_t optlen);
+Envoy::Api::SysCallIntResult setSockOpt(int sockfd, int level, int optname, const void* optval, socklen_t optlen);
