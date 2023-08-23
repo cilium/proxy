@@ -44,13 +44,13 @@ func ParseError(reason string, config interface{}) {
 }
 
 type PortNetworkPolicyRule struct {
-	AllowedRemotes map[uint64]struct{}
+	AllowedRemotes map[uint32]struct{}
 	L7Rules        []L7NetworkPolicyRule
 }
 
 func newPortNetworkPolicyRule(config *cilium.PortNetworkPolicyRule) (PortNetworkPolicyRule, string, bool) {
 	rule := PortNetworkPolicyRule{
-		AllowedRemotes: make(map[uint64]struct{}, len(config.RemotePolicies)),
+		AllowedRemotes: make(map[uint32]struct{}, len(config.RemotePolicies)),
 	}
 	for _, remote := range config.GetRemotePolicies() {
 		if flowdebug.Enabled() {
@@ -91,7 +91,7 @@ func newPortNetworkPolicyRule(config *cilium.PortNetworkPolicyRule) (PortNetwork
 func (p *PortNetworkPolicyRule) Matches(remoteId uint32, l7 interface{}) bool {
 	// Remote ID must match if we have any.
 	if len(p.AllowedRemotes) > 0 {
-		_, found := p.AllowedRemotes[uint64(remoteId)]
+		_, found := p.AllowedRemotes[uint32(remoteId)]
 		if !found {
 			return false
 		}

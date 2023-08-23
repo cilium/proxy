@@ -30,7 +30,7 @@ public:
 
   virtual bool useProxylib(std::string& l7_proto) const PURE;
 
-  virtual bool Matches(absl::string_view sni, uint64_t remote_id) const PURE;
+  virtual bool Matches(absl::string_view sni, uint32_t remote_id) const PURE;
 
   virtual bool allowed(const envoy::config::core::v3::Metadata& metadata) const PURE;
 
@@ -54,16 +54,16 @@ class PolicyInstance {
 public:
   virtual ~PolicyInstance() = default;
 
-  virtual bool Allowed(bool ingress, uint16_t port, uint64_t remote_id,
+  virtual bool Allowed(bool ingress, uint16_t port, uint32_t remote_id,
                        Envoy::Http::RequestHeaderMap& headers,
                        Cilium::AccessLog::Entry& log_entry) const PURE;
 
   virtual const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint16_t port,
-                                                        uint64_t remote_id) const PURE;
+                                                        uint32_t remote_id) const PURE;
 
   // Returns true if the policy specifies l7 protocol for the connection, and
   // returns the l7 protocol string in 'l7_proto'
-  virtual bool useProxylib(bool ingress, uint16_t port, uint64_t remote_id,
+  virtual bool useProxylib(bool ingress, uint16_t port, uint32_t remote_id,
                            std::string& l7_proto) const PURE;
 
   virtual const std::string& conntrackName() const PURE;

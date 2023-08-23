@@ -27,7 +27,7 @@ class AllowPortNetworkPolicyRule : public PortPolicy {
 public:
   AllowPortNetworkPolicyRule(){};
 
-  bool Matches(absl::string_view, uint64_t) const override { return true; }
+  bool Matches(absl::string_view, uint32_t) const override { return true; }
 
   // PortPolicy
   bool useProxylib(std::string&) const override { return false; }
@@ -77,16 +77,16 @@ class AllowAllEgressPolicyInstanceImpl : public PolicyInstance {
 public:
   AllowAllEgressPolicyInstanceImpl() {}
 
-  bool Allowed(bool ingress, uint16_t, uint64_t, Envoy::Http::RequestHeaderMap&,
+  bool Allowed(bool ingress, uint16_t, uint32_t, Envoy::Http::RequestHeaderMap&,
                Cilium::AccessLog::Entry&) const override {
     return ingress ? false : true;
   }
 
-  const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint16_t, uint64_t) const override {
+  const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint16_t, uint32_t) const override {
     return ingress ? nullptr : allowPortNetworkPolicyRule;
   }
 
-  bool useProxylib(bool, uint16_t, uint64_t, std::string&) const override { return false; }
+  bool useProxylib(bool, uint16_t, uint32_t, std::string&) const override { return false; }
 
   const std::string& conntrackName() const override { return empty_string; }
 
@@ -323,6 +323,12 @@ protected:
                   remote, name_);
         allowed_remotes_.emplace(remote);
       }
+      // TODO: Remove deprecated_remote_policies_64 when Cilium 1.14 is no longer supported
+      for (const auto& remote : rule.deprecated_remote_policies_64()) {
+        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule: {}",
+                  remote, name_);
+        allowed_remotes_.emplace(remote);
+      }
       if (rule.has_downstream_tls_context()) {
         auto config = rule.downstream_tls_context();
         server_context_ = std::make_unique<DownstreamTLSContext>(parent, config);
@@ -355,7 +361,7 @@ protected:
       }
     }
 
-    bool Matches(uint64_t remote_id) const {
+    bool Matches(uint32_t remote_id) const {
       // Remote ID must match if we have any.
       if (allowed_remotes_.size() > 0) {
         auto search = allowed_remotes_.find(remote_id);
@@ -366,7 +372,7 @@ protected:
       return true;
     }
 
-    bool Matches(absl::string_view sni, uint64_t remote_id) const override {
+    bool Matches(absl::string_view sni, uint32_t remote_id) const override {
       // sni must match if we have any
       if (allowed_snis_.size() > 0) {
         if (sni.length() == 0) {
@@ -380,7 +386,7 @@ protected:
       return Matches(remote_id);
     }
 
-    bool Matches(uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+    bool Matches(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                  Cilium::AccessLog::Entry& log_entry) const {
       if (!Matches(remote_id)) {
         return false;
@@ -470,7 +476,7 @@ protected:
     std::string name_;
     DownstreamTLSContextPtr server_context_;
     UpstreamTLSContextPtr client_context_;
-    absl::flat_hash_set<uint64_t> allowed_remotes_; // Everyone allowed if empty.
+    absl::flat_hash_set<uint32_t> allowed_remotes_; // Everyone allowed if empty.
     // Use std::less<> to allow heterogeneous lookups (with string_view).
     std::set<std::string, std::less<>> allowed_snis_; // All SNIs allowed if empty.
     std::vector<HttpNetworkPolicyRule>
@@ -498,7 +504,7 @@ protected:
       }
     }
 
-    bool Matches(uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+    bool Matches(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                  Cilium::AccessLog::Entry& log_entry) const {
       // Empty set matches any payload from anyone
       if (rules_.size() == 0) {
@@ -517,7 +523,7 @@ protected:
       return matched;
     }
 
-    const PortPolicyConstSharedPtr findPortPolicy(uint64_t remote_id) const {
+    const PortPolicyConstSharedPtr findPortPolicy(uint32_t remote_id) const {
       // Empty set matches any payload from anyone
       if (rules_.size() == 0) {
         return allowPortNetworkPolicyRule;
@@ -595,7 +601,7 @@ protected:
       return rules_.end();
     }
 
-    bool Matches(uint16_t port, uint64_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+    bool Matches(uint16_t port, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                  Cilium::AccessLog::Entry& log_entry) const {
       auto it = find(port);
       if (it != rules_.end()) {
@@ -615,7 +621,7 @@ protected:
       return false;
     }
 
-    const PortPolicyConstSharedPtr findPortPolicy(uint16_t port, uint64_t remote_id) const {
+    const PortPolicyConstSharedPtr findPortPolicy(uint16_t port, uint32_t remote_id) const {
       auto it = find(port);
       if (it != rules_.end()) {
         return it->second.findPortPolicy(remote_id);
@@ -634,7 +640,7 @@ protected:
   };
 
 public:
-  bool Allowed(bool ingress, uint16_t port, uint64_t remote_id,
+  bool Allowed(bool ingress, uint16_t port, uint32_t remote_id,
                Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const override {
     return ingress ? ingress_.Matches(port, remote_id, headers, log_entry)
@@ -642,12 +648,12 @@ public:
   }
 
   const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint16_t port,
-                                                uint64_t remote_id) const override {
+                                                uint32_t remote_id) const override {
     return ingress ? ingress_.findPortPolicy(port, remote_id)
                    : egress_.findPortPolicy(port, remote_id);
   }
 
-  bool useProxylib(bool ingress, uint16_t port, uint64_t remote_id,
+  bool useProxylib(bool ingress, uint16_t port, uint32_t remote_id,
                    std::string& l7_proto) const override {
     const auto& port_policy = findPortPolicy(ingress, port, remote_id);
     if (port_policy != nullptr) {
