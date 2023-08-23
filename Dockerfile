@@ -5,8 +5,7 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.0.0-latest
 
 # Common Builder image used in cilium/cilium
 # We need gcc for cgo cross-compilation at least, we can swap to something smaller later on
-ARG PROXYLIB_BUILDER=quay.io/cilium/cilium-builder:832f86bb0f7c7129c1536d5620174deeec645117@sha256:6dbac9f9eba3e20f8edad4676689aa8c11b172035fe5e25b533552f42dea4e9a
-
+ARG PROXYLIB_BUILDER=quay.io/cilium/cilium-builder:7d7ce13b2b3ebd3862715c7caa2a2f053481e286@sha256:1d4a321d73ed54d05a6cf705fb7b0bfc5d85a24869d3e979118410b29c8c50d8
 #
 # ARCHIVE_IMAGE defaults to the result of the first stage below,
 # refreshing the build caches from Envoy dependencies before the final
