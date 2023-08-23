@@ -131,10 +131,10 @@ message PortNetworkPolicyRule {
   // A flow is matched by this predicate if the identifier of the policy
   // applied on the flow's remote host is contained in this set.
   // Optional. If not specified, any remote host is matched by this predicate.
-  // TODO: Make this uint32 in later versions to reduce format conversion
-  // overhead
-  // TODO: Consider cost of uniqueness validation
-  repeated uint64 remote_policies = 1 [(validate.rules).repeated .unique = true];
+  // This field is deprecated, use remote_policies instead.
+  // TODO: Remove when Cilium 1.14 no longer supported.
+  repeated uint64 deprecated_remote_policies_64 = 1;
+  repeated uint32 remote_policies = 7;  
 
   // Optional downstream TLS context. If present, the incoming connection must
   // be a TLS connection.
