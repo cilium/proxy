@@ -6,7 +6,8 @@
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 
-#include "conntrack.h"
+#include "cilium/conntrack.h"
+#include "cilium/envoy_wrapper.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -25,11 +26,11 @@ public:
 class SocketMarkOption : public Network::Socket::Option,
                          public Logger::Loggable<Logger::Id::filter> {
 public:
-  SocketMarkOption(uint32_t mark, uint32_t identity, bool ingress, bool l7lb,
-                   Network::Address::InstanceConstSharedPtr original_source_address,
-                   Network::Address::InstanceConstSharedPtr ipv4_source_address,
-                   Network::Address::InstanceConstSharedPtr ipv6_source_address)
-      : identity_(identity), mark_(mark), ingress_(ingress), is_l7lb_(l7lb),
+  SocketMarkOption(uint32_t mark, uint32_t identity,
+                   Network::Address::InstanceConstSharedPtr original_source_address = nullptr,
+                   Network::Address::InstanceConstSharedPtr ipv4_source_address = nullptr,
+                   Network::Address::InstanceConstSharedPtr ipv6_source_address = nullptr)
+      : identity_(identity), mark_(mark),
         original_source_address_(std::move(original_source_address)),
         ipv4_source_address_(std::move(ipv4_source_address)),
         ipv6_source_address_(std::move(ipv6_source_address)) {}
@@ -52,7 +53,8 @@ public:
                 socket.ioHandle().fdDoNotUse());
       return true;
     }
-    auto status = socket.setSocketOption(SOL_SOCKET, SO_MARK, &mark_, sizeof(mark_));
+    auto& cilium_calls = CiliumEnvoyWrapper::CiliumCallsSingleton::get();
+    auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_SOCKET, SO_MARK, &mark_, sizeof(mark_));
     if (status.return_value_ < 0) {
       if (status.errno_ == EPERM) {
         // Do not assert out in this case so that we can run tests without
@@ -68,29 +70,72 @@ public:
       }
     }
 
+    auto ipVersion = socket.ipVersion();
+    if (!ipVersion.has_value()) {
+      ENVOY_LOG(critical,
+                "Socket address family is not available, can not choose source address");
+      return false;
+    }
     Network::Address::InstanceConstSharedPtr source_address = original_source_address_;
     if (!source_address && (ipv4_source_address_ || ipv6_source_address_)) {
       // Select source address based on the socket address family
-      auto ipVersion = socket.ipVersion();
-      if (!ipVersion.has_value()) {
-        ENVOY_LOG(critical,
-                  "Socket address family is not available, can not choose source address");
-        return false;
-      }
       source_address = ipv6_source_address_;
       if (*ipVersion == Network::Address::IpVersion::v4) {
         source_address = ipv4_source_address_;
       }
     }
-    if (source_address) {
+    // identity is zero for the listener socket itself, set transparent and reuse options also for
+    // the listener socket.
+    if (source_address || identity_ == 0) {
       // Allow reuse of the original source address. This may by needed for
       // retries to not fail on "address already in use" when using a specific
       // source address and port.
-
       uint32_t one = 1;
+
+      // Set ip transparent option based on the socket address family
+      if (*ipVersion == Network::Address::IpVersion::v4) {
+	auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IP, IP_TRANSPARENT, &one, sizeof(one));
+	if (status.return_value_ < 0) {
+	  if (status.errno_ == EPERM) {
+	    // Do not assert out in this case so that we can run tests without
+	    // CAP_NET_ADMIN.
+	    ENVOY_LOG(critical,
+		      "Failed to set socket option IP_TRANSPARENT, capability "
+		      "CAP_NET_ADMIN needed: {}",
+		      Envoy::errorDetails(status.errno_));
+	  } else {
+	    ENVOY_LOG(critical, "Socket option failure. Failed to set IP_TRANSPARENT: {}",
+		      Envoy::errorDetails(status.errno_));
+	    return false;
+	  }
+	}
+      } else if (*ipVersion == Network::Address::IpVersion::v6) {
+	auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one));
+	if (status.return_value_ < 0) {
+	  if (status.errno_ == EPERM) {
+	    // Do not assert out in this case so that we can run tests without
+	    // CAP_NET_ADMIN.
+	    ENVOY_LOG(critical,
+		      "Failed to set socket option IPV6_TRANSPARENT, capability "
+		      "CAP_NET_ADMIN needed: {}",
+		      Envoy::errorDetails(status.errno_));
+	  } else {
+	    ENVOY_LOG(critical, "Socket option failure. Failed to set IPV6_TRANSPARENT: {}",
+		      Envoy::errorDetails(status.errno_));
+	    return false;
+	  }
+	}	
+      }
+
       auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
       if (status.return_value_ < 0) {
         ENVOY_LOG(critical, "Failed to set socket option SO_REUSEADDR: {}",
+                  Envoy::errorDetails(status.errno_));
+        return false;
+      }
+      status = socket.setSocketOption(SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+      if (status.return_value_ < 0) {
+        ENVOY_LOG(critical, "Failed to set socket option SO_REUSEPORT: {}",
                   Envoy::errorDetails(status.errno_));
         return false;
       }
@@ -142,14 +187,10 @@ public:
 
   bool isSupported() const override { return true; }
 
-  // policyUseUpstreamDestinationAddress returns 'true' if policy enforcement should be done on the
-  // basis of the upstream destination address.
-  bool policyUseUpstreamDestinationAddress() const { return is_l7lb_; }
+  bool isSidecar() const { return mark_ == 0; }
 
   uint32_t identity_;
   uint32_t mark_;
-  bool ingress_;
-  bool is_l7lb_;
   Network::Address::InstanceConstSharedPtr original_source_address_;
   // Version specific source addresses are only used if original source address is not used.
   // Selection is made based on the socket domain, which is selected based on the destination
@@ -167,10 +208,10 @@ public:
                Network::Address::InstanceConstSharedPtr ipv4_source_address,
                Network::Address::InstanceConstSharedPtr ipv6_source_address,
                const std::shared_ptr<PolicyResolver>& policy_id_resolver)
-      : SocketMarkOption(mark, source_identity, ingress, l7lb, original_source_address,
+      : SocketMarkOption(mark, source_identity, original_source_address,
                          ipv4_source_address, ipv6_source_address),
-        initial_policy_(policy), port_(port), pod_ip_(std::move(pod_ip)),
-        policy_id_resolver_(policy_id_resolver) {
+        initial_policy_(policy), ingress_(ingress), is_l7lb_(l7lb), port_(port),
+	pod_ip_(std::move(pod_ip)), policy_id_resolver_(policy_id_resolver) {
     ENVOY_LOG(debug,
               "Cilium SocketOption(): source_identity: {}, "
               "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {:x} (magic "
@@ -191,7 +232,13 @@ public:
     return policy_id_resolver_->getPolicy(pod_ip_);
   }
 
+  // policyUseUpstreamDestinationAddress returns 'true' if policy enforcement should be done on the
+  // basis of the upstream destination address.
+  bool policyUseUpstreamDestinationAddress() const { return is_l7lb_; }
+
   const PolicyInstanceConstSharedPtr initial_policy_; // Never NULL
+  bool ingress_;
+  bool is_l7lb_;
   uint16_t port_;
   std::string pod_ip_;
 

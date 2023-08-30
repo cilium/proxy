@@ -1,7 +1,7 @@
 #include "cilium/bpf.h"
+#include "cilium/envoy_wrapper.h"
 
 #include "source/common/common/utility.h"
-#include "source/common/api/posix/os_sys_calls_impl_linux_privileged.h"
 
 #include "linux/bpf.h"
 
@@ -26,7 +26,8 @@ void Bpf::close() {
 bool Bpf::open(const std::string& path) {
   bool log_on_error = ENVOY_LOG_CHECK_LEVEL(trace);
 
-  auto ret = PrivilegedSyscalls::bpf_open(path.c_str());
+  auto& cilium_calls = CiliumEnvoyWrapper::CiliumCallsSingleton::get();
+  auto ret = cilium_calls.bpf_open(path.c_str());
   fd_ = ret.return_value_;
   if (fd_ >= 0) {
     // Open fdinfo to check the map type and key and value size.
@@ -95,7 +96,8 @@ bool Bpf::open(const std::string& path) {
 }
 
 bool Bpf::lookup(const void* key, void* value) {
-  return PrivilegedSyscalls::bpf_lookup(fd_, key, key_size_, value, value_size_).return_value_ == 0;
+  auto& cilium_calls = CiliumEnvoyWrapper::CiliumCallsSingleton::get();
+  return cilium_calls.bpf_lookup(fd_, key, key_size_, value, value_size_).return_value_ == 0;
 }
 
 } // namespace Cilium

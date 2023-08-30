@@ -15,6 +15,14 @@ exports_files([
 ])
 
 envoy_cc_binary(
+    name = "cilium-envoy-wrapper",
+    deps = [
+        "//cilium:envoy_wrapper_main_entry_lib",
+    ],
+    repository = "@envoy",
+)
+
+envoy_cc_binary(
     name = "cilium-envoy",
     repository = "@envoy",
     deps = [

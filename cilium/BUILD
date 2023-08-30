@@ -9,6 +9,45 @@ licenses(["notice"])  # Apache 2
 envoy_package()
 
 envoy_cc_library(
+    name = "envoy_wrapper_main_entry_lib",
+    srcs = ["envoy_wrapper_main.cc"],
+    deps = [
+        "//cilium:envoy_wrapper_protocol",
+    ],
+    repository = "@envoy",
+)
+
+envoy_cc_library(
+    name = "envoy_wrapper_protocol",
+    srcs = ["envoy_wrapper_protocol.cc"],
+    hdrs = ["envoy_wrapper_protocol.h"],
+    repository = "@envoy",
+    deps = [
+        "@envoy//envoy/api:os_sys_calls_interface",
+        "@envoy//source/common/common:assert_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "envoy_wrapper_interface",
+    hdrs = ["envoy_wrapper.h"],
+    repository = "@envoy",
+    deps = [
+        "//cilium:envoy_wrapper_protocol",
+    ],
+)
+
+envoy_cc_library(
+    name = "envoy_wrapper_lib",
+    srcs = ["envoy_wrapper.cc"],
+    repository = "@envoy",
+    deps = [
+        "//cilium:envoy_wrapper_interface",
+        "@envoy//source/common/singleton:threadsafe_singleton",
+    ],
+)
+
+envoy_cc_library(
     name = "tls_wrapper_lib",
     srcs = ["tls_wrapper.cc"],
     hdrs = ["tls_wrapper.h"],
@@ -175,7 +214,8 @@ envoy_cc_library(
     ],
     repository = "@envoy",
     deps = [
-        "@envoy//source/common/api:os_sys_calls_lib",
+        # Envoy wrapper
+        "//cilium:envoy_wrapper_lib",
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/common:utility_lib",
     ],

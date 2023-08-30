@@ -44,7 +44,7 @@ RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private if [ "
 #
 # Build dependencies
 #
-RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG DESTDIR=/tmp/install make bazel-bin/cilium-envoy
+RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG DESTDIR=/tmp/install make bazel-bin/cilium-envoy-wrapper bazel-bin/cilium-envoy
 
 # By default this stage picks up the result of the build above, but ARCHIVE_IMAGE can be
 # overridden to point to a saved image of an earlier run of that stage.

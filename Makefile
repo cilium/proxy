@@ -16,7 +16,7 @@ include Makefile.defs
 
 COMPILER_DEP := clang.bazelrc
 
-ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy
+ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy cilium-envoy-wrapper bazel-bin/cilium-envoy-wrapper
 ENVOY_TESTS = bazel-bin/tests/*_test
 
 SHELL=/bin/bash -o pipefail
@@ -61,7 +61,7 @@ else
 endif
 
 ifdef PKG_BUILD
-  all: cilium-envoy
+  all: cilium-envoy-wrapper cilium-envoy
 else
   include Makefile.dev
   include Makefile.docker
@@ -102,6 +102,13 @@ bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION
 cilium-envoy: bazel-bin/cilium-envoy
 	mv $< $@
 
+bazel-bin/cilium-envoy-wrapper: $(COMPILER_DEP) SOURCE_VERSION
+	@$(ECHO_BAZEL)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-wrapper $(BAZEL_FILTER)
+
+cilium-envoy-wrapper: bazel-bin/cilium-envoy-wrapper
+	mv $< $@
+
 BAZEL_CACHE := $(subst --disk_cache=,,$(filter --disk_cache=%, $(BAZEL_BUILD_OPTS)))
 
 GLIBC_VERSION ?= $(shell ldd --version | sed -n 's/.*GLIBC \([0-9.]\+\).*/\1/p')
@@ -116,12 +123,14 @@ $(DESTDIR)$(GLIBC_DIR): bazel-bin/cilium-envoy
 		$(SUDO) cp /usr/$${ARCH_TAG}-linux-gnu/lib/$$lib $@; \
 	done
 
-install: bazel-bin/cilium-envoy
+install: bazel-bin/cilium-envoy-wrapper bazel-bin/cilium-envoy
 	$(SUDO) $(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(SUDO) $(INSTALL) -m 0755 -T $< $(DESTDIR)$(BINDIR)/cilium-envoy
+	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy-wrapper $(DESTDIR)$(BINDIR)/cilium-envoy-wrapper
+	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy $(DESTDIR)$(BINDIR)/cilium-envoy
 
 install-glibc: install $(DESTDIR)$(GLIBC_DIR)
 	LD_LINUX=$$(basename $$(patchelf --print-interpreter bazel-bin/cilium-envoy)); \
+	$(SUDO) patchelf --set-interpreter $(GLIBC_DIR)/$${LD_LINUX} --set-rpath $(GLIBC_DIR) $(DESTDIR)$(BINDIR)/cilium-envoy-wrapper
 	$(SUDO) patchelf --set-interpreter $(GLIBC_DIR)/$${LD_LINUX} --set-rpath $(GLIBC_DIR) $(DESTDIR)$(BINDIR)/cilium-envoy
 
 # Remove the binaries
