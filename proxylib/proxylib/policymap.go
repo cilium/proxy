@@ -58,6 +58,13 @@ func newPortNetworkPolicyRule(config *cilium.PortNetworkPolicyRule) (PortNetwork
 		}
 		rule.AllowedRemotes[remote] = struct{}{}
 	}
+	// TODO: Remove when Cilium 1.14 is no longer supported:
+	for _, remote := range config.GetDeprecatedRemotePolicies_64() {
+		if flowdebug.Enabled() {
+			logrus.Debugf("NPDS::PortNetworkPolicyRule: Allowing remote %d", remote)
+		}
+		rule.AllowedRemotes[uint32(remote)] = struct{}{}
+	}
 
 	// Each parser registers a parsing function to parse it's L7 rules
 	// The registered name must match 'l7_proto', if included in the message,
