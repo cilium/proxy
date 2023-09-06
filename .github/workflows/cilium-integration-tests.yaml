@@ -144,6 +144,20 @@ jobs:
             exit 1
           fi
 
+      - name: Install Go
+        uses: actions/setup-go@93397bea11091df50f3d7e59dc26a7711a8bcfbe # v4.1.0
+        with:
+          # renovate: datasource=golang-version depName=go
+          go-version: 1.21.0
+
+      - name: Get new proxy API
+        shell: bash
+        run: |
+          go get github.com/cilium/proxy@${{ env.PROXY_TAG }} && \
+          go mod tidy && \
+          go mod vendor && \
+          go mod verify
+
       - name: Wait for Cilium Proxy image to be available
         timeout-minutes: 30
         shell: bash
