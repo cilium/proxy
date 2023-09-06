@@ -128,6 +128,7 @@ func (m *Mutations) validate(all bool) error {
 	if len(errors) > 0 {
 		return MutationsMultiError(errors)
 	}
+
 	return nil
 }
 
@@ -255,6 +256,7 @@ func (m *HeaderMutationPerRoute) validate(all bool) error {
 	if len(errors) > 0 {
 		return HeaderMutationPerRouteMultiError(errors)
 	}
+
 	return nil
 }
 
@@ -385,6 +387,7 @@ func (m *HeaderMutation) validate(all bool) error {
 	if len(errors) > 0 {
 		return HeaderMutationMultiError(errors)
 	}
+
 	return nil
 }
 

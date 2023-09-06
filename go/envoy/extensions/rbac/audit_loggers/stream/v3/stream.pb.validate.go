@@ -60,6 +60,7 @@ func (m *StdoutAuditLog) validate(all bool) error {
 	if len(errors) > 0 {
 		return StdoutAuditLogMultiError(errors)
 	}
+
 	return nil
 }
 

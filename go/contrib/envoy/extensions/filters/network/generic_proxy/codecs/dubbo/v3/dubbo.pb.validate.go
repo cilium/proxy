@@ -60,6 +60,7 @@ func (m *DubboCodecConfig) validate(all bool) error {
 	if len(errors) > 0 {
 		return DubboCodecConfigMultiError(errors)
 	}
+
 	return nil
 }
 

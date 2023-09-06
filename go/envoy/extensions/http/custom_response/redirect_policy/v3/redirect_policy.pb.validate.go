@@ -191,9 +191,20 @@ func (m *RedirectPolicy) validate(all bool) error {
 		}
 	}
 
-	switch m.RedirectActionSpecifier.(type) {
-
+	oneofRedirectActionSpecifierPresent := false
+	switch v := m.RedirectActionSpecifier.(type) {
 	case *RedirectPolicy_Uri:
+		if v == nil {
+			err := RedirectPolicyValidationError{
+				field:  "RedirectActionSpecifier",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofRedirectActionSpecifierPresent = true
 
 		if utf8.RuneCountInString(m.GetUri()) < 1 {
 			err := RedirectPolicyValidationError{
@@ -207,6 +218,17 @@ func (m *RedirectPolicy) validate(all bool) error {
 		}
 
 	case *RedirectPolicy_RedirectAction:
+		if v == nil {
+			err := RedirectPolicyValidationError{
+				field:  "RedirectActionSpecifier",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		oneofRedirectActionSpecifierPresent = true
 
 		if all {
 			switch v := interface{}(m.GetRedirectAction()).(type) {
@@ -238,6 +260,9 @@ func (m *RedirectPolicy) validate(all bool) error {
 		}
 
 	default:
+		_ = v // ensures v is used
+	}
+	if !oneofRedirectActionSpecifierPresent {
 		err := RedirectPolicyValidationError{
 			field:  "RedirectActionSpecifier",
 			reason: "value is required",
@@ -246,12 +271,12 @@ func (m *RedirectPolicy) validate(all bool) error {
 			return err
 		}
 		errors = append(errors, err)
-
 	}
 
 	if len(errors) > 0 {
 		return RedirectPolicyMultiError(errors)
 	}
+
 	return nil
 }
 

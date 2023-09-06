@@ -262,6 +262,7 @@ func (m *FileSystemHttpCacheConfig) validate(all bool) error {
 	if len(errors) > 0 {
 		return FileSystemHttpCacheConfigMultiError(errors)
 	}
+
 	return nil
 }
 

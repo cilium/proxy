@@ -58,23 +58,43 @@ func (m *FixedServerPreferredAddressConfig) validate(all bool) error {
 
 	var errors []error
 
-	switch m.Ipv4Type.(type) {
-
+	switch v := m.Ipv4Type.(type) {
 	case *FixedServerPreferredAddressConfig_Ipv4Address:
+		if v == nil {
+			err := FixedServerPreferredAddressConfigValidationError{
+				field:  "Ipv4Type",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 		// no validation rules for Ipv4Address
-
+	default:
+		_ = v // ensures v is used
 	}
-
-	switch m.Ipv6Type.(type) {
-
+	switch v := m.Ipv6Type.(type) {
 	case *FixedServerPreferredAddressConfig_Ipv6Address:
+		if v == nil {
+			err := FixedServerPreferredAddressConfigValidationError{
+				field:  "Ipv6Type",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
 		// no validation rules for Ipv6Address
-
+	default:
+		_ = v // ensures v is used
 	}
 
 	if len(errors) > 0 {
 		return FixedServerPreferredAddressConfigMultiError(errors)
 	}
+
 	return nil
 }
 
