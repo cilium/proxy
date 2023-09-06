@@ -510,6 +510,8 @@ static_resources:
         "@type": type.googleapis.com/cilium.TestBpfMetadata
         is_ingress: {0}
     - name: "envoy.filters.listener.tls_inspector"
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
     filter_chains:
     - filters:
       - name: cilium.network

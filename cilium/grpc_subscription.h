@@ -8,7 +8,7 @@
 #include "envoy/local_info/local_info.h"
 #include "envoy/upstream/cluster_manager.h"
 
-#include "source/common/config/grpc_subscription_impl.h"
+#include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
 
 namespace Envoy {
 namespace Cilium {

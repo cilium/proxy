@@ -231,6 +231,8 @@ static_resources:
     filter_chains:
       filters:
       - name: cilium.network
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
       - name: envoy.http_connection_manager
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager

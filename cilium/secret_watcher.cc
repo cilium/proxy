@@ -44,7 +44,7 @@ Envoy::Common::CallbackHandlePtr SecretWatcher::readAndWatchSecret() {
 void SecretWatcher::store() {
   const auto* secret = secret_provider_->secret();
   if (secret != nullptr) {
-    Api::Api& api = parent_.transportFactoryContext().api();
+    Api::Api& api = parent_.transportFactoryContext().serverFactoryContext().api();
     std::string* p = new std::string(Config::DataSource::read(secret->secret(), true, api));
     std::string* old = ptr_.exchange(p, std::memory_order_release);
     if (old != nullptr) {
@@ -58,7 +58,7 @@ const std::string* SecretWatcher::load() const { return ptr_.load(std::memory_or
 
 TLSContext::TLSContext(const NetworkPolicyMap& parent, const std::string& name)
     : manager_(parent.transportFactoryContext().sslContextManager()),
-      scope_(parent.transportFactoryContext().scope()),
+      scope_(parent.transportFactoryContext().serverFactoryContext().serverScope()),
       init_target_(fmt::format("TLS Context {} secret", name), []() {}) {}
 
 namespace {

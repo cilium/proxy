@@ -57,6 +57,8 @@ static_resources:
           access_log_path: "{{ test_udsdir }}/access_log.sock"
           origin: "jarno.cilium.rocks"
       - name: cilium.network
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy

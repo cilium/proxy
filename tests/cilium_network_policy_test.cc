@@ -23,9 +23,6 @@ protected:
   ~CiliumNetworkPolicyTest() override {}
 
   void SetUp() override {
-    ON_CALL(factory_context_.transport_socket_factory_context_, stats())
-        .WillByDefault(testing::ReturnRef(store_));
-
     // Mock SDS secrets with a real implementation, which will not return anything if there is no SDS server.
     // This is only useful for testing functionality with a missing secret.
     auto& secret_manager = factory_context_.server_factory_context_.cluster_manager_.cluster_manager_factory_.secretManager();
