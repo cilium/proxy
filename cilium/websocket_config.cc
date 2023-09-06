@@ -58,7 +58,9 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
   envoy::extensions::filters::network::http_connection_manager::v3::RequestIDExtension x_rid_config;
   x_rid_config.mutable_typed_config()->PackFrom(
       envoy::extensions::request_id::uuid::v3::UuidRequestIdConfig());
-  request_id_extension_ = Http::RequestIDExtensionFactory::fromProto(x_rid_config, context);
+  auto extension_or_error = Http::RequestIDExtensionFactory::fromProto(x_rid_config, context);
+  THROW_IF_STATUS_NOT_OK(extension_or_error, throw);
+  request_id_extension_ = extension_or_error.value();
 
   // Base64 encode the given/expected key, if any.
   if (!key_.empty()) {

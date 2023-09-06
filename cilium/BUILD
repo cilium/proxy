@@ -83,8 +83,8 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "@envoy//envoy/network:connection_interface",
-        "@envoy//source/common/config:grpc_subscription_lib",
         "@envoy//source/common/config:type_to_endpoint_lib",
+        "@envoy//source/extensions/config_subscription/grpc:grpc_subscription_lib",
         "@envoy_api//envoy/annotations:pkg_cc_proto",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],

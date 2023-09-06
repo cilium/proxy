@@ -52,6 +52,8 @@ static_resources:
     filter_chains:
       filters:
       - name: cilium.network
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
       - name: cilium.network.websocket.client
         typed_config:
           "@type": type.googleapis.com/cilium.WebSocketClient

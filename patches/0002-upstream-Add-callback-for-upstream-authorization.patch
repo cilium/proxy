@@ -1,7 +1,7 @@
-From 4816d8ee090f07b4c27f877272b709c96a32233f Mon Sep 17 00:00:00 2001
+From 2aaec87a26464142252888f9f04e3f50bc2542be Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 21 Jan 2022 15:42:00 +0200
-Subject: [PATCH 2/5] upstream: Add callback for upstream authorization
+Subject: [PATCH 2/4] upstream: Add callback for upstream authorization
 
 Add new StreamDecoderFilterCallbacks addUpstreamCallback() and
 iterateUpstreamCallbacks(). Decoder filters can add callbacks using
@@ -20,19 +20,12 @@ adding the callback, as the calls to the callbacks are only ever be
 done from the router filter in the same filter chain.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
----
- envoy/http/filter.h                      | 30 ++++++++++++++++++++++++
- source/common/http/async_client_impl.h   |  5 ++++
- source/common/http/filter_manager.cc     | 22 +++++++++++++++++
- source/common/http/filter_manager.h      |  8 +++++++
- source/common/router/upstream_request.cc |  9 +++++++
- 5 files changed, 74 insertions(+)
 
 diff --git a/envoy/http/filter.h b/envoy/http/filter.h
-index a07e0043ad..a0d1a617b5 100644
+index 88123f71b2..7b529bec55 100644
 --- a/envoy/http/filter.h
 +++ b/envoy/http/filter.h
-@@ -458,6 +458,24 @@ public:
+@@ -463,6 +463,24 @@ public:
     */
    virtual void onDecoderFilterBelowWriteBufferLowWatermark() PURE;
  };
@@ -57,7 +50,7 @@ index a07e0043ad..a0d1a617b5 100644
  /**
   * Stream decoder filter callbacks add additional callbacks that allow a
   * decoding filter to restart decoding if they decide to hold data (e.g. for
-@@ -754,6 +772,18 @@ public:
+@@ -759,6 +777,18 @@ public:
     */
    virtual bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr,
                                          StreamInfo::StreamInfo&) PURE;
@@ -77,10 +70,10 @@ index a07e0043ad..a0d1a617b5 100644
  
  /**
 diff --git a/source/common/http/async_client_impl.h b/source/common/http/async_client_impl.h
-index 6f9cf7be5d..46528a941d 100644
+index b55a169101..0dfb0f5bcb 100644
 --- a/source/common/http/async_client_impl.h
 +++ b/source/common/http/async_client_impl.h
-@@ -483,6 +483,11 @@ private:
+@@ -486,6 +486,11 @@ private:
                                  StreamInfo::StreamInfo&) override {
      return true;
    }
@@ -93,10 +86,10 @@ index 6f9cf7be5d..46528a941d 100644
    // ScopeTrackedObject
    void dumpState(std::ostream& os, int indent_level) const override {
 diff --git a/source/common/http/filter_manager.cc b/source/common/http/filter_manager.cc
-index e47dda3136..20bfc43e6d 100644
+index 2190b0b2fe..5a2dc09b60 100644
 --- a/source/common/http/filter_manager.cc
 +++ b/source/common/http/filter_manager.cc
-@@ -1496,6 +1496,19 @@ bool FilterManager::createFilterChain() {
+@@ -1500,6 +1500,19 @@ bool FilterManager::createFilterChain() {
    return !upgrade_rejected;
  }
  
@@ -116,7 +109,7 @@ index e47dda3136..20bfc43e6d 100644
  void ActiveStreamDecoderFilter::requestDataDrained() {
    // If this is called it means the call to requestDataTooLarge() was a
    // streaming call, or a 413 would have been sent.
-@@ -1722,5 +1735,14 @@ bool ActiveStreamDecoderFilter::iterateUpstreamCallbacks(Upstream::HostDescripti
+@@ -1726,5 +1739,14 @@ bool ActiveStreamDecoderFilter::iterateUpstreamCallbacks(Upstream::HostDescripti
  
  }
  
@@ -132,10 +125,10 @@ index e47dda3136..20bfc43e6d 100644
  } // namespace Http
  } // namespace Envoy
 diff --git a/source/common/http/filter_manager.h b/source/common/http/filter_manager.h
-index cdfb292f32..5019077441 100644
+index 3fc168de60..149fa39049 100644
 --- a/source/common/http/filter_manager.h
 +++ b/source/common/http/filter_manager.h
-@@ -241,6 +241,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
+@@ -242,6 +242,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
    absl::optional<absl::string_view> upstreamOverrideHost() const override;
    bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr host,
                                  StreamInfo::StreamInfo& stream_info) override;
@@ -145,7 +138,7 @@ index cdfb292f32..5019077441 100644
  
    // Each decoder filter instance checks if the request passed to the filter is gRPC
    // so that we can issue gRPC local responses to gRPC requests. Filter's decodeHeaders()
-@@ -978,6 +981,9 @@ private:
+@@ -987,6 +990,9 @@ private:
      return request_metadata_map_vector_.get();
    }
  
@@ -155,7 +148,7 @@ index cdfb292f32..5019077441 100644
    FilterManagerCallbacks& filter_manager_callbacks_;
    Event::Dispatcher& dispatcher_;
    // This is unset if there is no downstream connection, e.g. for health check or
-@@ -987,6 +993,8 @@ private:
+@@ -996,6 +1002,8 @@ private:
    Buffer::BufferMemoryAccountSharedPtr account_;
    const bool proxy_100_continue_;
  
@@ -165,11 +158,11 @@ index cdfb292f32..5019077441 100644
    std::list<ActiveStreamEncoderFilterPtr> encoder_filters_;
    std::list<StreamFilterBase*> filters_;
 diff --git a/source/common/router/upstream_request.cc b/source/common/router/upstream_request.cc
-index 99a8adc6df..81875f3bc9 100644
+index 630465d000..e9a8c7601e 100644
 --- a/source/common/router/upstream_request.cc
 +++ b/source/common/router/upstream_request.cc
-@@ -751,6 +751,15 @@ void UpstreamRequest::onPoolReady(std::unique_ptr<GenericUpstream>&& upstream,
-     upstreamLog();
+@@ -663,6 +663,20 @@ void UpstreamRequest::onPoolReady(std::unique_ptr<GenericUpstream>&& upstream,
+     upstreamLog(AccessLog::AccessLogType::UpstreamPoolReady);
    }
  
 +  bool accepted = parent_.callbacks()->iterateUpstreamCallbacks(*parent_.downstreamHeaders(),
@@ -181,9 +174,14 @@ index 99a8adc6df..81875f3bc9 100644
 +    return;
 +  }
 +
-   for (auto* callback : upstream_callbacks_) {
-     callback->onUpstreamConnectionEstablished();
-     return;
++  for (auto* callback : upstream_callbacks_) {
++    callback->onUpstreamConnectionEstablished();
++    return;
++  }
++
+   if (address_provider.connectionID() && stream_info_.downstreamAddressProvider().connectionID()) {
+     ENVOY_LOG(debug, "Attached upstream connection [C{}] to downstream connection [C{}]",
+               address_provider.connectionID().value(),
 -- 
-2.39.2
+2.41.0
 

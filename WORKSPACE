@@ -14,8 +14,8 @@ ENVOY_REPO = "envoy"
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.26.4
-ENVOY_SHA = "cfa32deca25ac57c2bbecdad72807a9b13493fc1"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.27.0
+ENVOY_SHA = "7bba38b743bb3bca22dffb4a21c38ccc155fbef8"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -38,7 +38,6 @@ git_repository(
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
         "@//patches:0002-upstream-Add-callback-for-upstream-authorization.patch",
         "@//patches:0003-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
-        "@//patches:0004-router-Do-not-set-SNI-or-SAN-due-to-auto_sni-or-auto.patch",
     ],
 )
 

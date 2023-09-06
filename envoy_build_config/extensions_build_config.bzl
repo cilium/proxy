@@ -65,6 +65,13 @@ EXTENSIONS = {
     # "envoy.health_checkers.tcp":                        "//source/extensions/health_checkers/tcp:health_checker_lib",
     # "envoy.health_checkers.http":                       "//source/extensions/health_checkers/http:health_checker_lib",
     # "envoy.health_checkers.grpc":                       "//source/extensions/health_checkers/grpc:health_checker_lib",
+ 
+    #
+    # Health check event sinks
+    #
+
+    "envoy.health_check.event_sinks.file":              "//source/extensions/health_check/event_sinks/file:file_sink_lib",
+
 
     #
     # Input Matchers
@@ -72,6 +79,8 @@ EXTENSIONS = {
 
     # "envoy.matching.matchers.consistent_hashing":       "//source/extensions/matching/input_matchers/consistent_hashing:config",
     # "envoy.matching.matchers.ip":                       "//source/extensions/matching/input_matchers/ip:config",
+    # "envoy.matching.matchers.runtime_fraction":         "//source/extensions/matching/input_matchers/runtime_fraction:config",
+    # "envoy.matching.matchers.cel_matcher":              "//source/extensions/matching/input_matchers/cel_matcher:config",
 
     #
     # Network Matchers
@@ -94,6 +103,11 @@ EXTENSIONS = {
     #
 
     # "envoy.matching.common_inputs.environment_variable":       "//source/extensions/matching/common_inputs/environment_variable:config",
+
+    #
+    # CEL Matching Input
+    #
+    # "envoy.matching.inputs.cel_data_input":             "//source/extensions/matching/http/cel_input:cel_input_lib",
 
     #
     # Matching actions
@@ -127,6 +141,8 @@ EXTENSIONS = {
     # "envoy.filters.http.fault":                         "//source/extensions/filters/http/fault:config",
     # "envoy.filters.http.file_system_buffer":            "//source/extensions/filters/http/file_system_buffer:config",
     # "envoy.filters.http.gcp_authn":                     "//source/extensions/filters/http/gcp_authn:config",
+    # "envoy.filters.http.geoip":                     "//source/extensions/filters/http/geoip:config",
+    # "envoy.filters.http.grpc_field_extraction":         "//source/extensions/filters/http/grpc_field_extraction:config",
     # "envoy.filters.http.grpc_http1_bridge":             "//source/extensions/filters/http/grpc_http1_bridge:config",
     # "envoy.filters.http.grpc_http1_reverse_bridge":     "//source/extensions/filters/http/grpc_http1_reverse_bridge:config",
     # "envoy.filters.http.grpc_json_transcoder":          "//source/extensions/filters/http/grpc_json_transcoder:config",
@@ -215,6 +231,7 @@ EXTENSIONS = {
     # "envoy.stat_sinks.graphite_statsd":                 "//source/extensions/stat_sinks/graphite_statsd:config",
     # "envoy.stat_sinks.hystrix":                         "//source/extensions/stat_sinks/hystrix:config",
     "envoy.stat_sinks.metrics_service":                 "//source/extensions/stat_sinks/metrics_service:config",
+    "envoy.stat_sinks.open_telemetry":                  "//source/extensions/stat_sinks/open_telemetry:config",
     # "envoy.stat_sinks.statsd":                          "//source/extensions/stat_sinks/statsd:config",
     "envoy.stat_sinks.wasm":                            "//source/extensions/stat_sinks/wasm:config",
 
@@ -286,6 +303,7 @@ EXTENSIONS = {
 
     "envoy.upstreams.http.http":                        "//source/extensions/upstreams/http/http:config",
     "envoy.upstreams.http.tcp":                         "//source/extensions/upstreams/http/tcp:config",
+    "envoy.upstreams.http.udp":                         "//source/extensions/upstreams/http/udp:config",
 
     #
     # Watchdog actions
@@ -368,6 +386,7 @@ EXTENSIONS = {
     # Formatter
     #
 
+    # "envoy.formatter.cel":                              "//source/extensions/formatter/cel:config",
     # "envoy.formatter.metadata":                         "//source/extensions/formatter/metadata:config",
     # "envoy.formatter.req_without_query":                "//source/extensions/formatter/req_without_query:config",
 
@@ -424,7 +443,9 @@ EXTENSIONS = {
     "envoy.load_balancing_policies.random":            "//source/extensions/load_balancing_policies/random:config",
     "envoy.load_balancing_policies.round_robin":       "//source/extensions/load_balancing_policies/round_robin:config",
     "envoy.load_balancing_policies.maglev":            "//source/extensions/load_balancing_policies/maglev:config",
-    "envoy.load_balancing_policies.ring_hash":       "//source/extensions/load_balancing_policies/ring_hash:config",
+    "envoy.load_balancing_policies.ring_hash":         "//source/extensions/load_balancing_policies/ring_hash:config",
+    "envoy.load_balancing_policies.subset":            "//source/extensions/load_balancing_policies/subset:config",
+    "envoy.load_balancing_policies.cluster_provided":  "//source/extensions/load_balancing_policies/cluster_provided:config",
 
     #
     # HTTP Early Header Mutation
@@ -437,6 +458,14 @@ EXTENSIONS = {
     # "envoy.config_subscription.rest": "//source/extensions/config_subscription/rest:http_subscription_lib",
     "envoy.config_subscription.filesystem": "//source/extensions/config_subscription/filesystem:filesystem_subscription_lib",
     # "envoy.config_subscription.filesystem_collection": "//source/extensions/config_subscription/filesystem:filesystem_subscription_lib",
+    "envoy.config_subscription.grpc": "//source/extensions/config_subscription/grpc:grpc_subscription_lib",
+    "envoy.config_subscription.delta_grpc": "//source/extensions/config_subscription/grpc:grpc_subscription_lib",
+    "envoy.config_subscription.ads": "//source/extensions/config_subscription/grpc:grpc_subscription_lib",
+    "envoy.config_subscription.aggregated_grpc_collection": "//source/extensions/config_subscription/grpc:grpc_collection_subscription_lib",
+    "envoy.config_subscription.aggregated_delta_grpc_collection": "//source/extensions/config_subscription/grpc:grpc_collection_subscription_lib",
+    "envoy.config_subscription.ads_collection": "//source/extensions/config_subscription/grpc:grpc_collection_subscription_lib",
+    "envoy.config_mux.delta_grpc_mux_factory": "//source/extensions/config_subscription/grpc/xds_mux:grpc_mux_lib",
+    "envoy.config_mux.sotw_grpc_mux_factory": "//source/extensions/config_subscription/grpc/xds_mux:grpc_mux_lib",
 }
 
 # These can be changed to ["//visibility:public"], for  downstream builds which

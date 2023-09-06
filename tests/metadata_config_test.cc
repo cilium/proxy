@@ -24,7 +24,6 @@ protected:
       logger.setLevel(spdlog::level::trace);
     }
 
-    ON_CALL(transport_socket_factory_context_, stats()).WillByDefault(ReturnRef(stats_));
     ON_CALL(context_, getTransportSocketFactoryContext())
         .WillByDefault(ReturnRef(transport_socket_factory_context_));
     ON_CALL(context_, api()).WillByDefault(testing::ReturnRef(*api_));
