@@ -20,14 +20,13 @@ ARG ARCHIVE_IMAGE=builder-fresh
 FROM --platform=$BUILDPLATFORM $PROXYLIB_BUILDER as proxylib
 WORKDIR /go/src/github.com/cilium/proxy
 ARG TARGETARCH
-RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/proxy --mount=target=/root/.cache,type=cache --mount=target=/go/pkg,type=cache \
+RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/proxy --mount=mode=0777,target=/cilium/proxy/.cache,type=cache --mount=mode=0777,target=/go/pkg,type=cache \
     GOARCH=${TARGETARCH} make -C proxylib all && mv proxylib/libcilium.so /tmp/libcilium.so
 
 FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
-COPY --from=proxylib /tmp/libcilium.so proxylib/libcilium.so
 ARG V
 ARG BAZEL_BUILD_OPTS
 ARG DEBUG
@@ -49,7 +48,6 @@ FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
-COPY --from=proxylib /tmp/libcilium.so proxylib/libcilium.so
 ARG V
 ARG COPY_CACHE_EXT
 ARG BAZEL_BUILD_OPTS
@@ -58,7 +56,7 @@ ARG TARGETARCH
 ENV TARGETARCH=$TARGETARCH
 
 # Clear runner's cache when building deps
-RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private rm -rf /root/.cache/*
+RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private rm -rf /cilium/proxy/.cache/*
 RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,rw \
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-test-deps && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; fi
@@ -67,7 +65,6 @@ FROM --platform=$BUILDPLATFORM $BUILDER_BASE as runner
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
-COPY --from=proxylib /tmp/libcilium.so proxylib/libcilium.so
 ARG V
 ARG BAZEL_BUILD_OPTS
 ARG BAZEL_TEST_OPTS
@@ -77,8 +74,10 @@ ARG TARGETARCH
 ARG NO_CACHE
 ENV TARGETARCH=$TARGETARCH
 
-RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private if [ -n "$NO_CACHE" ]; then rm -rf /root/.cache/*; fi
-RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
+RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private if [ -n "$NO_CACHE" ]; then rm -rf /cilium/proxy/.cache/*; fi
+# Make proxylib available for the tests by copying it before running the tests
+COPY --from=proxylib /tmp/libcilium.so proxylib/libcilium.so
+RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private \
     --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,rw \
     if [ "$TARGETARCH" != "$BUILDARCH" ]; then \
       if [ "$TARGETARCH" = "amd64" ]; then \
@@ -97,6 +96,7 @@ RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
 
 FROM scratch as empty-builder-archive
 LABEL maintainer="maintainer@cilium.io"
+USER 1337:1337
 WORKDIR /tmp/bazel-cache
 
 # This stage retains only the build caches from the builder stage.

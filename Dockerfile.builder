@@ -31,12 +31,17 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-WORKDIR /cilium/proxy
-COPY .bazelversion ./
 #
 # Install Bazel
 #
+COPY .bazelversion ./
 RUN export BAZEL_VERSION=$(cat .bazelversion) \
 	&& ARCH=$TARGETARCH && [ "$ARCH" != "amd64" ] || ARCH="x86_64" \
 	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
 	&& chmod +x /usr/bin/bazel
+#
+# Switch to non-root user for builds
+#
+RUN groupadd -f -g 1337 cilium && useradd -m -d /cilium/proxy -g cilium -u 1337 cilium
+USER 1337:1337
+WORKDIR /cilium/proxy

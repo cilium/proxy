@@ -22,14 +22,13 @@ FROM --platform=$BUILDPLATFORM $PROXYLIB_BUILDER as proxylib
 WORKDIR /go/src/github.com/cilium/proxy
 ARG TARGETARCH
 ENV TARGETARCH=$TARGETARCH
-RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/proxy --mount=target=/root/.cache,type=cache --mount=target=/go/pkg,type=cache \
+RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/proxy --mount=mode=0777,target=/cilium/proxy/.cache,type=cache --mount=mode=0777,target=/go/pkg,type=cache \
     GOARCH=${TARGETARCH} make -C proxylib all && mv proxylib/libcilium.so /tmp/libcilium.so
 
 FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
-COPY --from=proxylib /tmp/libcilium.so /tmp/install/usr/lib/libcilium.so
 ARG V
 ARG BAZEL_BUILD_OPTS
 ARG DEBUG
@@ -40,11 +39,11 @@ ENV TARGETARCH=$TARGETARCH
 #
 # Clear cache?
 #
-RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private if [ "z$NO_CACHE" = "z2" ]; then echo NO_CACHE=2 defined, clearing /root/.cache; rm -rf /root/.cache/*; fi
+RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private if [ "z$NO_CACHE" = "z2" ]; then echo NO_CACHE=2 defined, clearing /cilium/proxy/.cache; rm -rf /cilium/proxy/.cache/*; fi
 #
 # Build dependencies
 #
-RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG DESTDIR=/tmp/install make bazel-bin/cilium-envoy
+RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG DESTDIR=/tmp/install make bazel-bin/cilium-envoy
 
 # By default this stage picks up the result of the build above, but ARCHIVE_IMAGE can be
 # overridden to point to a saved image of an earlier run of that stage.
@@ -61,7 +60,6 @@ FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
-COPY --from=proxylib /tmp/libcilium.so /tmp/install/usr/lib/libcilium.so
 ARG V
 ARG COPY_CACHE_EXT
 ARG BAZEL_BUILD_OPTS
@@ -70,13 +68,18 @@ ARG BUILDARCH
 ARG TARGETARCH
 ENV TARGETARCH=$TARGETARCH
 RUN ./bazel/get_workspace_status
-RUN --mount=target=/root/.cache,type=cache,id=$TARGETARCH,sharing=private \
+RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private \
     --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=builder-cache,rw \
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG DESTDIR=/tmp/install make install && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; fi
+#
+# Copy proxylib after build to allow install as non-root to succeed
+#
+COPY --from=proxylib /tmp/libcilium.so /tmp/install/usr/lib/libcilium.so
 
 FROM scratch as empty-builder-archive
 LABEL maintainer="maintainer@cilium.io"
+USER 1337:1337
 WORKDIR /tmp/bazel-cache
 
 # This stage retains only the build caches from the previous step. This is used as the target for persisting
