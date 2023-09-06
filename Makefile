@@ -72,10 +72,9 @@ else
 	tools/install_bazel.sh `cat .bazelversion`
 endif
 
-ifeq ($(shell whoami),root)
-  SUDO=
-else
-  SUDO=sudo
+SUDO=
+ifneq ($(shell whoami),root)
+  SUDO=$(shell if sudo -h 1>/dev/null 2>/dev/null; then echo "sudo"; fi)
 endif
 
 define add_clang_apt_source
