@@ -57,6 +57,8 @@ ENV TARGETARCH=$TARGETARCH
 
 # Clear runner's cache when building deps
 RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private rm -rf /cilium/proxy/.cache/*
+# Make proxylib available for building the test dependencies by copying it before running the tests
+COPY --from=proxylib /tmp/libcilium.so proxylib/libcilium.so
 RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,rw \
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-test-deps && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; fi
