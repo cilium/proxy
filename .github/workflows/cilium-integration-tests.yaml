@@ -47,18 +47,21 @@ jobs:
         run: |
           echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy" >> $GITHUB_ENV
           echo "PROXY_TAG=${{ github.sha }}" >> $GITHUB_ENV
+          echo "PROXY_GITHUB_REPO=github.com/cilium/cilium" >> $GITHUB_ENV
 
       - name: Prepare variables for PR
         if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
         run: |
           echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy-dev" >> $GITHUB_ENV
           echo "PROXY_TAG=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
+          echo "PROXY_GITHUB_REPO=github.com/${{github.event.pull_request.head.repo.full_name}}" >> $GITHUB_ENV
 
       - name: Prepare variables for issue comment on a PR
         if: github.event_name == 'issue_comment'
         run: |
           echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy-dev" >> $GITHUB_ENV
           echo "PROXY_TAG=$(curl -s ${{ github.event.issue.pull_request.url }} | jq -r '.head.sha')" >> $GITHUB_ENV
+          echo "PROXY_GITHUB_REPO=github.com/$(curl -s ${{ github.event.issue.pull_request.url }} | jq -r '.head.repo.full_name')" >> $GITHUB_ENV
 
           commentBody="${{ github.event.comment.body }}"
 
@@ -153,10 +156,10 @@ jobs:
       - name: Get new proxy API
         shell: bash
         run: |
-          go get github.com/cilium/proxy@${{ env.PROXY_TAG }} && \
+          go get ${{ env.PROXY_GITHUB_REPO }}@${{ env.PROXY_TAG }} && \
           go mod tidy && \
-          go mod vendor && \
-          go mod verify
+          go mod verify && \
+          go mod vendor
 
       - name: Wait for Cilium Proxy image to be available
         timeout-minutes: 30
