@@ -53,9 +53,6 @@ Config::Config(const std::string& access_log_path, const std::string& denied_403
       denied_403_body_(denied_403_body), access_log_(nullptr) {
   if (access_log_path.length()) {
     access_log_ = AccessLog::Open(access_log_path);
-    if (!access_log_) {
-      ENVOY_LOG(warn, "Cilium filter can not open access log socket {}", access_log_path);
-    }
   }
   if (denied_403_body_.length() == 0) {
     denied_403_body_ = "Access denied";
@@ -68,12 +65,6 @@ Config::Config(const std::string& access_log_path, const std::string& denied_403
 
 Config::Config(const ::cilium::L7Policy& config, Server::Configuration::FactoryContext& context)
     : Config(config.access_log_path(), config.denied_403_body(), context) {}
-
-Config::~Config() {
-  if (access_log_) {
-    access_log_->Close();
-  }
-}
 
 void Config::Log(AccessLog::Entry& entry, ::cilium::EntryType type) {
   if (access_log_) {

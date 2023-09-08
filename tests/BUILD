@@ -24,11 +24,22 @@ envoy_cc_test_library(
     hdrs = ["accesslog_server.h"],
     repository = "@envoy",
     deps = [
+        ":uds_server_lib",
         "//cilium/api:accesslog_proto_cc_proto",
+        "@envoy//test/test_common:utility_lib",
+    ],
+)
+
+envoy_cc_test_library(
+    name = "uds_server_lib",
+    srcs = ["uds_server.cc"],
+    hdrs = ["uds_server.h"],
+    repository = "@envoy",
+    deps = [
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/common:thread_lib",
+        "@envoy//source/common/network:address_lib",
         "@envoy//test/test_common:thread_factory_for_test_lib",
-        "@envoy//test/test_common:utility_lib",
     ],
 )
 

@@ -8,18 +8,17 @@
 #include "envoy/router/router.h"
 #include "envoy/stream_info/stream_info.h"
 
-#include "source/common/common/logger.h"
-#include "source/common/common/thread.h"
-
 #include "cilium/api/accesslog.pb.h"
+
+#include "cilium/uds_client.h"
 
 namespace Envoy {
 namespace Cilium {
 
-class AccessLog : Logger::Loggable<Logger::Id::router> {
+class AccessLog : public UDSClient {
 public:
-  static AccessLog* Open(std::string path);
-  void Close();
+  static std::shared_ptr<AccessLog> Open(const std::string& path);
+  ~AccessLog();
 
   // wrapper for protobuf
   class Entry {
@@ -45,27 +44,17 @@ public:
 
     ::cilium::LogEntry entry_{};
   };
+
   void Log(Entry& entry, ::cilium::EntryType);
-
-  ~AccessLog();
-
 private:
+  explicit AccessLog(const std::string& path) : UDSClient(path), path_(path) {}
+
   static Thread::MutexBasicLockable logs_mutex;
-  static std::map<std::string, std::unique_ptr<AccessLog>> logs;
-
-  AccessLog(std::string path);
-
-  bool Connect();
-  bool guarded_connect() ABSL_EXCLUSIVE_LOCKS_REQUIRED(fd_mutex_);
+  static std::map<std::string, std::weak_ptr<AccessLog>> logs ABSL_GUARDED_BY(logs_mutex);
 
   const std::string path_;
-  Thread::MutexBasicLockable fd_mutex_;
-  int fd_ ABSL_GUARDED_BY(fd_mutex_);
-  int open_count_ ABSL_GUARDED_BY(fd_mutex_);
-  int errno_ ABSL_GUARDED_BY(fd_mutex_);
 };
-
-typedef std::unique_ptr<AccessLog> AccessLogPtr;
+typedef std::shared_ptr<AccessLog> AccessLogSharedPtr;
 
 } // namespace Cilium
 } // namespace Envoy

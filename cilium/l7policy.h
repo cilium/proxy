@@ -38,7 +38,6 @@ public:
   Config(const std::string& access_log_path, const std::string& denied_403_body,
          Server::Configuration::FactoryContext& context);
   Config(const ::cilium::L7Policy& config, Server::Configuration::FactoryContext& context);
-  ~Config();
 
   void Log(AccessLog::Entry&, ::cilium::EntryType);
 
@@ -47,7 +46,7 @@ public:
   std::string denied_403_body_;
 
 private:
-  AccessLog* access_log_;
+  Cilium::AccessLogSharedPtr access_log_;
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;

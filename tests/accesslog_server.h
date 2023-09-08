@@ -14,9 +14,11 @@
 #include "absl/types/optional.h"
 #include "cilium/api/accesslog.pb.h"
 
+#include "tests/uds_server.h"
+
 namespace Envoy {
 
-class AccessLogServer : Logger::Loggable<Logger::Id::router> {
+class AccessLogServer : public UDSServer {
 public:
   AccessLogServer(const std::string path);
   ~AccessLogServer();
@@ -51,13 +53,7 @@ public:
   }
 
 private:
-  void Close();
-  void threadRoutine();
-
-  const std::string path_;
-  std::atomic<int> fd_;
-  std::atomic<int> fd2_;
-  Thread::ThreadPtr thread_;
+  void msgCallback(const std::string& data);
 
   absl::Mutex mutex_;
   std::vector<::cilium::LogEntry> messages_ ABSL_GUARDED_BY(mutex_);
