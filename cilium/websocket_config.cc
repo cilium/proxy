@@ -69,10 +69,6 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
 
   if (!access_log_path.empty()) {
     access_log_ = AccessLog::Open(access_log_path);
-    if (!access_log_) {
-      ENVOY_LOG(warn, "Cilium websocket filter can not open access log socket at '{}'",
-                access_log_path);
-    }
   }
 
   const uint64_t timeout = DurationUtil::durationToMilliseconds(handshake_timeout);
@@ -126,12 +122,6 @@ std::string Config::keyResponse(absl::string_view key) {
   buf.add(WEBSOCKET_GUID);
   auto sha1 = getSha1Digest(buf);
   return Base64::encode(reinterpret_cast<char*>(sha1.data()), sha1.size());
-}
-
-Config::~Config() {
-  if (access_log_) {
-    access_log_->Close();
-  }
 }
 
 void Config::Log(AccessLog::Entry& entry, ::cilium::EntryType type) {

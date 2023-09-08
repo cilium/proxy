@@ -13,50 +13,41 @@ namespace Envoy {
 namespace Cilium {
 
 Thread::MutexBasicLockable AccessLog::logs_mutex;
-std::map<std::string, AccessLogPtr> AccessLog::logs;
+std::map<std::string, std::weak_ptr<AccessLog>> AccessLog::logs;
 
-AccessLog* AccessLog::Open(std::string path) {
-  Thread::LockGuard guard1(logs_mutex);
-  AccessLog* log;
+AccessLogSharedPtr AccessLog::Open(const std::string& path) {
+  Thread::LockGuard guard(logs_mutex);
   auto it = logs.find(path);
   if (it != logs.end()) {
-    log = it->second.get();
-    Thread::LockGuard guard2(log->fd_mutex_);
-    log->open_count_++;
-    return log;
+    auto log = it->second.lock();
+    if (log)
+        return log;
+    // expired, remove
+    logs.erase(path);
   }
-  // Not found, open
-  log = new AccessLog(path);
-  if (!log->Connect()) {
-    delete log;
-    return nullptr;
-  }
-  logs.emplace(path, AccessLogPtr{log});
+  // Not found, open and store as a weak_ptr
+  AccessLogSharedPtr log;
+  log.reset(new AccessLog(path));
+  logs.emplace(path, log);
   return log;
 }
 
-void AccessLog::Close() {
-  // Can't use Thread::LockGuard as it will result in calling a pure virtual
-  // function in integration test teardown.
-  logs_mutex.lock();
-  fd_mutex_.lock();
-  open_count_--;
-
-  if (open_count_ == 0) {
-    if (fd_ != -1) {
-      ::close(fd_);
-      fd_ = -1;
-    }
-
-    logs.erase(path_);
-  }
-  fd_mutex_.unlock();
-  logs_mutex.unlock();
+AccessLog::~AccessLog() {
+  // last reference going out of scope
+  Thread::LockGuard guard1(logs_mutex);
+  logs.erase(path_);
 }
 
-AccessLog::AccessLog(std::string path) : path_(path), fd_(-1), open_count_(1), errno_(0) {}
+void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
+  ::cilium::LogEntry& entry = entry__.entry_;
+  entry.set_entry_type(entry_type);
 
-AccessLog::~AccessLog() {}
+  // encode protobuf
+  std::string msg;
+  entry.SerializeToString(&msg);
+
+  UDSClient::Log(msg);
+}
 
 #define CONST_STRING_VIEW(NAME, STR) const absl::string_view NAME = {STR, sizeof(STR) - 1}
 
@@ -267,73 +258,6 @@ void AccessLog::Entry::AddMissing(absl::string_view key, absl::string_view value
   ::cilium::KeyValue* kv = entry_.mutable_http()->add_missing_headers();
   kv->set_key(key.data(), key.size());
   kv->set_value(value.data(), value.size());
-}
-
-void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
-  ::cilium::LogEntry& entry = entry__.entry_;
-  int tries = 2;
-
-  entry.set_entry_type(entry_type);
-
-  // encode protobuf
-  std::string msg;
-  entry.SerializeToString(&msg);
-  ssize_t length = msg.length();
-
-  Thread::LockGuard guard(fd_mutex_);
-  while (tries-- > 0 && guarded_connect()) {
-    ssize_t sent = ::send(fd_, msg.data(), length, MSG_DONTWAIT | MSG_EOR | MSG_NOSIGNAL);
-
-    if (sent == -1) {
-      errno_ = errno;
-      continue; // retry
-    }
-    if (sent < length) {
-      ENVOY_LOG(debug, "Cilium access log send truncated by {} bytes.", length - sent);
-    }
-    return;
-  }
-}
-
-bool AccessLog::Connect() {
-  Thread::LockGuard guard(fd_mutex_);
-  return guarded_connect();
-}
-
-bool AccessLog::guarded_connect() {
-  if (fd_ != -1) {
-    if (errno_ == 0) {
-      return true;
-    }
-    ENVOY_LOG(debug, "Cilium access log resetting socket due to error: {}",
-              Envoy::errorDetails(errno_));
-    ::close(fd_);
-    fd_ = -1;
-  }
-
-  if (path_.length() == 0) {
-    return false;
-  }
-
-  errno_ = 0;
-  fd_ = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
-  if (fd_ == -1) {
-    errno_ = errno;
-    ENVOY_LOG(error, "Can't create socket: {}", Envoy::errorDetails(errno_));
-    return false;
-  }
-
-  struct sockaddr_un addr = {AF_UNIX, {}};
-  strncpy(addr.sun_path, path_.c_str(), sizeof(addr.sun_path) - 1);
-  if (::connect(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1) {
-    errno_ = errno;
-    ENVOY_LOG(warn, "Connect to {} failed: {}", path_, Envoy::errorDetails(errno_));
-    ::close(fd_);
-    fd_ = -1;
-    return false;
-  }
-
-  return true;
 }
 
 } // namespace Cilium

@@ -156,9 +156,27 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "//cilium/api:accesslog_proto_cc_proto",
+        "//cilium:uds_client_lib",
         "@envoy//envoy/http:header_map_interface",
         "@envoy//envoy/network:connection_interface",
         "@envoy//envoy/router:router_interface",
+    ],
+)
+
+envoy_cc_library(
+    name = "uds_client_lib",
+    srcs = [
+        "uds_client.cc",
+    ],
+    hdrs = [
+        "uds_client.h",
+    ],
+    repository = "@envoy",
+    deps = [
+        "@envoy//source/common/common:minimal_logger_lib",
+        "@envoy//source/common/common:thread_lib",
+        "@envoy//source/common/common:utility_lib",
+        "@envoy//source/common/network:address_lib",
     ],
 )
 

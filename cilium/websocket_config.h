@@ -56,7 +56,6 @@ public:
          bool ping_when_idle);
   Config(const ::cilium::WebSocketClient& config, Server::Configuration::FactoryContext& context);
   Config(const ::cilium::WebSocketServer& config, Server::Configuration::FactoryContext& context);
-  virtual ~Config();
 
   static std::string keyResponse(absl::string_view key);
 
@@ -81,7 +80,7 @@ public:
   static std::vector<uint8_t> getSha1Digest(const Buffer::Instance&);
 
 private:
-  Cilium::AccessLog* access_log_;
+  Cilium::AccessLogSharedPtr access_log_;
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;

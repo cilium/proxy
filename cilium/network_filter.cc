@@ -60,18 +60,9 @@ Config::Config(const ::cilium::NetworkFilter& config,
   const auto& access_log_path = config.access_log_path();
   if (access_log_path.length()) {
     access_log_ = Cilium::AccessLog::Open(access_log_path);
-    if (!access_log_) {
-      ENVOY_LOG(warn, "Cilium filter can not open access log socket {}", access_log_path);
-    }
   }
   if (config.proxylib().length() > 0) {
     proxylib_ = std::make_shared<Cilium::GoFilter>(config.proxylib(), config.proxylib_params());
-  }
-}
-
-Config::~Config() {
-  if (access_log_) {
-    access_log_->Close();
   }
 }
 

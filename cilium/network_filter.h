@@ -28,7 +28,6 @@ class Config : Logger::Loggable<Logger::Id::config> {
 public:
   Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext& context);
   Config(const Json::Object& config, Server::Configuration::FactoryContext& context);
-  virtual ~Config();
 
   void Log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
 
@@ -36,7 +35,7 @@ public:
   TimeSource& time_source_;
 
 private:
-  Cilium::AccessLog* access_log_;
+  Cilium::AccessLogSharedPtr access_log_;
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;
