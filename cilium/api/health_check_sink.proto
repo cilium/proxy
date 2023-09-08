@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
+
+package cilium;
+
+import "validate/validate.proto";
+
+// Health check event pipe sink.
+// The health check event will be streamed as binary protobufs.
+message HealthCheckEventPipeSink {
+  // Unix domain socket path where to connect to send health check events to.
+  string path = 1 [(validate.rules).string = {min_len: 1}];;
+}

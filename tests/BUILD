@@ -283,3 +283,21 @@ envoy_cc_test(
         "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
     ],
 )
+
+envoy_cc_test(
+    name = "health_check_sink_test",
+    srcs = [
+        "health_check_sink_test.cc",
+        "health_check_sink_server.h",
+        "health_check_sink_server.cc",
+    ],
+    repository = "@envoy",
+    deps = [
+        ":uds_server_lib",
+        "//cilium:health_check_sink_lib",
+        "@envoy//test/mocks/access_log:access_log_mocks",
+        "@envoy//test/mocks/server:health_checker_factory_context_mocks",
+        "@envoy//test/test_common:environment_lib",
+        "@envoy//test/test_common:utility_lib",
+    ],
+)

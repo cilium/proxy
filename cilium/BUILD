@@ -329,3 +329,16 @@ envoy_cc_library(
         "@envoy//source/common/singleton:threadsafe_singleton",
     ],
 )
+
+envoy_cc_library(
+    name = "health_check_sink_lib",
+    srcs = ["health_check_sink.cc"],
+    hdrs = ["health_check_sink.h"],
+    repository = "@envoy",
+    deps = [
+        "//cilium:uds_client_lib",
+        "@envoy//envoy/registry",
+        "@envoy//envoy/upstream:health_check_event_sink_interface",
+        "//cilium/api:health_check_sink_cc_proto",
+    ],
+)

@@ -26,6 +26,7 @@ envoy_cc_binary(
     repository = "@envoy",
     deps = [
         # Cilium filters.
+        "//cilium:health_check_sink_lib",
         "//cilium:bpf_metadata_lib",
         "//cilium:network_filter_lib",
         "//cilium:l7policy_lib",
