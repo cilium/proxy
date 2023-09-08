@@ -13,6 +13,11 @@ licenses(["notice"])  # Apache 2
 envoy_package()
 
 api_cc_py_proto_library(
+    name = "health_check_sink",
+    srcs = ["health_check_sink.proto"],
+)
+
+api_cc_py_proto_library(
     name = "bpf_metadata",
     srcs = ["bpf_metadata.proto"],
 )
