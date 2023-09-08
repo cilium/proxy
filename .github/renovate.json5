@@ -111,6 +111,34 @@
       "matchBaseBranches": [
         "v1.25"
       ]
+    },
+    {
+      "groupName": "go 1.20.x",
+      "matchFiles": [
+        ".github/workflow/**",
+      ],
+      "matchPackageNames": [
+        "go"
+      ],
+      "allowedVersions": "<=1.20",
+      "matchBaseBranches": [
+        "main",
+        "v1.25",
+      ]
+    },
+    // Pin go version of cilium integration tests to go version of cilium/cilium
+    {
+      "groupName": "cilium integration test go 1.21.x"
+      "matchFiles": [
+        ".github/workflow/cilium-integration-tests.yaml",
+      ],
+      "matchPackageNames": [
+        "go"
+      ],
+      "allowedVersions": "<=1.21",
+      "matchBaseBranches": [
+        "main",
+      ]
     }
   ],
   "regexManagers": [
