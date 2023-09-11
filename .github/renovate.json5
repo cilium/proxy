@@ -31,7 +31,7 @@
     {
       "groupName": "all github action dependencies",
       "groupSlug": "all-github-action",
-      "matchPaths": [
+      "matchFileNames": [
         ".github/workflows/**"
       ],
       "matchUpdateTypes": [
@@ -47,7 +47,7 @@
       ]
     },
     {
-      "matchFiles": [
+      "matchFileNames": [
         "Dockerfile",
       ],
       "matchPackageNames": [
@@ -61,7 +61,7 @@
     {
       // Do not allow any updates/pinning of image quay.io/cilium/cilium-envoy-builder
       "enabled": false,
-      "matchFiles": [
+      "matchFileNames": [
         "Dockerfile",
       ],
       "matchPackageNames": [
@@ -69,7 +69,7 @@
       ]
     },
     {
-      "matchFiles": [
+      "matchFileNames": [
         "Dockerfile.builder",
       ],
       "matchPackageNames": [
@@ -114,7 +114,7 @@
     },
     {
       "groupName": "go 1.20.x",
-      "matchFiles": [
+      "matchFileNames": [
         ".github/workflow/**",
       ],
       "matchPackageNames": [
@@ -129,7 +129,7 @@
     // Pin go version of cilium integration tests to go version of cilium/cilium
     {
       "groupName": "cilium integration test go 1.21.x",
-      "matchFiles": [
+      "matchFileNames": [
         ".github/workflow/cilium-integration-tests.yaml",
       ],
       "matchPackageNames": [
