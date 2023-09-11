@@ -175,6 +175,7 @@ envoy_cc_library(
     ],
     repository = "@envoy",
     deps = [
+        "privileged_service_client_lib",
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/common:utility_lib",
     ],
@@ -296,5 +297,17 @@ envoy_cc_library(
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/network:address_lib",
         "@envoy//source/common/router:config_utility_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "privileged_service_client_lib",
+    hdrs = ["privileged_service_client.h"],
+    srcs = ["privileged_service_client.cc"],
+    repository = "@envoy",
+    deps = [
+        "//starter:privileged_service_protocol",
+        "@envoy//envoy/api:os_sys_calls_interface",
+        "@envoy//source/common/singleton:threadsafe_singleton",
     ],
 )

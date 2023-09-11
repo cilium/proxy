@@ -12,6 +12,7 @@
 /bazel-*
 
 /cilium-envoy
+/cilium-envoy-starter
 /Dockerfile.istio_proxy
 /Dockerfile.builder-refresh
 
