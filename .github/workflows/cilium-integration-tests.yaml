@@ -153,10 +153,19 @@ jobs:
           # renovate: datasource=golang-version depName=go
           go-version: 1.21.1
 
-      - name: Get new proxy API
+      - name: Redirect proxy module
+        shell: bash
+        if: env.PROXY_GITHUB_REPO != 'github.com/cilium/proxy'
+        run: echo "replace github.com/cilium/proxy => ${{ env.PROXY_GITHUB_REPO }} ${{ env.PROXY_TAG }}" >> go.mod
+
+      - name: Update proxy module
+        shell: bash
+        if: env.PROXY_GITHUB_REPO == 'github.com/cilium/proxy'
+        run: go get ${{ env.PROXY_GITHUB_REPO }}@${{ env.PROXY_TAG }}
+
+      - name: Vendor proxy module
         shell: bash
         run: |
-          go get ${{ env.PROXY_GITHUB_REPO }}@${{ env.PROXY_TAG }} && \
           go mod tidy && \
           go mod verify && \
           go mod vendor
