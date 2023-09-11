@@ -115,7 +115,7 @@
     {
       "groupName": "go 1.20.x",
       "matchFileNames": [
-        ".github/workflow/**",
+        ".github/workflows/**",
       ],
       "matchPackageNames": [
         "go"
@@ -130,7 +130,7 @@
     {
       "groupName": "cilium integration test go 1.21.x",
       "matchFileNames": [
-        ".github/workflow/cilium-integration-tests.yaml",
+        ".github/workflows/cilium-integration-tests.yaml",
       ],
       "matchPackageNames": [
         "go"
