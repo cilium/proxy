@@ -38,6 +38,8 @@ ENV TARGETARCH=$TARGETARCH
 #
 # Build dependencies
 #
+# Make proxylib available for building the test dependencies by copying it before running the tests
+COPY --from=proxylib /tmp/libcilium.so proxylib/libcilium.so
 RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-test-deps
 
 # By default this stage picks up the result of the build above, but ARCHIVE_IMAGE can be
