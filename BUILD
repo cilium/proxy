@@ -14,6 +14,13 @@ exports_files([
     "linux/type_mapper.h",
 ])
 
+cc_binary(
+    name = "cilium-envoy-starter",
+    deps = [
+        "//starter:main_entry_lib",
+    ],
+)
+
 envoy_cc_binary(
     name = "cilium-envoy",
     repository = "@envoy",

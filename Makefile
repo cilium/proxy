@@ -16,7 +16,7 @@ include Makefile.defs
 
 COMPILER_DEP := clang.bazelrc
 
-ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy
+ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy cilium-envoy-starter bazel-bin/cilium-envoy-starter
 ENVOY_TESTS = bazel-bin/tests/*_test
 
 SHELL=/bin/bash -o pipefail
@@ -61,7 +61,7 @@ else
 endif
 
 ifdef PKG_BUILD
-  all: cilium-envoy
+  all: cilium-envoy-starter cilium-envoy
 else
   include Makefile.dev
   include Makefile.docker
@@ -94,11 +94,20 @@ clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-15
 	bazel/setup_clang.sh /usr/lib/llvm-15
 	echo "build --config=clang" >> $@
 
+.PHONY: bazel-bin/cilium-envoy
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 cilium-envoy: bazel-bin/cilium-envoy
+	mv $< $@
+
+.PHONY: bazel-bin/cilium-envoy-starter
+bazel-bin/cilium-envoy-starter: $(COMPILER_DEP) SOURCE_VERSION
+	@$(ECHO_BAZEL)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-starter $(BAZEL_FILTER)
+
+cilium-envoy-starter: bazel-bin/cilium-envoy-starter
 	mv $< $@
 
 BAZEL_CACHE := $(subst --disk_cache=,,$(filter --disk_cache=%, $(BAZEL_BUILD_OPTS)))
@@ -115,12 +124,14 @@ $(DESTDIR)$(GLIBC_DIR): bazel-bin/cilium-envoy
 		$(SUDO) cp /usr/$${ARCH_TAG}-linux-gnu/lib/$$lib $@; \
 	done
 
-install: bazel-bin/cilium-envoy
+install: bazel-bin/cilium-envoy-starter bazel-bin/cilium-envoy
 	$(SUDO) $(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
-	$(SUDO) $(INSTALL) -m 0755 -T $< $(DESTDIR)$(BINDIR)/cilium-envoy
+	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy-starter $(DESTDIR)$(BINDIR)/cilium-envoy-starter
+	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy $(DESTDIR)$(BINDIR)/cilium-envoy
 
 install-glibc: install $(DESTDIR)$(GLIBC_DIR)
 	LD_LINUX=$$(basename $$(patchelf --print-interpreter bazel-bin/cilium-envoy)); \
+	$(SUDO) patchelf --set-interpreter $(GLIBC_DIR)/$${LD_LINUX} --set-rpath $(GLIBC_DIR) $(DESTDIR)$(BINDIR)/cilium-envoy-starter
 	$(SUDO) patchelf --set-interpreter $(GLIBC_DIR)/$${LD_LINUX} --set-rpath $(GLIBC_DIR) $(DESTDIR)$(BINDIR)/cilium-envoy
 
 # Remove the binaries

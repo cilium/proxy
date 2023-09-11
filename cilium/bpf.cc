@@ -1,16 +1,5 @@
 #include "cilium/bpf.h"
-
-#include <string.h>
-#include <sys/resource.h>
-#include <unistd.h>
-
-#include <cstdint>
-#include <fstream>
-#include <iostream>
-#include <map>
-#include <sstream>
-#include <string>
-#include <vector>
+#include "cilium/privileged_service_client.h"
 
 #include "source/common/common/utility.h"
 
@@ -24,10 +13,7 @@ enum {
 };
 
 Bpf::Bpf(uint32_t map_type, uint32_t key_size, uint32_t value_size)
-    : fd_(-1), map_type_(map_type), key_size_(key_size), value_size_(value_size) {
-  struct rlimit rl = {RLIM_INFINITY, RLIM_INFINITY};
-  setrlimit(RLIMIT_MEMLOCK, &rl);
-}
+    : fd_(-1), map_type_(map_type), key_size_(key_size), value_size_(value_size) {}
 
 Bpf::~Bpf() { close(); }
 
@@ -39,10 +25,10 @@ void Bpf::close() {
 
 bool Bpf::open(const std::string& path) {
   bool log_on_error = ENVOY_LOG_CHECK_LEVEL(trace);
-  union bpf_attr attr = {};
-  attr.pathname = uintptr_t(path.c_str());
 
-  fd_ = bpfSyscall(BPF_OBJ_GET, &attr);
+  auto& cilium_calls = PrivilegedService::Singleton::get();
+  auto ret = cilium_calls.bpf_open(path.c_str());
+  fd_ = ret.return_value_;
   if (fd_ >= 0) {
     // Open fdinfo to check the map type and key and value size.
     std::string line;
@@ -98,79 +84,20 @@ bool Bpf::open(const std::string& path) {
                 bpf_file_path);
     }
     close();
-  } else if (errno == ENOENT && log_on_error) {
+  } else if (ret.errno_ == ENOENT && log_on_error) {
     ENVOY_LOG(debug, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path,
-              Envoy::errorDetails(errno));
+              Envoy::errorDetails(ret.errno_));
   } else if (log_on_error) {
     ENVOY_LOG(warn, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path,
-              Envoy::errorDetails(errno));
+              Envoy::errorDetails(ret.errno_));
   }
 
   return false;
 }
 
-bool Bpf::create(uint32_t max_entries, uint32_t flags) {
-  union bpf_attr attr = {};
-  attr.map_type = map_type_;
-  attr.key_size = key_size_;
-  attr.value_size = value_size_;
-  attr.max_entries = max_entries;
-  attr.map_flags = flags;
-
-  fd_ = bpfSyscall(BPF_MAP_CREATE, &attr);
-  return fd_ >= 0;
-}
-
-bool Bpf::pin(const std::string& path) {
-  union bpf_attr attr = {};
-  attr.pathname = uintptr_t(path.c_str());
-  attr.bpf_fd = uint32_t(fd_);
-
-  return bpfSyscall(BPF_OBJ_PIN, &attr) == 0;
-}
-
-bool Bpf::insert(const void* key, const void* value) {
-  union bpf_attr attr = {};
-  attr.map_fd = uint32_t(fd_);
-  attr.key = uintptr_t(key);
-  attr.value = uintptr_t(value);
-  attr.flags = BPF_ANY;
-
-  return bpfSyscall(BPF_MAP_UPDATE_ELEM, &attr) == 0;
-}
-
-bool Bpf::remove(const void* key) {
-  union bpf_attr attr = {};
-  attr.map_fd = uint32_t(fd_);
-  attr.key = uintptr_t(key);
-  attr.flags = BPF_ANY;
-
-  return bpfSyscall(BPF_MAP_DELETE_ELEM, &attr) == 0;
-}
-
 bool Bpf::lookup(const void* key, void* value) {
-  union bpf_attr attr = {};
-  attr.map_fd = uint32_t(fd_);
-  attr.key = uintptr_t(key);
-  attr.value = uintptr_t(value);
-
-  return bpfSyscall(BPF_MAP_LOOKUP_ELEM, &attr) == 0;
-}
-
-#ifndef __NR_bpf
-#if defined(__i386__)
-#define __NR_bpf 357
-#elif defined(__x86_64__)
-#define __NR_bpf 321
-#elif defined(__aarch64__)
-#define __NR_bpf 280
-#else
-#error __NR_bpf not defined.
-#endif
-#endif
-
-int Bpf::bpfSyscall(int cmd, union bpf_attr* attr) {
-  return ::syscall(__NR_bpf, cmd, attr, sizeof(*attr));
+  auto& cilium_calls = PrivilegedService::Singleton::get();
+  return cilium_calls.bpf_lookup(fd_, key, key_size_, value, value_size_).return_value_ == 0;
 }
 
 } // namespace Cilium

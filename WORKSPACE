@@ -38,6 +38,7 @@ git_repository(
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
         "@//patches:0002-upstream-Add-callback-for-upstream-authorization.patch",
         "@//patches:0003-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
+        "@//patches:0004-listener-add-socket-options.patch",
     ],
 )
 
