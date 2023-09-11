@@ -128,7 +128,7 @@
     },
     // Pin go version of cilium integration tests to go version of cilium/cilium
     {
-      "groupName": "cilium integration test go 1.21.x"
+      "groupName": "cilium integration test go 1.21.x",
       "matchFiles": [
         ".github/workflow/cilium-integration-tests.yaml",
       ],
