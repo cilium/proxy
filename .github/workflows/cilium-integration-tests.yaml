@@ -171,7 +171,7 @@ jobs:
           go mod vendor
 
       - name: Wait for Cilium Proxy image to be available
-        timeout-minutes: 30
+        timeout-minutes: 45
         shell: bash
         run: until docker manifest inspect ${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }} &> /dev/null; do sleep 15s; done
 
