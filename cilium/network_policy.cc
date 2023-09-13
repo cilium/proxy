@@ -950,12 +950,21 @@ void NetworkPolicyMap::runAfterAllThreads(std::function<void()> cb) const {
 ProtobufTypes::MessagePtr NetworkPolicyMap::dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher) {
   ENVOY_LOG(debug, "Writing NetworkPolicies to NetworkPoliciesConfigDump");
 
+  std::vector<uint64_t> policyEndpointIds;
   auto config_dump = std::make_unique<cilium::NetworkPoliciesConfigDump>();
-  for (const auto &item: tls_map_->policies_) {
+  for (const auto& item : tls_map_->policies_) {
+    // filter duplicates (policies are stored per endpoint ip)
+    if (std::find(policyEndpointIds.begin(), policyEndpointIds.end(),
+                  item.second->policy_proto_.endpoint_id()) != policyEndpointIds.end()) {
+      continue;
+    }
+
     if (!name_matcher.match(item.first)) {
       continue;
     }
+
     config_dump->mutable_networkpolicies()->Add()->CopyFrom(item.second->policy_proto_);
+    policyEndpointIds.emplace_back(item.second->policy_proto_.endpoint_id());
   }
 
   return config_dump;
