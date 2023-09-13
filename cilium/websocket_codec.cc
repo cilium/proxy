@@ -306,7 +306,8 @@ void Codec::closeOnError(const char* msg) {
     ENVOY_LOG(debug, "websocket: Closing connection: {}", msg);
   }
   // Close downstream, this should result also in the upstream getting closed (if any).
-  connection_.close(Network::ConnectionCloseType::NoFlush);
+  connection_.close(Network::ConnectionCloseType::NoFlush,
+		    fmt::format("websocket error: {}", msg));
 }
 
 void Codec::closeOnError(Buffer::Instance& data, const char* msg) {
