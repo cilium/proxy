@@ -215,7 +215,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     if (res != FILTER_OK) {
       // Drop the connection due to an error
       go_parser_->Close();
-      conn.close(Network::ConnectionCloseType::NoFlush);
+      conn.close(Network::ConnectionCloseType::NoFlush, "proxylib error");
       return Network::FilterStatus::StopIteration;
     }
 
@@ -236,7 +236,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     bool changed = log_entry_.UpdateFromMetadata(l7proto_, metadata.filter_metadata().at(l7proto_));
 
     if (!port_policy_->allowed(metadata)) {
-      conn.close(Network::ConnectionCloseType::NoFlush);
+      conn.close(Network::ConnectionCloseType::NoFlush, "metadata policy drop");
       config_->Log(log_entry_, ::cilium::EntryType::Denied);
       return Network::FilterStatus::StopIteration;
     } else {
