@@ -349,7 +349,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
 void GoFilter::Instance::Close() {
   (*parent_.go_close_)(connection_id_);
   connection_id_ = 0;
-  conn_.close(Network::ConnectionCloseType::NoFlush);
+  conn_.close(Network::ConnectionCloseType::FlushWrite);
 }
 
 } // namespace Cilium
