@@ -19,6 +19,8 @@ COMPILER_DEP := clang.bazelrc
 ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy cilium-envoy-starter bazel-bin/cilium-envoy-starter
 ENVOY_TESTS = bazel-bin/tests/*_test
 
+BUILD_DEP_FILES = ENVOY_VERSION WORKSPACE .bazelrc envoy.bazelrc bazel/toolchains/BUILD bazel/toolchains/cc_toolchain_config.bzl
+
 SHELL=/bin/bash -o pipefail
 BAZEL ?= $(QUIET) bazel
 BAZEL_FILTER ?=
@@ -71,6 +73,9 @@ else
   install-bazel:
 	tools/install_bazel.sh `cat .bazelversion`
 endif
+
+BUILD_DEP_HASHES: $(BUILD_DEP_FILES)
+	sha256sum $^ >$@
 
 SUDO=
 ifneq ($(shell whoami),root)
