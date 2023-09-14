@@ -43,3 +43,5 @@
 
 /proxylib/libcilium.so*
 /proxylib/_obj*
+
+/BUILD_DEP_HASHES
