@@ -134,19 +134,30 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     uint32_t destination_port = dip->port();
     uint32_t destination_identity = option->resolvePolicyId(dip);
 
+    // Policy may have changed since the connection was established, get fresh policy
     const auto& policy = option->getPolicy();
-    if (policy) {
+    if (!policy) {
+      ENVOY_LOG(debug, "cilium.l7policy: No policy found for pod {}, defaulting to DENY",
+		option->pod_ip_);
+      return false;
+    }
+
+    allowed_ = true;
+    if (option->ingress_source_identity_ != 0) {
+      allowed_ = policy->Allowed(true, option->port_, option->ingress_source_identity_,
+				 headers, log_entry_);
+      ENVOY_LOG(debug, "cilium.l7policy: Ingress from {} policy lookup for endpoint {} for port {}: {}",
+                option->ingress_source_identity_,
+                option->pod_ip_, option->port_, allowed_ ? "ALLOW" : "DENY");
+    }
+    if (allowed_) {
       allowed_ = policy->Allowed(option->ingress_, destination_port,
-                                 option->ingress_ ? option->identity_ : destination_identity,
-                                 headers, log_entry_);
+				 option->ingress_ ? option->identity_ : destination_identity,
+				 headers, log_entry_);
       ENVOY_LOG(debug, "cilium.l7policy: {} ({}->{}) policy lookup for endpoint {} for port {}: {}",
                 option->ingress_ ? "ingress" : "egress", option->identity_, destination_identity,
                 option->pod_ip_, destination_port, allowed_ ? "ALLOW" : "DENY");
-    } else {
-      ENVOY_LOG(debug, "cilium.l7policy: No {} policy found for pod {}, defaulting to DENY",
-                option->ingress_ ? "ingress" : "egress", option->pod_ip_);
     }
-
     // Update the log entry with the chosen destination address and current headers, as remaining
     // filters, upstream, and/or policy may have altered headers.
     log_entry_.UpdateFromRequest(destination_identity, dst_address, headers);
