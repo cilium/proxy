@@ -161,7 +161,8 @@ public:
 
 class SocketOption : public SocketMarkOption {
 public:
-  SocketOption(PolicyInstanceConstSharedPtr policy, uint32_t mark, uint32_t source_identity,
+  SocketOption(PolicyInstanceConstSharedPtr policy, uint32_t mark,
+               uint32_t ingress_source_identity, uint32_t source_identity,
                bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
                Network::Address::InstanceConstSharedPtr original_source_address,
                Network::Address::InstanceConstSharedPtr ipv4_source_address,
@@ -169,6 +170,7 @@ public:
                const std::shared_ptr<PolicyResolver>& policy_id_resolver)
       : SocketMarkOption(mark, source_identity, ingress, l7lb, original_source_address,
                          ipv4_source_address, ipv6_source_address),
+        ingress_source_identity_(ingress_source_identity),
         initial_policy_(policy), port_(port), pod_ip_(std::move(pod_ip)),
         policy_id_resolver_(policy_id_resolver) {
     ENVOY_LOG(debug,
@@ -191,6 +193,8 @@ public:
     return policy_id_resolver_->getPolicy(pod_ip_);
   }
 
+  // Additional ingress policy enforcement is performed if ingress_source_identity is non-zero
+  uint32_t ingress_source_identity_;
   const PolicyInstanceConstSharedPtr initial_policy_; // Never NULL
   uint16_t port_;
   std::string pod_ip_;
