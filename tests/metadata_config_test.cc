@@ -106,6 +106,9 @@ resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 8
   host_addresses: [ "10.1.1.42", "face::42" ]
+- "@type": type.googleapis.com/cilium.NetworkPolicyHosts
+  policy: 12345678
+  host_addresses: [ "192.168.1.0/24" ]
 )EOF";
 
     // Set up default policy
@@ -129,6 +132,16 @@ resources:
   - port: 80
     rules:
     - remote_policies: [ 111 ]
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - '10.1.1.42'
+  - 'face::42'
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 0
+    rules:
+    - remote_policies: [ 12345678 ]
+  egress_per_port_policies: {}
 )EOF";
   }
   ~MetadataConfigTest() override {
@@ -243,21 +256,21 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_NE(nullptr, option->initial_policy_);
+  EXPECT_EQ(0, option->ingress_source_identity_);
 
   // Check that Ingress security ID is used in the socket mark
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 }
 
-TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
-  // Use external remote address, but config says to use original source address
+TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
+  // Use external remote address
   remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.1.1", 12345);
 
   ::cilium::BpfMetadata config{};
   config.set_is_l7lb(true);
-  config.set_use_original_source_address(true);
   config.set_ipv4_source_address("10.1.1.42");
   config.set_ipv6_source_address("face::42");
-
+  config.set_enforce_policy_on_l7lb(true);
   EXPECT_NO_THROW(initialize(config));
 
   EXPECT_TRUE(config_->getMetadata(socket_));
@@ -274,9 +287,67 @@ TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_NE(nullptr, option->initial_policy_);
+  EXPECT_EQ(12345678, option->ingress_source_identity_);
 
-  // Check that the world ID is used in the socket mark
+  // Check that Ingress security ID is used in the socket mark
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+
+  // Expect policy accepts security ID 12345678 on ingress on port 80
+  auto port_policy = option->initial_policy_->findPortPolicy(true, 80, 12345678);
+  EXPECT_NE(nullptr, port_policy);
+  EXPECT_TRUE(port_policy->Matches("", 12345678));
+}
+
+TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
+  // Use external remote address
+  remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.2.1", 12345);
+
+  ::cilium::BpfMetadata config{};
+  config.set_is_l7lb(true);
+  config.set_ipv4_source_address("10.1.1.42");
+  config.set_ipv6_source_address("face::42");
+  config.set_enforce_policy_on_l7lb(true);
+  EXPECT_NO_THROW(initialize(config));
+
+  EXPECT_TRUE(config_->getMetadata(socket_));
+
+  const auto option = Cilium::GetSocketOption(socket_.options());
+  EXPECT_NE(nullptr, option);
+
+  EXPECT_EQ(8, option->identity_);
+  EXPECT_EQ(false, option->ingress_);
+  EXPECT_EQ(true, option->is_l7lb_);
+  EXPECT_EQ(nullptr, option->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
+  EXPECT_EQ(80, option->port_);
+  EXPECT_EQ("10.1.1.42", option->pod_ip_);
+  EXPECT_NE(nullptr, option->initial_policy_);
+  EXPECT_EQ(2, option->ingress_source_identity_);
+
+  // Check that Ingress security ID is used in the socket mark
+  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+
+  // Expect policy does not accept security ID 2 on ingress on port 80
+  EXPECT_EQ(nullptr, option->initial_policy_->findPortPolicy(true, 80, 2));
+}
+
+// Use external remote address, but config says to use original source address
+TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
+  remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.1.1", 12345);
+
+  ::cilium::BpfMetadata config{};
+  config.set_is_l7lb(true);
+  config.set_use_original_source_address(true);
+  config.set_ipv4_source_address("10.1.1.42");
+  config.set_ipv6_source_address("face::42");
+
+  EXPECT_NO_THROW(initialize(config));
+
+  EXPECT_FALSE(config_->getMetadata(socket_));
+
+  const auto option = Cilium::GetSocketOption(socket_.options());
+  EXPECT_EQ(nullptr, option);
 }
 
 TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
@@ -307,6 +378,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0900 && (option->mark_ >> 16) == 2048);
 }
 
+// When original source is not configured to be used, east/west traffic takes the north/south path
 TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   ::cilium::BpfMetadata config{};
   config.set_is_l7lb(true);
@@ -329,10 +401,12 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_NE(nullptr, option->initial_policy_);
+  EXPECT_EQ(0, option->ingress_source_identity_);
 
-  // Check that Endpoint's ID is used in the socket mark
+  // Check that Ingress ID is used in the socket mark
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 }
+
 
 } // namespace
 } // namespace Cilium
