@@ -161,7 +161,6 @@ Config::Config(const ::cilium::BpfMetadata& config,
   // Get the shared policy provider, or create it if not already created.
   // Note that the API config source is assumed to be the same for all filter
   // instances!
-
   npmap_ = createPolicyMap(context, ct_maps_);
 }
 
@@ -250,6 +249,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     destination_identity = resolvePolicyId(dip);
   }
 
+  // ingress_source_identity is non-zero when the egress path l7 LB should also enforce
+  // the ingress path policy using the original source identity.
   uint32_t ingress_source_identity = 0;
 
   Network::Address::InstanceConstSharedPtr ipv4_source_address = ipv4_source_address_;
@@ -269,60 +270,96 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // NOTE: is_l7lb_ is only used for egress, so the local
   // endpoint is the source, and the other node is the destination.
   uint32_t endpoint_id = policy ? policy->getEndpointID() : 0;
-  bool east_west_l7_lb = is_l7lb_ && use_original_source_address_ && endpoint_id != 0;
+  bool east_west_l7_lb = false;
+  if (is_l7lb_) {
+    if (use_original_source_address_) {
+      // Use source pod's IP address for east/west l7 LB
+      if (endpoint_id == 0) {
+	// Local pod not found. Original source address can only be used for local pods.
+	ENVOY_LOG(warn, "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original source address: {}",
+		  pod_ip);
+	return false;
+      }
 
-  if (east_west_l7_lb) {
-    // Use source pod's IP address for east/west l7 LB
-    const auto& ips = policy->getEndpointIPs();
-    if (ips.ipv4_ && ips.ipv6_) {
+      east_west_l7_lb = true;
+
       // Keep the original source address for the matching IP version, create a new source IP for
-      // the other version (with the same source port number) in case an upstream of a different IP
-      // version is chosen.
+      // the other version (with the same source port number) in case an upstream of a different
+      // IP version is chosen.
+      const auto& ips = policy->getEndpointIPs();
       switch (sip->version()) {
       case Network::Address::IpVersion::v4: {
-        ipv4_source_address = src_address;
-        sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(ips.ipv6_->sockAddr());
-        sa6.sin6_port = htons(sip->port());
-        ipv6_source_address = std::make_shared<Network::Address::Ipv6Instance>(sa6);
-
+	ipv4_source_address = src_address;
+	if (ips.ipv6_) {
+	  sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(ips.ipv6_->sockAddr());
+	  sa6.sin6_port = htons(sip->port());
+	  ipv6_source_address = std::make_shared<Network::Address::Ipv6Instance>(sa6);
+	} else {
+	  ipv6_source_address = nullptr;
+	}
       } break;
       case Network::Address::IpVersion::v6: {
-        ipv6_source_address = src_address;
-        sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(ips.ipv4_->sockAddr());
-        sa4.sin_port = htons(sip->port());
-        ipv4_source_address = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
+	ipv6_source_address = src_address;
+	if (ips.ipv4_) {
+	  sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(ips.ipv4_->sockAddr());
+	  sa4.sin_port = htons(sip->port());
+	  ipv4_source_address = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
+	} else {
+	  ipv4_source_address = nullptr;
+	}
       } break;
       }
+      // Original source address is now in one of 'ipv[46]_source_address'
+      src_address = nullptr;
+    } else {
+      // North/south L7 LB, assume the source security identity of the configured source addresses,
+      // if any and policy for this identity exists.
+      const Network::Address::Ip* ip = nullptr;
+
+      // Pick the local source address of the same family as the incoming connection
+      switch (sip->version()) {
+      case Network::Address::IpVersion::v4:
+	if (ipv4_source_address) {
+	  ip = ipv4_source_address->ip();
+	}
+	break;
+      case Network::Address::IpVersion::v6:
+	if (ipv6_source_address) {
+	  ip = ipv6_source_address->ip();
+	}
+	break;
+      }
+      if (!ip) {
+	// IP family of the connection has no configured local source address
+	ENVOY_LOG(warn, "cilium.bpf_metadata (north/south L7 LB): No local IP source address configured for the family of {}",
+		  pod_ip);
+	return false;
+      }
+
+      pod_ip = ip->addressAsString();
+
+      auto new_id = resolvePolicyId(ip);
+      if (new_id == Cilium::ID::WORLD) {
+	// No security ID available for the configured source IP
+	ENVOY_LOG(warn, "cilium.bpf_metadata (north/south L7 LB): Unknown local IP source address configured: {}",
+		  pod_ip);
+	return false;
+      }
+
+      // Enforce ingress policy on the incoming Ingress traffic?
+      if (enforce_policy_on_l7lb_)
+	ingress_source_identity = source_identity;
+
+      source_identity = new_id;
+
+      // AllowAllEgressPolicy will be returned if no explicit Ingress policy exists
+      policy = getPolicy(pod_ip);
+
+      // Original source address is never used for north/south LB
+      // This means that a local host IP is used if no IP is configured to be used instead of it
+      // ('ip' above is null).
       src_address = nullptr;
     }
-  } else if (is_l7lb_) {
-    // North/south L7 LB, assume the source security identity of the configured source addresses, if
-    // any and policy for this identity exists.
-    const Network::Address::Ip* ip = nullptr;
-    if (ipv4_source_address && ipv4_source_address->ip()) {
-      ip = ipv4_source_address->ip();
-    } else if (ipv6_source_address && ipv6_source_address->ip()) {
-      ip = ipv6_source_address->ip();
-    }
-    if (ip) {
-      auto new_id = resolvePolicyId(ip);
-      if (new_id != Cilium::ID::WORLD) {
-        // Enforce ingress policy on the incoming Ingress traffic?
-	if (enforce_policy_on_l7lb_)
-          ingress_source_identity = source_identity;
-
-        source_identity = new_id;
-
-        pod_ip = ip->addressAsString();
-
-        // AllowAllEgressPolicy will be returned if no explicit Ingress policy exists
-        policy = getPolicy(pod_ip);
-      } // The configured IP is used, but the original source identity, pod IP and policy are kept
-    }
-    // Original source address is never used for north/south LB
-    // This means that a local host IP is used if no IP is configured to be used instead of it
-    // ('ip' above is null).
-    src_address = nullptr;
 
     // Otherwise only use the original source address if permitted, destination identity is not a
     // locally allocated identity, is not classified as WORLD, and the destination is not in the
