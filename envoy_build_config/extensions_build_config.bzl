@@ -65,13 +65,12 @@ EXTENSIONS = {
     # "envoy.health_checkers.tcp":                        "//source/extensions/health_checkers/tcp:health_checker_lib",
     # "envoy.health_checkers.http":                       "//source/extensions/health_checkers/http:health_checker_lib",
     # "envoy.health_checkers.grpc":                       "//source/extensions/health_checkers/grpc:health_checker_lib",
- 
+
     #
     # Health check event sinks
     #
 
     "envoy.health_check.event_sinks.file":              "//source/extensions/health_check/event_sinks/file:file_sink_lib",
-
 
     #
     # Input Matchers
