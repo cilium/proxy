@@ -168,6 +168,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
             COPY_CACHE_EXT=.new
             BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
           push: true
