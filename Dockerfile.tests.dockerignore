@@ -9,6 +9,7 @@
 **/*tags
 /bazel-*
 /cilium-envoy
+/cilium-envoy-starter
 /Dockerfile.istio_proxy
 /Dockerfile.builder-refresh
 **/*~
@@ -22,6 +23,7 @@
 /.vagrant
 /proxylib/libcilium.so*
 /proxylib/_obj*
+/BUILD_DEP_HASHES
 /.gitignore
 /Dockerfile*
 /Makefile.dev
