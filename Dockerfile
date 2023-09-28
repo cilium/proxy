@@ -69,8 +69,9 @@ ENV TARGETARCH=$TARGETARCH
 RUN ./bazel/get_workspace_status
 RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private \
     --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=builder-cache,rw \
+    if [ -f /tmp/bazel-cache/ENVOY_VERSION ]; then CACHE_ENVOY_VERSION=`cat /tmp/bazel-cache/ENVOY_VERSION`; ENVOY_VERSION=`cat ENVOY_VERSION`; if [ "${CACHE_ENVOY_VERSION}" != "${ENVOY_VERSION}" ]; then echo "Building Envoy ${ENVOY_VERSION} with bazel archive from different Envoy version (${CACHE_ENVOY_VERSION})"; else echo "Building Envoy ${ENVOY_VERSION} with bazel cache of the same version"; fi; else echo "Bazel cache has no ENVOY_VERSION, it may be empty."; fi && \
     touch /tmp/bazel-cache/permissions-check && \
-    if [ -n "${COPY_CACHE_EXT}" ]; then PKG_BUILD=1 make BUILD_DEP_HASHES; if [ -f /tmp/bazel-cache/BUILD_DEP_HASHES ] && ! diff BUILD_DEP_HASHES /tmp/bazel-cache/BUILD_DEP_HASHES; then echo "Build dependencies have changed, clearing bazel cache"; rm -rf /tmp/bazel-cache/*; rm -rf /cilium/proxy/.cache/*; fi ; cp BUILD_DEP_HASHES /tmp/bazel-cache; fi && \
+    if [ -n "${COPY_CACHE_EXT}" ]; then PKG_BUILD=1 make BUILD_DEP_HASHES; if [ -f /tmp/bazel-cache/BUILD_DEP_HASHES ] && ! diff BUILD_DEP_HASHES /tmp/bazel-cache/BUILD_DEP_HASHES; then echo "Build dependencies have changed, clearing bazel cache"; rm -rf /tmp/bazel-cache/*; rm -rf /cilium/proxy/.cache/*; fi ; cp BUILD_DEP_HASHES ENVOY_VERSION /tmp/bazel-cache; fi && \
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG DESTDIR=/tmp/install make install && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; ls -la /tmp/bazel-cache${COPY_CACHE_EXT}; fi
 #
