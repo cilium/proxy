@@ -265,7 +265,8 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
 public:
   CiliumIntegrationTest()
       : CiliumHttpIntegrationTest(
-            fmt::format(TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()), "true")) {}
+            fmt::format(TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()), "true")) {
+  }
   CiliumIntegrationTest(const std::string& config) : CiliumHttpIntegrationTest(config) {}
 
   std::string testPolicyFmt() override {
@@ -358,9 +359,7 @@ public:
             fmt::format(TestEnvironment::substitute(cilium_proxy_config_fmt, GetParam()), "true")) {
   }
 
-  std::string testPolicyFmt() override {
-    return "version_info: \"0\"";
-  }
+  std::string testPolicyFmt() override { return "version_info: \"0\""; }
 
   void InvalidHostMap(const std::string& config, const char* exmsg) {
     std::string path = TestEnvironment::writeStringToFileForTest("host_map_fail.yaml", config);
@@ -1033,7 +1032,6 @@ TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix2) {
   Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 }
 
-
 const std::string HEADER_ACTION_MISSING_SDS_POLICY_fmt = R"EOF(version_info: "1"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
@@ -1101,7 +1099,6 @@ resources:
   policy: 2
   host_addresses: [ "0.0.0.0/0", "::/0" ]
 )EOF";
-
   }
 
   std::string testPolicyFmt2() {
@@ -1117,126 +1114,112 @@ resources:
   }
 };
 
-
 INSTANTIATE_TEST_SUITE_P(IpVersions, SDSIntegrationTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(SDSIntegrationTest, TestDeniedL3) {
-  Denied({
-      {":method", "GET"},
-      {":path", "/only42"},
-      {":authority", "host"}
-    });
+  Denied({{":method", "GET"}, {":path", "/only42"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+                         ->ip()
+                         ->addressAsString();
     const auto& http = entry.http();
 
     ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
 
-    return http.rejected_headers_size() == 0 &&
-      http.missing_headers_size() == 0 &&
-      entry.source_security_id() == 1 &&
-      source_ip == ((GetParam() == Network::Address::IpVersion::v4) ? "127.0.0.1" : "::1");
+    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 0 &&
+           entry.source_security_id() == 1 &&
+           source_ip == ((GetParam() == Network::Address::IpVersion::v4) ? "127.0.0.1" : "::1");
   }));
 }
 
 TEST_P(SDSIntegrationTest, TestDeniedL3SpoofedXFF) {
-  Denied({
-      {":method", "GET"},
-      {":path", "/only42"},
-      {":authority", "host"},
-      {"x-forwarded-for", "192.168.1.1"}
-    });
+  Denied({{":method", "GET"},
+          {":path", "/only42"},
+          {":authority", "host"},
+          {"x-forwarded-for", "192.168.1.1"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+                         ->ip()
+                         ->addressAsString();
     const auto& http = entry.http();
 
     ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
 
-    return http.rejected_headers_size() == 0 &&
-      http.missing_headers_size() == 0 &&
-      entry.source_security_id() == 1 &&
-      source_ip == ((GetParam() == Network::Address::IpVersion::v4) ? "127.0.0.1" : "::1");
+    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 0 &&
+           entry.source_security_id() == 1 &&
+           source_ip == ((GetParam() == Network::Address::IpVersion::v4) ? "127.0.0.1" : "::1");
   }));
 }
 
 TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
-  Accepted({
-      {":method", "GET"},
-      {":path", "/allowed2"},
-      {":authority", "host"}
-    });
+  Accepted({{":method", "GET"}, {":path", "/allowed2"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+                         ->ip()
+                         ->addressAsString();
     const auto& http = entry.http();
 
     ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
 
-    return http.rejected_headers_size() == 0 &&
-      http.missing_headers_size() == 0;
+    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 0;
   }));
 
   // Update policy that still has the missing secret
   auto port = fake_upstreams_[0]->localAddress()->ip()->port();
   auto config = fmt::format(testPolicyFmt2(), port);
-  std::string temp_path = TestEnvironment::writeStringToFileForTest("network_policy_tmp.yaml", config);
+  std::string temp_path =
+      TestEnvironment::writeStringToFileForTest("network_policy_tmp.yaml", config);
   std::string backup_path = policy_path + ".backup";
   TestEnvironment::renameFile(policy_path, backup_path);
   TestEnvironment::renameFile(temp_path, policy_path);
   ENVOY_LOG_MISC(debug,
-		 "Updating Cilium Network Policy from file \'{}\'->\'{}\' instead "
-		 "of using gRPC",
-		 temp_path, policy_path);
+                 "Updating Cilium Network Policy from file \'{}\'->\'{}\' instead "
+                 "of using gRPC",
+                 temp_path, policy_path);
 
   // 2nd round, on updated policy
-  Accepted({
-      {":method", "GET"},
-      {":path", "/allowed"},
-      {":authority", "host"}
-    });
+  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+                         ->ip()
+                         ->addressAsString();
     const auto& http = entry.http();
     const auto& missing = http.missing_headers();
 
     ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
 
-    return http.rejected_headers_size() == 0 &&
-      http.missing_headers_size() == 2 &&
-      hasHeader(missing, "header42") &&
-      hasHeader(missing, "bearer-token", "[redacted]");
+    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 2 &&
+           hasHeader(missing, "header42") && hasHeader(missing, "bearer-token", "[redacted]");
   }));
 
   // 3rd round back to the initial policy
   TestEnvironment::renameFile(backup_path, policy_path);
   ENVOY_LOG_MISC(debug,
-		 "Updating Cilium Network Policy from file \'{}\'->\'{}\' instead "
-		 "of using gRPC",
-		 backup_path, policy_path);
+                 "Updating Cilium Network Policy from file \'{}\'->\'{}\' instead "
+                 "of using gRPC",
+                 backup_path, policy_path);
 
-  Denied({
-      {":method", "GET"},
-      {":path", "/allowed"},
-      {":authority", "host"}
-    });
+  Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())->ip()->addressAsString();
+    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+                         ->ip()
+                         ->addressAsString();
     const auto& http = entry.http();
 
     ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
 
-    return http.rejected_headers_size() == 0 &&
-      http.missing_headers_size() == 0;
+    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 0;
   }));
 }
 

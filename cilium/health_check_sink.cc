@@ -10,7 +10,8 @@ namespace Cilium {
 Thread::MutexBasicLockable HealthCheckEventPipeSink::udss_mutex;
 std::map<std::string, std::weak_ptr<UDSClient>> HealthCheckEventPipeSink::udss;
 
-HealthCheckEventPipeSink::HealthCheckEventPipeSink(const cilium::HealthCheckEventPipeSink& config) : uds_client_(nullptr) {
+HealthCheckEventPipeSink::HealthCheckEventPipeSink(const cilium::HealthCheckEventPipeSink& config)
+    : uds_client_(nullptr) {
   auto path = config.path();
   Thread::LockGuard guard(udss_mutex);
   auto it = udss.find(path);
@@ -29,7 +30,8 @@ HealthCheckEventPipeSink::HealthCheckEventPipeSink(const cilium::HealthCheckEven
 
 void HealthCheckEventPipeSink::log(envoy::data::core::v3::HealthCheckEvent event) {
   if (!uds_client_) {
-    ENVOY_LOG_MISC(warn, "HealthCheckEventPipeSink: no connection, skipping event: {}", event.DebugString());
+    ENVOY_LOG_MISC(warn, "HealthCheckEventPipeSink: no connection, skipping event: {}",
+                   event.DebugString());
     return;
   }
   std::string msg;
@@ -39,8 +41,9 @@ void HealthCheckEventPipeSink::log(envoy::data::core::v3::HealthCheckEvent event
 
 Upstream::HealthCheckEventSinkPtr HealthCheckEventPipeSinkFactory::createHealthCheckEventSink(
     const ProtobufWkt::Any& config, Server::Configuration::HealthCheckerFactoryContext& context) {
-  const auto& validator_config = Envoy::MessageUtil::anyConvertAndValidate<cilium::HealthCheckEventPipeSink>(
-      config, context.messageValidationVisitor());
+  const auto& validator_config =
+      Envoy::MessageUtil::anyConvertAndValidate<cilium::HealthCheckEventPipeSink>(
+          config, context.messageValidationVisitor());
   Upstream::HealthCheckEventSinkPtr uds;
   uds.reset(new HealthCheckEventPipeSink(validator_config));
   return uds;
@@ -48,5 +51,5 @@ Upstream::HealthCheckEventSinkPtr HealthCheckEventPipeSinkFactory::createHealthC
 
 REGISTER_FACTORY(HealthCheckEventPipeSinkFactory, Upstream::HealthCheckEventSinkFactory);
 
-} // namespace Upstream
+} // namespace Cilium
 } // namespace Envoy

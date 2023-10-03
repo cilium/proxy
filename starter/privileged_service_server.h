@@ -28,7 +28,7 @@ private:
     BpfOpenRequest bpf_open_req;
     BpfLookupRequest bpf_lookup_req;
     SetSockOptRequest setsockopt_req;
-      
+
     // resposes use the same buffer, so they inherit the message sequence number from the request
     Response response;
 
@@ -36,7 +36,7 @@ private:
     char buf[sizeof(BpfOpenRequest) + PATH_MAX + 1];
   };
 
-  int pid_;  // child pid
+  int pid_; // child pid
 };
 
 } // namespace PrivilegedService

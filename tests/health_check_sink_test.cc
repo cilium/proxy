@@ -1,10 +1,7 @@
-#include "cilium/api/health_check_sink.pb.h"
-#include "cilium/api/health_check_sink.pb.validate.h"
 #include "envoy/registry/registry.h"
 
 #include "source/common/common/logger.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "cilium/health_check_sink.h"
 
 #include "test/mocks/access_log/mocks.h"
 #include "test/mocks/event/mocks.h"
@@ -12,9 +9,11 @@
 #include "test/mocks/stats/mocks.h"
 #include "test/test_common/utility.h"
 
+#include "cilium/api/health_check_sink.pb.h"
+#include "cilium/api/health_check_sink.pb.validate.h"
+#include "cilium/health_check_sink.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-
 #include "tests/health_check_sink_server.h"
 
 using testing::SaveArg;
@@ -23,8 +22,9 @@ namespace Envoy {
 namespace Cilium {
 
 TEST(HealthCheckEventPipeSinkFactory, createHealthCheckEventSink) {
-  auto factory = Envoy::Registry::FactoryRegistry<Upstream::HealthCheckEventSinkFactory>::getFactory(
-      "cilium.health_check.event_sink.pipe");
+  auto factory =
+      Envoy::Registry::FactoryRegistry<Upstream::HealthCheckEventSinkFactory>::getFactory(
+          "cilium.health_check.event_sink.pipe");
   EXPECT_NE(factory, nullptr);
 
   cilium::HealthCheckEventPipeSink config;
@@ -37,8 +37,9 @@ TEST(HealthCheckEventPipeSinkFactory, createHealthCheckEventSink) {
 }
 
 TEST(HealthCheckEventPipeSinkFactory, createEmptyHealthCheckEventSink) {
-  auto factory = Envoy::Registry::FactoryRegistry<Upstream::HealthCheckEventSinkFactory>::getFactory(
-      "cilium.health_check.event_sink.pipe");
+  auto factory =
+      Envoy::Registry::FactoryRegistry<Upstream::HealthCheckEventSinkFactory>::getFactory(
+          "cilium.health_check.event_sink.pipe");
   EXPECT_NE(factory, nullptr);
   auto empty_proto = factory->createEmptyConfigProto();
   auto config = *dynamic_cast<cilium::HealthCheckEventPipeSink*>(empty_proto.get());
@@ -77,9 +78,10 @@ TEST(HealthCheckEventPipeSink, logTest) {
                             eject_event);
 
   pipe_sink.log(eject_event);
-  EXPECT_TRUE(eventSink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
-    return Protobuf::util::MessageDifferencer::Equals(observed_event, eject_event);
-  }));
+  EXPECT_TRUE(
+      eventSink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
+        return Protobuf::util::MessageDifferencer::Equals(observed_event, eject_event);
+      }));
 
   // Set up 2nd client on the same socket
   HealthCheckEventPipeSink pipe_sink2(config);
@@ -102,14 +104,15 @@ TEST(HealthCheckEventPipeSink, logTest) {
                             add_event);
 
   pipe_sink2.log(add_event);
-  EXPECT_TRUE(eventSink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
-    return Protobuf::util::MessageDifferencer::Equals(observed_event, add_event);
-  }));
+  EXPECT_TRUE(
+      eventSink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
+        return Protobuf::util::MessageDifferencer::Equals(observed_event, add_event);
+      }));
 
   // Set up another server on a different socket in an abstract namespace
   // Set up server
 #define ABSTRACT_PATH "@another\0test_path"
-  std::string abstract_name(ABSTRACT_PATH, sizeof(ABSTRACT_PATH)-1);
+  std::string abstract_name(ABSTRACT_PATH, sizeof(ABSTRACT_PATH) - 1);
   HealthCheckSinkServer eventSink3(abstract_name);
 
   // Set up 3rd client on a different socket
@@ -118,10 +121,11 @@ TEST(HealthCheckEventPipeSink, logTest) {
   HealthCheckEventPipeSink pipe_sink3(config3);
 
   pipe_sink3.log(eject_event);
-  EXPECT_TRUE(eventSink3.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
-    return Protobuf::util::MessageDifferencer::Equals(observed_event, eject_event);
-  }));
+  EXPECT_TRUE(
+      eventSink3.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
+        return Protobuf::util::MessageDifferencer::Equals(observed_event, eject_event);
+      }));
 }
 
-} // namespace Upstream
+} // namespace Cilium
 } // namespace Envoy

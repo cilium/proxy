@@ -2,19 +2,17 @@
 #error "Linux platform file is part of non-Linux build."
 #endif
 
-#include <algorithm>
+#include "starter/privileged_service_server.h"
 
 #include <errno.h>
-#include <syscall.h>
+#include <linux/bpf.h>
 #include <string.h>
-#include <unistd.h>
-
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <syscall.h>
+#include <unistd.h>
 
-#include <linux/bpf.h>
-
-#include "starter/privileged_service_server.h"
+#include <algorithm>
 
 namespace Envoy {
 namespace Cilium {
@@ -29,10 +27,8 @@ ProtocolServer::~ProtocolServer() {
     } while (rc == -1 && errno == EINTR);
   }
 }
-  
-ProtocolServer::ProtocolServer(int pid, int pipe) :
-  Protocol(pipe), pid_(pid) {
-}
+
+ProtocolServer::ProtocolServer(int pid, int pipe) : Protocol(pipe), pid_(pid) {}
 
 void ProtocolServer::serve() {
   Buffer msg = {};
@@ -61,7 +57,7 @@ void ProtocolServer::serve() {
     size_t msg_len = size_t(size);
     // Use the message buffer after request/response for the return value
     size_t header_size = std::max(msg_len, sizeof(Response));
-    char *buf = msg.buf + header_size;
+    char* buf = msg.buf + header_size;
     size_t buf_size = sizeof(msg) - header_size;
     size_t value_len = 0; // set below to the actual length of the value to be returned
     int rc = 0;
@@ -75,18 +71,18 @@ void ProtocolServer::serve() {
       // zero terminate path name
       msg.bpf_open_req.path_[msg_len - sizeof(msg.bpf_open_req)] = '\0';
       {
-	union bpf_attr attr = {};
-	attr.pathname = uintptr_t(msg.bpf_open_req.path_);
-	fd_out = rc = ::syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
+        union bpf_attr attr = {};
+        attr.pathname = uintptr_t(msg.bpf_open_req.path_);
+        fd_out = rc = ::syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
       }
       break;
     case TYPE_BPF_LOOKUP_REQUEST: // key_size = msg_len - sizeof msg.bpf_lookup_req
       // require at least one byte key
       if (msg_len < sizeof(msg.bpf_lookup_req) + 1) {
-	fprintf(stderr, "received truncated bpf lookup request (%zd bytes), skipping\n", msg_len);
-	rc = -1;
-	errno = EINVAL;
-	break;
+        fprintf(stderr, "received truncated bpf lookup request (%zd bytes), skipping\n", msg_len);
+        rc = -1;
+        errno = EINVAL;
+        break;
       }
       value_len = msg.bpf_lookup_req.value_size_;
       // Make sure the value fits into available space
@@ -106,14 +102,13 @@ void ProtocolServer::serve() {
       break;
     case TYPE_SETSOCKOPT32_REQUEST: // msg_len == sizeof msg.setsockopt_req
       if (msg_len < sizeof(msg.setsockopt_req)) {
-	fprintf(stderr, "received truncated setsockopt request (%zd bytes), skipping\n", msg_len);
-	rc = -1;
-	errno = EINVAL;
-	break;
+        fprintf(stderr, "received truncated setsockopt request (%zd bytes), skipping\n", msg_len);
+        rc = -1;
+        errno = EINVAL;
+        break;
       }
-      rc = ::syscall(__NR_setsockopt, fd_in, msg.setsockopt_req.level_,
-		     msg.setsockopt_req.optname_, &msg.setsockopt_req.optval_,
-		     sizeof(msg.setsockopt_req.optval_));
+      rc = ::syscall(__NR_setsockopt, fd_in, msg.setsockopt_req.level_, msg.setsockopt_req.optname_,
+                     &msg.setsockopt_req.optval_, sizeof(msg.setsockopt_req.optval_));
       break;
     default:
       fprintf(stderr, "Unexpected privileged call type: %d\n", msg.hdr.msg_type_);

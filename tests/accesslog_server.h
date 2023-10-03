@@ -13,7 +13,6 @@
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "cilium/api/accesslog.pb.h"
-
 #include "tests/uds_server.h"
 
 namespace Envoy {

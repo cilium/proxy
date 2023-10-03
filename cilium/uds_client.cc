@@ -1,3 +1,5 @@
+#include "cilium/uds_client.h"
+
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -5,10 +7,9 @@
 #include <unistd.h>
 
 #include "envoy/common/exception.h"
+
 #include "source/common/common/lock_guard.h"
 #include "source/common/common/utility.h"
-
-#include "cilium/uds_client.h"
 
 namespace Envoy {
 namespace Cilium {

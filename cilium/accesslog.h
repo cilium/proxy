@@ -9,7 +9,6 @@
 #include "envoy/stream_info/stream_info.h"
 
 #include "cilium/api/accesslog.pb.h"
-
 #include "cilium/uds_client.h"
 
 namespace Envoy {
@@ -46,6 +45,7 @@ public:
   };
 
   void Log(Entry& entry, ::cilium::EntryType);
+
 private:
   explicit AccessLog(const std::string& path) : UDSClient(path), path_(path) {}
 

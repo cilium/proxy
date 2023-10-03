@@ -4,40 +4,39 @@
 #error "Linux platform file is part of non-Linux build."
 #endif
 
+#include <linux/capability.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <linux/capability.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
 // Use Envoy version of this if defined, otherwise roll a simple stderr one without further
 // dependencies
 #ifndef RELEASE_ASSERT
-#define _ASSERT_IMPL(CONDITION, CONDITION_STR, DETAILS)			\
-  do {									\
-    if (!(CONDITION)) {							\
-      fprintf(stderr, "assert failure: %s. Details: %s", CONDITION_STR, (DETAILS)); \
-      ::abort();							\
-    }									\
+#define _ASSERT_IMPL(CONDITION, CONDITION_STR, DETAILS)                                            \
+  do {                                                                                             \
+    if (!(CONDITION)) {                                                                            \
+      fprintf(stderr, "assert failure: %s. Details: %s", CONDITION_STR, (DETAILS));                \
+      ::abort();                                                                                   \
+    }                                                                                              \
   } while (false)
 #define RELEASE_ASSERT(X, DETAILS) _ASSERT_IMPL(X, #X, DETAILS)
 #endif
 
 // Kernel headers may miss CAP_BPF added in Linux 5.8
 #ifndef CAP_BPF
-#define CAP_BPF                 39
+#define CAP_BPF 39
 #endif
 
 #ifndef _SYS_CAPABILITY_H
-// These are normally defined in <sys/capability.h> added in libcap-dev package.  Define these here
+// These are normally defined in <sys/capability.h> added in libcap-dev package. Define these here
 // to avoid that dependency due to complications in cross-compilation for Intel/Arm.
 typedef enum {
-    CAP_EFFECTIVE = 0,                 /* Specifies the effective flag */
-    CAP_PERMITTED = 1,                 /* Specifies the permitted flag */
-    CAP_INHERITABLE = 2                /* Specifies the inheritable flag */
+  CAP_EFFECTIVE = 0,  /* Specifies the effective flag */
+  CAP_PERMITTED = 1,  /* Specifies the permitted flag */
+  CAP_INHERITABLE = 2 /* Specifies the inheritable flag */
 } cap_flag_t;
 #endif
 
@@ -46,7 +45,7 @@ namespace Cilium {
 namespace PrivilegedService {
 
 uint64_t get_capabilities(cap_flag_t kind);
-size_t dump_capabilities(cap_flag_t kind, char *buf, size_t buf_size);
+size_t dump_capabilities(cap_flag_t kind, char* buf, size_t buf_size);
 
 #define CILIUM_PRIVILEGED_SERVICE_FD 3
 
@@ -89,7 +88,6 @@ struct Response {
   uint8_t data_[];
 };
 
-
 // Dump requests consists only of the message header, but with the TYPE_DUMP_REQUEST.
 // Response contains the effective capabilitites in a string form.
 struct DumpRequest {
@@ -123,8 +121,8 @@ struct BpfLookupRequest {
 // SetSockOptRequest only supports setting 4-byte options.
 // Response is SyscallResponse.
 struct SetSockOptRequest {
-  SetSockOptRequest(int level, int optname, const void *optval, socklen_t optlen)
-    : hdr_(TYPE_SETSOCKOPT32_REQUEST), level_(level), optname_(optname) {
+  SetSockOptRequest(int level, int optname, const void* optval, socklen_t optlen)
+      : hdr_(TYPE_SETSOCKOPT32_REQUEST), level_(level), optname_(optname) {
     RELEASE_ASSERT(optlen == sizeof(uint32_t), "optlen must be 4 bytes");
     memcpy(&optval_, optval, optlen);
   }
@@ -144,10 +142,10 @@ public:
   void close();
   bool is_open() const { return fd_ != -1; }
 
-  ssize_t send_fd_msg(const void *header, ssize_t headerlen,
-		      const void *data = nullptr, ssize_t datalen = 0, int fd = -1);
-  ssize_t recv_fd_msg(const void *header, ssize_t headersize,
-		      const void *data = nullptr, ssize_t datasize = 0, int *fd = nullptr);
+  ssize_t send_fd_msg(const void* header, ssize_t headerlen, const void* data = nullptr,
+                      ssize_t datalen = 0, int fd = -1);
+  ssize_t recv_fd_msg(const void* header, ssize_t headersize, const void* data = nullptr,
+                      ssize_t datasize = 0, int* fd = nullptr);
 
 protected:
   int fd_;

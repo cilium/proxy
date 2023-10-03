@@ -28,9 +28,6 @@ local_repository(
 
 git_repository(
     name = "envoy",
-    # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
-    remote = "https://github.com/envoyproxy/envoy.git",
-    # // clang-format on
     commit = ENVOY_SHA,
     patch_args = ["apply"],
     patch_tool = "git",
@@ -40,6 +37,9 @@ git_repository(
         "@//patches:0003-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
         "@//patches:0004-listener-add-socket-options.patch",
     ],
+    # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
+    remote = "https://github.com/envoyproxy/envoy.git",
+    # // clang-format on
 )
 
 #

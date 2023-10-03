@@ -15,8 +15,8 @@
 
 namespace Envoy {
 
-AccessLogServer::AccessLogServer(const std::string path) :
-    UDSServer(path, std::bind(&AccessLogServer::msgCallback, this, std::placeholders::_1)) {}
+AccessLogServer::AccessLogServer(const std::string path)
+    : UDSServer(path, std::bind(&AccessLogServer::msgCallback, this, std::placeholders::_1)) {}
 
 AccessLogServer::~AccessLogServer() {}
 

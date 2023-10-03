@@ -54,7 +54,8 @@ public:
       return true;
     }
     auto& cilium_calls = PrivilegedService::Singleton::get();
-    auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_SOCKET, SO_MARK, &mark_, sizeof(mark_));
+    auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_SOCKET, SO_MARK,
+                                          &mark_, sizeof(mark_));
     if (status.return_value_ < 0) {
       if (status.errno_ == EPERM) {
         // Do not assert out in this case so that we can run tests without
@@ -72,8 +73,7 @@ public:
 
     auto ipVersion = socket.ipVersion();
     if (!ipVersion.has_value()) {
-      ENVOY_LOG(critical,
-                "Socket address family is not available, can not choose source address");
+      ENVOY_LOG(critical, "Socket address family is not available, can not choose source address");
       return false;
     }
     Network::Address::InstanceConstSharedPtr source_address = original_source_address_;
@@ -94,37 +94,39 @@ public:
 
       // Set ip transparent option based on the socket address family
       if (*ipVersion == Network::Address::IpVersion::v4) {
-	auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IP, IP_TRANSPARENT, &one, sizeof(one));
-	if (status.return_value_ < 0) {
-	  if (status.errno_ == EPERM) {
-	    // Do not assert out in this case so that we can run tests without
-	    // CAP_NET_ADMIN.
-	    ENVOY_LOG(critical,
-		      "Failed to set socket option IP_TRANSPARENT, capability "
-		      "CAP_NET_ADMIN needed: {}",
-		      Envoy::errorDetails(status.errno_));
-	  } else {
-	    ENVOY_LOG(critical, "Socket option failure. Failed to set IP_TRANSPARENT: {}",
-		      Envoy::errorDetails(status.errno_));
-	    return false;
-	  }
-	}
+        auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IP,
+                                              IP_TRANSPARENT, &one, sizeof(one));
+        if (status.return_value_ < 0) {
+          if (status.errno_ == EPERM) {
+            // Do not assert out in this case so that we can run tests without
+            // CAP_NET_ADMIN.
+            ENVOY_LOG(critical,
+                      "Failed to set socket option IP_TRANSPARENT, capability "
+                      "CAP_NET_ADMIN needed: {}",
+                      Envoy::errorDetails(status.errno_));
+          } else {
+            ENVOY_LOG(critical, "Socket option failure. Failed to set IP_TRANSPARENT: {}",
+                      Envoy::errorDetails(status.errno_));
+            return false;
+          }
+        }
       } else if (*ipVersion == Network::Address::IpVersion::v6) {
-	auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IPV6, IPV6_TRANSPARENT, &one, sizeof(one));
-	if (status.return_value_ < 0) {
-	  if (status.errno_ == EPERM) {
-	    // Do not assert out in this case so that we can run tests without
-	    // CAP_NET_ADMIN.
-	    ENVOY_LOG(critical,
-		      "Failed to set socket option IPV6_TRANSPARENT, capability "
-		      "CAP_NET_ADMIN needed: {}",
-		      Envoy::errorDetails(status.errno_));
-	  } else {
-	    ENVOY_LOG(critical, "Socket option failure. Failed to set IPV6_TRANSPARENT: {}",
-		      Envoy::errorDetails(status.errno_));
-	    return false;
-	  }
-	}	
+        auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IPV6,
+                                              IPV6_TRANSPARENT, &one, sizeof(one));
+        if (status.return_value_ < 0) {
+          if (status.errno_ == EPERM) {
+            // Do not assert out in this case so that we can run tests without
+            // CAP_NET_ADMIN.
+            ENVOY_LOG(critical,
+                      "Failed to set socket option IPV6_TRANSPARENT, capability "
+                      "CAP_NET_ADMIN needed: {}",
+                      Envoy::errorDetails(status.errno_));
+          } else {
+            ENVOY_LOG(critical, "Socket option failure. Failed to set IPV6_TRANSPARENT: {}",
+                      Envoy::errorDetails(status.errno_));
+            return false;
+          }
+        }
       }
 
       auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
@@ -202,18 +204,18 @@ public:
 
 class SocketOption : public SocketMarkOption {
 public:
-  SocketOption(PolicyInstanceConstSharedPtr policy, uint32_t mark,
-               uint32_t ingress_source_identity, uint32_t source_identity,
-               bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
+  SocketOption(PolicyInstanceConstSharedPtr policy, uint32_t mark, uint32_t ingress_source_identity,
+               uint32_t source_identity, bool ingress, bool l7lb, uint16_t port,
+               std::string&& pod_ip,
                Network::Address::InstanceConstSharedPtr original_source_address,
                Network::Address::InstanceConstSharedPtr ipv4_source_address,
                Network::Address::InstanceConstSharedPtr ipv6_source_address,
                const std::shared_ptr<PolicyResolver>& policy_id_resolver)
-      : SocketMarkOption(mark, source_identity, original_source_address,
-                         ipv4_source_address, ipv6_source_address),
-        ingress_source_identity_(ingress_source_identity),
-        initial_policy_(policy), ingress_(ingress), is_l7lb_(l7lb), port_(port),
-        pod_ip_(std::move(pod_ip)), policy_id_resolver_(policy_id_resolver) {
+      : SocketMarkOption(mark, source_identity, original_source_address, ipv4_source_address,
+                         ipv6_source_address),
+        ingress_source_identity_(ingress_source_identity), initial_policy_(policy),
+        ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
+        policy_id_resolver_(policy_id_resolver) {
     ENVOY_LOG(debug,
               "Cilium SocketOption(): source_identity: {}, "
               "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {:x} (magic "

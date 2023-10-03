@@ -34,8 +34,8 @@ createClientSslTransportSocketFactory(Ssl::ContextManager& context_manager, Api:
       tls_context, mock_factory_ctx);
   static auto* client_stats_store = new Stats::TestIsolatedStoreImpl();
   return Network::UpstreamTransportSocketFactoryPtr{
-      new Extensions::TransportSockets::Tls::ClientSslSocketFactory(std::move(cfg), context_manager,
-                                                                    *client_stats_store->rootScope())};
+      new Extensions::TransportSockets::Tls::ClientSslSocketFactory(
+          std::move(cfg), context_manager, *client_stats_store->rootScope())};
 }
 
 } // namespace Cilium

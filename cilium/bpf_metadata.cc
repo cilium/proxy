@@ -40,7 +40,8 @@ public:
     // Set the socket mark option for the listen socket.
     // Can use identity 0 on the listen socket option, as the bpf datapath is only interested
     // in whether the proxy is ingress, egress, or if there is no proxy at all.
-    std::shared_ptr<Envoy::Network::Socket::Options> options = std::make_shared<Envoy::Network::Socket::Options>();
+    std::shared_ptr<Envoy::Network::Socket::Options> options =
+        std::make_shared<Envoy::Network::Socket::Options>();
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
     context.addListenSocketOptions(options);
@@ -275,10 +276,12 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     if (use_original_source_address_) {
       // Use source pod's IP address for east/west l7 LB
       if (endpoint_id == 0) {
-	// Local pod not found. Original source address can only be used for local pods.
-	ENVOY_LOG(warn, "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original source address: {}",
-		  pod_ip);
-	return false;
+        // Local pod not found. Original source address can only be used for local pods.
+        ENVOY_LOG(warn,
+                  "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
+                  "source address: {}",
+                  pod_ip);
+        return false;
       }
 
       east_west_l7_lb = true;
@@ -289,24 +292,24 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       const auto& ips = policy->getEndpointIPs();
       switch (sip->version()) {
       case Network::Address::IpVersion::v4: {
-	ipv4_source_address = src_address;
-	if (ips.ipv6_) {
-	  sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(ips.ipv6_->sockAddr());
-	  sa6.sin6_port = htons(sip->port());
-	  ipv6_source_address = std::make_shared<Network::Address::Ipv6Instance>(sa6);
-	} else {
-	  ipv6_source_address = nullptr;
-	}
+        ipv4_source_address = src_address;
+        if (ips.ipv6_) {
+          sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(ips.ipv6_->sockAddr());
+          sa6.sin6_port = htons(sip->port());
+          ipv6_source_address = std::make_shared<Network::Address::Ipv6Instance>(sa6);
+        } else {
+          ipv6_source_address = nullptr;
+        }
       } break;
       case Network::Address::IpVersion::v6: {
-	ipv6_source_address = src_address;
-	if (ips.ipv4_) {
-	  sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(ips.ipv4_->sockAddr());
-	  sa4.sin_port = htons(sip->port());
-	  ipv4_source_address = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
-	} else {
-	  ipv4_source_address = nullptr;
-	}
+        ipv6_source_address = src_address;
+        if (ips.ipv4_) {
+          sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(ips.ipv4_->sockAddr());
+          sa4.sin_port = htons(sip->port());
+          ipv4_source_address = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
+        } else {
+          ipv4_source_address = nullptr;
+        }
       } break;
       }
       // Original source address is now in one of 'ipv[46]_source_address'
@@ -319,36 +322,40 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       // Pick the local source address of the same family as the incoming connection
       switch (sip->version()) {
       case Network::Address::IpVersion::v4:
-	if (ipv4_source_address) {
-	  ip = ipv4_source_address->ip();
-	}
-	break;
+        if (ipv4_source_address) {
+          ip = ipv4_source_address->ip();
+        }
+        break;
       case Network::Address::IpVersion::v6:
-	if (ipv6_source_address) {
-	  ip = ipv6_source_address->ip();
-	}
-	break;
+        if (ipv6_source_address) {
+          ip = ipv6_source_address->ip();
+        }
+        break;
       }
       if (!ip) {
-	// IP family of the connection has no configured local source address
-	ENVOY_LOG(warn, "cilium.bpf_metadata (north/south L7 LB): No local IP source address configured for the family of {}",
-		  pod_ip);
-	return false;
+        // IP family of the connection has no configured local source address
+        ENVOY_LOG(warn,
+                  "cilium.bpf_metadata (north/south L7 LB): No local IP source address configured "
+                  "for the family of {}",
+                  pod_ip);
+        return false;
       }
 
       pod_ip = ip->addressAsString();
 
       auto new_id = resolvePolicyId(ip);
       if (new_id == Cilium::ID::WORLD) {
-	// No security ID available for the configured source IP
-	ENVOY_LOG(warn, "cilium.bpf_metadata (north/south L7 LB): Unknown local IP source address configured: {}",
-		  pod_ip);
-	return false;
+        // No security ID available for the configured source IP
+        ENVOY_LOG(warn,
+                  "cilium.bpf_metadata (north/south L7 LB): Unknown local IP source address "
+                  "configured: {}",
+                  pod_ip);
+        return false;
       }
 
       // Enforce ingress policy on the incoming Ingress traffic?
       if (enforce_policy_on_l7lb_)
-	ingress_source_identity = source_identity;
+        ingress_source_identity = source_identity;
 
       source_identity = new_id;
 
@@ -414,9 +421,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
       policy, mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
-      std::move(pod_ip),
-      std::move(src_address), std::move(ipv4_source_address), std::move(ipv6_source_address),
-      shared_from_this()));
+      std::move(pod_ip), std::move(src_address), std::move(ipv4_source_address),
+      std::move(ipv6_source_address), shared_from_this()));
   return true;
 }
 

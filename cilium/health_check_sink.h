@@ -42,5 +42,5 @@ public:
   }
 };
 
-} // namespace Upstream
+} // namespace Cilium
 } // namespace Envoy

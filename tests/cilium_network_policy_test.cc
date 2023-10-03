@@ -23,19 +23,21 @@ protected:
   ~CiliumNetworkPolicyTest() override {}
 
   void SetUp() override {
-    // Mock SDS secrets with a real implementation, which will not return anything if there is no SDS server.
-    // This is only useful for testing functionality with a missing secret.
-    auto& secret_manager = factory_context_.server_factory_context_.cluster_manager_.cluster_manager_factory_.secretManager();
+    // Mock SDS secrets with a real implementation, which will not return anything if there is no
+    // SDS server. This is only useful for testing functionality with a missing secret.
+    auto& secret_manager = factory_context_.server_factory_context_.cluster_manager_
+                               .cluster_manager_factory_.secretManager();
     ON_CALL(secret_manager, findOrCreateGenericSecretProvider(_, _, _, _))
-      .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,
-			       const std::string& config_name,
-			       Server::Configuration::TransportSocketFactoryContext& secret_provider_context,
-			       Init::Manager& init_manager) {
-	auto secret_provider = Secret::GenericSecretSdsApi::create(secret_provider_context, sds_config_source,
-								   config_name, [](){});
-	init_manager.add(*secret_provider->initTarget());
-	return secret_provider;
-      }));
+        .WillByDefault(
+            Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,
+                      const std::string& config_name,
+                      Server::Configuration::TransportSocketFactoryContext& secret_provider_context,
+                      Init::Manager& init_manager) {
+              auto secret_provider = Secret::GenericSecretSdsApi::create(
+                  secret_provider_context, sds_config_source, config_name, []() {});
+              init_manager.add(*secret_provider->initTarget());
+              return secret_provider;
+            }));
 
     policy_map_ = std::make_shared<NetworkPolicyMap>(factory_context_);
   }
