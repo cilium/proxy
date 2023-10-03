@@ -10,5 +10,5 @@ import "validate/validate.proto";
 // The health check event will be streamed as binary protobufs.
 message HealthCheckEventPipeSink {
   // Unix domain socket path where to connect to send health check events to.
-  string path = 1 [(validate.rules).string = {min_len: 1}];;
+  string path = 1 [(validate.rules).string = {min_len: 1}];
 }
