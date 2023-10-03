@@ -63,11 +63,13 @@ precheck: force-non-root
 ~/go/bin/buildozer:
 	go install github.com/bazelbuild/buildtools/buildozer@latest
 
+FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/"
+
 check: $(CHECK_FORMAT) $(BUILDIFIER) $(BUILDOZER) force-non-root
-	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes "./linux/" "./proxylib/" --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check
+	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check
 
 fix: $(CHECK_FORMAT) $(BUILDIFIER) $(BUILDOZER) force-non-root
-	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes "./linux/" "./proxylib/" --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
+	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
 
 # Run tests without debug by default.
 tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION install-bazel
