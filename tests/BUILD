@@ -287,9 +287,9 @@ envoy_cc_test(
 envoy_cc_test(
     name = "health_check_sink_test",
     srcs = [
-        "health_check_sink_test.cc",
-        "health_check_sink_server.h",
         "health_check_sink_server.cc",
+        "health_check_sink_server.h",
+        "health_check_sink_test.cc",
     ],
     repository = "@envoy",
     deps = [

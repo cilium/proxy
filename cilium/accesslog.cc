@@ -21,7 +21,7 @@ AccessLogSharedPtr AccessLog::Open(const std::string& path) {
   if (it != logs.end()) {
     auto log = it->second.lock();
     if (log)
-        return log;
+      return log;
     // expired, remove
     logs.erase(path);
   }

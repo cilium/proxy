@@ -147,8 +147,9 @@ Network::FilterStatus Instance::onNewConnection() {
                                                                option->ingress_source_identity_);
         if (port_policy_ == nullptr ||
             !port_policy_->Matches(sni, option->ingress_source_identity_)) {
-          ENVOY_CONN_LOG(debug, "cilium.network: ingress policy drop for source identity: {} port: {}", conn,
-                         option->ingress_source_identity_, destination_port);
+          ENVOY_CONN_LOG(debug,
+                         "cilium.network: ingress policy drop for source identity: {} port: {}",
+                         conn, option->ingress_source_identity_, destination_port);
           return false;
         }
       }

@@ -1,4 +1,5 @@
 #include <cstdint>
+
 #include "envoy/http/protocol.h"
 
 #include "source/common/network/address_impl.h"

@@ -4,12 +4,11 @@
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 
-#include "source/extensions/config_subscription/grpc/grpc_mux_impl.h"
-
 #include "source/common/config/type_to_endpoint.h"
 #include "source/common/config/utility.h"
 #include "source/common/grpc/common.h"
 #include "source/common/protobuf/protobuf.h"
+#include "source/extensions/config_subscription/grpc/grpc_mux_impl.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -145,8 +144,8 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
           Config::Utility::parseRateLimitSettings(api_config_source),
           api_config_source.set_node_on_first_message_only(), std::move(nop_config_validators),
           std::make_unique<JitteredExponentialBackOffStrategy>(
-              Config::SubscriptionFactory::RetryInitialDelayMs, Config::SubscriptionFactory::RetryMaxDelayMs,
-              random),
+              Config::SubscriptionFactory::RetryInitialDelayMs,
+              Config::SubscriptionFactory::RetryMaxDelayMs, random),
           absl::nullopt, absl::nullopt, ""),
       callbacks, resource_decoder, stats, type_url, dispatcher, init_fetch_timeout,
       /*is_aggregated*/ false, options);

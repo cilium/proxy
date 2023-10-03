@@ -15,8 +15,9 @@
 
 namespace Envoy {
 
-HealthCheckSinkServer::HealthCheckSinkServer(const std::string path) :
-    UDSServer(path, std::bind(&HealthCheckSinkServer::msgCallback, this, std::placeholders::_1)) {}
+HealthCheckSinkServer::HealthCheckSinkServer(const std::string path)
+    : UDSServer(path, std::bind(&HealthCheckSinkServer::msgCallback, this, std::placeholders::_1)) {
+}
 
 HealthCheckSinkServer::~HealthCheckSinkServer() {}
 

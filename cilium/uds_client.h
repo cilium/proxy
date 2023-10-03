@@ -29,6 +29,5 @@ private:
   int errno_ ABSL_GUARDED_BY(fd_mutex_);
 };
 
-  
 } // namespace Cilium
 } // namespace Envoy

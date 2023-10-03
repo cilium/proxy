@@ -406,7 +406,6 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 }
 
-
 } // namespace
 } // namespace Cilium
 } // namespace Envoy

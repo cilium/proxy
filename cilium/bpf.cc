@@ -1,8 +1,8 @@
 #include "cilium/bpf.h"
-#include "cilium/privileged_service_client.h"
 
 #include "source/common/common/utility.h"
 
+#include "cilium/privileged_service_client.h"
 #include "linux/bpf.h"
 
 namespace Envoy {

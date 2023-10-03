@@ -82,8 +82,7 @@ public:
   std::map<std::string, std::shared_ptr<const PolicyInstanceImpl>> policies_;
 
   void Update(std::vector<std::shared_ptr<PolicyInstanceImpl>>& added,
-              std::vector<std::string>& deleted,
-              const std::string& version_info);
+              std::vector<std::string>& deleted, const std::string& version_info);
 };
 
 class NetworkPolicyDecoder : public Envoy::Config::OpaqueResourceDecoder {
@@ -189,7 +188,7 @@ private:
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   Envoy::Config::ScopedResume resume_;
 
-  ProtobufTypes::MessagePtr dumpNetworkPolicyConfigs(const Matchers::StringMatcher &name_matcher);
+  ProtobufTypes::MessagePtr dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher);
   Server::ConfigTracker::EntryOwnerPtr config_tracker_entry_;
 
 public:

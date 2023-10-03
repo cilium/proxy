@@ -134,7 +134,7 @@ message PortNetworkPolicyRule {
   // This field is deprecated, use remote_policies instead.
   // TODO: Remove when Cilium 1.14 no longer supported.
   repeated uint64 deprecated_remote_policies_64 = 1;
-  repeated uint32 remote_policies = 7;  
+  repeated uint32 remote_policies = 7;
 
   // Optional downstream TLS context. If present, the incoming connection must
   // be a TLS connection.

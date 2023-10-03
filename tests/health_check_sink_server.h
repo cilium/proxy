@@ -15,7 +15,6 @@
 
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
-
 #include "tests/uds_server.h"
 
 namespace Envoy {

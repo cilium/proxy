@@ -15,7 +15,8 @@
 
 namespace Envoy {
 
-UDSServer::UDSServer(const std::string& path, std::function<void(const std::string&)> cb) : msg_cb_(cb), addr_(path), fd2_(-1) {
+UDSServer::UDSServer(const std::string& path, std::function<void(const std::string&)> cb)
+    : msg_cb_(cb), addr_(path), fd2_(-1) {
   ENVOY_LOG(trace, "Creating unix domain socket server: {}", addr_.asStringView());
   if (!addr_.pipe()->abstractNamespace()) {
     ::unlink(addr_.asString().c_str());
@@ -48,7 +49,8 @@ UDSServer::UDSServer(const std::string& path, std::function<void(const std::stri
 UDSServer::~UDSServer() {
   if (fd_ >= 0) {
     Close();
-    ENVOY_LOG(trace, "Waiting on unix domain socket server to close: {}", Envoy::errorDetails(errno));
+    ENVOY_LOG(trace, "Waiting on unix domain socket server to close: {}",
+              Envoy::errorDetails(errno));
     thread_->join();
     thread_.reset();
   }
@@ -77,7 +79,8 @@ void UDSServer::threadRoutine() {
       if (errno == EINVAL) {
         return; // fd_ was closed
       }
-      ENVOY_LOG(warn, "Unix domain socket server accept on fd {} failed: {}", fd_, Envoy::errorDetails(errno));
+      ENVOY_LOG(warn, "Unix domain socket server accept on fd {} failed: {}", fd_,
+                Envoy::errorDetails(errno));
       continue;
     }
     char buf[8192];
@@ -85,18 +88,19 @@ void UDSServer::threadRoutine() {
       ENVOY_LOG(trace, "Unix domain socket server blocking recv on fd: {}", fd2_);
       ssize_t received = ::recv(fd2_, buf, sizeof(buf), 0);
       if (received < 0) {
-	if (errno == EINTR)
-	  continue;
-        ENVOY_LOG(warn, "Unix domain socket server recv on fd {} failed: {}", fd2_, Envoy::errorDetails(errno));
+        if (errno == EINTR)
+          continue;
+        ENVOY_LOG(warn, "Unix domain socket server recv on fd {} failed: {}", fd2_,
+                  Envoy::errorDetails(errno));
         break;
       } else if (received == 0) {
         ENVOY_LOG(trace, "Unix domain socket server client on fd {} has closed socket", fd2_);
         break;
       } else {
         std::string data(buf, received);
-	if (msg_cb_) {
-	  msg_cb_(data);
-	}
+        if (msg_cb_) {
+          msg_cb_(data);
+        }
       }
     }
     ::close(fd2_);

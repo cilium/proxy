@@ -155,8 +155,8 @@ envoy_cc_library(
     ],
     repository = "@envoy",
     deps = [
-        "//cilium/api:accesslog_proto_cc_proto",
         "//cilium:uds_client_lib",
+        "//cilium/api:accesslog_proto_cc_proto",
         "@envoy//envoy/http:header_map_interface",
         "@envoy//envoy/network:connection_interface",
         "@envoy//envoy/router:router_interface",
@@ -320,8 +320,8 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "privileged_service_client_lib",
-    hdrs = ["privileged_service_client.h"],
     srcs = ["privileged_service_client.cc"],
+    hdrs = ["privileged_service_client.h"],
     repository = "@envoy",
     deps = [
         "//starter:privileged_service_protocol",
@@ -337,8 +337,8 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "//cilium:uds_client_lib",
+        "//cilium/api:health_check_sink_cc_proto",
         "@envoy//envoy/registry",
         "@envoy//envoy/upstream:health_check_event_sink_interface",
-        "//cilium/api:health_check_sink_cc_proto",
     ],
 )
