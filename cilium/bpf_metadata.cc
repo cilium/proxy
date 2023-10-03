@@ -392,8 +392,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // This means that L7 LB does not work with the experimental Envoy Metadata
   // based policies (e.g., with MongoDB or MySQL filters).
   std::string l7proto;
-  if (policy->useProxylib(is_ingress_, dip->port(),
-                          is_ingress_ ? source_identity : destination_identity, l7proto)) {
+  uint32_t remote_id = is_ingress_ ? source_identity : destination_identity;
+  if (policy->useProxylib(is_ingress_, remote_id, dip->port(), l7proto)) {
     const auto& old_protocols = socket.requestedApplicationProtocols();
     std::vector<absl::string_view> protocols;
     for (const auto& old_protocol : old_protocols) {

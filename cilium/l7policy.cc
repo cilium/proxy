@@ -107,7 +107,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
                                                  StreamInfo::StreamInfo& stream_info) -> bool {
     // Destination may have changed due to upstream routing and load balancing.
     // Use original destination address for policy enforcement when not L7 LB, even if the actual
-    // destination may have chanegd. This can happen with custom Envoy Listeners.
+    // destination may have changed. This can happen with custom Envoy Listeners.
     const Network::Address::InstanceConstSharedPtr& dst_address =
         option->policyUseUpstreamDestinationAddress()
             ? stream_info.upstreamInfo()->upstreamHost()->address()
@@ -136,7 +136,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
     allowed_ = true;
     if (option->ingress_source_identity_ != 0) {
-      allowed_ = policy->Allowed(true, option->port_, option->ingress_source_identity_, headers,
+      allowed_ = policy->allowed(true, option->ingress_source_identity_, option->port_, headers,
                                  log_entry_);
       ENVOY_LOG(debug,
                 "cilium.l7policy: Ingress from {} policy lookup for endpoint {} for port {}: {}",
@@ -144,9 +144,9 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
                 allowed_ ? "ALLOW" : "DENY");
     }
     if (allowed_) {
-      allowed_ = policy->Allowed(option->ingress_, destination_port,
+      allowed_ = policy->allowed(option->ingress_,
                                  option->ingress_ ? option->identity_ : destination_identity,
-                                 headers, log_entry_);
+                                 destination_port, headers, log_entry_);
       ENVOY_LOG(debug, "cilium.l7policy: {} ({}->{}) policy lookup for endpoint {} for port {}: {}",
                 option->ingress_ ? "ingress" : "egress", option->identity_, destination_identity,
                 option->pod_ip_, destination_port, allowed_ ? "ALLOW" : "DENY");

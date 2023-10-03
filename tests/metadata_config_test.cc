@@ -294,7 +294,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   // Expect policy accepts security ID 12345678 on ingress on port 80
   auto port_policy = option->initial_policy_->findPortPolicy(true, 80, 12345678);
   EXPECT_NE(nullptr, port_policy);
-  EXPECT_TRUE(port_policy->Matches("", 12345678));
+  EXPECT_TRUE(port_policy->allowed(12345678, ""));
 }
 
 TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {

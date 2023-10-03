@@ -146,7 +146,7 @@ Network::FilterStatus Instance::onNewConnection() {
         port_policy_ = option->initial_policy_->findPortPolicy(true, destination_port,
                                                                option->ingress_source_identity_);
         if (port_policy_ == nullptr ||
-            !port_policy_->Matches(sni, option->ingress_source_identity_)) {
+            !port_policy_->allowed(option->ingress_source_identity_, sni)) {
           ENVOY_CONN_LOG(debug,
                          "cilium.network: ingress policy drop for source identity: {} port: {}",
                          conn, option->ingress_source_identity_, destination_port);
@@ -164,7 +164,8 @@ Network::FilterStatus Instance::onNewConnection() {
       return false;
     }
 
-    if (!port_policy_->Matches(sni, option->ingress_ ? option->identity_ : destination_identity)) {
+    auto remote_id = option->ingress_ ? option->identity_ : destination_identity;
+    if (!port_policy_->allowed(remote_id, sni)) {
       // Connection not allowed by policy
       ENVOY_CONN_LOG(warn, "cilium.network: Policy DENY on id: {} port: {}", conn,
                      option->ingress_ ? option->identity_ : destination_identity, destination_port);

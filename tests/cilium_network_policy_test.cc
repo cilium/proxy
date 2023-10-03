@@ -62,7 +62,7 @@ protected:
     if (policy == nullptr)
       return testing::AssertionFailure() << "Policy not found for " << pod_ip;
     Cilium::AccessLog::Entry log_entry;
-    return policy->Allowed(ingress, port, remote_id, headers, log_entry)
+    return policy->allowed(ingress, remote_id, port, headers, log_entry)
                ? testing::AssertionSuccess()
                : testing::AssertionFailure();
   }
