@@ -27,7 +27,7 @@ class AllowPortNetworkPolicyRule : public PortPolicy {
 public:
   AllowPortNetworkPolicyRule(){};
 
-  bool Matches(absl::string_view, uint32_t) const override { return true; }
+  bool allowed(uint32_t, absl::string_view) const override { return true; }
 
   // PortPolicy
   bool useProxylib(std::string&) const override { return false; }
@@ -77,7 +77,7 @@ class AllowAllEgressPolicyInstanceImpl : public PolicyInstance {
 public:
   AllowAllEgressPolicyInstanceImpl() {}
 
-  bool Allowed(bool ingress, uint16_t, uint32_t, Envoy::Http::RequestHeaderMap&,
+  bool allowed(bool ingress, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
                Cilium::AccessLog::Entry&) const override {
     return ingress ? false : true;
   }
@@ -86,7 +86,7 @@ public:
     return ingress ? nullptr : allowPortNetworkPolicyRule;
   }
 
-  bool useProxylib(bool, uint16_t, uint32_t, std::string&) const override { return false; }
+  bool useProxylib(bool, uint32_t, uint16_t, std::string&) const override { return false; }
 
   const std::string& conntrackName() const override { return empty_string; }
 
@@ -148,7 +148,7 @@ protected:
       }
 
       // Returns 'true' if matching can continue
-      bool Matches(Envoy::Http::RequestHeaderMap& headers,
+      bool allowed(Envoy::Http::RequestHeaderMap& headers,
                    Cilium::AccessLog::Entry& log_entry) const {
         bool matches = false;
         const std::string* match_value = &value_;
@@ -266,18 +266,18 @@ protected:
       }
     }
 
-    bool Matches(const Envoy::Http::RequestHeaderMap& headers) const {
+    bool allowed(const Envoy::Http::RequestHeaderMap& headers) const {
       // Empty set matches any headers.
       return Http::HeaderUtility::matchHeaders(headers, headers_);
     }
 
-    // Should only be called after 'Matches' returns 'true'.
+    // Should only be called after 'allowed' returns 'true'.
     // Returns 'true' if matching can continue
     bool HeaderMatches(Envoy::Http::RequestHeaderMap& headers,
                        Cilium::AccessLog::Entry& log_entry) const {
       bool accepted = true;
       for (const auto& header_match : header_matches_) {
-        if (!header_match.Matches(headers, log_entry)) {
+        if (!header_match.allowed(headers, log_entry)) {
           accepted = false;
         }
       }
@@ -361,7 +361,7 @@ protected:
       }
     }
 
-    bool Matches(uint32_t remote_id) const {
+    bool allowed(uint32_t remote_id) const {
       // Remote ID must match if we have any.
       if (allowed_remotes_.size() > 0) {
         auto search = allowed_remotes_.find(remote_id);
@@ -372,7 +372,7 @@ protected:
       return true;
     }
 
-    bool Matches(absl::string_view sni, uint32_t remote_id) const override {
+    bool allowed(uint32_t remote_id, absl::string_view sni) const override {
       // sni must match if we have any
       if (allowed_snis_.size() > 0) {
         if (sni.length() == 0) {
@@ -383,18 +383,18 @@ protected:
           return false;
         }
       }
-      return Matches(remote_id);
+      return allowed(remote_id);
     }
 
-    bool Matches(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+    bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                  Cilium::AccessLog::Entry& log_entry) const {
-      if (!Matches(remote_id)) {
+      if (!allowed(remote_id)) {
         return false;
       }
       if (http_rules_.size() > 0) {
         bool matched = false;
         for (const auto& rule : http_rules_) {
-          if (rule.Matches(headers)) {
+          if (rule.allowed(headers)) {
             // Return on the first match if no rules have header actions
             if (!have_header_matches_) {
               return true;
@@ -504,7 +504,7 @@ protected:
       }
     }
 
-    bool Matches(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+    bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                  Cilium::AccessLog::Entry& log_entry) const {
       // Empty set matches any payload from anyone
       if (rules_.size() == 0) {
@@ -512,7 +512,7 @@ protected:
       }
       bool matched = false;
       for (const auto& rule : rules_) {
-        if (rule->Matches(remote_id, headers, log_entry)) {
+        if (rule->allowed(remote_id, headers, log_entry)) {
           matched = true;
           // Short-circuit on the first match if no rules have HeaderMatches
           if (!have_header_matches_) {
@@ -529,7 +529,7 @@ protected:
         return allowPortNetworkPolicyRule;
       }
       for (const auto& rule : rules_) {
-        if (rule->Matches(remote_id)) {
+        if (rule->allowed(remote_id)) {
           return rule;
         }
       }
@@ -601,11 +601,11 @@ protected:
       return rules_.end();
     }
 
-    bool Matches(uint16_t port, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+    bool allowed(uint32_t remote_id, uint16_t port, Envoy::Http::RequestHeaderMap& headers,
                  Cilium::AccessLog::Entry& log_entry) const {
       auto it = find(port);
       if (it != rules_.end()) {
-        if (it->second.Matches(remote_id, headers, log_entry)) {
+        if (it->second.allowed(remote_id, headers, log_entry)) {
           return true;
         }
       }
@@ -614,7 +614,7 @@ protected:
       // could be a L3/L4 policy as well.
       it = find(0);
       if (it != rules_.end()) {
-        if (it->second.Matches(remote_id, headers, log_entry)) {
+        if (it->second.allowed(remote_id, headers, log_entry)) {
           return true;
         }
       }
@@ -640,11 +640,11 @@ protected:
   };
 
 public:
-  bool Allowed(bool ingress, uint16_t port, uint32_t remote_id,
+  bool allowed(bool ingress, uint32_t remote_id, uint16_t port,
                Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const override {
-    return ingress ? ingress_.Matches(port, remote_id, headers, log_entry)
-                   : egress_.Matches(port, remote_id, headers, log_entry);
+    return ingress ? ingress_.allowed(remote_id, port, headers, log_entry)
+                   : egress_.allowed(remote_id, port, headers, log_entry);
   }
 
   const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint16_t port,
@@ -653,7 +653,7 @@ public:
                    : egress_.findPortPolicy(port, remote_id);
   }
 
-  bool useProxylib(bool ingress, uint16_t port, uint32_t remote_id,
+  bool useProxylib(bool ingress, uint32_t remote_id, uint16_t port,
                    std::string& l7_proto) const override {
     const auto& port_policy = findPortPolicy(ingress, port, remote_id);
     if (port_policy != nullptr) {
