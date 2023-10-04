@@ -340,17 +340,20 @@ protected:
   class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
   public:
     PortNetworkPolicyRule(const NetworkPolicyMap& parent, const cilium::PortNetworkPolicyRule& rule)
-        : name_(rule.name()), l7_proto_(rule.l7_proto()) {
+        : name_(rule.name()), deny_(rule.deny()), l7_proto_(rule.l7_proto()) {
+      // Deny rules can not be short circuited, i.e., if any deny rules are present, then all
+      // rules must be evaluated even if one would allow
+      can_short_circuit_ = !deny_;
       for (const auto& remote : rule.remote_policies()) {
-        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule: {}",
-                  remote, name_);
-        allowed_remotes_.emplace(remote);
+        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} remote {} by rule: {}",
+                  deny_ ? "Denying" : "Allowing", remote, name_);
+        remotes_.emplace(remote);
       }
       // TODO: Remove deprecated_remote_policies_64 when Cilium 1.14 is no longer supported
       for (const auto& remote : rule.deprecated_remote_policies_64()) {
-        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing remote {} by rule: {}",
-                  remote, name_);
-        allowed_remotes_.emplace(remote);
+        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} remote {} by rule: {}",
+                  deny_ ? "Denying" : "Allowing", remote, name_);
+        remotes_.emplace(remote);
       }
       if (rule.has_downstream_tls_context()) {
         auto config = rule.downstream_tls_context();
@@ -368,7 +371,7 @@ protected:
       if (rule.has_http_rules()) {
         for (const auto& http_rule : rule.http_rules().http_rules()) {
           if (http_rule.header_matches_size() > 0) {
-            have_header_matches_ = true;
+            can_short_circuit_ = false;
           }
           http_rules_.emplace_back(parent, http_rule);
         }
@@ -384,18 +387,32 @@ protected:
       }
     }
 
-    bool allowed(uint32_t remote_id) const {
+    bool allowed(uint32_t remote_id, bool& denied) const {
       // Remote ID must match if we have any.
-      if (allowed_remotes_.size() > 0) {
-        auto search = allowed_remotes_.find(remote_id);
-        if (search == allowed_remotes_.end()) {
-          return false;
+      if (remotes_.size() > 0) {
+        auto match = remotes_.find(remote_id);
+        if (match != remotes_.end()) {
+          // remote ID matched
+          if (deny_) {
+            // Explicit deny
+            denied = true;
+            return false;
+          }
+          // Explicit allow
+          return true;
         }
+        // Not found, not allowed, but also not explicitly denied
+        return false;
+      }
+      // Allow rules allow by default when remotes_ is empty, deny rules do not
+      if (deny_) {
+        denied = true;
+        return false;
       }
       return true;
     }
 
-    bool allowed(uint32_t remote_id, absl::string_view sni) const {
+    bool allowed(uint32_t remote_id, absl::string_view sni, bool& denied) const {
       // sni must match if we have any
       if (allowed_snis_.size() > 0) {
         if (sni.length() == 0) {
@@ -406,37 +423,39 @@ protected:
           return false;
         }
       }
-      return allowed(remote_id);
+      return allowed(remote_id, denied);
     }
 
     bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
-                 Cilium::AccessLog::Entry& log_entry) const {
-      if (!allowed(remote_id)) {
+                 Cilium::AccessLog::Entry& log_entry, bool& denied) const {
+      if (!allowed(remote_id, denied)) {
         return false;
       }
       if (http_rules_.size() > 0) {
-        bool matched = false;
+        bool allowed = false;
         for (const auto& rule : http_rules_) {
           if (rule.allowed(headers)) {
             // Return on the first match if no rules have header actions
-            if (!have_header_matches_) {
-              return true;
+            if (can_short_circuit_) {
+              allowed = true;
+              break;
             }
             // orherwise evaluate all rules to run all the header actions,
             // and remember if any of them matched
             if (rule.HeaderMatches(headers, log_entry)) {
-              matched = true;
+              allowed = true;
             }
           }
         }
-        return matched;
+        return allowed;
       }
       // Empty set matches any payload
       return true;
     }
 
     bool useProxylib(uint32_t remote_id, std::string& l7_proto) const {
-      if (!allowed(remote_id)) {
+      bool denied = false;
+      if (!allowed(remote_id, denied)) {
         return false;
       }
       if (l7_proto_.length() > 0) {
@@ -449,8 +468,9 @@ protected:
     }
 
     // Envoy Metadata matcher, called after deny has already been checked for
-    bool allowed(uint32_t remote_id, const envoy::config::core::v3::Metadata& metadata) const {
-      if (!allowed(remote_id)) {
+    bool allowed(uint32_t remote_id, const envoy::config::core::v3::Metadata& metadata,
+                 bool& denied) const {
+      if (!allowed(remote_id, denied)) {
         return false;
       }
       for (const auto& rule : l7_deny_rules_) {
@@ -485,7 +505,8 @@ protected:
 
     Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
                                               const Ssl::ContextConfig** config) const {
-      if (server_context_ && allowed(remote_id)) {
+      bool denied = false;
+      if (server_context_ && allowed(remote_id, denied)) {
         *config = &server_context_->getTlsContextConfig();
         return server_context_->getTlsContext();
       }
@@ -494,7 +515,8 @@ protected:
 
     Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id,
                                               const Ssl::ContextConfig** config) const {
-      if (client_context_ && allowed(remote_id)) {
+      bool denied = false;
+      if (client_context_ && allowed(remote_id, denied)) {
         *config = &client_context_->getTlsContextConfig();
         return client_context_->getTlsContext();
       }
@@ -504,12 +526,13 @@ protected:
     std::string name_;
     DownstreamTLSContextPtr server_context_;
     UpstreamTLSContextPtr client_context_;
-    absl::flat_hash_set<uint32_t> allowed_remotes_; // Everyone allowed if empty.
+    bool can_short_circuit_{true};
+    bool deny_;
+    absl::flat_hash_set<uint32_t> remotes_;
     // Use std::less<> to allow heterogeneous lookups (with string_view).
     std::set<std::string, std::less<>> allowed_snis_; // All SNIs allowed if empty.
     std::vector<HttpNetworkPolicyRule>
         http_rules_; // Allowed if empty, but remote is checked first.
-    bool have_header_matches_{false};
     std::string l7_proto_{};
     std::vector<L7NetworkPolicyRule> l7_allow_rules_;
     std::vector<L7NetworkPolicyRule> l7_deny_rules_;
@@ -526,8 +549,8 @@ protected:
       }
       for (const auto& it : rules) {
         rules_.emplace_back(parent, it);
-        if (!rules_.back().have_header_matches_) {
-          have_header_matches_ = true;
+        if (!rules_.back().can_short_circuit_) {
+          can_short_circuit_ = false;
         }
       }
     }
@@ -538,17 +561,22 @@ protected:
       if (rules_.size() == 0) {
         return true;
       }
-      bool matched = false;
+
+      bool denied = false;
+      bool allowed = false;
       for (const auto& rule : rules_) {
-        if (rule.allowed(remote_id, headers, log_entry)) {
-          matched = true;
-          // Short-circuit on the first match if no rules have HeaderMatches
-          if (!have_header_matches_) {
+	  if (rule.allowed(remote_id, headers, log_entry, denied)) {
+          ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): ALLOWED");
+          allowed = true;
+          // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
+          // exist
+          if (can_short_circuit_) {
             break;
           }
         }
       }
-      return matched;
+      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): returning {}", allowed && !denied);
+      return allowed && !denied;
     }
 
     bool allowed(uint32_t remote_id, absl::string_view sni) const override {
@@ -556,12 +584,20 @@ protected:
       if (rules_.size() == 0) {
         return true;
       }
+
+      bool denied = false;
+      bool allowed = false;
       for (const auto& rule : rules_) {
-        if (rule.allowed(remote_id, sni)) {
-          return true;
+	if (rule.allowed(remote_id, sni, denied)) {
+          allowed = true;
+          // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
+          // exist
+          if (can_short_circuit_) {
+            break;
+          }
         }
       }
-      return false;
+      return allowed && !denied;
     }
 
     bool useProxylib(uint32_t remote_id, std::string& l7_proto) const override {
@@ -580,17 +616,19 @@ protected:
         return true;
       }
 
-      bool matched = false;
+      bool denied = false;
+      bool allowed = false;
       for (const auto& rule : rules_) {
-	  if (rule.allowed(remote_id, metadata)) {
-          matched = true;
-          // Short-circuit on the first match if no rules have HeaderMatches
-          if (!have_header_matches_) {
+	if (rule.allowed(remote_id, metadata, denied)) {
+          allowed = true;
+          // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
+          // exist
+          if (can_short_circuit_) {
             break;
           }
         }
       }
-      return matched;
+      return allowed && !denied;
     }
 
     Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
@@ -614,7 +652,7 @@ protected:
     }
 
     std::vector<PortNetworkPolicyRule> rules_; // Allowed if empty.
-    bool have_header_matches_{false};
+    bool can_short_circuit_{true};
   };
 
   class PortNetworkPolicy : public Logger::Loggable<Logger::Id::config> {

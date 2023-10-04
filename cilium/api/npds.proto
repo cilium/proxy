@@ -124,10 +124,13 @@ message TLSContext {
 // If all the predicates of a rule match a flow, the flow is matched by the
 // rule.
 message PortNetworkPolicyRule {
+  // Traffic on this port is denied for all `remote_policies` if true
+  bool deny = 8;
+
   // Optional name for the rule, can be used in logging and error messages.
   string name = 5;
 
-  // The set of identifiers of policies of remote hosts.
+  // The set of numeric remote security IDs explicitly allowed or denied.
   // A flow is matched by this predicate if the identifier of the policy
   // applied on the flow's remote host is contained in this set.
   // Optional. If not specified, any remote host is matched by this predicate.

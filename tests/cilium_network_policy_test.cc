@@ -365,6 +365,58 @@ resources:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080, {{":path", "/public"}}));
   // Wrong path:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
+
+  // 3rd update with Ingress deny rules
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+    - remote_policies: [ 43 ]
+      deny: true
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43, 44 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            safe_regex_match:
+              google_re2: {}
+              regex: '.*public$'
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  // Denied remote ID, port, & path:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Denied remote ID & wrong path:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(EgressAllowed("10.1.2.3", 44, 80, {{":path", "/public"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 40, 80, {{":path", "/public"}}));
+  // Wrong port:
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080, {{":path", "/public"}}));
+  // Wrong path:
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
 }
 
 TEST_F(CiliumNetworkPolicyTest, TcpPolicyUpdate) {

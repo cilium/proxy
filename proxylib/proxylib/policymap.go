@@ -44,26 +44,32 @@ func ParseError(reason string, config interface{}) {
 }
 
 type PortNetworkPolicyRule struct {
-	AllowedRemotes map[uint32]struct{}
-	L7Rules        []L7NetworkPolicyRule
+	Deny    bool
+	Remotes map[uint32]struct{}
+	L7Rules []L7NetworkPolicyRule // only used when not denied
 }
 
 func newPortNetworkPolicyRule(config *cilium.PortNetworkPolicyRule) (PortNetworkPolicyRule, string, bool) {
 	rule := PortNetworkPolicyRule{
-		AllowedRemotes: make(map[uint32]struct{}, len(config.RemotePolicies)),
+		Deny:    config.GetDeny(),
+		Remotes: make(map[uint32]struct{}, len(config.RemotePolicies)),
+	}
+	action := "Allowing"
+	if rule.Deny {
+		action = "Denying"
 	}
 	for _, remote := range config.GetRemotePolicies() {
 		if flowdebug.Enabled() {
-			logrus.Debugf("NPDS::PortNetworkPolicyRule: Allowing remote %d", remote)
+			logrus.Debugf("NPDS::PortNetworkPolicyRule: %s remote %d", action, remote)
 		}
-		rule.AllowedRemotes[remote] = struct{}{}
+		rule.Remotes[remote] = struct{}{}
 	}
 	// TODO: Remove when Cilium 1.14 is no longer supported:
 	for _, remote := range config.GetDeprecatedRemotePolicies_64() {
 		if flowdebug.Enabled() {
-			logrus.Debugf("NPDS::PortNetworkPolicyRule: Allowing remote %d", remote)
+			logrus.Debugf("NPDS::PortNetworkPolicyRule: %s remote %d", action, remote)
 		}
-		rule.AllowedRemotes[uint32(remote)] = struct{}{}
+		rule.Remotes[uint32(remote)] = struct{}{}
 	}
 
 	// Each parser registers a parsing function to parse it's L7 rules
@@ -95,30 +101,41 @@ func newPortNetworkPolicyRule(config *cilium.PortNetworkPolicyRule) (PortNetwork
 	return rule, "", true // No L7 is ok
 }
 
-func (p *PortNetworkPolicyRule) Matches(remoteId uint32, l7 interface{}) bool {
+func (p *PortNetworkPolicyRule) Matches(remoteId uint32, l7 interface{}) (allowed, denied bool) {
 	// Remote ID must match if we have any.
-	if len(p.AllowedRemotes) > 0 {
-		_, found := p.AllowedRemotes[uint32(remoteId)]
+	if len(p.Remotes) > 0 {
+		_, found := p.Remotes[remoteId]
 		if !found {
-			return false
+			if flowdebug.Enabled() {
+				logrus.Debugf("NPDS::PortNetworkPolicyRule: No L3 match on (%v)", *p)
+			}
+			// no remote ID match, does not allow or deny explicitly
+			return false, false
 		}
+		if p.Deny {
+			// Explicit deny, not allowed even if another rule would allow.
+			return false, true
+		}
+	} else if p.Deny {
+		// Deny with empty remotes denies all remotes explicitly
+		return false, true
 	}
 	if len(p.L7Rules) > 0 {
 		for _, rule := range p.L7Rules {
 			if rule.Matches(l7) {
 				if flowdebug.Enabled() {
-					logrus.Debugf("NPDS::PortNetworkPolicyRule: L7 rule matches (%v)", p)
+					logrus.Debugf("NPDS::PortNetworkPolicyRule: L7 rule matches (%v)", *p)
 				}
-				return true
+				return true, false
 			}
 		}
-		return false
+		return false, false
 	}
 	// Empty set matches any payload
 	if flowdebug.Enabled() {
-		logrus.Debugf("NPDS::PortNetworkPolicyRule: Empty L7Rules matches (%v)", p)
+		logrus.Debugf("NPDS::PortNetworkPolicyRule: Empty L7Rules matches (%v)", *p)
 	}
-	return true
+	return true, false
 }
 
 type PortNetworkPolicyRules struct {
@@ -159,13 +176,23 @@ func (p *PortNetworkPolicyRules) Matches(remoteId uint32, l7 interface{}) bool {
 		}
 		return true
 	}
+	var allowed bool
 	for _, rule := range p.Rules {
-		if rule.Matches(remoteId, l7) {
-			if flowdebug.Enabled() {
-				logrus.Debugf("NPDS::PortNetworkPolicyRules(remoteId=%d): rule matches (%v)", remoteId, p)
-			}
-			return true
+		allow, deny := rule.Matches(remoteId, l7)
+		if deny {
+			// explicit deny
+			return false
 		}
+		if allow {
+			// allowed if no other rule denies
+			allowed = true
+		}
+	}
+	if allowed {
+		if flowdebug.Enabled() {
+			logrus.Debugf("NPDS::PortNetworkPolicyRules(remoteId=%d): rule matches (%v)", remoteId, p)
+		}
+		return true
 	}
 	return false
 }
