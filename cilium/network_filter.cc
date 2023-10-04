@@ -166,8 +166,8 @@ Network::FilterStatus Instance::onNewConnection() {
     remote_id_ = option->ingress_ ? option->identity_ : destination_identity;
     if (!port_policy->allowed(remote_id_, sni)) {
       // Connection not allowed by policy
-      ENVOY_CONN_LOG(warn, "cilium.network: Policy DENY on id: {} port: {}", conn,
-                     option->ingress_ ? option->identity_ : destination_identity, destination_port_);
+      ENVOY_CONN_LOG(warn, "cilium.network: Policy DENY on id: {} port: {}", conn, remote_id_,
+                     destination_port_);
       return false;
     }
 
@@ -220,8 +220,8 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     if (res != FILTER_OK) {
       // Drop the connection due to an error
       go_parser_->Close();
-      conn.close(Network::ConnectionCloseType::NoFlush, "proxylib error");
-      return Network::FilterStatus::StopIteration;
+      reason = "proxylib error";
+      goto drop_close;
     }
 
     if (go_parser_->WantReplyInject()) {
@@ -266,9 +266,9 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     }
 
     if (!port_policy->allowed(remote_id_, metadata)) {
-      conn.close(Network::ConnectionCloseType::NoFlush, "metadata policy drop");
       config_->Log(log_entry_, ::cilium::EntryType::Denied);
-      return Network::FilterStatus::StopIteration;
+      reason = "metadata policy drop";
+      goto drop_close;
     } else {
       // accesslog only if metadata has changed
       if (changed) {

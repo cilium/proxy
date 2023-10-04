@@ -636,6 +636,108 @@ func TestAllowAllPolicy(t *testing.T) {
 	CheckClose(t, 1, buf, 1)
 }
 
+// L3 drops happen before calling into proxylib, but here we test that the policy update does not
+// accidentally treat deny rules as allow rules.
+func TestDenyAllPolicy(t *testing.T) {
+	logServer := test.StartAccessLogServer("access_log.sock", 10)
+	defer logServer.Close()
+
+	mod := OpenModule([][2]string{{"access-log-path", logServer.Path}}, debug)
+	if mod == 0 {
+		t.Errorf("OpenModule() with access log path %s failed", logServer.Path)
+	} else {
+		defer CloseModule(mod)
+	}
+
+	insertPolicyText(t, mod, "1", []string{`
+		endpoint_ips: "1.1.1.1"
+		endpoint_id: 2
+		ingress_per_port_policies: <
+		  port: 80
+		  rules: <
+                    remote_policies: 1
+		    l7_proto: "test.headerparser"
+		    l7_rules: <
+		      l7_allow_rules: <>
+		    >
+		  >
+		  rules: <
+                    deny: true
+                  >
+		>
+		`})
+
+	// Using headertester parser
+	buf := CheckOnNewConnection(t, mod, "test.headerparser", 1, true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1",
+		80, proxylib.OK, 1)
+
+	// Original direction data, drops with remaining data
+	line1, line2, line3, line4 := "Beginning----\n", "foo\n", "----End\n", "\n"
+	data := line1 + line2 + line3 + line4
+	CheckOnData(t, 1, false, false, &[][]byte{[]byte(data)}, []ExpFilterOp{
+		{proxylib.DROP, len(line1)},
+		{proxylib.DROP, len(line2)},
+		{proxylib.DROP, len(line3)},
+		{proxylib.DROP, len(line4)},
+	}, proxylib.OK, "Line dropped: "+line1+"Line dropped: "+line2+"Line dropped: "+line3+"Line dropped: "+line4)
+
+	expPasses, expDrops := 0, 4
+	checkAccessLogs(t, logServer, expPasses, expDrops)
+
+	CheckClose(t, 1, buf, 1)
+}
+
+func TestDenyPolicy(t *testing.T) {
+	logServer := test.StartAccessLogServer("access_log.sock", 10)
+	defer logServer.Close()
+
+	mod := OpenModule([][2]string{{"access-log-path", logServer.Path}}, debug)
+	if mod == 0 {
+		t.Errorf("OpenModule() with access log path %s failed", logServer.Path)
+	} else {
+		defer CloseModule(mod)
+	}
+
+	insertPolicyText(t, mod, "1", []string{`
+		endpoint_ips: "1.1.1.1"
+		endpoint_id: 2
+		ingress_per_port_policies: <
+		  port: 80
+		  rules: <
+                    remote_policies: 1
+		    l7_proto: "test.headerparser"
+		    l7_rules: <
+		      l7_allow_rules: <>
+		    >
+		  >
+		  rules: <
+                    remote_policies: 42
+                    deny: true
+                  >
+		>
+		`})
+
+	// deny on ID 42 has no effect on traffic from 1
+	// Using headertester parser
+	buf := CheckOnNewConnection(t, mod, "test.headerparser", 1, true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1",
+		80, proxylib.OK, 1)
+
+	// Original direction data, drops with remaining data
+	line1, line2, line3, line4 := "Beginning----\n", "foo\n", "----End\n", "\n"
+	data := line1 + line2 + line3 + line4
+	CheckOnData(t, 1, false, false, &[][]byte{[]byte(data)}, []ExpFilterOp{
+		{proxylib.PASS, len(line1)},
+		{proxylib.PASS, len(line2)},
+		{proxylib.PASS, len(line3)},
+		{proxylib.PASS, len(line4)},
+	}, proxylib.OK, "")
+
+	expPasses, expDrops := 4, 0
+	checkAccessLogs(t, logServer, expPasses, expDrops)
+
+	CheckClose(t, 1, buf, 1)
+}
+
 func TestAllowEmptyPolicy(t *testing.T) {
 	logServer := test.StartAccessLogServer("access_log.sock", 10)
 	defer logServer.Close()
