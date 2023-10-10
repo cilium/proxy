@@ -26,7 +26,6 @@
 /BUILD_DEP_HASHES
 /.gitignore
 /Dockerfile*
-/Makefile.dev
 /Makefile.docker
 /README*
 /envoy_bootstrap_v2.patch

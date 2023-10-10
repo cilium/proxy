@@ -62,10 +62,15 @@ else
   BAZEL_BUILD_OPTS += --config=release
 endif
 
+include Makefile.dev
 ifdef PKG_BUILD
   all: cilium-envoy-starter cilium-envoy
+
+  .PHONY: install-bazel
+  install-bazel:
+	echo "Bazel assumed to be installed in the builder image"
+
 else
-  include Makefile.dev
   include Makefile.docker
 
   # Fetch and install Bazel if needed
