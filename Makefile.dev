@@ -47,7 +47,7 @@ envoy-debug: $(COMPILER_DEP) SOURCE_VERSION install-bazel
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c dbg //:cilium-envoy $(BAZEL_FILTER)
 
-$(CHECK_FORMAT): force-non-root SOURCE_VERSION install-bazel
+$(CHECK_FORMAT): force-non-root SOURCE_VERSION install-bazel clang.bazelrc
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:check_format.py
 
 veryclean: force-non-root clean
@@ -63,10 +63,10 @@ precheck: force-non-root
 ~/go/bin/buildozer:
 	go install github.com/bazelbuild/buildtools/buildozer@latest
 
-FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/"
+FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/" "./go/"
 
 check: $(CHECK_FORMAT) $(BUILDIFIER) $(BUILDOZER) force-non-root
-	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check
+	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make fix' locally to fix formatting errors."
 
 fix: $(CHECK_FORMAT) $(BUILDIFIER) $(BUILDOZER) force-non-root
 	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix

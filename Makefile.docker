@@ -138,7 +138,6 @@ Dockerfile.builder.tests.dockerignore:
 # Release does not need Go API or test files
 Dockerfile.dockerignore: .dockerignore Makefile.docker
 	cp $< $@
-	echo "/.clang-format" >>$@
 	echo "/tests/" >>$@
 	echo "/Makefile.api" >>$@
 	echo "/envoy_binary_test.sh" >>$@
@@ -165,7 +164,6 @@ GIT_IGNORE_FILES := $(shell find -H . -not -path "./_build*" -not -path "./vendo
 	    $< >>$@
 	echo "/.gitignore" >>$@
 	echo "/Dockerfile*" >>$@
-	echo "/Makefile.dev" >>$@
 	echo "/Makefile.docker" >>$@
 	echo "/README*" >>$@
 	echo "/envoy_bootstrap_v2.patch" >>$@
