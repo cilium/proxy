@@ -81,13 +81,13 @@ jobs:
           BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
           BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1
         push: true
-        tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
+        tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
 
     - name: Cache Docker layers
       uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
       with:
         path: /tmp/buildx-cache
-        key: docker-cache-tests
+        key: docker-cache-tests-${{ github.ref_name }}
 
     - name: Clear cache
       run: rm -rf /tmp/buildx-cache/*
@@ -102,7 +102,7 @@ jobs:
         platforms: linux/amd64
         build-args: |
           BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
-          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
+          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
           BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1
         cache-to: type=local,dest=/tmp/buildx-cache,mode=max
@@ -169,20 +169,20 @@ jobs:
           COPY_CACHE_EXT=.new
           BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
         push: true
-        tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
+        tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
 
     - name: Cache Docker layers
       uses: actions/cache@704facf57e6136b1bc63b828d79edcd491f0ee84 # v3.3.2
       with:
         path: /tmp/buildx-cache
-        key: docker-cache-master
+        key: docker-cache-${{ github.ref_name }}
 
     - name: Clear cache
       run: |
         rm -rf /tmp/buildx-cache/*
         docker buildx prune -f
 
-    - name: Multi-arch build & push master latest
+    - name: Multi-arch build & push ${{ github.ref_name }} latest
       uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
       id: docker_build_cd
       with:
@@ -193,7 +193,7 @@ jobs:
         build-args: |
           BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
           BAZEL_BUILD_OPTS=--remote_upload_local_results=false
-          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
+          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
         cache-to: type=local,dest=/tmp/buildx-cache,mode=max
         push: true
         tags: |
