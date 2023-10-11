@@ -172,10 +172,9 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
   }
 
-  socket.addOption(std::make_shared<Cilium::SocketOption>(policy, 0, 0, source_identity,
-                                                          is_ingress_, false, port,
-                                                          std::move(pod_ip), nullptr,
-                                                          nullptr, nullptr, shared_from_this()));
+  socket.addOption(std::make_shared<Cilium::SocketOption>(
+      policy, 0, 0, source_identity, is_ingress_, false, port, std::move(pod_ip), nullptr, nullptr,
+      nullptr, shared_from_this(), 0));
 
   return true;
 }

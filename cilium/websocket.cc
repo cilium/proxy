@@ -133,6 +133,7 @@ Network::FilterStatus Instance::onNewConnection() {
   std::string pod_ip;
   bool is_ingress;
   uint32_t identity, destination_identity;
+  uint32_t proxy_id;
 
   auto& conn = callbacks_->connection();
 
@@ -147,19 +148,21 @@ Network::FilterStatus Instance::onNewConnection() {
   const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
   const auto option = Cilium::GetSocketOption(socketOptions);
   if (option) {
+    proxy_id = option->proxy_id_;
     pod_ip = option->pod_ip_;
     is_ingress = option->ingress_;
     identity = option->identity_;
     destination_identity = dip ? option->resolvePolicyId(dip) : 0;
   } else {
     // Default to ingress to destination address, but no security identities.
+    proxy_id = 0;
     pod_ip = dip ? dip->addressAsString() : "";
     is_ingress = true;
     identity = 0;
     destination_identity = 0;
   }
   // Initialize the log entry
-  log_entry_.InitFromConnection(pod_ip, is_ingress, identity,
+  log_entry_.InitFromConnection(pod_ip, proxy_id, is_ingress, identity,
                                 callbacks_->connection().connectionInfoProvider().remoteAddress(),
                                 destination_identity, dst_address, &config_->time_source_);
 
