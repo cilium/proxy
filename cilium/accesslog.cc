@@ -59,10 +59,11 @@ CONST_STRING_VIEW(xRequestIdSV, "x-request-id");
 CONST_STRING_VIEW(statusSV, ":status");
 
 void AccessLog::Entry::InitFromConnection(
-    const std::string& policy_name, bool ingress, uint32_t source_identity,
+    const std::string& policy_name, uint32_t proxy_id, bool ingress, uint32_t source_identity,
     const Network::Address::InstanceConstSharedPtr& source_address, uint32_t destination_identity,
     const Network::Address::InstanceConstSharedPtr& destination_address, TimeSource* time_source) {
   entry_.set_policy_name(policy_name);
+  entry_.set_proxy_id(proxy_id);
   entry_.set_is_ingress(ingress);
   entry_.set_source_security_id(source_identity);
   entry_.set_destination_security_id(destination_identity);
@@ -119,15 +120,15 @@ bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
   return changed;
 }
 
-void AccessLog::Entry::InitFromRequest(const std::string& policy_name, bool ingress,
-                                       uint32_t source_identity,
+void AccessLog::Entry::InitFromRequest(const std::string& policy_name, uint32_t proxy_id,
+                                       bool ingress, uint32_t source_identity,
                                        const Network::Address::InstanceConstSharedPtr& src_address,
                                        uint32_t destination_identity,
                                        const Network::Address::InstanceConstSharedPtr& dst_address,
                                        const StreamInfo::StreamInfo& info,
                                        const Http::RequestHeaderMap& headers) {
-  InitFromConnection(policy_name, ingress, source_identity, src_address, destination_identity,
-                     dst_address, nullptr);
+  InitFromConnection(policy_name, proxy_id, ingress, source_identity, src_address,
+                     destination_identity, dst_address, nullptr);
 
   auto time = info.startTime();
   entry_.set_timestamp(
