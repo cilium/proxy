@@ -9,7 +9,7 @@ on:
     - reopened
     - synchronize
     branches:
-    - main
+    - v1.25
   issue_comment:
     types:
     - created
