@@ -36,10 +36,11 @@ TEST_F(CiliumTest, AccessLog) {
 
   AccessLog::Entry log;
 
-  log.InitFromRequest("1.2.3.4", true, 1, source_address, 173, destination_address,
+  log.InitFromRequest("1.2.3.4", 42, true, 1, source_address, 173, destination_address,
                       connection.stream_info_, headers);
 
   EXPECT_EQ(log.entry_.is_ingress(), true);
+  EXPECT_EQ(log.entry_.proxy_id(), 42);
   EXPECT_EQ(log.entry_.entry_type(), ::cilium::EntryType::Request);
   EXPECT_NE(log.entry_.timestamp(), 0);
   EXPECT_STREQ(log.entry_.policy_name().c_str(), "1.2.3.4");

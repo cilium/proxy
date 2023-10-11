@@ -22,7 +22,8 @@ public:
   // wrapper for protobuf
   class Entry {
   public:
-    void InitFromRequest(const std::string& policy_name, bool ingress, uint32_t source_identity,
+    void InitFromRequest(const std::string& policy_name, uint32_t proxy_id, bool ingress,
+                         uint32_t source_identity,
                          const Network::Address::InstanceConstSharedPtr& source_address,
                          uint32_t destination_identity,
                          const Network::Address::InstanceConstSharedPtr& destination_address,
@@ -32,7 +33,8 @@ public:
                            const Http::RequestHeaderMap&);
     void UpdateFromResponse(const Http::ResponseHeaderMap&, TimeSource&);
 
-    void InitFromConnection(const std::string& policy_name, bool ingress, uint32_t source_identity,
+    void InitFromConnection(const std::string& policy_name, uint32_t proxy_id, bool ingress,
+                            uint32_t source_identity,
                             const Network::Address::InstanceConstSharedPtr& source_address,
                             uint32_t destination_identity,
                             const Network::Address::InstanceConstSharedPtr& destination_address,
