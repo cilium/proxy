@@ -87,6 +87,10 @@ message LogEntry {
   // Cilium network policy resource name
   string policy_name = 4;
 
+  // proxy_id identifies the listener this message relates to,
+  // as configured via the bpf_metadata listener filter
+  uint32 proxy_id = 17;
+
   // Cilium rule reference
   string cilium_rule_ref = 5;
 
