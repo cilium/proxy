@@ -16,9 +16,6 @@ CHECK_FORMAT ?= ./bazel-bin/check_format.py
 
 BAZEL_CACHE ?= ~/.cache/bazel
 BAZEL_ARCHIVE ?= ~/bazel-cache.tar.bz2
-CLANG_FORMAT ?= clang-format-15
-BUILDIFIER ?= ~/go/bin/buildifier
-BUILDOZER ?= ~/go/bin/buildozer
 
 all: precheck envoy-default
 
@@ -57,19 +54,13 @@ veryclean: force-non-root clean
 precheck: force-non-root
 	tools/check_repositories.sh
 
-~/go/bin/buildifier:
-	go install github.com/bazelbuild/buildtools/buildifier@latest
+FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/" "./go/" "./envoy_build_config/"
 
-~/go/bin/buildozer:
-	go install github.com/bazelbuild/buildtools/buildozer@latest
+check: force-non-root
+	bazel $(BAZEL_OPTS) run @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make fix' locally to fix formatting errors."
 
-FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/" "./go/"
-
-check: $(CHECK_FORMAT) $(BUILDIFIER) $(BUILDOZER) force-non-root
-	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make fix' locally to fix formatting errors."
-
-fix: $(CHECK_FORMAT) $(BUILDIFIER) $(BUILDOZER) force-non-root
-	CLANG_FORMAT=$(CLANG_FORMAT) BUILDIFIER=$(BUILDIFIER) BUILDOZER=$(BUILDOZER) $(CHECK_FORMAT) --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
+fix: force-non-root
+	bazel $(BAZEL_OPTS) run @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
 
 # Run tests without debug by default.
 tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION install-bazel
