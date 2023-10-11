@@ -40,4 +40,8 @@ message BpfMetadata {
   // Deprecation note: This option will be forced 'true' and deprecated when Cilium 1.15 is
   // the oldest supported release.
   bool enforce_policy_on_l7lb = 7;
+
+  // proxy_id is passed to access log messages and allows relating access log messages to
+  // listeners.
+  uint32 proxy_id = 8;
 }
