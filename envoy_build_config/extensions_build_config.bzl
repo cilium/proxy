@@ -60,11 +60,11 @@ EXTENSIONS = {
     # Health checkers
     #
 
-    # "envoy.health_checkers.redis":                      "//source/extensions/health_checkers/redis:config",
-    # "envoy.health_checkers.thrift":                     "//source/extensions/health_checkers/thrift:config",
-    # "envoy.health_checkers.tcp":                        "//source/extensions/health_checkers/tcp:health_checker_lib",
-    # "envoy.health_checkers.http":                       "//source/extensions/health_checkers/http:health_checker_lib",
-    # "envoy.health_checkers.grpc":                       "//source/extensions/health_checkers/grpc:health_checker_lib",
+    "envoy.health_checkers.redis":                      "//source/extensions/health_checkers/redis:config",
+    "envoy.health_checkers.thrift":                     "//source/extensions/health_checkers/thrift:config",
+    "envoy.health_checkers.tcp":                        "//source/extensions/health_checkers/tcp:health_checker_lib",
+    "envoy.health_checkers.http":                       "//source/extensions/health_checkers/http:health_checker_lib",
+    "envoy.health_checkers.grpc":                       "//source/extensions/health_checkers/grpc:health_checker_lib",
 
     #
     # Health check event sinks
@@ -148,7 +148,7 @@ EXTENSIONS = {
     "envoy.filters.http.grpc_stats":                    "//source/extensions/filters/http/grpc_stats:config",
     "envoy.filters.http.grpc_web":                      "//source/extensions/filters/http/grpc_web:config",
     # "envoy.filters.http.header_to_metadata":            "//source/extensions/filters/http/header_to_metadata:config",
-    # "envoy.filters.http.health_check":                  "//source/extensions/filters/http/health_check:config",
+    "envoy.filters.http.health_check":                  "//source/extensions/filters/http/health_check:config",
     # "envoy.filters.http.ip_tagging":                    "//source/extensions/filters/http/ip_tagging:config",
     "envoy.filters.http.jwt_authn":                     "//source/extensions/filters/http/jwt_authn:config",
     "envoy.filters.http.rate_limit_quota":              "//source/extensions/filters/http/rate_limit_quota:config",
