@@ -48,7 +48,7 @@ jobs:
           push: false
 
       - name: Check for failure
-        run: ! grep "^Format check failed" check-format-results/format-output.txt
+        run: '! grep "^Format check failed" check-format-results/format-output.txt'
 
       - name: Upload Format results
         if: failure()
