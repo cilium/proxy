@@ -20,8 +20,9 @@
   "pruneStaleBranches": true,
   "baseBranches": [
     "main",
-    "v1.24",
+    "v1.26",
     "v1.25",
+    "v1.24",
   ],
   "labels": [
     "kind/enhancement",
@@ -78,8 +79,9 @@
       "allowedVersions": "20.04",
       "matchBaseBranches": [
         "main",
-        "v1.24",
+        "v1.26",
         "v1.25",
+        "v1.24",
       ]
     },
     {
@@ -93,13 +95,13 @@
       ]
     },
     {
-      "groupName": "envoy 1.24.x",
+      "groupName": "envoy 1.26.x",
       "matchDepNames": [
         "envoyproxy/envoy"
       ],
-      "allowedVersions": "<=1.24",
+      "allowedVersions": "<=1.26",
       "matchBaseBranches": [
-        "v1.24"
+        "v1.26"
       ]
     },
     {
@@ -113,6 +115,16 @@
       ]
     },
     {
+      "groupName": "envoy 1.24.x",
+      "matchDepNames": [
+        "envoyproxy/envoy"
+      ],
+      "allowedVersions": "<=1.24",
+      "matchBaseBranches": [
+        "v1.24"
+      ]
+    },
+    {
       "groupName": "go 1.20.x",
       "matchFileNames": [
         ".github/workflows/**",
@@ -123,6 +135,7 @@
       "allowedVersions": "<=1.20",
       "matchBaseBranches": [
         "main",
+        "v1.26",
         "v1.25",
       ]
     },
