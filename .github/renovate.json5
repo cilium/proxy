@@ -56,7 +56,8 @@
       ],
       "allowedVersions": "22.04",
       "matchBaseBranches": [
-        "main"
+        "main",
+        "v1.26",
       ]
     },
     {
