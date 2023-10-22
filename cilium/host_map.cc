@@ -159,8 +159,9 @@ void PolicyHostMap::startSubscription(Server::Configuration::CommonFactoryContex
   subscription_->start({});
 }
 
-void PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
-                                   const std::string& version_info) {
+absl::Status
+PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
+                              const std::string& version_info) {
   ENVOY_LOG(debug, "PolicyHostMap::onConfigUpdate({}), {} resources, version: {}", name_,
             resources.size(), version_info);
 
@@ -189,6 +190,7 @@ void PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResou
     return newmap;
   });
   logmaps("onConfigUpdate");
+  return absl::OkStatus();
 }
 
 void PolicyHostMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,

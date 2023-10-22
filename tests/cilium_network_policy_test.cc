@@ -52,7 +52,8 @@ protected:
     NetworkPolicyDecoder network_policy_decoder;
     const auto decoded_resources = Config::DecodedResourcesWrapper(
         network_policy_decoder, message.resources(), message.version_info());
-    policy_map_->onConfigUpdate(decoded_resources.refvec_, message.version_info());
+    EXPECT_TRUE(
+        policy_map_->onConfigUpdate(decoded_resources.refvec_, message.version_info()).ok());
     return message.version_info();
   }
 
@@ -96,7 +97,7 @@ protected:
 };
 
 TEST_F(CiliumNetworkPolicyTest, EmptyPolicyUpdate) {
-  EXPECT_NO_THROW(policy_map_->onConfigUpdate({}, "1"));
+  EXPECT_TRUE(policy_map_->onConfigUpdate({}, "1").ok());
   EXPECT_FALSE(Validate("10.1.2.3", "")); // Policy not found
 }
 

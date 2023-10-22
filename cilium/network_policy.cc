@@ -1155,9 +1155,9 @@ void ThreadLocalPolicyMap::Update(std::vector<std::shared_ptr<PolicyInstanceImpl
   }
 }
 
-void NetworkPolicyMap::onConfigUpdate(
-    const std::vector<Envoy::Config::DecodedResourceRef>& resources,
-    const std::string& version_info) {
+absl::Status
+NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
+                                 const std::string& version_info) {
   ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", name_,
             resources.size(), version_info);
 
@@ -1312,6 +1312,7 @@ void NetworkPolicyMap::onConfigUpdate(
 #pragma clang diagnostic ignored "-Wnull-dereference"
   transport_factory_context_->setInitManager(*static_cast<Init::Manager*>(nullptr));
 #pragma clang diagnostic pop
+  return absl::OkStatus();
 }
 
 void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
