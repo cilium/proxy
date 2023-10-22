@@ -373,9 +373,8 @@ public:
     const auto decoded_resources = Envoy::Config::DecodedResourcesWrapper(
         host_decoder, message.resources(), message.version_info());
 
-    EXPECT_THROW_WITH_MESSAGE(
-        hmap.onConfigUpdate(decoded_resources.refvec_, message.version_info()), EnvoyException,
-        exmsg);
+    EXPECT_EQ(hmap.onConfigUpdate(decoded_resources.refvec_, message.version_info()).message(),
+              exmsg);
     tls.shutdownGlobalThreading();
   }
 };
@@ -411,7 +410,7 @@ resources:
   const auto decoded_resources = Envoy::Config::DecodedResourcesWrapper(
       host_decoder, message.resources(), message.version_info());
 
-  VERBOSE_EXPECT_NO_THROW(hmap->onConfigUpdate(decoded_resources.refvec_, message.version_info()));
+  EXPECT_TRUE(hmap->onConfigUpdate(decoded_resources.refvec_, message.version_info()).ok());
 
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()), 173);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.0").ip()), 12);

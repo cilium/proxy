@@ -195,15 +195,16 @@ public:
   void runAfterAllThreads(std::function<void()>) const;
 
   // Config::SubscriptionCallbacks
-  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
-                      const std::string& version_info) override;
-  void onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
-                      const Protobuf::RepeatedPtrField<std::string>& removed_resources,
-                      const std::string& system_version_info) override {
+  absl::Status onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
+                              const std::string& version_info) override;
+  absl::Status onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
+                              const Protobuf::RepeatedPtrField<std::string>& removed_resources,
+                              const std::string& system_version_info) override {
     // NOT IMPLEMENTED YET.
     UNREFERENCED_PARAMETER(added_resources);
     UNREFERENCED_PARAMETER(removed_resources);
     UNREFERENCED_PARAMETER(system_version_info);
+    return absl::OkStatus();
   }
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
                             const EnvoyException* e) override;
