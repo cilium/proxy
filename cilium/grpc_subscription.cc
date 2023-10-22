@@ -8,6 +8,7 @@
 #include "source/common/config/utility.h"
 #include "source/common/grpc/common.h"
 #include "source/common/protobuf/protobuf.h"
+#include "source/extensions/config_subscription/grpc/grpc_mux_context.h"
 #include "source/extensions/config_subscription/grpc/grpc_mux_impl.h"
 
 namespace Envoy {
@@ -134,19 +135,29 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
   Envoy::Config::CustomConfigValidatorsPtr nop_config_validators =
       std::make_unique<NopConfigValidatorsImpl>();
 
+  Config::GrpcMuxContext grpc_mux_context{
+      Config::Utility::factoryForGrpcApiConfigSource(cm.grpcAsyncClientManager(), api_config_source,
+                                                     scope, true)
+          ->createUncachedRawAsyncClient(),
+      /*dispatcher_=*/dispatcher,
+      /*service_method_=*/sotwGrpcMethod(type_url),
+      /*local_info_=*/local_info,
+      /*rate_limit_settings_=*/Config::Utility::parseRateLimitSettings(api_config_source),
+      /*scope_=*/scope,
+      /*config_validators_=*/std::move(nop_config_validators),
+      /*xds_resources_delegate_=*/absl::nullopt,
+      /*xds_config_tracker_=*/absl::nullopt,
+      /*backoff_strategy_=*/
+      std::make_unique<JitteredExponentialBackOffStrategy>(
+          Config::SubscriptionFactory::RetryInitialDelayMs,
+          Config::SubscriptionFactory::RetryMaxDelayMs, random),
+      /*target_xds_authority_=*/"",
+      /*eds_resources_cache_=*/nullptr // EDS cache is only used for ADS.
+  };
+
   return std::make_unique<Config::GrpcSubscriptionImpl>(
-      std::make_shared<Config::GrpcMuxImpl>(
-          local_info,
-          Config::Utility::factoryForGrpcApiConfigSource(cm.grpcAsyncClientManager(),
-                                                         api_config_source, scope, true)
-              ->createUncachedRawAsyncClient(),
-          dispatcher, sotwGrpcMethod(type_url), scope,
-          Config::Utility::parseRateLimitSettings(api_config_source),
-          api_config_source.set_node_on_first_message_only(), std::move(nop_config_validators),
-          std::make_unique<JitteredExponentialBackOffStrategy>(
-              Config::SubscriptionFactory::RetryInitialDelayMs,
-              Config::SubscriptionFactory::RetryMaxDelayMs, random),
-          absl::nullopt, absl::nullopt, ""),
+      std::make_shared<Config::GrpcMuxImpl>(grpc_mux_context,
+                                            api_config_source.set_node_on_first_message_only()),
       callbacks, resource_decoder, stats, type_url, dispatcher, init_fetch_timeout,
       /*is_aggregated*/ false, options);
 }
