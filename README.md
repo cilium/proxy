@@ -9,14 +9,18 @@ for the cluster. Cilium proxy is distributed within the Cilium images.
 
 ## Version compatibility matrix
 
-The following table shows the Cilium proxy version compatibility with upstream Cilium versions.
+The following table shows the Cilium proxy version compatibility with supported upstream Cilium versions.
 Other combinations may work but are not tested.
 
 | Cilium Version | Envoy version |
 |----------------|---------------|
 | (main)         | v1.27.x       |
+| v1.14.3        | v1.25.10      |
+| v1.14.2        | v1.25.9       |
 | v1.14.1        | v1.25.9       |
 | v1.14.0        | v1.25.9       |
+| v1.13.8        | v1.24.11      |
+| v1.13.7        | v1.24.10      |
 | v1.13.6        | v1.24.10      |
 | v1.13.5        | v1.24.10      |
 | v1.13.4        | v1.23.10      |
@@ -38,26 +42,6 @@ Other combinations may work but are not tested.
 | v1.12.2        | v1.21.5       |
 | v1.12.1        | v1.21.5       |
 | v1.12.0        | v1.21.3       |
-| v1.11.19       | v1.24.10      |
-| v1.11.18       | v1.23.9       |
-| v1.11.17       | v1.23.9       |
-| v1.11.16       | v1.23.8       |
-| v1.11.15       | v1.23.4       |
-| v1.11.14       | v1.22.7       |
-| v1.11.13       | v1.21.2       |
-| v1.11.12       | v1.21.2       |
-| v1.11.11       | v1.21.2       |
-| v1.11.10       | v1.21.2       |
-| v1.11.9        | v1.21.2       |
-| v1.11.8        | v1.21.2       |
-| v1.11.7        | v1.21.2       |
-| v1.11.6        | v1.21.2       |
-| v1.11.5        | v1.21.1       |
-| v1.11.4        | v1.21.1       |
-| v1.11.3        | v1.21.1       |
-| v1.11.2        | v1.21.1       |
-| v1.11.1        | v1.18.4       |
-| v1.11.0        | v1.18.4       |
 
 
 ## Building
