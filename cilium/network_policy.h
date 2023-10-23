@@ -24,6 +24,25 @@
 namespace Envoy {
 namespace Cilium {
 
+// PortRangeCompare returns true if both ends of range 'a' are less than the
+// corresponding ends of range 'b'. std::less compares 'pair.second' only if the
+// first elements are equal, which does not work for range lookups, where we
+// look with a pair where both elements have the same value of interest.
+//
+// NOTE: This relies on the invariant that in any given range R, R.first <= R.second.
+// We do not test for this here, but this must be enforced when creating the ranges!
+struct PortRangeCompare {
+  bool operator()(const std::pair<uint16_t, uint16_t>& a,
+                  const std::pair<uint16_t, uint16_t>& b) const {
+    // For a range pair first <= second; less if a is completely below b
+    return a.second < b.first;
+  }
+};
+
+class PortNetworkPolicyRules;
+typedef absl::btree_map<std::pair<uint16_t, uint16_t>, PortNetworkPolicyRules, PortRangeCompare>
+    PolicyMap;
+
 class PortPolicy {
 public:
   virtual ~PortPolicy() = default;
