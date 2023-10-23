@@ -292,7 +292,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 
   // Expect policy accepts security ID 12345678 on ingress on port 80
-  auto port_policy = option->initial_policy_->findPortPolicy(true, 80, 12345678);
+  auto port_policy = option->initial_policy_->findPortPolicy(true, 80);
   EXPECT_NE(nullptr, port_policy);
   EXPECT_TRUE(port_policy->allowed(12345678, ""));
 }
@@ -328,7 +328,8 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 
   // Expect policy does not accept security ID 2 on ingress on port 80
-  EXPECT_EQ(nullptr, option->initial_policy_->findPortPolicy(true, 80, 2));
+  auto port_policy = option->initial_policy_->findPortPolicy(true, 80);
+  EXPECT_FALSE(port_policy->allowed(2, ""));
 }
 
 // Use external remote address, but config says to use original source address

@@ -28,16 +28,25 @@ class PortPolicy {
 public:
   virtual ~PortPolicy() = default;
 
-  virtual bool useProxylib(std::string& l7_proto) const PURE;
+  // Is proxylib used with this remote on this port?
+  virtual bool useProxylib(uint32_t remote_id, std::string& l7_proto) const PURE;
 
+  // HTTP policy check
+  virtual bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+                       Cilium::AccessLog::Entry& log_entry) const PURE;
+
+  // L3/4 policy check
   virtual bool allowed(uint32_t remote_id, absl::string_view sni) const PURE;
 
-  virtual bool allowed(const envoy::config::core::v3::Metadata& metadata) const PURE;
+  // Encoy metadata policy check
+  virtual bool allowed(uint32_t remote_id,
+                       const envoy::config::core::v3::Metadata& metadata) const PURE;
 
-  virtual const Ssl::ContextConfig& getServerTlsContextConfig() const PURE;
-  virtual Ssl::ContextSharedPtr getServerTlsContext() const PURE;
-  virtual const Ssl::ContextConfig& getClientTlsContextConfig() const PURE;
-  virtual Ssl::ContextSharedPtr getClientTlsContext() const PURE;
+  // Get TLS context used with the remote_id, if any
+  virtual Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
+                                                    const Ssl::ContextConfig**) const PURE;
+  virtual Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id,
+                                                    const Ssl::ContextConfig**) const PURE;
 };
 using PortPolicyConstSharedPtr = std::shared_ptr<const PortPolicy>;
 
@@ -58,8 +67,11 @@ public:
                        Envoy::Http::RequestHeaderMap& headers,
                        Cilium::AccessLog::Entry& log_entry) const PURE;
 
-  virtual const PortPolicyConstSharedPtr findPortPolicy(bool ingress, uint16_t port,
-                                                        uint32_t remote_id) const PURE;
+  virtual bool allowed(bool ingress, uint32_t remote_id, absl::string_view sni,
+                       uint16_t port) const PURE;
+
+  // Returned pointer must not be stored for later use!
+  virtual const PortPolicy* findPortPolicy(bool ingress, uint16_t port) const PURE;
 
   // Returns true if the policy specifies l7 protocol for the connection, and
   // returns the l7 protocol string in 'l7_proto'

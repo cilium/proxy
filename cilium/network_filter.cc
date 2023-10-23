@@ -89,6 +89,9 @@ Network::FilterStatus Instance::onNewConnection() {
     return Network::FilterStatus::StopIteration;
   }
 
+  // Default to incoming destination port, may be changed for L7 LB
+  destination_port_ = option->port_;
+
   // Pass SNI before the upstream callback so that it is available when upstream connection is
   // initialized.
   const auto sni = conn.requestedServerName();
@@ -122,7 +125,6 @@ Network::FilterStatus Instance::onNewConnection() {
 
     // Resolve the destination security ID and port
     uint32_t destination_identity = 0;
-    uint32_t destination_port = option->port_;
 
     Network::Address::InstanceConstSharedPtr dst_address =
         option->policyUseUpstreamDestinationAddress()
@@ -139,42 +141,39 @@ Network::FilterStatus Instance::onNewConnection() {
                        dst_address->asString());
         return false;
       }
-      destination_port = dip->port();
+      destination_port_ = dip->port();
       destination_identity = option->resolvePolicyId(dip);
 
       if (option->ingress_source_identity_ != 0) {
-        port_policy_ = option->initial_policy_->findPortPolicy(true, destination_port,
-                                                               option->ingress_source_identity_);
-        if (port_policy_ == nullptr ||
-            !port_policy_->allowed(option->ingress_source_identity_, sni)) {
+        auto ingress_port_policy = option->initial_policy_->findPortPolicy(true, destination_port_);
+        if (ingress_port_policy == nullptr ||
+            !ingress_port_policy->allowed(option->ingress_source_identity_, sni)) {
           ENVOY_CONN_LOG(debug,
                          "cilium.network: ingress policy drop for source identity: {} port: {}",
-                         conn, option->ingress_source_identity_, destination_port);
+                         conn, option->ingress_source_identity_, destination_port_);
           return false;
         }
       }
     }
 
-    port_policy_ = option->initial_policy_->findPortPolicy(option->ingress_, destination_port,
-                                                           option->ingress_ ? option->identity_
-                                                                            : destination_identity);
-    if (port_policy_ == nullptr) {
-      ENVOY_CONN_LOG(warn, "cilium.network: Policy NOT FOUND for id: {} port: {}", conn,
-                     option->ingress_ ? option->identity_ : destination_identity, destination_port);
+    auto port_policy = option->initial_policy_->findPortPolicy(option->ingress_, destination_port_);
+    if (port_policy == nullptr) {
+      ENVOY_CONN_LOG(warn, "cilium.network: Policy NOT FOUND for port: {}", conn,
+                     destination_port_);
       return false;
     }
 
-    auto remote_id = option->ingress_ ? option->identity_ : destination_identity;
-    if (!port_policy_->allowed(remote_id, sni)) {
+    remote_id_ = option->ingress_ ? option->identity_ : destination_identity;
+    if (!port_policy->allowed(remote_id_, sni)) {
       // Connection not allowed by policy
       ENVOY_CONN_LOG(warn, "cilium.network: Policy DENY on id: {} port: {}", conn,
-                     option->ingress_ ? option->identity_ : destination_identity, destination_port);
+                     option->ingress_ ? option->identity_ : destination_identity, destination_port_);
       return false;
     }
 
     const std::string& policy_name = option->pod_ip_;
     // populate l7proto_ if available
-    if (port_policy_->useProxylib(l7proto_)) {
+    if (port_policy->useProxylib(remote_id_, l7proto_)) {
       // Initialize Go parser if requested
       if (config_->proxylib_.get() != nullptr) {
         go_parser_ = config_->proxylib_->NewInstance(
@@ -201,6 +200,7 @@ Network::FilterStatus Instance::onNewConnection() {
 
 Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) {
   ENVOY_LOG(trace, "cilium.network: onData {} bytes, end_stream: {}", data.length(), end_stream);
+  const char* reason;
 
   if (should_buffer_) {
     // Buffer data until upstream is selected and policy resolved
@@ -236,11 +236,36 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     }
 
     go_parser_->SetOrigEndStream(end_stream);
-  } else if (port_policy_ != nullptr && !l7proto_.empty()) {
+  } else if (!l7proto_.empty()) {
     const auto& metadata = conn.streamInfo().dynamicMetadata();
     bool changed = log_entry_.UpdateFromMetadata(l7proto_, metadata.filter_metadata().at(l7proto_));
 
-    if (!port_policy_->allowed(metadata)) {
+    // Policy may have changed since the connection was established, get fresh policy
+    const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
+    const auto option = Cilium::GetSocketOption(socketOptions);
+    if (!option) {
+      ENVOY_CONN_LOG(warn,
+                     "cilium.network: Cilium metadata not found for pod {}, defaulting to DENY",
+                     conn, option->pod_ip_);
+      reason = "Cilium metadata lost";
+      goto drop_close;
+    }
+    const auto& policy = option->getPolicy();
+    if (!policy) {
+      ENVOY_CONN_LOG(warn, "cilium.network: No policy found for pod {}, defaulting to DENY", conn,
+                     option->pod_ip_);
+      reason = "Cilium policy not found";
+      goto drop_close;
+    }
+    auto port_policy = policy->findPortPolicy(option->ingress_, destination_port_);
+    if (port_policy == nullptr) {
+      ENVOY_CONN_LOG(warn, "cilium.network: Policy not found for pod {} port: {}", conn,
+                     option->pod_ip_, destination_port_);
+      reason = "Cilium port policy not found";
+      goto drop_close;
+    }
+
+    if (!port_policy->allowed(remote_id_, metadata)) {
       conn.close(Network::ConnectionCloseType::NoFlush, "metadata policy drop");
       config_->Log(log_entry_, ::cilium::EntryType::Denied);
       return Network::FilterStatus::StopIteration;
@@ -253,6 +278,10 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
   }
 
   return Network::FilterStatus::Continue;
+
+drop_close:
+  conn.close(Network::ConnectionCloseType::NoFlush, reason);
+  return Network::FilterStatus::StopIteration;
 }
 
 Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream) {
