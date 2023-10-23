@@ -59,39 +59,30 @@ public:
         }
       }
 
-      auto port_policy = option->initial_policy_->findPortPolicy(
-          option->ingress_, destination_port,
-          option->ingress_ ? option->identity_ : destination_identity);
-      if (port_policy != nullptr) {
-        Envoy::Ssl::ContextSharedPtr ctx =
-            state_ == Extensions::TransportSockets::Tls::InitialState::Client
-                ? port_policy->getClientTlsContext()
-                : port_policy->getServerTlsContext();
-        if (ctx) {
-          const Envoy::Ssl::ContextConfig& config =
-              state_ == Extensions::TransportSockets::Tls::InitialState::Client
-                  ? port_policy->getClientTlsContextConfig()
-                  : port_policy->getServerTlsContextConfig();
-
-          // create the underlying SslSocket
-          socket_ = std::make_unique<Extensions::TransportSockets::Tls::SslSocket>(
-              std::move(ctx), state_, transport_socket_options_, config.createHandshaker());
-        } else {
-          ENVOY_LOG_MISC(debug,
-                         "cilium.tls_wrapper: Could not get {} TLS context for port {}, defaulting "
-                         "to raw socket",
-                         state_ == Extensions::TransportSockets::Tls::InitialState::Client
-                             ? "client"
-                             : "server",
-                         destination_port);
-          // default to a RawBufferSocket
-          socket_ = std::make_unique<Network::RawBufferSocket>();
-        }
-        // Set the callbacks
-        socket_->setTransportSocketCallbacks(callbacks);
+      auto remote_id = option->ingress_ ? option->identity_ : destination_identity;
+      auto port_policy =
+          option->initial_policy_->findPortPolicy(option->ingress_, destination_port);
+      const Envoy::Ssl::ContextConfig* config;
+      Envoy::Ssl::ContextSharedPtr ctx =
+          state_ == Extensions::TransportSockets::Tls::InitialState::Client
+              ? port_policy->getClientTlsContext(remote_id, &config)
+              : port_policy->getServerTlsContext(remote_id, &config);
+      if (ctx) {
+        // create the underlying SslSocket
+        socket_ = std::make_unique<Extensions::TransportSockets::Tls::SslSocket>(
+            std::move(ctx), state_, transport_socket_options_, config->createHandshaker());
       } else {
-        ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Policy not found for port {}!", destination_port);
+        ENVOY_LOG_MISC(debug,
+                       "cilium.tls_wrapper: Could not get {} TLS context for port {}, defaulting "
+                       "to raw socket",
+                       state_ == Extensions::TransportSockets::Tls::InitialState::Client ? "client"
+                                                                                         : "server",
+                       destination_port);
+        // default to a RawBufferSocket
+        socket_ = std::make_unique<Network::RawBufferSocket>();
       }
+      // Set the callbacks
+      socket_->setTransportSocketCallbacks(callbacks);
     } else if (!option) {
       ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Cilium socket option not found!");
     }
