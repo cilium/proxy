@@ -514,8 +514,8 @@ public:
                        "everything.");
     }
     for (const auto& it : rules) {
-      rules_.emplace_back(parent, it);
-      if (!rules_.back().can_short_circuit_) {
+      rules_.emplace_back(std::make_shared<PortNetworkPolicyRule>(parent, it));
+      if (!rules_.back()->can_short_circuit_) {
         can_short_circuit_ = false;
       }
     }
@@ -531,7 +531,7 @@ public:
     bool denied = false;
     bool allowed = false;
     for (const auto& rule : rules_) {
-      if (rule.allowed(remote_id, headers, log_entry, denied)) {
+      if (rule->allowed(remote_id, headers, log_entry, denied)) {
         ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): ALLOWED");
         allowed = true;
         // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
@@ -554,7 +554,7 @@ public:
     bool denied = false;
     bool allowed = false;
     for (const auto& rule : rules_) {
-      if (rule.allowed(remote_id, sni, denied)) {
+      if (rule->allowed(remote_id, sni, denied)) {
         allowed = true;
         // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
         // exist
@@ -568,7 +568,7 @@ public:
 
   bool useProxylib(uint32_t remote_id, std::string& l7_proto) const override {
     for (const auto& rule : rules_) {
-      if (rule.useProxylib(remote_id, l7_proto)) {
+      if (rule->useProxylib(remote_id, l7_proto)) {
         return true;
       }
     }
@@ -585,7 +585,7 @@ public:
     bool denied = false;
     bool allowed = false;
     for (const auto& rule : rules_) {
-      if (rule.allowed(remote_id, metadata, denied)) {
+      if (rule->allowed(remote_id, metadata, denied)) {
         allowed = true;
         // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
         // exist
@@ -600,7 +600,7 @@ public:
   Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
                                             const Ssl::ContextConfig** config) const override {
     for (const auto& rule : rules_) {
-      Ssl::ContextSharedPtr server_context = rule.getServerTlsContext(remote_id, config);
+      Ssl::ContextSharedPtr server_context = rule->getServerTlsContext(remote_id, config);
       if (server_context)
         return server_context;
     }
@@ -610,14 +610,14 @@ public:
   Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id,
                                             const Ssl::ContextConfig** config) const override {
     for (const auto& rule : rules_) {
-      Ssl::ContextSharedPtr client_context = rule.getClientTlsContext(remote_id, config);
+      Ssl::ContextSharedPtr client_context = rule->getClientTlsContext(remote_id, config);
       if (client_context)
         return client_context;
     }
     return nullptr;
   }
 
-  std::vector<PortNetworkPolicyRule> rules_; // Allowed if empty.
+  std::vector<PortNetworkPolicyRuleConstSharedPtr> rules_; // Allowed if empty.
   bool can_short_circuit_{true};
 };
 
