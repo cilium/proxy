@@ -146,8 +146,7 @@ Network::FilterStatus Instance::onNewConnection() {
 
       if (option->ingress_source_identity_ != 0) {
         auto ingress_port_policy = option->initial_policy_->findPortPolicy(true, destination_port_);
-        if (ingress_port_policy == nullptr ||
-            !ingress_port_policy->allowed(option->ingress_source_identity_, sni)) {
+        if (!ingress_port_policy.allowed(option->ingress_source_identity_, sni)) {
           ENVOY_CONN_LOG(debug,
                          "cilium.network: ingress policy drop for source identity: {} port: {}",
                          conn, option->ingress_source_identity_, destination_port_);
@@ -157,14 +156,9 @@ Network::FilterStatus Instance::onNewConnection() {
     }
 
     auto port_policy = option->initial_policy_->findPortPolicy(option->ingress_, destination_port_);
-    if (port_policy == nullptr) {
-      ENVOY_CONN_LOG(warn, "cilium.network: Policy NOT FOUND for port: {}", conn,
-                     destination_port_);
-      return false;
-    }
 
     remote_id_ = option->ingress_ ? option->identity_ : destination_identity;
-    if (!port_policy->allowed(remote_id_, sni)) {
+    if (!port_policy.allowed(remote_id_, sni)) {
       // Connection not allowed by policy
       ENVOY_CONN_LOG(warn, "cilium.network: Policy DENY on id: {} port: {}", conn, remote_id_,
                      destination_port_);
@@ -173,7 +167,7 @@ Network::FilterStatus Instance::onNewConnection() {
 
     const std::string& policy_name = option->pod_ip_;
     // populate l7proto_ if available
-    if (port_policy->useProxylib(remote_id_, l7proto_)) {
+    if (port_policy.useProxylib(remote_id_, l7proto_)) {
       // Initialize Go parser if requested
       if (config_->proxylib_.get() != nullptr) {
         go_parser_ = config_->proxylib_->NewInstance(
@@ -258,14 +252,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
       goto drop_close;
     }
     auto port_policy = policy->findPortPolicy(option->ingress_, destination_port_);
-    if (port_policy == nullptr) {
-      ENVOY_CONN_LOG(warn, "cilium.network: Policy not found for pod {} port: {}", conn,
-                     option->pod_ip_, destination_port_);
-      reason = "Cilium port policy not found";
-      goto drop_close;
-    }
-
-    if (!port_policy->allowed(remote_id_, metadata)) {
+    if (!port_policy.allowed(remote_id_, metadata)) {
       config_->Log(log_entry_, ::cilium::EntryType::Denied);
       reason = "metadata policy drop";
       goto drop_close;

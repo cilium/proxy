@@ -24,50 +24,68 @@
 namespace Envoy {
 namespace Cilium {
 
-// PortRangeCompare returns true if both ends of range 'a' are less than the
-// corresponding ends of range 'b'. std::less compares 'pair.second' only if the
-// first elements are equal, which does not work for range lookups, where we
-// look with a pair where both elements have the same value of interest.
+// PortRangeCompare is used for as std::less replacement for port range keys.
 //
-// NOTE: This relies on the invariant that in any given range R, R.first <= R.second.
-// We do not test for this here, but this must be enforced when creating the ranges!
+// All port ranges in the map have non-overlapping keys, which allows total ordering needed for
+// ordered map containers. When inserting new ranges, any range overlap will be flagged as a
+// "duplicate" entry, as overlapping keys are considered equal (as neither is strictly less than the
+// other given this comparison predicate).
+// On lookups we'll set both ends of the port range to the same port number, which will find the one
+// range that it overlaps with, if one exists.
+typedef std::pair<uint16_t, uint16_t> PortRange;
 struct PortRangeCompare {
-  bool operator()(const std::pair<uint16_t, uint16_t>& a,
-                  const std::pair<uint16_t, uint16_t>& b) const {
-    // For a range pair first <= second; less if a is completely below b
+  bool operator()(const PortRange& a, const PortRange& b) const {
+    // return true if range 'a.first - a.second' is below range 'b.first - b.second'.
     return a.second < b.first;
   }
 };
 
 class PortNetworkPolicyRules;
-typedef absl::btree_map<std::pair<uint16_t, uint16_t>, PortNetworkPolicyRules, PortRangeCompare>
-    PolicyMap;
+typedef std::list<PortNetworkPolicyRules> RulesList;
 
-class PortPolicy {
+// PolicyMap is keyed by port ranges, and contains a list of PortNetworkPolicyRules's applicable
+// to this range. A list is needed as rules may come from multiple sources (e.g., resulting from
+// use of named ports and numbered ports in Cilium Network Policy at the same time).
+typedef absl::btree_map<PortRange, RulesList, PortRangeCompare> PolicyMap;
+
+// PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
+// Methods then iterate through the set to determine if policy allows or denies. This is needed to
+// support multiple rules on the same port, like when named ports are used, or when deny policies
+// may be present.
+class PortPolicy : public Logger::Loggable<Logger::Id::config> {
+protected:
+  friend class PortNetworkPolicy;
+  friend class AllowAllEgressPolicyInstanceImpl;
+  PortPolicy(const PolicyMap& map, const RulesList& wildcard_rules, uint16_t port);
+
 public:
-  virtual ~PortPolicy() = default;
+  // useProxylib returns true if a proxylib parser should be used.
+  // 'l7_proto' is set to the parser name in that case.
+  bool useProxylib(uint32_t remote_id, std::string& l7_proto) const;
+  // HTTP-layer policy check. 'headers' and 'log_entry' may be manipulated by the policy.
+  bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+               Cilium::AccessLog::Entry& log_entry) const;
+  // Network-layer policy check
+  bool allowed(uint32_t remote_id, absl::string_view sni) const;
+  // Envoy filter metadata policy check
+  bool allowed(uint32_t remote_id, const envoy::config::core::v3::Metadata& metadata) const;
+  // getServerTlsContext returns the server TLS context, if any. If a non-null pointer is returned,
+  // then also the config pointer '*config' is set.
+  Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
+                                            const Ssl::ContextConfig** config) const;
+  // getClientTlsContext returns the client TLS context, if any. If a non-null pointer is returned,
+  // then also the config pointer '*config' is set.
+  Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id,
+                                            const Ssl::ContextConfig** config) const;
 
-  // Is proxylib used with this remote on this port?
-  virtual bool useProxylib(uint32_t remote_id, std::string& l7_proto) const PURE;
+private:
+  bool for_range(std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const;
+  bool for_first_range(std::function<bool(const PortNetworkPolicyRules&)> f) const;
 
-  // HTTP policy check
-  virtual bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
-                       Cilium::AccessLog::Entry& log_entry) const PURE;
-
-  // L3/4 policy check
-  virtual bool allowed(uint32_t remote_id, absl::string_view sni) const PURE;
-
-  // Encoy metadata policy check
-  virtual bool allowed(uint32_t remote_id,
-                       const envoy::config::core::v3::Metadata& metadata) const PURE;
-
-  // Get TLS context used with the remote_id, if any
-  virtual Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
-                                                    const Ssl::ContextConfig**) const PURE;
-  virtual Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id,
-                                                    const Ssl::ContextConfig**) const PURE;
+  const PolicyMap& map_;
+  const RulesList& wildcard_rules_;
+  const PolicyMap::const_iterator port_rules_; // iterator to 'map_'
 };
-using PortPolicyConstSharedPtr = std::shared_ptr<const PortPolicy>;
 
 class IPAddressPair {
 public:
@@ -90,7 +108,7 @@ public:
                        uint16_t port) const PURE;
 
   // Returned pointer must not be stored for later use!
-  virtual const PortPolicy* findPortPolicy(bool ingress, uint16_t port) const PURE;
+  virtual const PortPolicy findPortPolicy(bool ingress, uint16_t port) const PURE;
 
   // Returns true if the policy specifies l7 protocol for the connection, and
   // returns the l7 protocol string in 'l7_proto'
