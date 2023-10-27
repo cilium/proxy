@@ -1,5 +1,6 @@
 #include "cilium/network_policy.h"
 
+#include <algorithm>
 #include <string>
 
 #include "envoy/type/matcher/v3/metadata.pb.h"
@@ -11,7 +12,6 @@
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h"
 
-#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
 #include "cilium/grpc_subscription.h"
@@ -21,91 +21,6 @@ namespace Envoy {
 namespace Cilium {
 
 uint64_t NetworkPolicyMap::instance_id_ = 0;
-
-// PortPolicy used in cases where no rules are found -> always allow
-class AllowPortNetworkPolicyRule : public PortPolicy {
-public:
-  AllowPortNetworkPolicyRule(){};
-
-  bool useProxylib(uint32_t, std::string&) const override { return false; }
-
-  bool allowed(uint32_t, absl::string_view) const override { return true; }
-
-  bool allowed(uint32_t, Envoy::Http::RequestHeaderMap&, Cilium::AccessLog::Entry&) const override {
-    return true;
-  }
-
-  bool allowed(uint32_t, const envoy::config::core::v3::Metadata&) const override { return true; }
-
-  Ssl::ContextSharedPtr getServerTlsContext(uint32_t, const Ssl::ContextConfig**) const override {
-    return nullptr;
-  }
-  Ssl::ContextSharedPtr getClientTlsContext(uint32_t, const Ssl::ContextConfig**) const override {
-    return nullptr;
-  }
-};
-
-AllowPortNetworkPolicyRule _allowPortNetworkPolicyRule;
-const PortPolicy* allowPortNetworkPolicyRule = &_allowPortNetworkPolicyRule;
-
-// PortPolicy used in cases where no rules are found -> always deny
-class DenyPortNetworkPolicyRule : public PortPolicy {
-public:
-  DenyPortNetworkPolicyRule(){};
-
-  bool useProxylib(uint32_t, std::string&) const override { return false; }
-
-  bool allowed(uint32_t, absl::string_view) const override { return false; }
-
-  bool allowed(uint32_t, Envoy::Http::RequestHeaderMap&, Cilium::AccessLog::Entry&) const override {
-    return false;
-  }
-
-  bool allowed(uint32_t, const envoy::config::core::v3::Metadata&) const override { return false; }
-
-  Ssl::ContextSharedPtr getServerTlsContext(uint32_t, const Ssl::ContextConfig**) const override {
-    return nullptr;
-  }
-  Ssl::ContextSharedPtr getClientTlsContext(uint32_t, const Ssl::ContextConfig**) const override {
-    return nullptr;
-  }
-};
-
-DenyPortNetworkPolicyRule _denyPortNetworkPolicyRule;
-const PortPolicy* denyPortNetworkPolicyRule = &_denyPortNetworkPolicyRule;
-
-// Allow-all Egress policy
-class AllowAllEgressPolicyInstanceImpl : public PolicyInstance {
-public:
-  AllowAllEgressPolicyInstanceImpl() {}
-
-  bool allowed(bool ingress, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
-               Cilium::AccessLog::Entry&) const override {
-    return ingress ? false : true;
-  }
-
-  bool allowed(bool ingress, uint32_t, absl::string_view, uint16_t) const override {
-    return ingress ? false : true;
-  }
-
-  const PortPolicy* findPortPolicy(bool ingress, uint16_t) const override {
-    return ingress ? denyPortNetworkPolicyRule : allowPortNetworkPolicyRule;
-  }
-
-  bool useProxylib(bool, uint32_t, uint16_t, std::string&) const override { return false; }
-
-  const std::string& conntrackName() const override { return empty_string; }
-
-  uint32_t getEndpointID() const override { return 0; }
-
-  const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
-
-private:
-  static const std::string empty_string;
-  static const IPAddressPair empty_ips;
-};
-const std::string AllowAllEgressPolicyInstanceImpl::empty_string = "";
-const IPAddressPair AllowAllEgressPolicyInstanceImpl::empty_ips{};
 
 IPAddressPair::IPAddressPair(const cilium::NetworkPolicy& proto) {
   for (const auto& ipAddr : proto.endpoint_ips()) {
@@ -505,8 +420,9 @@ public:
 };
 using PortNetworkPolicyRuleConstSharedPtr = std::shared_ptr<const PortNetworkPolicyRule>;
 
-class PortNetworkPolicyRules : public PortPolicy, public Logger::Loggable<Logger::Id::config> {
+class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
 public:
+  PortNetworkPolicyRules() {}
   PortNetworkPolicyRules(const NetworkPolicyMap& parent,
                          const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
     if (rules.size() == 0) {
@@ -522,13 +438,12 @@ public:
   }
 
   bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
-               Cilium::AccessLog::Entry& log_entry) const override {
+               Cilium::AccessLog::Entry& log_entry, bool& denied) const {
     // Empty set matches any payload from anyone
     if (rules_.size() == 0) {
       return true;
     }
 
-    bool denied = false;
     bool allowed = false;
     for (const auto& rule : rules_) {
       if (rule->allowed(remote_id, headers, log_entry, denied)) {
@@ -545,13 +460,12 @@ public:
     return allowed && !denied;
   }
 
-  bool allowed(uint32_t remote_id, absl::string_view sni) const override {
+  bool allowed(uint32_t remote_id, absl::string_view sni, bool& denied) const {
     // Empty set matches any payload from anyone
     if (rules_.size() == 0) {
       return true;
     }
 
-    bool denied = false;
     bool allowed = false;
     for (const auto& rule : rules_) {
       if (rule->allowed(remote_id, sni, denied)) {
@@ -566,7 +480,7 @@ public:
     return allowed && !denied;
   }
 
-  bool useProxylib(uint32_t remote_id, std::string& l7_proto) const override {
+  bool useProxylib(uint32_t remote_id, std::string& l7_proto) const {
     for (const auto& rule : rules_) {
       if (rule->useProxylib(remote_id, l7_proto)) {
         return true;
@@ -575,14 +489,13 @@ public:
     return false;
   }
 
-  bool allowed(uint32_t remote_id,
-               const envoy::config::core::v3::Metadata& metadata) const override {
+  bool allowed(uint32_t remote_id, const envoy::config::core::v3::Metadata& metadata,
+               bool& denied) const {
     // Empty set matches any payload from anyone
     if (rules_.size() == 0) {
       return true;
     }
 
-    bool denied = false;
     bool allowed = false;
     for (const auto& rule : rules_) {
       if (rule->allowed(remote_id, metadata, denied)) {
@@ -598,7 +511,7 @@ public:
   }
 
   Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
-                                            const Ssl::ContextConfig** config) const override {
+                                            const Ssl::ContextConfig** config) const {
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr server_context = rule->getServerTlsContext(remote_id, config);
       if (server_context)
@@ -608,7 +521,7 @@ public:
   }
 
   Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id,
-                                            const Ssl::ContextConfig** config) const override {
+                                            const Ssl::ContextConfig** config) const {
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr client_context = rule->getClientTlsContext(remote_id, config);
       if (client_context)
@@ -621,43 +534,275 @@ public:
   bool can_short_circuit_{true};
 };
 
+// end port is zero on lookup!
+PortPolicy::PortPolicy(const PolicyMap& map, const RulesList& wildcard_rules, uint16_t port)
+    : map_(map), wildcard_rules_(wildcard_rules), port_rules_(map_.find({port, port})) {}
+
+// for_range is used for policy lookups, so it will need to check both port-specific and
+// wildcard-port rules, as either of them could contain rules that must be evaluated (i.e., deny
+// or header match rules with side effects).
+bool PortPolicy::for_range(
+    std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const {
+  bool allow = false;
+  bool denied = false;
+  if (port_rules_ != map_.cend()) {
+    for (auto& rules : port_rules_->second) {
+      // Skip if allowed
+      if (allow && rules.can_short_circuit_)
+        continue;
+      if (allowed(rules, denied))
+        allow = true;
+    }
+  }
+  // Wildcard port can deny a specific remote, so need to check for it too.
+  for (auto& rules : wildcard_rules_) {
+    // Skip if allowed
+    if (allow && rules.can_short_circuit_)
+      continue;
+    if (allowed(rules, denied))
+      allow = true;
+  }
+  return allow && !denied;
+}
+
+// for_first_range is used for proxylib parser and TLS context selection.
+//
+// rules for the specific ports are checked first, and within there singe-port ranges are placed in
+// the front, while actual ranges are placed in the back. This results in the following precedence
+// order for both proxylib parser and TLS context selection:
+//
+// 1. single port rules (e.g., port 80)
+// 2. port ranges (e.g., ports 80-90)
+// 3. Wildcard port rules
+//
+bool PortPolicy::for_first_range(std::function<bool(const PortNetworkPolicyRules&)> f) const {
+  if (port_rules_ != map_.cend()) {
+    for (auto& rules : port_rules_->second) {
+      if (f(rules))
+        return true;
+    }
+  }
+  // Check the wildcard port entry
+  for (auto& rules : wildcard_rules_) {
+    if (f(rules))
+      return true;
+  }
+  return false;
+}
+
+bool PortPolicy::useProxylib(uint32_t remote_id, std::string& l7_proto) const {
+  return for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
+    return rules.useProxylib(remote_id, l7_proto);
+  });
+}
+
+bool PortPolicy::allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+                         Cilium::AccessLog::Entry& log_entry) const {
+  return for_range([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
+    return rules.allowed(remote_id, headers, log_entry, denied);
+  });
+}
+
+bool PortPolicy::allowed(uint32_t remote_id, absl::string_view sni) const {
+  return for_range([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
+    return rules.allowed(remote_id, sni, denied);
+  });
+}
+
+bool PortPolicy::allowed(uint32_t remote_id,
+                         const envoy::config::core::v3::Metadata& metadata) const {
+  return for_range([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
+    return rules.allowed(remote_id, metadata, denied);
+  });
+}
+
+Ssl::ContextSharedPtr PortPolicy::getServerTlsContext(uint32_t remote_id,
+                                                      const Ssl::ContextConfig** config) const {
+  Ssl::ContextSharedPtr ret;
+  for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
+    ret = rules.getServerTlsContext(remote_id, config);
+    return ret != nullptr;
+  });
+  return ret;
+}
+
+Ssl::ContextSharedPtr PortPolicy::getClientTlsContext(uint32_t remote_id,
+                                                      const Ssl::ContextConfig** config) const {
+  Ssl::ContextSharedPtr ret;
+  for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
+    ret = rules.getClientTlsContext(remote_id, config);
+    return ret != nullptr;
+  });
+  return ret;
+}
+
+// Ranges overlap when one is not completely below or above the other
+bool inline ranges_overlap(const PortRange& a, const PortRange& b) {
+  // !(a.second < b.first || a.first > b.second)
+  return a.second >= b.first && a.first <= b.second;
+}
+
 class PortNetworkPolicy : public Logger::Loggable<Logger::Id::config> {
 public:
   PortNetworkPolicy(const NetworkPolicyMap& parent,
                     const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicy>& rules) {
-    for (const auto& it : rules) {
+    for (const auto& rule : rules) {
       // Only TCP supported for HTTP
-      if (it.protocol() == envoy::config::core::v3::SocketAddress::TCP) {
+      if (rule.protocol() == envoy::config::core::v3::SocketAddress::TCP) {
         // Port may be zero, which matches any port.
-        uint16_t port = it.port();
+        uint16_t port = rule.port();
         // End port may be zero, which means no range
-        uint16_t end_port = it.end_port();
+        uint16_t end_port = rule.end_port();
         if (end_port < port) {
           if (end_port != 0) {
             throw EnvoyException(fmt::format(
-                "PortNetworkPolicy: Invalid port range, end port is less than port {}-{}", port,
-                end_port));
+                "PortNetworkPolicy: Invalid port range, end port is less than start port {}-{}",
+                port, end_port));
           }
           end_port = port;
         }
-        if (port == 0 && end_port > 0) {
-          throw EnvoyException(fmt::format(
-              "PortNetworkPolicy: Invalid port range including the wildcard zero port {}-{}", port,
-              end_port));
+        if (port == 0) {
+          if (end_port > 0) {
+            throw EnvoyException(fmt::format(
+                "PortNetworkPolicy: Invalid port range including the wildcard zero port {}-{}",
+                port, end_port));
+          }
+          ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): installing TCP wildcard policy");
+          wildcard_rules_.emplace_back(parent, rule.rules());
+          continue;
         }
         ENVOY_LOG(trace,
                   "Cilium L7 PortNetworkPolicy(): installing TCP policy for "
                   "port range {}-{}",
                   port, end_port);
-        if (!rules_
-                 .emplace(std::make_pair(port, end_port),
-                          PortNetworkPolicyRules(parent, it.rules()))
-                 .second) {
-          if (port == end_port) {
-            throw EnvoyException(fmt::format("PortNetworkPolicy: Duplicate port number {}", port));
+        auto rule_range = std::make_pair(port, end_port);
+        auto pair = rules_.emplace(rule_range, RulesList{});
+        auto it = pair.first;
+        if (!pair.second) {
+          ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): new entry [{}-{}] overlaps with [{}-{}]",
+                    port, end_port, it->first.first, it->first.second);
+          // Explicitly manage overlapping ranges by breaking them up.
+          //
+          // rules_ has the breaked up, non-overlapping ranges in order.
+          //
+          // While iterating through all the existing overlapping ranges:
+          // - add new ranges when there are any gaps in the existing ranges (for the new range)
+          // - split existing ranges if they are only partially overlapping with the new range
+          // Then, as a separate step:
+          // - add new rules to all of the (disjoint, ordered) ranges covered by the new range
+
+          // The new range can overlap with multiple entries in the map, current iterator can
+          // point to any one of them. Find the first entry the new entry overlaps with.
+          auto last_overlap = it;
+          while (it != rules_.begin()) {
+            last_overlap = it;
+            it--;
+            if (!ranges_overlap(it->first, rule_range))
+              break;
+          }
+          it = last_overlap; // Move back up to the frontmost overlapping entry
+
+          // absl::btree_map manipulation operations invalidate iterators, so we keep the range
+          // (the map key) of the first overlapping entry in 'start_range' to be able to locate
+          // the first range that needs the new rules after all the overlaps have been resolved.
+          // 'start_key' is updated as needed below.
+          auto start_range = it->first;
+
+          // split the current entry due to partial overlap in the beginning?
+          // For example, if the current entry is 80-8080 and we are adding 4040-9999,
+          // the current entry should be split to two ranges 80-4039 and 4040-8080,
+          // both of which should retain their current rules, but new rules should only be
+          // added to the 2nd half covered by the new range 4040-9999.
+          if (port > start_range.first) {
+            RELEASE_ASSERT(port <= start_range.second, "non-overlapping range");
+            auto rules = it->second;
+            PortRange range1 = start_range;
+            range1.second = port - 1;
+            PortRange range2 = start_range;
+            range2.first = port;
+
+            rules_.erase(it);
+            auto pr1 = rules_.insert({range1, rules});
+            RELEASE_ASSERT(pr1.second, "Range split failed 1 begin");
+            auto pr2 = rules_.insert({range2, rules});
+            RELEASE_ASSERT(pr2.second, "Range split failed 2 begin");
+            it = pr2.first;          // update current iterator
+            start_range = it->first; // update the start range
+          }
+
+          // scan the range of the new rule, filling the gaps with new (partial) ranges
+          for (; it != rules_.end() && port <= end_port && end_port >= it->first.first; it++) {
+            auto range = it->first;
+            // create a new entry below the current one?
+            if (port < range.first) {
+              auto new_range = std::make_pair(port, std::min(end_port, uint16_t(range.first - 1)));
+              auto new_pair = rules_.emplace(new_range, RulesList{});
+              RELEASE_ASSERT(new_pair.second,
+                             "duplicate entry when explicitly adding a new range!");
+              // update the start range if a new start entry was added, which can happen only at the
+              // beginning of this loop when port is still at the beginning of the rule range being
+              // added.
+              if (port == rule_range.first)
+                start_range = new_range;
+              // absl::btree_map insertion invalidates iterators, have to update.
+              it = ++new_pair.first; // one past the new entry
+              if (end_port < range.first) {
+                // done
+                break;
+              }
+              // covered upto range.first-1, continue from range.first
+              port = range.first;
+            }
+            RELEASE_ASSERT(port == range.first, "port should match the start of the current range");
+            // split the current range into two due to partial overlap in the end?
+            if (end_port < range.second) {
+              auto rules = it->second;
+              PortRange range1 = it->first;
+              range1.second = end_port;
+              PortRange range2 = it->first;
+              range2.first = end_port + 1;
+
+              rules_.erase(it);
+              auto pr1 = rules_.insert({range1, rules});
+              RELEASE_ASSERT(pr1.second, "Range split failed 1 end");
+              auto pr2 = rules_.insert({range2, rules});
+              RELEASE_ASSERT(pr2.second, "Range split failed 2 end");
+              it = pr2.first;      // one past the end of range
+              port = end_port + 1; // one past the end
+              break;
+            } else {
+              // current entry completely covered by the new range, skip to the next
+              port = range.second + 1;
+            }
+          }
+          // create a new entry covering the end?
+          if (port <= end_port) {
+            auto new_range = std::make_pair(port, end_port);
+            auto new_pair = rules_.emplace(new_range, RulesList{});
+            RELEASE_ASSERT(new_pair.second,
+                           "duplicate entry at end when explicitly adding a new range!");
+            it = ++new_pair.first;
+          }
+          // make 'it' point to the first overlapping entry for the rule updates to follow
+          it = rules_.find(start_range);
+          RELEASE_ASSERT(it != rules_.end(), "first overlapping entry not found");
+        }
+        // Add rules to all the overlapping entries
+        bool singular = rule_range.first == rule_range.second;
+        auto rules = PortNetworkPolicyRules(parent, rule.rules());
+        for (; it != rules_.end() && ranges_overlap(it->first, rule_range); it++) {
+          auto range = it->first;
+          auto& list = it->second;
+          ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): Adding rules for [{}-{}] to [{}-{}]",
+                    rule_range.first, rule_range.second, range.first, range.second);
+          if (singular) {
+            // Exact port rules go to the front of the list.
+            // This gives precedence for trivial range rules for proxylib parser
+            // and TLS context selection.
+            list.push_front(rules);
           } else {
-            throw EnvoyException(
-                fmt::format("PortNetworkPolicy: Overlapping port range {}-{}", port, end_port));
+            // Rules with a non-trivial range go to the back of the list
+            list.push_back(rules);
           }
         }
       } else {
@@ -666,73 +811,23 @@ public:
     }
   }
 
-  PolicyMap::const_iterator find(uint16_t port) const {
-    std::pair<uint16_t, uint16_t> p = {port, port};
-    auto it = rules_.find(p);
-    if (it != rules_.end()) {
-      const auto& range = it->first;
-      if (port >= range.first && port <= range.second) {
-        return it;
-      }
-    }
-    return rules_.end();
-  }
-
   bool allowed(uint32_t remote_id, uint16_t port, Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const {
-    auto it = find(port);
-    if (it != rules_.end()) {
-      if (it->second.allowed(remote_id, headers, log_entry)) {
-        return true;
-      }
-    }
-    // Check for any rules that wildcard the port
-    // Note: Wildcard port makes no sense for an L7 policy, but the policy
-    // could be a L3/L4 policy as well.
-    it = find(0);
-    if (it != rules_.end()) {
-      if (it->second.allowed(remote_id, headers, log_entry)) {
-        return true;
-      }
-    }
-    return false;
+    auto range = findPortPolicy(port);
+    return range.allowed(remote_id, headers, log_entry);
   }
 
   bool allowed(uint32_t remote_id, absl::string_view sni, uint16_t port) const {
-    auto it = find(port);
-    if (it != rules_.end()) {
-      if (it->second.allowed(remote_id, sni)) {
-        return true;
-      }
-    }
-    // Check for any rules that wildcard the port
-    // Note: Wildcard port makes no sense for an L7 policy, but the policy
-    // could be a L3/L4 policy as well.
-    it = find(0);
-    if (it != rules_.end()) {
-      if (it->second.allowed(remote_id, sni)) {
-        return true;
-      }
-    }
-    return false;
+    auto range = findPortPolicy(port);
+    return range.allowed(remote_id, sni);
   }
 
-  const PortPolicy* findPortPolicy(uint16_t port) const {
-    auto it = find(port);
-    if (it != rules_.end()) {
-      return &it->second;
-    }
-    // Check for any rules that wildcard the port
-    // Note: Wildcard port makes no sense for an L7 policy, but the policy
-    // could be a L3/L4 policy as well.
-    it = find(0);
-    if (it != rules_.end()) {
-      return &it->second;
-    }
-    return denyPortNetworkPolicyRule;
+  const PortPolicy findPortPolicy(uint16_t port) const {
+    return PortPolicy(rules_, wildcard_rules_, port);
   }
 
   PolicyMap rules_;
+  RulesList wildcard_rules_{};
 };
 
 // Construction is single-threaded, but all other use is from multiple worker threads using const
@@ -758,14 +853,14 @@ public:
     return ingress ? ingress_.allowed(remote_id, sni, port) : egress_.allowed(remote_id, sni, port);
   }
 
-  const PortPolicy* findPortPolicy(bool ingress, uint16_t port) const override {
+  const PortPolicy findPortPolicy(bool ingress, uint16_t port) const override {
     return ingress ? ingress_.findPortPolicy(port) : egress_.findPortPolicy(port);
   }
 
   bool useProxylib(bool ingress, uint32_t remote_id, uint16_t port,
                    std::string& l7_proto) const override {
     const auto port_policy = findPortPolicy(ingress, port);
-    return port_policy->useProxylib(remote_id, l7_proto);
+    return port_policy.useProxylib(remote_id, l7_proto);
   }
 
   const std::string& conntrackName() const override { return conntrack_map_name_; }
@@ -1075,6 +1170,47 @@ NetworkPolicyMap::dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_m
 
   return config_dump;
 }
+
+// Allow-all Egress policy
+class AllowAllEgressPolicyInstanceImpl : public PolicyInstance {
+public:
+  AllowAllEgressPolicyInstanceImpl() {
+    auto& list =
+        empty_map_.emplace(std::make_pair(uint16_t(1), uint16_t(1)), RulesList{}).first->second;
+    list.emplace_front(PortNetworkPolicyRules());
+  }
+
+  bool allowed(bool ingress, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
+               Cilium::AccessLog::Entry&) const override {
+    return ingress ? false : true;
+  }
+
+  bool allowed(bool ingress, uint32_t, absl::string_view, uint16_t) const override {
+    return ingress ? false : true;
+  }
+
+  const PortPolicy findPortPolicy(bool ingress, uint16_t) const override {
+    return ingress ? PortPolicy(empty_map_, empty_rules_, 0)
+                   : PortPolicy(empty_map_, empty_rules_, 1);
+  }
+
+  bool useProxylib(bool, uint32_t, uint16_t, std::string&) const override { return false; }
+
+  const std::string& conntrackName() const override { return empty_string; }
+
+  uint32_t getEndpointID() const override { return 0; }
+
+  const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
+
+private:
+  PolicyMap empty_map_;
+  static const std::string empty_string;
+  static const IPAddressPair empty_ips;
+  static const RulesList empty_rules_;
+};
+const std::string AllowAllEgressPolicyInstanceImpl::empty_string = "";
+const IPAddressPair AllowAllEgressPolicyInstanceImpl::empty_ips{};
+const RulesList AllowAllEgressPolicyInstanceImpl::empty_rules_{};
 
 PolicyInstanceConstSharedPtr NetworkPolicyMap::AllowAllEgressPolicy =
     std::make_shared<AllowAllEgressPolicyInstanceImpl>();

@@ -872,16 +872,40 @@ public:
   CiliumIntegrationPortTest() : CiliumIntegrationTest() {}
 
   std::string testPolicyFmt() {
-    return TestEnvironment::substitute(BASIC_POLICY_fmt + R"EOF(  - port: {0}
+    return TestEnvironment::substitute(R"EOF(version_info: "0"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - '{{ ntop_ip_loopback_address }}'
+  endpoint_id: 3
+  ingress_per_port_policies:
+  - port: {0}
     rules:
-    - remote_policies: [ 2 ]
+    - remote_policies: [ 1 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/only-2-allowed'
+  - port: {0}
+    rules:
+    - remote_policies: [ 1 ]
       http_rules:
         http_rules:
         - headers:
           - name: ':path'
             safe_regex_match:
               google_re2: {{}}
-              regex: '/only-2-allowed'
+              regex: '/also-2-allowed'
+  egress_per_port_policies:
+  - port: {0}
+    rules:
+    - remote_policies: [ 2 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/only-2-allowed'
 )EOF",
                                        GetParam());
   }
@@ -890,20 +914,12 @@ public:
 INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationPortTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
-TEST_P(CiliumIntegrationPortTest, DuplicatePort) {
-  initialize();
+TEST_P(CiliumIntegrationPortTest, DuplicatePortAllowedPath) {
+  Accepted({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
+}
 
-  // This would normally be allowed, but since the policy fails, everything will
-  // be rejected.
-  Http::TestRequestHeaderMapImpl headers = {
-      {":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}};
-  codec_client_ = makeHttpConnection(lookupPort("http"));
-  auto response = codec_client_->makeHeaderOnlyRequest(headers);
-  ASSERT_TRUE(response->waitForEndStream());
-
-  uint64_t status;
-  ASSERT_TRUE(absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status));
-  EXPECT_EQ(500, status);
+TEST_P(CiliumIntegrationPortTest, DuplicatePortAllowedPath2) {
+  Accepted({{":method", "GET"}, {":path", "/also-2-allowed"}, {":authority", "host"}});
 }
 
 class CiliumIntegrationPortRangeTest : public CiliumIntegrationTest {

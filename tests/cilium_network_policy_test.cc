@@ -94,31 +94,118 @@ TEST_F(CiliumNetworkPolicyTest, SimplePolicyUpdate) {
 }
 
 TEST_F(CiliumNetworkPolicyTest, OverlappingPortRange) {
-  EXPECT_THROW_WITH_MESSAGE(updateFromYaml(R"EOF(version_info: "1"
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
   - "10.1.2.3"
   endpoint_id: 42
   ingress_per_port_policies:
+  - port: 23
+    rules:
+    - remote_policies: [ 42 ]
   - port: 80
     rules:
-    - remote_policies: [ 43 ]
+    - remote_policies: [ 44 ]
+  - port: 92
+    rules:
+    - deny: true
   - port: 40
     end_port: 99
     rules:
     - remote_policies: [ 43 ]
-)EOF"),
-                            EnvoyException, "PortNetworkPolicy: Overlapping port range 40-99");
+)EOF"));
 
-  // No ingress is allowed:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80));
+  // Ingress from 42 is allowed on port 23
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 42, 23));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 23));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 23));
+
+  // port 92 is denied from everyone
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 42, 92));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 92));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 92));
+
+  // Ingress from 43 is allowed on all ports of the range:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 39));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 40));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 99));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 100));
+
+  // 44 is only allowed to port 80
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 39));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 40));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 79));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 44, 80));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 81));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 99));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 100));
+
   // No egress is allowed:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 44, 8080));
+
+  // Same with policies added in reverse order
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 40
+    end_port: 99
+    rules:
+    - remote_policies: [ 43 ]
+  - port: 92
+    rules:
+    - deny: true
+  - port: 80
+    rules:
+    - remote_policies: [ 44 ]
+  - port: 23
+    rules:
+    - remote_policies: [ 42 ]
+)EOF"));
+
+  // Ingress from 42 is allowed on port 23
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 42, 23));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 23));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 23));
+
+  // port 92 is denied from everyone
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 42, 92));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 92));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 92));
+
+  // Ingress from 43 is allowed on all ports of the range:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 39));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 40));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 99));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 100));
+
+  // 44 is only allowed to port 80
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 39));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 40));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 79));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 44, 80));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 81));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 99));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 100));
+
+  // No egress is allowed:
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 44, 8080));
 }
 
 TEST_F(CiliumNetworkPolicyTest, OverlappingPortRanges) {
-  EXPECT_THROW_WITH_MESSAGE(updateFromYaml(R"EOF(version_info: "1"
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -132,18 +219,66 @@ resources:
   - port: 4040
     end_port: 9999
     rules:
-    - remote_policies: [ 43 ]
-)EOF"),
-                            EnvoyException, "PortNetworkPolicy: Overlapping port range 4040-9999");
+    - remote_policies: [ 44 ]
+)EOF"));
 
-  // No ingress is allowed:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80));
+  // Ingress from 43 is allowed to ports 80-8080 only:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 10000));
+
   // No egress is allowed:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 44, 8080));
+
+  // Same with policies added in reverse order
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 4040
+    end_port: 9999
+    rules:
+    - remote_policies: [ 44 ]
+  - port: 80
+    end_port: 8080
+    rules:
+    - remote_policies: [ 43 ]
+)EOF"));
+
+  // Ingress from 43 is allowed to ports 80-8080 only:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 10000));
+
+  // No egress is allowed:
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 44, 8080));
 }
 
 TEST_F(CiliumNetworkPolicyTest, DuplicatePorts) {
-  EXPECT_THROW_WITH_MESSAGE(updateFromYaml(R"EOF(version_info: "1"
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -156,17 +291,19 @@ resources:
   - port: 80
     rules:
     - remote_policies: [ 43 ]
-)EOF"),
-                            EnvoyException, "PortNetworkPolicy: Duplicate port number 80");
+)EOF"));
 
-  // No ingress is allowed:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80));
+  // Ingress from 43 is allowed on port 80 only:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 8080));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 80));
   // No egress is allowed:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
 }
 
 TEST_F(CiliumNetworkPolicyTest, DuplicatePortRange) {
-  EXPECT_THROW_WITH_MESSAGE(updateFromYaml(R"EOF(version_info: "1"
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -180,11 +317,16 @@ resources:
   - port: 80
     rules:
     - remote_policies: [ 43 ]
-)EOF"),
-                            EnvoyException, "PortNetworkPolicy: Duplicate port number 80");
+)EOF"));
 
-  // No ingress is allowed:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80));
+  // Ingress is allowed:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8081));
+
   // No egress is allowed:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
 }
@@ -207,7 +349,8 @@ resources:
     rules:
     - remote_policies: [ 43 ]
 )EOF"),
-      EnvoyException, "PortNetworkPolicy: Invalid port range, end port is less than port 80-60");
+      EnvoyException,
+      "PortNetworkPolicy: Invalid port range, end port is less than start port 80-60");
 
   // No ingress is allowed:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80));
@@ -382,8 +525,10 @@ resources:
         - headers:
           - name: ':path'
             exact_match: '/allowed'
-    - remote_policies: [ 43 ]
-      deny: true
+  - port: 80
+    end_port: 10000
+    rules:
+    - deny: true
   egress_per_port_policies:
   - port: 80
     rules:

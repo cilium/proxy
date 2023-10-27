@@ -65,8 +65,8 @@ public:
       const Envoy::Ssl::ContextConfig* config;
       Envoy::Ssl::ContextSharedPtr ctx =
           state_ == Extensions::TransportSockets::Tls::InitialState::Client
-              ? port_policy->getClientTlsContext(remote_id, &config)
-              : port_policy->getServerTlsContext(remote_id, &config);
+              ? port_policy.getClientTlsContext(remote_id, &config)
+              : port_policy.getServerTlsContext(remote_id, &config);
       if (ctx) {
         // create the underlying SslSocket
         socket_ = std::make_unique<Extensions::TransportSockets::Tls::SslSocket>(
