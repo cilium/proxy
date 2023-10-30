@@ -11,7 +11,6 @@
 
 namespace Envoy {
 namespace Cilium {
-namespace {
 
 class CiliumNetworkPolicyTest : public ::testing::Test {
 protected:
@@ -41,6 +40,7 @@ protected:
 
     policy_map_ = std::make_shared<NetworkPolicyMap>(factory_context_);
   }
+
   void TearDown() override {
     ASSERT(policy_map_.use_count() == 1);
     policy_map_.reset();
@@ -54,6 +54,19 @@ protected:
         network_policy_decoder, message.resources(), message.version_info());
     policy_map_->onConfigUpdate(decoded_resources.refvec_, message.version_info());
     return message.version_info();
+  }
+
+  testing::AssertionResult Validate(const std::string& pod_ip, const std::string& expected) {
+    auto& policy = policy_map_->GetPolicyInstance(pod_ip);
+    if (policy == nullptr)
+      return testing::AssertionFailure() << "Policy not found for " << pod_ip;
+    auto str = policy->String();
+    if (str != expected) {
+      return testing::AssertionFailure() << "Policy:\n"
+                                         << str << "Does not match expected:\n"
+                                         << expected;
+    }
+    return testing::AssertionSuccess();
   }
 
   testing::AssertionResult Allowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
@@ -84,6 +97,7 @@ protected:
 
 TEST_F(CiliumNetworkPolicyTest, EmptyPolicyUpdate) {
   EXPECT_NO_THROW(policy_map_->onConfigUpdate({}, "1"));
+  EXPECT_FALSE(Validate("10.1.2.3", "")); // Policy not found
 }
 
 TEST_F(CiliumNetworkPolicyTest, SimplePolicyUpdate) {
@@ -91,6 +105,7 @@ TEST_F(CiliumNetworkPolicyTest, SimplePolicyUpdate) {
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "0"
 )EOF"));
   EXPECT_EQ(version, "0");
+  EXPECT_FALSE(Validate("10.1.2.3", "")); // Policy not found
 }
 
 TEST_F(CiliumNetworkPolicyTest, OverlappingPortRange) {
@@ -104,6 +119,7 @@ resources:
   - port: 23
     rules:
     - remote_policies: [ 42 ]
+    - remote_policies: [ 45 ]
   - port: 80
     rules:
     - remote_policies: [ 44 ]
@@ -115,6 +131,42 @@ resources:
     rules:
     - remote_policies: [ 43 ]
 )EOF"));
+
+  std::string expected = R"EOF(ingress:
+  rules:
+    [23-23]:
+    - rules:
+      - remotes: [42]
+      - remotes: [45]
+    [40-79]:
+    - rules:
+      - remotes: [43]
+    [80-80]:
+    - rules:
+      - remotes: [44]
+    - rules:
+      - remotes: [43]
+    [81-91]:
+    - rules:
+      - remotes: [43]
+    [92-92]:
+    - rules:
+      - remotes: []
+        can_short_circuit: false
+        deny: true
+      can_short_circuit: false
+    - rules:
+      - remotes: [43]
+    [93-99]:
+    - rules:
+      - remotes: [43]
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
 
   // Ingress from 42 is allowed on port 23
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 42, 23));
@@ -169,7 +221,10 @@ resources:
   - port: 23
     rules:
     - remote_policies: [ 42 ]
+    - remote_policies: [ 45 ]
 )EOF"));
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
 
   // Ingress from 42 is allowed on port 23
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 42, 23));
@@ -222,6 +277,27 @@ resources:
     - remote_policies: [ 44 ]
 )EOF"));
 
+  std::string expected = R"EOF(ingress:
+  rules:
+    [80-4039]:
+    - rules:
+      - remotes: [43]
+    [4040-8080]:
+    - rules:
+      - remotes: [43]
+    - rules:
+      - remotes: [44]
+    [8081-9999]:
+    - rules:
+      - remotes: [44]
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
   // Ingress from 43 is allowed to ports 80-8080 only:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
@@ -258,6 +334,28 @@ resources:
     - remote_policies: [ 43 ]
 )EOF"));
 
+  // remotes are in insertion order
+  expected = R"EOF(ingress:
+  rules:
+    [80-4039]:
+    - rules:
+      - remotes: [43]
+    [4040-8080]:
+    - rules:
+      - remotes: [44]
+    - rules:
+      - remotes: [43]
+    [8081-9999]:
+    - rules:
+      - remotes: [44]
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
   // Ingress from 43 is allowed to ports 80-8080 only:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
@@ -293,6 +391,21 @@ resources:
     - remote_policies: [ 43 ]
 )EOF"));
 
+  std::string expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+    - rules:
+      - remotes: [43]
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
   // Ingress from 43 is allowed on port 80 only:
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080));
@@ -318,6 +431,24 @@ resources:
     rules:
     - remote_policies: [ 43 ]
 )EOF"));
+
+  std::string expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+    - rules:
+      - remotes: [43]
+    [81-8080]:
+    - rules:
+      - remotes: [43]
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
 
   // Ingress is allowed:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
@@ -406,6 +537,23 @@ resources:
 )EOF"));
   EXPECT_EQ(version, "1");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+    [4040-9999]:
+    - rules:
+      - remotes: [43]
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
   // Allowed remote ID, port, & path:
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
   // Wrong remote ID:
@@ -447,6 +595,24 @@ resources:
 )EOF"));
   EXPECT_EQ(version, "1");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
   // Allowed remote ID, port, & path:
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
@@ -489,6 +655,31 @@ resources:
 )EOF"));
   EXPECT_EQ(version, "2");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+  wildcard_rules: []
+egress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43,44]
+        http_rules:
+        - headers:
+          - name: ":path"
+            regex: <hidden>
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
   // Allowed remote ID, port, & path:
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
@@ -543,6 +734,42 @@ resources:
 )EOF"));
   EXPECT_EQ(version, "2");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+    - rules:
+      - remotes: []
+        can_short_circuit: false
+        deny: true
+      can_short_circuit: false
+    [81-10000]:
+    - rules:
+      - remotes: []
+        can_short_circuit: false
+        deny: true
+      can_short_circuit: false
+  wildcard_rules: []
+egress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43,44]
+        http_rules:
+        - headers:
+          - name: ":path"
+            regex: <hidden>
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
   // Denied remote ID, port, & path:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
@@ -879,6 +1106,5 @@ resources:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 }
 
-} // namespace
 } // namespace Cilium
 } // namespace Envoy

@@ -120,6 +120,8 @@ public:
   virtual uint32_t getEndpointID() const PURE;
 
   virtual const IPAddressPair& getEndpointIPs() const PURE;
+
+  virtual std::string String() const PURE;
 };
 using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
 

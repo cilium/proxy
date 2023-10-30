@@ -12,6 +12,7 @@
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h"
 
+#include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
 #include "cilium/grpc_subscription.h"
@@ -132,6 +133,27 @@ public:
     return true;
   }
 
+  void toString(int indent, std::string& res) const {
+    res.append(indent - 2, ' ').append("- name: \"").append(name_.get()).append("\"\n");
+    if (value_.length() > 0) {
+      res.append(indent, ' ').append("value: \"").append(value_).append("\"\n");
+    }
+    if (secret_) {
+      res.append(indent, ' ').append("secret: \"").append(secret_->name()).append("\"\n");
+    }
+    const char* match_actions[] = {"CONTINUE", "FAIL", "DELETE", "UNKNOWN"};
+    res.append(indent, ' ')
+        .append("match_action: ")
+        .append(match_actions[std::max(int(match_action_), 3)])
+        .append("\n");
+
+    const char* mismatch_actions[] = {"FAIL", "CONTINUE", "ADD", "DELETE", "REPLACE", "UNKNOWN"};
+    res.append(indent, ' ')
+        .append("mismatch_action: ")
+        .append(mismatch_actions[std::max(int(mismatch_action_), 5)])
+        .append("\n");
+  }
+
   const Http::LowerCaseString name_;
   std::string value_;
   cilium::HeaderMatch::MatchAction match_action_;
@@ -191,6 +213,70 @@ public:
     return accepted;
   }
 
+  void toString(int indent, std::string& res) const {
+    bool first = true;
+    if (headers_.size() > 0) {
+      if (first) {
+        first = false;
+        res.append(indent - 2, ' ').append("- ");
+      } else {
+        res.append(indent, ' ');
+      }
+      res.append("headers:\n");
+      for (auto& h : headers_) {
+        res.append(indent, ' ').append("- name: \"").append(h->name_.get()).append("\"\n");
+        switch (h->header_match_type_) {
+        case Http::HeaderUtility::HeaderMatchType::Value:
+          res.append(indent + 2, ' ').append("value: \"").append(h->value_).append("\"\n");
+          break;
+        case Http::HeaderUtility::HeaderMatchType::Regex:
+          res.append(indent + 2, ' ').append("regex: ").append("<hidden>\n");
+          break;
+        case Http::HeaderUtility::HeaderMatchType::Range:
+          res.append(indent + 2, ' ')
+              .append("range: ")
+              .append(fmt::format("[{}-{})\n", h->range_.start(), h->range_.end()));
+          break;
+        case Http::HeaderUtility::HeaderMatchType::Present:
+          res.append(indent + 2, ' ')
+              .append("present: ")
+              .append(h->present_ ? "true\n" : "false\n");
+          break;
+        case Http::HeaderUtility::HeaderMatchType::Prefix:
+          res.append(indent + 2, ' ').append("prefix: \"").append(h->value_).append("\"\n");
+          break;
+        case Http::HeaderUtility::HeaderMatchType::Suffix:
+          res.append(indent + 2, ' ').append("suffix: \"").append(h->value_).append("\"\n");
+          break;
+        case Http::HeaderUtility::HeaderMatchType::Contains:
+          res.append(indent + 2, ' ').append("contains: \"").append(h->value_).append("\"\n");
+          break;
+        case Http::HeaderUtility::HeaderMatchType::StringMatch:
+          res.append(indent + 2, ' ').append("string_match: ").append("<hidden>\n");
+          break;
+        }
+        if (h->invert_match_) {
+          res.append(indent + 2, ' ').append("invert_match: true\n");
+        }
+        if (h->treat_missing_as_empty_) {
+          res.append(indent + 2, ' ').append("treat_missing_as_empty: true\n");
+        }
+      }
+    }
+    if (header_matches_.size() > 0) {
+      if (first) {
+        first = false;
+        res.append(indent - 2, ' ').append("- ");
+      } else {
+        res.append(indent, ' ');
+      }
+      res.append("header_matches:\n");
+      for (auto& hm : header_matches_) {
+        hm.toString(indent + 2, res);
+      }
+    }
+  }
+
   std::vector<Http::HeaderUtility::HeaderDataPtr> headers_; // Allowed if empty.
   std::vector<HeaderMatch> header_matches_;
 };
@@ -212,6 +298,10 @@ public:
       }
     }
     return true;
+  }
+
+  void toString(int indent, std::string& res) const {
+    res.append(indent - 2, ' ').append("- name: \"").append(name_).append("\"\n");
   }
 
   std::string name_;
@@ -405,12 +495,69 @@ public:
     return nullptr;
   }
 
+  void toString(int indent, std::string& res) const {
+    res.append(indent - 2, ' ').append("- remotes: [");
+    int count = 0;
+    for (auto remote : remotes_) {
+      if (count++ > 0) {
+        res.append(",");
+      }
+      res.append(fmt::format("{}", remote));
+    }
+    res.append("]\n");
+
+    if (name_.length() > 0) {
+      res.append(indent, ' ').append("name: \"").append(name_).append("\"\n");
+    }
+    if (!can_short_circuit_) {
+      res.append(indent, ' ').append("can_short_circuit: false\n");
+    }
+    if (deny_) {
+      res.append(indent, ' ').append("deny: true\n");
+    }
+
+    if (allowed_snis_.size() > 0) {
+      res.append(indent, ' ').append("allowed_snis: [");
+      int count = 0;
+      for (auto& sni : allowed_snis_) {
+        if (count++ > 0) {
+          res.append(",");
+        }
+        res.append(fmt::format("\"{}\"", sni));
+      }
+      res.append("]\n");
+    }
+
+    if (http_rules_.size() > 0) {
+      res.append(indent, ' ').append("http_rules:\n");
+      for (auto& rule : http_rules_) {
+        rule.toString(indent + 2, res);
+      }
+    }
+
+    if (l7_proto_.length() > 0) {
+      res.append(indent, ' ').append("l7_proto: \"").append(l7_proto_).append("\"\n");
+    }
+    if (l7_allow_rules_.size() > 0) {
+      res.append(indent, ' ').append("l7_allow_rules:\n");
+      for (auto& rule : l7_allow_rules_) {
+        rule.toString(indent + 2, res);
+      }
+    }
+    if (l7_deny_rules_.size() > 0) {
+      res.append(indent, ' ').append("l7_deny_rules:\n");
+      for (auto& rule : l7_deny_rules_) {
+        rule.toString(indent + 2, res);
+      }
+    }
+  }
+
   std::string name_;
   DownstreamTLSContextPtr server_context_;
   UpstreamTLSContextPtr client_context_;
   bool can_short_circuit_{true};
   bool deny_;
-  absl::flat_hash_set<uint32_t> remotes_;
+  absl::btree_set<uint32_t> remotes_;
   // Use std::less<> to allow heterogeneous lookups (with string_view).
   std::set<std::string, std::less<>> allowed_snis_; // All SNIs allowed if empty.
   std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
@@ -528,6 +675,16 @@ public:
         return client_context;
     }
     return nullptr;
+  }
+
+  void toString(int indent, std::string& res) const {
+    res.append(indent - 2, ' ').append("- rules:\n");
+    for (auto& rule : rules_) {
+      rule->toString(indent + 2, res);
+    }
+    if (!can_short_circuit_) {
+      res.append(indent, ' ').append(fmt::format("can_short_circuit: false\n"));
+    }
   }
 
   std::vector<PortNetworkPolicyRuleConstSharedPtr> rules_; // Allowed if empty.
@@ -815,6 +972,29 @@ public:
     return PortPolicy(rules_, wildcard_rules_, port);
   }
 
+  void toString(int indent, std::string& res) const {
+    if (rules_.size() == 0) {
+      res.append(indent, ' ').append("rules: []\n");
+    } else {
+      res.append(indent, ' ').append("rules:\n");
+      for (auto entry : rules_) {
+        res.append(indent + 2, ' ')
+            .append(fmt::format("[{}-{}]:\n", entry.first.first, entry.first.second));
+        for (auto rule : entry.second) {
+          rule.toString(indent + 4, res);
+        }
+      }
+    }
+    if (wildcard_rules_.size() == 0) {
+      res.append(indent, ' ').append("wildcard_rules: []\n");
+    } else {
+      res.append(indent, ' ').append("wildcard_rules:\n");
+      for (auto rule : wildcard_rules_) {
+        rule.toString(indent + 2, res);
+      }
+    }
+  }
+
   PolicyMap rules_;
   RulesList wildcard_rules_{};
 };
@@ -858,6 +1038,15 @@ public:
   uint32_t getEndpointID() const override { return endpoint_id_; }
 
   const IPAddressPair& getEndpointIPs() const override { return endpoint_ips_; }
+
+  std::string String() const override {
+    std::string res;
+    res.append("ingress:\n");
+    ingress_.toString(2, res);
+    res.append("egress:\n");
+    egress_.toString(2, res);
+    return res;
+  }
 
 public:
   std::string conntrack_map_name_;
@@ -1191,6 +1380,8 @@ public:
   uint32_t getEndpointID() const override { return 0; }
 
   const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
+
+  std::string String() const override { return "AllowAllEgressPolicyInstanceImpl"; }
 
 private:
   PolicyMap empty_map_;
