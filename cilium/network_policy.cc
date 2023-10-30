@@ -811,17 +811,6 @@ public:
     }
   }
 
-  bool allowed(uint32_t remote_id, uint16_t port, Envoy::Http::RequestHeaderMap& headers,
-               Cilium::AccessLog::Entry& log_entry) const {
-    auto range = findPortPolicy(port);
-    return range.allowed(remote_id, headers, log_entry);
-  }
-
-  bool allowed(uint32_t remote_id, absl::string_view sni, uint16_t port) const {
-    auto range = findPortPolicy(port);
-    return range.allowed(remote_id, sni);
-  }
-
   const PortPolicy findPortPolicy(uint16_t port) const {
     return PortPolicy(rules_, wildcard_rules_, port);
   }
@@ -844,13 +833,14 @@ public:
   bool allowed(bool ingress, uint32_t remote_id, uint16_t port,
                Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const override {
-    return ingress ? ingress_.allowed(remote_id, port, headers, log_entry)
-                   : egress_.allowed(remote_id, port, headers, log_entry);
+    const auto port_policy = findPortPolicy(ingress, port);
+    return port_policy.allowed(remote_id, headers, log_entry);
   }
 
   bool allowed(bool ingress, uint32_t remote_id, absl::string_view sni,
                uint16_t port) const override {
-    return ingress ? ingress_.allowed(remote_id, sni, port) : egress_.allowed(remote_id, sni, port);
+    const auto port_policy = findPortPolicy(ingress, port);
+    return port_policy.allowed(remote_id, sni);
   }
 
   const PortPolicy findPortPolicy(bool ingress, uint16_t port) const override {
