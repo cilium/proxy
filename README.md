@@ -112,8 +112,23 @@ to `default`.
 > `DOCKER_DEV_ACCOUNT=docker.io/me` for your own docker hub account.
 > You can also request the build results to be output to your local
 > directory instead by defining `DOCKER_BUILD_OPTS=--output=out`,
-> where `out` is a local directory name.
+> where `out` is a local directory name or use 
+> `DOCKER_BUILD_OPTS="--output=type=docker"` to load it into the
+> local Docker daemon.
 
+#### Building for the Raspberry Pi kernel
+
+By default Raspberry Pi OS and other OSes using the 
+[Raspberry Pi kernel](https://github.com/raspberrypi/linux) will
+not be able to use Envoy as their default `CONFIG_ARM64_VA_BITS_39`
+configuration [is not compatible with tcmalloc](https://github.com/raspberrypi/linux/issues/4375).
+
+A workaround is to compile the Envoy proxy with `gperftools`: 
+```
+ARCH=arm64 BAZEL_BUILD_OPTS="--define tcmalloc=gperftools" make docker-image-envoy
+```
+
+This image can then be used in the [Envoy DaemonSet mode](https://docs.cilium.io/en/stable/security/network/proxy/envoy/#enable-and-configure-envoy-daemonset).
 
 ### Using custom pre-compiled Envoy dependencies
 
