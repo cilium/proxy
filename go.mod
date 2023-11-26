@@ -1,6 +1,6 @@
 module github.com/cilium/proxy
 
-go 1.20
+go 1.21
 
 require (
 	github.com/census-instrumentation/opencensus-proto v0.3.0
