@@ -40,3 +40,14 @@ RUN export BAZEL_VERSION=$(cat .bazelversion) \
 	&& ARCH=$TARGETARCH && [ "$ARCH" != "amd64" ] || ARCH="x86_64" \
 	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
 	&& chmod +x /usr/bin/bazel
+
+#
+# Install Go
+#
+# renovate: datasource=golang-version depName=go
+RUN export GO_VERSION=1.21.4 \
+	&& curl -sfL https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz -o go.tar.gz \
+	&& tar -C /usr/local -xzf go.tar.gz \
+	&& rm go.tar.gz \
+	&& export PATH=$PATH:/usr/local/go/bin \
+	&& go version
