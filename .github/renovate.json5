@@ -102,7 +102,7 @@
       ]
     },
     {
-      "groupName": "go 1.20.x",
+      "groupName": "go 1.21.x",
       "matchFileNames": [
         ".github/workflows/**",
       ],
