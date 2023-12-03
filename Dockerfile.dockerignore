@@ -10,7 +10,6 @@
 /bazel-*
 /cilium-envoy
 /cilium-envoy-starter
-/Dockerfile.istio_proxy
 /Dockerfile.builder-refresh
 **/*~
 /external
@@ -28,7 +27,6 @@
 /Dockerfile*
 /Makefile.docker
 /README*
-/envoy_bootstrap_v2.patch
 /tests/
 /Makefile.api
 /envoy_binary_test.sh

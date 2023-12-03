@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-ISTIO_VERSION = $(shell grep "ARG ISTIO_VERSION=" Dockerfile.istio_proxy | cut -d = -f2)
-
 # Always use buildx
 DOCKER := $(QUIET)DOCKER_BUILDKIT=1 docker buildx
 
@@ -166,7 +164,6 @@ GIT_IGNORE_FILES := $(shell find -H . -not -path "./_build*" -not -path "./vendo
 	echo "/Dockerfile*" >>$@
 	echo "/Makefile.docker" >>$@
 	echo "/README*" >>$@
-	echo "/envoy_bootstrap_v2.patch" >>$@
 
 .PHONY: docker-image-builder
 docker-image-builder: Dockerfile.builder SOURCE_VERSION Dockerfile.builder.dockerignore
@@ -214,9 +211,3 @@ endif
 docker-image-envoy: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
 	@$(ECHO_GEN) docker-image-envoy
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILD_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" $(DOCKER_IMAGE_ENVOY_TAGS) .
-
-docker-istio-proxy: Dockerfile.istio_proxy envoy_bootstrap_tmpl.json
-	@$(ECHO_GEN) docker-istio-proxy
-	$(DOCKER) build --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" -f $< -t cilium/istio_proxy:$(ISTIO_VERSION) .
-	$(QUIET)echo "Push like this when ready:"
-	$(QUIET)echo "docker push cilium/istio_proxy:$(ISTIO_VERSION)"
