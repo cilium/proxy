@@ -8,6 +8,10 @@ LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
 # Setup TimeZone to prevent tzdata package asking for it interactively
 ENV TZ=Etc/UTC
+
+# renovate: datasource=golang-version depName=go
+ENV GO_VERSION=1.21.5
+
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
@@ -44,9 +48,7 @@ RUN export BAZEL_VERSION=$(cat .bazelversion) \
 #
 # Install Go
 #
-# renovate: datasource=golang-version depName=go
-RUN export GO_VERSION=1.21.4 \
-	&& curl -sfL https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz -o go.tar.gz \
+RUN curl -sfL https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz -o go.tar.gz \
 	&& tar -C /usr/local -xzf go.tar.gz \
 	&& rm go.tar.gz \
 	&& export PATH=$PATH:/usr/local/go/bin \
