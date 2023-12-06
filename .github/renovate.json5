@@ -151,6 +151,12 @@
       "matchStrings": [
         "envoy-(?<currentValue>.*)"
       ]
+    },
+    {
+      "fileMatch": ["^Dockerfile.builder$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?\\sENV .*?_VERSION=(?<currentValue>.*)\\s"
+      ]
     }
   ]
 }
