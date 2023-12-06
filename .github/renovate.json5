@@ -82,6 +82,19 @@
       ]
     },
     {
+      "matchFileNames": [
+        "Dockerfile.builder",
+      ],
+      "matchPackageNames": [
+        "go"
+      ],
+      "allowedVersions": "<=1.21",
+      "matchBaseBranches": [
+        "main",
+        "v1.26",
+      ]
+    },
+    {
       "groupName": "envoy 1.27.x",
       "matchDepNames": [
         "envoyproxy/envoy"
@@ -109,7 +122,7 @@
       "matchPackageNames": [
         "go"
       ],
-      "allowedVersions": "<=1.20",
+      "allowedVersions": "<=1.21",
       "matchBaseBranches": [
         "main",
         "v1.26",
@@ -127,6 +140,7 @@
       "allowedVersions": "<=1.21",
       "matchBaseBranches": [
         "main",
+        "v1.26",
       ]
     }
   ],
