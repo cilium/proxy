@@ -337,7 +337,7 @@ EXTENSIONS = {
     # HTTP header formatters
     #
 
-    # "envoy.http.stateful_header_formatters.preserve_case":       "//source/extensions/http/header_formatters/preserve_case:config",
+    "envoy.http.stateful_header_formatters.preserve_case": "//source/extensions/http/header_formatters/preserve_case:config",
 
     #
     # Original IP detection
