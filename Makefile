@@ -15,6 +15,7 @@
 include Makefile.defs
 
 COMPILER_DEP := clang.bazelrc
+FIPS_MODE ?= true
 
 ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy cilium-envoy-starter bazel-bin/cilium-envoy-starter
 ENVOY_TESTS = bazel-bin/tests/*_test
@@ -52,7 +53,8 @@ endif
 
 # Extra opts are passed to docker targets, which will choose the bazel platform themselves
 EXTRA_BAZEL_BUILD_OPTS := $(BAZEL_BUILD_OPTS)
-BAZEL_PLATFORM := //bazel:linux_$(subst amd64,x86_64,$(subst arm64,aarch64,$(TARGETARCH)))
+BAZEL_ARCH := $(subst amd64,x86_64,$(subst arm64,aarch64,$(TARGETARCH)))
+BAZEL_PLATFORM := //bazel:linux_$(BAZEL_ARCH)
 $(info BUILDING on $(BUILDARCH) for $(TARGETARCH) using $(BAZEL_PLATFORM))
 BAZEL_BUILD_OPTS += --platforms=$(BAZEL_PLATFORM)
 
@@ -60,6 +62,12 @@ ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
 else
   BAZEL_BUILD_OPTS += --config=release
+endif
+
+ifeq ($(FIPS_MODE),true)
+  ifeq ($(BAZEL_ARCH),x86_64)
+    BAZEL_BUILD_OPTS += --define boringssl=fips
+  endif
 endif
 
 include Makefile.dev
