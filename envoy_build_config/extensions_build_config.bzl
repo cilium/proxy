@@ -177,7 +177,7 @@ EXTENSIONS = {
     # "envoy.filters.listener.original_src":              "//source/extensions/filters/listener/original_src:config",
     # NOTE: The proxy_protocol filter is implicitly loaded if proxy_protocol functionality is
     #       configured on the listener. Do not remove it in that case or configs will fail to load.
-    # "envoy.filters.listener.proxy_protocol":            "//source/extensions/filters/listener/proxy_protocol:config",
+    "envoy.filters.listener.proxy_protocol": "//source/extensions/filters/listener/proxy_protocol:config",
     "envoy.filters.listener.tls_inspector": "//source/extensions/filters/listener/tls_inspector:config",
 
     #
