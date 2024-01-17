@@ -108,7 +108,7 @@ COPY --from=check-format /cilium/proxy/format-output.txt /
 #
 # Extract installed cilium-envoy binaries to an otherwise empty image
 #
-FROM docker.io/library/ubuntu:22.04@sha256:a2bbdf79d03f6d4171bbd6ebb4782f6229375951987d3427ec3d9373f9841cd7
+FROM docker.io/library/ubuntu:22.04@sha256:e6173d4dc55e76b87c4af8db8821b1feae4146dd47341e4d431118c7dd060a74
 LABEL maintainer="maintainer@cilium.io"
 # install ca-certificates package
 RUN apt-get update && apt-get upgrade -y \
