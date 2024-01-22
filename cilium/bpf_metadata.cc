@@ -43,7 +43,8 @@ public:
     std::shared_ptr<Envoy::Network::Socket::Options> options =
         std::make_shared<Envoy::Network::Socket::Options>();
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
-    options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+    options->push_back(
+        std::make_shared<Cilium::SocketMarkOption>(mark, 0, config->enable_reuse_port_));
     context.addListenSocketOptions(options);
 
     return [listener_filter_matcher,
@@ -112,7 +113,8 @@ Config::Config(const ::cilium::BpfMetadata& config,
           Network::Utility::parseInternetAddressNoThrow(config.ipv4_source_address())),
       ipv6_source_address_(
           Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address())),
-      enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()) {
+      enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()),
+      enable_reuse_port_(config.enable_reuse_port()) {
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -422,7 +424,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   socket.addOption(std::make_shared<Cilium::SocketOption>(
       policy, mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(ipv4_source_address),
-      std::move(ipv6_source_address), shared_from_this(), proxy_id_));
+      std::move(ipv6_source_address), shared_from_this(), proxy_id_, enable_reuse_port_));
   return true;
 }
 

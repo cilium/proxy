@@ -44,4 +44,11 @@ message BpfMetadata {
   // proxy_id is passed to access log messages and allows relating access log messages to
   // listeners.
   uint32 proxy_id = 8;
+
+  // When this flag is set to true, listeners set the “SO_REUSEPORT“ socket option and
+  // create one socket for each worker thread. This makes inbound connections
+  // distribute among worker threads roughly evenly in cases where there are a high number
+  // of connections. When this flag is set to false, all worker threads share one socket. This field
+  // defaults to true.
+  bool enable_reuse_port = 9;
 }

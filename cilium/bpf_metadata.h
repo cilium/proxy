@@ -43,6 +43,7 @@ public:
   Network::Address::InstanceConstSharedPtr ipv4_source_address_;
   Network::Address::InstanceConstSharedPtr ipv6_source_address_;
   bool enforce_policy_on_l7lb_;
+  bool enable_reuse_port_;
 
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
   Cilium::CtMapSharedPtr ct_maps_{};

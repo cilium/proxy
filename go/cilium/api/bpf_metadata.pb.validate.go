@@ -73,6 +73,8 @@ func (m *BpfMetadata) validate(all bool) error {
 
 	// no validation rules for ProxyId
 
+	// no validation rules for EnableReusePort
+
 	if len(errors) > 0 {
 		return BpfMetadataMultiError(errors)
 	}
