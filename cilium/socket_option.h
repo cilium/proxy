@@ -29,11 +29,13 @@ public:
   SocketMarkOption(uint32_t mark, uint32_t identity,
                    Network::Address::InstanceConstSharedPtr original_source_address = nullptr,
                    Network::Address::InstanceConstSharedPtr ipv4_source_address = nullptr,
-                   Network::Address::InstanceConstSharedPtr ipv6_source_address = nullptr)
+                   Network::Address::InstanceConstSharedPtr ipv6_source_address = nullptr,
+                   bool enable_reuse_port = true)
       : identity_(identity), mark_(mark),
         original_source_address_(std::move(original_source_address)),
         ipv4_source_address_(std::move(ipv4_source_address)),
-        ipv6_source_address_(std::move(ipv6_source_address)) {}
+        ipv6_source_address_(std::move(ipv6_source_address)),
+        enable_reuse_port_(enable_reuse_port) {}
 
   absl::optional<Network::Socket::Option::Details>
   getOptionDetails(const Network::Socket&,
@@ -135,11 +137,14 @@ public:
                   Envoy::errorDetails(status.errno_));
         return false;
       }
-      status = socket.setSocketOption(SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
-      if (status.return_value_ < 0) {
-        ENVOY_LOG(critical, "Failed to set socket option SO_REUSEPORT: {}",
-                  Envoy::errorDetails(status.errno_));
-        return false;
+
+      if (enable_reuse_port_) {
+        status = socket.setSocketOption(SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+        if (status.return_value_ < 0) {
+          ENVOY_LOG(critical, "Failed to set socket option SO_REUSEPORT: {}",
+                    Envoy::errorDetails(status.errno_));
+          return false;
+        }
       }
     }
 
@@ -200,6 +205,8 @@ public:
   // connecting to IPv6 or IPv4 address, respectively.
   Network::Address::InstanceConstSharedPtr ipv4_source_address_;
   Network::Address::InstanceConstSharedPtr ipv6_source_address_;
+
+  bool enable_reuse_port_;
 };
 
 class SocketOption : public SocketMarkOption {
@@ -210,21 +217,22 @@ public:
                Network::Address::InstanceConstSharedPtr original_source_address,
                Network::Address::InstanceConstSharedPtr ipv4_source_address,
                Network::Address::InstanceConstSharedPtr ipv6_source_address,
-               const std::shared_ptr<PolicyResolver>& policy_id_resolver, uint32_t proxy_id)
+               const std::shared_ptr<PolicyResolver>& policy_id_resolver, uint32_t proxy_id,
+               bool enable_reuse_port)
       : SocketMarkOption(mark, source_identity, original_source_address, ipv4_source_address,
-                         ipv6_source_address),
+                         ipv6_source_address, enable_reuse_port),
         ingress_source_identity_(ingress_source_identity), initial_policy_(policy),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
         proxy_id_(proxy_id), policy_id_resolver_(policy_id_resolver) {
     ENVOY_LOG(debug,
               "Cilium SocketOption(): source_identity: {}, "
               "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {:x} (magic "
-              "mark: {:x}, cluster: {}, ID: {}), proxy_id: {}",
+              "mark: {:x}, cluster: {}, ID: {}), proxy_id: {}, enable_reuse_port: {}",
               identity_, ingress_, port_, pod_ip_,
               original_source_address_ ? original_source_address_->asString() : "",
               ipv4_source_address_ ? ipv4_source_address_->asString() : "",
               ipv6_source_address_ ? ipv6_source_address_->asString() : "", mark_, mark & 0xff00,
-              mark & 0xff, mark >> 16, proxy_id_);
+              mark & 0xff, mark >> 16, proxy_id_, enable_reuse_port_);
     ASSERT(initial_policy_ != nullptr);
   }
 
