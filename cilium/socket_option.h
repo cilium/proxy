@@ -84,13 +84,15 @@ public:
         source_address = ipv4_source_address_;
       }
     }
+
+    uint32_t one = 1;
+
     // identity is zero for the listener socket itself, set transparent and reuse options also for
     // the listener socket.
     if (source_address || identity_ == 0) {
       // Allow reuse of the original source address. This may by needed for
       // retries to not fail on "address already in use" when using a specific
       // source address and port.
-      uint32_t one = 1;
 
       // Set ip transparent option based on the socket address family
       if (*ipVersion == Network::Address::IpVersion::v4) {
@@ -135,6 +137,13 @@ public:
                   Envoy::errorDetails(status.errno_));
         return false;
       }
+    }
+
+    if (identity_ != 0) {
+      // Set SO_REUSEPORT socket option for forwarded client connections.
+      // The same option on the listener socket is controlled via the Envoy Listener option
+      // enable_reuse_port.
+      ENVOY_LOG(trace, "Set socket ({}) option SO_REUSEPORT", socket.ioHandle().fdDoNotUse());
       status = socket.setSocketOption(SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
       if (status.return_value_ < 0) {
         ENVOY_LOG(critical, "Failed to set socket option SO_REUSEPORT: {}",
