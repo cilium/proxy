@@ -9,6 +9,8 @@
     ".github/workflows/**",
     "Dockerfile",
     "Dockerfile.builder",
+    "go.mod",
+    "go.sum",
     "WORKSPACE",
     "ENVOY_VERSION"
   ],
@@ -27,7 +29,52 @@
     "kind/enhancement",
     "release-note/misc"
   ],
+  postUpdateOptions: [
+    "gomodTidy"
+  ],
   "packageRules": [
+    {
+      "groupName": "all go dependencies main",
+      "groupSlug": "all-go-deps-main",
+      "matchFiles": [
+        "go.mod",
+        "go.sum"
+      ],
+      "postUpdateOptions": [
+        // update source import paths on major updates
+        "gomodUpdateImportPaths"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "digest",
+        "patch",
+        "pin",
+        "pinDigest"
+      ],
+      matchBaseBranches: [
+        "main"
+      ]
+    },
+    {
+      "groupName": "all go dependencies stable",
+      "groupSlug": "all-go-deps-stable",
+      "matchFiles": [
+        "go.mod",
+        "go.sum"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "digest",
+        "patch",
+        "pin",
+        "pinDigest"
+      ],
+      matchBaseBranches: [
+        "v1.26",
+        "v1.27"
+      ]
+    },
     {
       "groupName": "all github action dependencies",
       "groupSlug": "all-github-action",
