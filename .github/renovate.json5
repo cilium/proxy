@@ -146,11 +146,11 @@
       ]
     },
     {
-      "groupName": "envoy 1.27.x",
+      "groupName": "envoy 1.28.x",
       "matchDepNames": [
         "envoyproxy/envoy"
       ],
-      "allowedVersions": "<=1.27",
+      "allowedVersions": "<=1.28",
       "matchBaseBranches": [
         "main"
       ]
