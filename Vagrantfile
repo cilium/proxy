@@ -6,7 +6,7 @@ $VM_CPUS = (ENV['VM_CPUS'] || 4)
 # Requires `vagrant plugin install vagrant-disksize`
 $VM_DISK = (ENV['VM_DISK'] || "100GB")
 
-$GO_VERSION = (ENV['GO_VERSION'] || "1.21.4")
+$GO_VERSION = (ENV['GO_VERSION'] || "1.22.0")
 
 ## Some inline scripts for installation
 $go_install = <<-'SCRIPT'

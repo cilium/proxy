@@ -138,9 +138,20 @@
       "matchPackageNames": [
         "go"
       ],
-      "allowedVersions": "<=1.21",
+      "allowedVersions": "<=1.22",
       "matchBaseBranches": [
         "main",
+      ]
+    },
+    {
+      "matchFileNames": [
+        "Dockerfile.builder",
+      ],
+      "matchPackageNames": [
+        "go"
+      ],
+      "allowedVersions": "<=1.21",
+      "matchBaseBranches": [
         "v1.26",
         "v1.27",
       ]
@@ -176,6 +187,19 @@
       ]
     },
     {
+      "groupName": "go 1.22.x",
+      "matchFileNames": [
+        ".github/workflows/**",
+      ],
+      "matchPackageNames": [
+        "go"
+      ],
+      "allowedVersions": "<=1.22",
+      "matchBaseBranches": [
+        "main",
+      ]
+    },
+    {
       "groupName": "go 1.21.x",
       "matchFileNames": [
         ".github/workflows/**",
@@ -185,12 +209,24 @@
       ],
       "allowedVersions": "<=1.21",
       "matchBaseBranches": [
-        "main",
         "v1.26",
         "v1.27",
       ]
     },
     // Pin go version of cilium integration tests to go version of cilium/cilium
+    {
+      "groupName": "cilium integration test go 1.22.x",
+      "matchFileNames": [
+        ".github/workflows/cilium-integration-tests.yaml",
+      ],
+      "matchPackageNames": [
+        "go"
+      ],
+      "allowedVersions": "<=1.22",
+      "matchBaseBranches": [
+        "main",
+      ]
+    },
     {
       "groupName": "cilium integration test go 1.21.x",
       "matchFileNames": [
@@ -201,7 +237,6 @@
       ],
       "allowedVersions": "<=1.21",
       "matchBaseBranches": [
-        "main",
         "v1.26",
         "v1.27",
       ]
