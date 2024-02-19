@@ -20,6 +20,13 @@ adding the callback, as the calls to the callbacks are only ever be
 done from the router filter in the same filter chain.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ envoy/http/filter.h                      | 30 ++++++++++++++++++++++++
+ source/common/http/async_client_impl.h   |  5 ++++
+ source/common/http/filter_manager.cc     | 22 +++++++++++++++++
+ source/common/http/filter_manager.h      |  8 +++++++
+ source/common/router/upstream_request.cc |  9 +++++++
+ 5 files changed, 74 insertions(+)
 
 diff --git a/envoy/http/filter.h b/envoy/http/filter.h
 index 88123f71b2..7b529bec55 100644
@@ -70,10 +77,10 @@ index 88123f71b2..7b529bec55 100644
  
  /**
 diff --git a/source/common/http/async_client_impl.h b/source/common/http/async_client_impl.h
-index b55a169101..0dfb0f5bcb 100644
+index c3849b092f..f66d5cd9ef 100644
 --- a/source/common/http/async_client_impl.h
 +++ b/source/common/http/async_client_impl.h
-@@ -486,6 +486,11 @@ private:
+@@ -258,6 +258,11 @@ private:
                                  StreamInfo::StreamInfo&) override {
      return true;
    }
@@ -86,10 +93,10 @@ index b55a169101..0dfb0f5bcb 100644
    // ScopeTrackedObject
    void dumpState(std::ostream& os, int indent_level) const override {
 diff --git a/source/common/http/filter_manager.cc b/source/common/http/filter_manager.cc
-index 2190b0b2fe..5a2dc09b60 100644
+index 5c46a28091..2d5a2d9983 100644
 --- a/source/common/http/filter_manager.cc
 +++ b/source/common/http/filter_manager.cc
-@@ -1500,6 +1500,19 @@ bool FilterManager::createFilterChain() {
+@@ -1539,6 +1539,19 @@ bool FilterManager::createFilterChain() {
    return !upgrade_rejected;
  }
  
@@ -109,8 +116,8 @@ index 2190b0b2fe..5a2dc09b60 100644
  void ActiveStreamDecoderFilter::requestDataDrained() {
    // If this is called it means the call to requestDataTooLarge() was a
    // streaming call, or a 413 would have been sent.
-@@ -1726,5 +1739,14 @@ bool ActiveStreamDecoderFilter::iterateUpstreamCallbacks(Upstream::HostDescripti
- 
+@@ -1765,5 +1778,14 @@ bool ActiveStreamDecoderFilter::iterateUpstreamCallbacks(Upstream::HostDescripti
+
  }
  
 +void ActiveStreamDecoderFilter::addUpstreamCallback(const UpstreamCallback& cb) {
@@ -125,10 +132,10 @@ index 2190b0b2fe..5a2dc09b60 100644
  } // namespace Http
  } // namespace Envoy
 diff --git a/source/common/http/filter_manager.h b/source/common/http/filter_manager.h
-index 3fc168de60..149fa39049 100644
+index 3329051489..207de4faab 100644
 --- a/source/common/http/filter_manager.h
 +++ b/source/common/http/filter_manager.h
-@@ -242,6 +242,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
+@@ -243,6 +243,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
    absl::optional<absl::string_view> upstreamOverrideHost() const override;
    bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr host,
                                  StreamInfo::StreamInfo& stream_info) override;
@@ -138,7 +145,7 @@ index 3fc168de60..149fa39049 100644
  
    // Each decoder filter instance checks if the request passed to the filter is gRPC
    // so that we can issue gRPC local responses to gRPC requests. Filter's decodeHeaders()
-@@ -987,6 +990,9 @@ private:
+@@ -993,6 +996,9 @@ private:
      return request_metadata_map_vector_.get();
    }
  
@@ -148,7 +155,7 @@ index 3fc168de60..149fa39049 100644
    FilterManagerCallbacks& filter_manager_callbacks_;
    Event::Dispatcher& dispatcher_;
    // This is unset if there is no downstream connection, e.g. for health check or
-@@ -996,6 +1002,8 @@ private:
+@@ -1002,6 +1008,8 @@ private:
    Buffer::BufferMemoryAccountSharedPtr account_;
    const bool proxy_100_continue_;
  
@@ -158,10 +165,10 @@ index 3fc168de60..149fa39049 100644
    std::list<ActiveStreamEncoderFilterPtr> encoder_filters_;
    std::list<StreamFilterBase*> filters_;
 diff --git a/source/common/router/upstream_request.cc b/source/common/router/upstream_request.cc
-index 630465d000..e9a8c7601e 100644
+index 5ba6402235..dc1be68e2d 100644
 --- a/source/common/router/upstream_request.cc
 +++ b/source/common/router/upstream_request.cc
-@@ -663,6 +663,20 @@ void UpstreamRequest::onPoolReady(std::unique_ptr<GenericUpstream>&& upstream,
+@@ -673,6 +673,15 @@ void UpstreamRequest::onPoolReady(std::unique_ptr<GenericUpstream>&& upstream,
      upstreamLog(AccessLog::AccessLogType::UpstreamPoolReady);
    }
  
@@ -174,14 +181,9 @@ index 630465d000..e9a8c7601e 100644
 +    return;
 +  }
 +
-+  for (auto* callback : upstream_callbacks_) {
-+    callback->onUpstreamConnectionEstablished();
-+    return;
-+  }
-+
    if (address_provider.connectionID() && stream_info_.downstreamAddressProvider().connectionID()) {
      ENVOY_LOG(debug, "Attached upstream connection [C{}] to downstream connection [C{}]",
                address_provider.connectionID().value(),
--- 
-2.41.0
+--
+2.43.2
 
