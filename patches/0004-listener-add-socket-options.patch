@@ -1,13 +1,14 @@
-From 6a019393de48e83654a850dfb2de4f68f12a2fc8 Mon Sep 17 00:00:00 2001
+From 026db3df1e9a95dd7639386af684d43aea7a00f0 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 14 Aug 2023 10:01:21 +0300
-Subject: [PATCH 4/4] Revert "listener: keep ListenerFactoryContext small
- (#7528)"
+Subject: [PATCH 4/4] listener: add socket options
 
 This reverts commit 170c89eb0b2afb7a39d44d0f8dfb77444ffc038f.
 
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+
 diff --git a/envoy/server/factory_context.h b/envoy/server/factory_context.h
-index 6384230c57..ec9c6aec4f 100644
+index e665289120..49330e3525 100644
 --- a/envoy/server/factory_context.h
 +++ b/envoy/server/factory_context.h
 @@ -309,6 +309,11 @@ public:
@@ -23,10 +24,10 @@ index 6384230c57..ec9c6aec4f 100644
     * Give access to the listener configuration
     */
 diff --git a/source/extensions/listener_managers/listener_manager/listener_impl.cc b/source/extensions/listener_managers/listener_manager/listener_impl.cc
-index 51b42225f5..420699c42a 100644
+index de199ffe5a..a7b7aa9f84 100644
 --- a/source/extensions/listener_managers/listener_manager/listener_impl.cc
 +++ b/source/extensions/listener_managers/listener_manager/listener_impl.cc
-@@ -912,6 +912,9 @@ envoy::config::core::v3::TrafficDirection PerListenerFactoryContextImpl::directi
+@@ -920,6 +920,9 @@ envoy::config::core::v3::TrafficDirection PerListenerFactoryContextImpl::directi
    return listener_factory_context_base_->direction();
  };
  TimeSource& PerListenerFactoryContextImpl::timeSource() { return api().timeSource(); }
@@ -37,10 +38,10 @@ index 51b42225f5..420699c42a 100644
    return *listener_config_;
  }
 diff --git a/source/extensions/listener_managers/listener_manager/listener_impl.h b/source/extensions/listener_managers/listener_manager/listener_impl.h
-index e19db92d4c..b26af02403 100644
+index 08808e1529..a8e88d21cd 100644
 --- a/source/extensions/listener_managers/listener_manager/listener_impl.h
 +++ b/source/extensions/listener_managers/listener_manager/listener_impl.h
-@@ -241,6 +241,7 @@ public:
+@@ -240,6 +240,7 @@ public:
    bool isQuicListener() const override;
  
    // ListenerFactoryContext
@@ -48,7 +49,7 @@ index e19db92d4c..b26af02403 100644
    const Network::ListenerConfig& listenerConfig() const override;
  
    ListenerFactoryContextBaseImpl& parentFactoryContext() { return *listener_factory_context_base_; }
-@@ -386,6 +387,13 @@ public:
+@@ -385,6 +386,13 @@ public:
      return config().traffic_direction();
    }
  
@@ -63,7 +64,7 @@ index e19db92d4c..b26af02403 100644
      if (options == nullptr) {
        options = std::make_shared<std::vector<Network::Socket::OptionConstSharedPtr>>();
 diff --git a/test/mocks/server/factory_context.h b/test/mocks/server/factory_context.h
-index e1327228eb..db110d263e 100644
+index 756160cb1c..93bd55a339 100644
 --- a/test/mocks/server/factory_context.h
 +++ b/test/mocks/server/factory_context.h
 @@ -46,6 +46,7 @@ public:
