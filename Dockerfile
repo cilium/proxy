@@ -14,6 +14,8 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.1.0-latest
 #
 ARG ARCHIVE_IMAGE=builder-fresh
 
+ARG BASE_IMAGE=docker.io/library/ubuntu:22.04@sha256:f9d633ff6640178c2d0525017174a688e2c1aef28f0a0130b26bd5554491f0da
+
 FROM --platform=$BUILDPLATFORM $BUILDER_BASE as proxylib
 WORKDIR /go/src/github.com/cilium/proxy
 COPY --chown=1337:1337 . ./
@@ -108,7 +110,7 @@ COPY --from=check-format /cilium/proxy/format-output.txt /
 #
 # Extract installed cilium-envoy binaries to an otherwise empty image
 #
-FROM docker.io/library/ubuntu:22.04@sha256:f9d633ff6640178c2d0525017174a688e2c1aef28f0a0130b26bd5554491f0da
+FROM ${BASE_IMAGE} as release
 LABEL maintainer="maintainer@cilium.io"
 # install ca-certificates package
 RUN apt-get update && apt-get upgrade -y \
@@ -117,3 +119,6 @@ RUN apt-get update && apt-get upgrade -y \
     && rm -rf /tmp/* /var/tmp/* \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /tmp/install /
+
+# use uid:gid for the nonroot user for compatibility with runAsNonRoot
+USER 1337:1337
