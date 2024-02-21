@@ -1,4 +1,4 @@
-From c22e7ed504dcf2e70d4a8d151fb988e8bb2cca76 Mon Sep 17 00:00:00 2001
+From 736655de694fc2100ec9a752a4e2136ceb5339e9 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Tue, 27 Sep 2022 15:51:46 +0300
 Subject: [PATCH 3/4] tcp_proxy: Add filter state proxy_read_before_connect
@@ -153,10 +153,10 @@ index 41697d2f0d..41f02eaf51 100644
  
  // This class deals with an upstream connection that needs to finish flushing, when the downstream
 diff --git a/test/integration/BUILD b/test/integration/BUILD
-index 6b33bb785b..058025c829 100644
+index d666674781..08eee106e2 100644
 --- a/test/integration/BUILD
 +++ b/test/integration/BUILD
-@@ -1755,6 +1755,7 @@ envoy_cc_test(
+@@ -1757,6 +1757,7 @@ envoy_cc_test(
          "//source/common/event:dispatcher_includes",
          "//source/common/event:dispatcher_lib",
          "//source/common/network:utility_lib",
@@ -288,5 +288,5 @@ index 8445d2f762..6ebeab02b2 100644
  
  INSTANTIATE_TEST_SUITE_P(TcpProxyIntegrationTestParams, TcpProxySslIntegrationTest,
 -- 
-2.39.2
+2.41.0
 
