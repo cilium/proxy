@@ -1,7 +1,7 @@
-From dc0afc823a0bab42bbacd6db1c312d2285dfa03b Mon Sep 17 00:00:00 2001
+From a2fa6aea03014ce149b39f82ad0efdc72cd913f6 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Sun, 26 Feb 2023 22:41:24 +0200
-Subject: [PATCH 5/5] router: Do not set SNI or SAN due to auto_sni or auto_san
+Subject: [PATCH 4/4] router: Do not set SNI or SAN due to auto_sni or auto_san
  if already set
 
 Do not set SNI or SAN metadata in router filter based on auto_sni or
@@ -18,7 +18,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  2 files changed, 54 insertions(+), 20 deletions(-)
 
 diff --git a/source/common/router/router.cc b/source/common/router/router.cc
-index 2007b2ebcd..5e7f5cbd32 100644
+index 64633883f6..b9611f3db6 100644
 --- a/source/common/router/router.cc
 +++ b/source/common/router/router.cc
 @@ -547,14 +547,18 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
@@ -189,5 +189,5 @@ index 0eaaa8d5d6..d38eec5afc 100644
  
  TEST_F(RouterTest, RouteNotFound) {
 -- 
-2.39.2
+2.43.2
 

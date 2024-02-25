@@ -1,7 +1,7 @@
-From b42efe9c6592b882fece7de6e829eaf0191b6027 Mon Sep 17 00:00:00 2001
+From 46454efff349b925db91780202b6100a7e3cd4a2 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 24 Jan 2022 15:40:28 +0200
-Subject: [PATCH 1/5] network: Add callback for upstream authorization
+Subject: [PATCH 1/4] network: Add callback for upstream authorization
 
 Add new ReadFilterCallbacks addUpstreamCallback() and
 iterateUpstreamCallbacks(). Network filters can add callbacks using
@@ -138,10 +138,10 @@ index 73138198d6..6f9cf7be5d 100644
    // ScopeTrackedObject
    void dumpState(std::ostream& os, int indent_level) const override {
 diff --git a/source/common/http/conn_manager_impl.h b/source/common/http/conn_manager_impl.h
-index 4ca11d6ef9..3712f17194 100644
+index 3360039895..6f8e057e7d 100644
 --- a/source/common/http/conn_manager_impl.h
 +++ b/source/common/http/conn_manager_impl.h
-@@ -324,6 +324,12 @@ private:
+@@ -333,6 +333,12 @@ private:
      }
  
      absl::optional<Router::ConfigConstSharedPtr> routeConfig();
@@ -236,7 +236,7 @@ index 27bc856921..9bc7adb691 100644
    const Socket& socket_;
    Upstream::HostDescriptionConstSharedPtr host_description_;
 diff --git a/source/common/router/router.cc b/source/common/router/router.cc
-index c7df776461..2007b2ebcd 100644
+index ce307c74be..64633883f6 100644
 --- a/source/common/router/router.cc
 +++ b/source/common/router/router.cc
 @@ -618,6 +618,14 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
@@ -361,5 +361,5 @@ index 2e260666a8..a4f9edd23f 100644
      // Synthetic class that acts as a stub for the connection backing the
      // Network::ReadFilterCallbacks.
 -- 
-2.39.2
+2.43.2
 
