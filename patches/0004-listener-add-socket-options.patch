@@ -1,10 +1,19 @@
-From 6a019393de48e83654a850dfb2de4f68f12a2fc8 Mon Sep 17 00:00:00 2001
+From 0af8e3d9415364466bf8f9db8529d304233491f9 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 14 Aug 2023 10:01:21 +0300
 Subject: [PATCH 4/4] Revert "listener: keep ListenerFactoryContext small
  (#7528)"
 
 This reverts commit 170c89eb0b2afb7a39d44d0f8dfb77444ffc038f.
+
+Signed-off-by: Tam Mach <sayboras@yahoo.com>
+---
+ envoy/server/factory_context.h                            | 5 +++++
+ .../listener_managers/listener_manager/listener_impl.cc   | 3 +++
+ .../listener_managers/listener_manager/listener_impl.h    | 8 ++++++++
+ test/mocks/server/factory_context.h                       | 1 +
+ test/mocks/server/listener_factory_context.h              | 1 +
+ 5 files changed, 18 insertions(+)
 
 diff --git a/envoy/server/factory_context.h b/envoy/server/factory_context.h
 index 6384230c57..ec9c6aec4f 100644
@@ -42,16 +51,16 @@ index e19db92d4c..b26af02403 100644
 +++ b/source/extensions/listener_managers/listener_manager/listener_impl.h
 @@ -241,6 +241,7 @@ public:
    bool isQuicListener() const override;
- 
+
    // ListenerFactoryContext
 +  void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& options) override;
    const Network::ListenerConfig& listenerConfig() const override;
- 
+
    ListenerFactoryContextBaseImpl& parentFactoryContext() { return *listener_factory_context_base_; }
 @@ -386,6 +387,13 @@ public:
      return config().traffic_direction();
    }
- 
+
 +  void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& append_options) {
 +    for (std::vector<Network::Address::InstanceConstSharedPtr>::size_type i = 0;
 +         i < addresses_.size(); i++) {
@@ -69,10 +78,10 @@ index e1327228eb..db110d263e 100644
 @@ -46,6 +46,7 @@ public:
    MOCK_METHOD(envoy::config::core::v3::TrafficDirection, direction, (), (const));
    MOCK_METHOD(TimeSource&, timeSource, ());
- 
+
 +  MOCK_METHOD(void, addListenSocketOptions, (const Network::Socket::OptionsSharedPtr&));
    MOCK_METHOD(const Network::ListenerConfig&, listenerConfig, (), (const));
- 
+
    Event::TestTimeSystem& timeSystem() { return time_system_; }
 diff --git a/test/mocks/server/listener_factory_context.h b/test/mocks/server/listener_factory_context.h
 index 5341b517d1..924b8cb0b1 100644
@@ -81,11 +90,11 @@ index 5341b517d1..924b8cb0b1 100644
 @@ -20,6 +20,7 @@ public:
    MockListenerFactoryContext();
    ~MockListenerFactoryContext() override;
- 
+
 +  MOCK_METHOD(void, addListenSocketOptions, (const Network::Socket::OptionsSharedPtr&));
    const Network::ListenerConfig& listenerConfig() const override { return listener_config_; }
    MOCK_METHOD(const Network::ListenerConfig&, listenerConfig_, (), (const));
    MOCK_METHOD(ServerFactoryContext&, getServerFactoryContext, (), (const));
--- 
-2.41.0
+--
+2.44.0
 

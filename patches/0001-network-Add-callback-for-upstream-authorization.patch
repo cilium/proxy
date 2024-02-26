@@ -1,4 +1,4 @@
-From 372e6203c5f1a999e9c410995ad57495cfe70d2d Mon Sep 17 00:00:00 2001
+From 50be9be02706f8c571dcdc9fd285da6e40ed4a72 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 24 Jan 2022 15:40:28 +0200
 Subject: [PATCH 1/4] network: Add callback for upstream authorization
@@ -23,6 +23,23 @@ adding the callback, as the calls to the callbacks are only ever be
 done from the tcp_proxy or router filter in the same filter chain.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ envoy/http/filter.h                         |  8 ++++++
+ envoy/network/filter.h                      | 28 +++++++++++++++++++++
+ envoy/tcp/upstream.h                        |  5 ++++
+ source/common/http/async_client_impl.h      |  4 +++
+ source/common/http/conn_manager_impl.h      |  6 +++++
+ source/common/http/filter_manager.cc        |  6 +++++
+ source/common/http/filter_manager.h         |  8 ++++++
+ source/common/network/filter_manager_impl.h | 21 ++++++++++++++++
+ source/common/router/router.cc              |  8 ++++++
+ source/common/router/upstream_request.h     |  5 ++++
+ source/common/tcp_proxy/tcp_proxy.cc        |  7 ++++++
+ source/common/tcp_proxy/tcp_proxy.h         |  1 +
+ source/common/tcp_proxy/upstream.cc         |  8 ++++++
+ source/common/tcp_proxy/upstream.h          |  2 ++
+ source/server/api_listener_impl.h           |  3 +++
+ 15 files changed, 120 insertions(+)
 
 diff --git a/envoy/http/filter.h b/envoy/http/filter.h
 index 361eacc244..88123f71b2 100644
@@ -121,10 +138,10 @@ index 83cee970b4..b55a169101 100644
    // ScopeTrackedObject
    void dumpState(std::ostream& os, int indent_level) const override {
 diff --git a/source/common/http/conn_manager_impl.h b/source/common/http/conn_manager_impl.h
-index b82b1967a5..e55a1f803c 100644
+index e79a6a81c0..18db44fbf3 100644
 --- a/source/common/http/conn_manager_impl.h
 +++ b/source/common/http/conn_manager_impl.h
-@@ -317,6 +317,12 @@ private:
+@@ -326,6 +326,12 @@ private:
      }
  
      absl::optional<Router::ConfigConstSharedPtr> routeConfig();
@@ -180,7 +197,7 @@ index 610ca49fd9..3fc168de60 100644
  
  /**
 diff --git a/source/common/network/filter_manager_impl.h b/source/common/network/filter_manager_impl.h
-index 27bc856921..9bc7adb691 100644
+index 27bc856921..c65f3f63c1 100644
 --- a/source/common/network/filter_manager_impl.h
 +++ b/source/common/network/filter_manager_impl.h
 @@ -132,6 +132,13 @@ private:
@@ -204,7 +221,7 @@ index 27bc856921..9bc7adb691 100644
 +  void addUpstreamCallback(const UpstreamCallback& cb) {
 +    decoder_filter_upstream_cbs_.emplace_back(cb);
 +  }
-+    
++
 +  bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr host,
 +				StreamInfo::StreamInfo& stream_info) {
 +    bool accept = true;
@@ -219,7 +236,7 @@ index 27bc856921..9bc7adb691 100644
    const Socket& socket_;
    Upstream::HostDescriptionConstSharedPtr host_description_;
 diff --git a/source/common/router/router.cc b/source/common/router/router.cc
-index 82dea84326..754a43c9cd 100644
+index ab28804d09..a4ccca5d58 100644
 --- a/source/common/router/router.cc
 +++ b/source/common/router/router.cc
 @@ -622,6 +622,14 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
@@ -233,7 +250,7 @@ index 82dea84326..754a43c9cd 100644
 +                               nullptr, absl::nullopt, absl::string_view());
 +    return Http::FilterHeadersStatus::StopIteration;
 +  }
-+  
++
    hedging_params_ = FilterUtility::finalHedgingParams(*route_entry_, headers);
  
    timeout_ = FilterUtility::finalTimeout(*route_entry_, headers, !config_.suppress_envoy_headers_,
@@ -344,5 +361,5 @@ index fb787f8172..b37cdc9e85 100644
      // Synthetic class that acts as a stub for the connection backing the
      // Network::ReadFilterCallbacks.
 -- 
-2.41.0
+2.44.0
 
