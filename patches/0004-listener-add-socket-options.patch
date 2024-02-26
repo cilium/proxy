@@ -1,10 +1,12 @@
-From 44b6fc6a60fcfab0502394fa17d4658092adcc7e Mon Sep 17 00:00:00 2001
+From 0af8e3d9415364466bf8f9db8529d304233491f9 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 14 Aug 2023 10:01:21 +0300
 Subject: [PATCH 4/4] Revert "listener: keep ListenerFactoryContext small
  (#7528)"
 
 This reverts commit 170c89eb0b2afb7a39d44d0f8dfb77444ffc038f.
+
+Signed-off-by: Tam Mach <sayboras@yahoo.com>
 ---
  envoy/server/factory_context.h                            | 5 +++++
  .../listener_managers/listener_manager/listener_impl.cc   | 3 +++
@@ -94,5 +96,5 @@ index 5341b517d1..924b8cb0b1 100644
    MOCK_METHOD(const Network::ListenerConfig&, listenerConfig_, (), (const));
    MOCK_METHOD(ServerFactoryContext&, getServerFactoryContext, (), (const));
 --
-2.43.2
+2.44.0
 
