@@ -1201,6 +1201,9 @@ TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
                  "of using gRPC",
                  temp_path, policy_path);
 
+  // Reduce flakiness by allowing some time for the policy to be updated before the following test
+  absl::SleepFor(absl::Milliseconds(100));
+
   // 2nd round, on updated policy
   Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 
@@ -1224,6 +1227,9 @@ TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
                  "Updating Cilium Network Policy from file \'{}\'->\'{}\' instead "
                  "of using gRPC",
                  backup_path, policy_path);
+
+  // Reduce flakiness by allowing some time for the policy to be updated before the following test
+  absl::SleepFor(absl::Milliseconds(100));
 
   Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 
