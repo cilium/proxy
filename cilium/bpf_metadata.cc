@@ -14,6 +14,7 @@
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/network/socket_option_factory.h"
+#include "source/common/network/upstream_socket_options_filter_state.h"
 
 #include "cilium/api/bpf_metadata.pb.validate.h"
 #include "cilium/socket_option.h"
@@ -269,7 +270,7 @@ const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) 
   return policy;
 }
 
-bool Config::getMetadata(Network::ConnectionSocket& socket) {
+Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr src_address =
       socket.connectionInfoProvider().remoteAddress();
   const auto sip = src_address->ip();
@@ -279,7 +280,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   if (!sip || !dip) {
     ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}", src_address->asString(),
                    dst_address->asString());
-    return false;
+    return nullptr;
   }
 
   // We do this first as this likely restores the destination address and
@@ -331,7 +332,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
                 "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
                 "source address: {}",
                 pod_ip);
-      return false;
+      return nullptr;
     }
 
     // Use original source address with L7 LB for local endpoint sources if requested, as policy
@@ -356,7 +357,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
                 "cilium.bpf_metadata (north/south L7 LB): No local IP source address configured "
                 "for the family of {}",
                 pod_ip);
-      return false;
+      return nullptr;
     }
 
     pod_ip = ip->addressAsString();
@@ -368,7 +369,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
                 "cilium.bpf_metadata (north/south L7 LB): Unknown local IP source address "
                 "configured: {}",
                 pod_ip);
-      return false;
+      return nullptr;
     }
 
     // Enforce ingress policy on the incoming Ingress traffic?
@@ -396,7 +397,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   if (policy == nullptr) {
     ENVOY_LOG(warn, "cilium.bpf_metadata ({}): No policy found for {}",
               is_ingress_ ? "ingress" : "egress", pod_ip);
-    return false;
+    return nullptr;
   }
 
   // Add metadata for policy based listener filter chain matching.
@@ -432,19 +433,41 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     uint32_t identity_id = (source_identity & 0xFFFF) << 16;
     mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
   }
-  socket.addOption(std::make_shared<Cilium::SocketOption>(
+  return std::make_shared<Cilium::SocketOption>(
       policy, mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
-      std::move(source_addresses.ipv6_), shared_from_this(), proxy_id_));
-
-  return true;
+      std::move(source_addresses.ipv6_), shared_from_this(), proxy_id_);
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   Network::ConnectionSocket& socket = cb.socket();
   // Cilium socket option is not set if this fails, which causes 500 response from our l7policy
   // filter. Our integration tests depend on this.
-  config_->getMetadata(socket);
+  auto option = config_->getMetadata(socket);
+  if (option) {
+    socket.addOption(option);
+
+    // Make Cilium policy available to upstream filters when L7 LB
+    if (config_->is_l7lb_) {
+      StreamInfo::FilterState& filter_state = cb.filterState();
+      auto has_options = filter_state.hasData<Network::UpstreamSocketOptionsFilterState>(
+          Network::UpstreamSocketOptionsFilterState::key());
+      if (!has_options) {
+        filter_state.setData(Network::UpstreamSocketOptionsFilterState::key(),
+                             std::make_unique<Network::UpstreamSocketOptionsFilterState>(),
+                             StreamInfo::FilterState::StateType::Mutable,
+                             StreamInfo::FilterState::LifeSpan::Connection);
+      }
+
+      auto options = std::make_shared<Network::Socket::Options>();
+      options->push_back(std::move(option));
+
+      filter_state
+          .getDataMutable<Network::UpstreamSocketOptionsFilterState>(
+              Network::UpstreamSocketOptionsFilterState::key())
+          ->addOption(std::move(options));
+    }
+  }
 
   // Set socket options for linger and keepalive (5 minutes).
   struct ::linger lin {

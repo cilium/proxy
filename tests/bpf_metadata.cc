@@ -128,7 +128,7 @@ TestConfig::~TestConfig() {
   npmap.reset();
 }
 
-bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
+Cilium::SocketOptionSharedPtr TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   // fake setting the local address. It remains the same as required by the test
   // infra, but it will be marked as restored as required by the original_dst
   // cluster.
@@ -160,7 +160,7 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
   if (policy == nullptr) {
     ENVOY_LOG_MISC(warn, "tests.bpf_metadata ({}): No policy found for {}",
                    is_ingress_ ? "ingress" : "egress", pod_ip);
-    return false;
+    return nullptr;
   }
 
   auto port = original_dst_address->ip()->port();
@@ -177,11 +177,9 @@ bool TestConfig::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
   }
 
-  socket.addOption(std::make_shared<Cilium::SocketOption>(
-      policy, 0, 0, source_identity, is_ingress_, false, port, std::move(pod_ip), nullptr, nullptr,
-      nullptr, shared_from_this(), 0));
-
-  return true;
+  return std::make_shared<Cilium::SocketOption>(policy, 0, 0, source_identity, is_ingress_, false,
+                                                port, std::move(pod_ip), nullptr, nullptr, nullptr,
+                                                shared_from_this(), 0);
 }
 
 } // namespace BpfMetadata

@@ -37,7 +37,7 @@ public:
              Server::Configuration::ListenerFactoryContext& context);
   ~TestConfig();
 
-  bool getMetadata(Network::ConnectionSocket& socket) override;
+  Cilium::SocketOptionSharedPtr getMetadata(Network::ConnectionSocket& socket) override;
 };
 
 } // namespace BpfMetadata

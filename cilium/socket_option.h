@@ -265,6 +265,8 @@ private:
   const std::shared_ptr<PolicyResolver> policy_id_resolver_;
 };
 
+using SocketOptionSharedPtr = std::shared_ptr<SocketOption>;
+
 static inline const Cilium::SocketOption*
 GetSocketOption(const Network::Socket::OptionsSharedPtr& options) {
   if (options) {
