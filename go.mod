@@ -13,7 +13,7 @@ require (
 	github.com/prometheus/client_model v0.6.0
 	github.com/sasha-s/go-deadlock v0.3.1
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/sys v0.17.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240228224816-df926f6c8641
