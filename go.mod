@@ -8,7 +8,7 @@ require (
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
 	github.com/cncf/xds/go v0.0.0-20231128003011-0fa0005c9caa
 	github.com/envoyproxy/protoc-gen-validate v1.0.4
-	github.com/golang/protobuf v1.5.3
+	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_model v0.6.0
 	github.com/sasha-s/go-deadlock v0.3.1
