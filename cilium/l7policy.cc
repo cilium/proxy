@@ -71,6 +71,21 @@ void Config::Log(AccessLog::Entry& entry, ::cilium::EntryType type) {
 
 void AccessFilter::onDestroy() {}
 
+void AccessFilter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) {
+  callbacks_ = &callbacks;
+
+  // Create log entry if not already in filter state
+  log_entry_ =
+      callbacks_->streamInfo().filterState()->getDataMutable<AccessLog::Entry>(AccessLogKey);
+  if (log_entry_ == nullptr) {
+    auto log_entry = std::make_unique<AccessLog::Entry>();
+    log_entry_ = log_entry.get();
+    callbacks_->streamInfo().filterState()->setData(AccessLogKey, std::move(log_entry),
+                                                    StreamInfo::FilterState::StateType::Mutable,
+                                                    StreamInfo::FilterState::LifeSpan::Request);
+  }
+}
+
 Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& headers, bool) {
   const auto& conn = callbacks_->connection();
 
@@ -93,11 +108,17 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   }
 
   // Initialize the log entry
-  log_entry_.InitFromRequest(option->pod_ip_, option->proxy_id_, option->ingress_,
-                             option->identity_,
-                             callbacks_->streamInfo().downstreamAddressProvider().remoteAddress(),
-                             0, callbacks_->streamInfo().downstreamAddressProvider().localAddress(),
-                             callbacks_->streamInfo(), headers);
+  if (log_entry_ == nullptr) {
+    callbacks_->sendLocalReply(Http::Code::InternalServerError, "", nullptr, absl::nullopt,
+                               absl::string_view());
+    return Http::FilterHeadersStatus::StopIteration;
+  }
+
+  log_entry_->InitFromRequest(
+      option->pod_ip_, option->proxy_id_, option->ingress_, option->identity_,
+      callbacks_->streamInfo().downstreamAddressProvider().remoteAddress(), 0,
+      callbacks_->streamInfo().downstreamAddressProvider().localAddress(), callbacks_->streamInfo(),
+      headers);
 
   // This callback is never called if upstream connection fails
   callbacks_->addUpstreamCallback([this, option](Http::RequestHeaderMap& headers,
@@ -134,7 +155,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     allowed_ = true;
     if (option->ingress_source_identity_ != 0) {
       allowed_ = policy->allowed(true, option->ingress_source_identity_, option->port_, headers,
-                                 log_entry_);
+                                 *log_entry_);
       ENVOY_LOG(debug,
                 "cilium.l7policy: Ingress from {} policy lookup for endpoint {} for port {}: {}",
                 option->ingress_source_identity_, option->pod_ip_, option->port_,
@@ -143,18 +164,18 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     if (allowed_) {
       allowed_ = policy->allowed(option->ingress_,
                                  option->ingress_ ? option->identity_ : destination_identity,
-                                 destination_port, headers, log_entry_);
+                                 destination_port, headers, *log_entry_);
       ENVOY_LOG(debug, "cilium.l7policy: {} ({}->{}) policy lookup for endpoint {} for port {}: {}",
                 option->ingress_ ? "ingress" : "egress", option->identity_, destination_identity,
                 option->pod_ip_, destination_port, allowed_ ? "ALLOW" : "DENY");
     }
     // Update the log entry with the chosen destination address and current headers, as remaining
     // filters, upstream, and/or policy may have altered headers.
-    log_entry_.UpdateFromRequest(destination_identity, dst_address, headers);
+    log_entry_->UpdateFromRequest(destination_identity, dst_address, headers);
 
     if (allowed_) {
       // Log as a forwarded request
-      config_->Log(log_entry_, ::cilium::EntryType::Request);
+      config_->Log(*log_entry_, ::cilium::EntryType::Request);
     }
 
     return allowed_;
@@ -163,13 +184,20 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   return Http::FilterHeadersStatus::Continue;
 }
 
+void AccessFilter::onStreamComplete() {
+  // Request may have been left unlogged due to an error and/or missing local reply
+  if (log_entry_ && !log_entry_->request_logged_) {
+    config_->Log(*log_entry_, ::cilium::EntryType::Request);
+  }
+}
+
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& headers, bool) {
-  // Accepted & forwaded requests are logged by the upstream callback. Requests can remain unlogged
-  // if they are not accepted or any other error happens and upstream callback is never called.
-  // Logging the (locally generated) response is not enough as we no longer log request headers with
-  // responses.
-  if (!allowed_) {
-    // Request was not yet logged. Log it so that the headers get logged.
+  if (log_entry_ == nullptr) {
+    return Http::FilterHeadersStatus::Continue;
+  }
+
+  // Request may have been left unlogged due to an error or L3/4 deny
+  if (!log_entry_->request_logged_) {
     // Default logging local errors as "forwarded".
     // The response log will contain the locally generated HTTP error code.
     auto logType = ::cilium::EntryType::Request;
@@ -179,13 +207,12 @@ Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& h
       logType = ::cilium::EntryType::Denied;
       config_->stats_.access_denied_.inc();
     }
-    config_->Log(log_entry_, logType);
+    config_->Log(*log_entry_, logType);
   }
 
   // Log the response
-  log_entry_.UpdateFromResponse(headers, config_->time_source_);
-  config_->Log(log_entry_, ::cilium::EntryType::Response);
-
+  log_entry_->UpdateFromResponse(headers, config_->time_source_);
+  config_->Log(*log_entry_, ::cilium::EntryType::Response);
   return Http::FilterHeadersStatus::Continue;
 }
 

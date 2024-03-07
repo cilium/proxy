@@ -59,6 +59,7 @@ public:
   AccessFilter(ConfigSharedPtr& config) : config_(config) {}
 
   // Http::StreamFilterBase
+  void onStreamComplete() override;
   void onDestroy() override;
 
   // Http::StreamDecoderFilter
@@ -69,9 +70,7 @@ public:
   Http::FilterTrailersStatus decodeTrailers(Http::RequestTrailerMap&) override {
     return Http::FilterTrailersStatus::Continue;
   }
-  void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override {
-    callbacks_ = &callbacks;
-  }
+  void setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks& callbacks) override;
 
   // Http::StreamEncoderFilter
   Http::Filter1xxHeadersStatus encode1xxHeaders(Http::ResponseHeaderMap&) override {
@@ -92,10 +91,10 @@ public:
 
 private:
   ConfigSharedPtr config_;
-  Http::StreamDecoderFilterCallbacks* callbacks_;
+  Http::StreamDecoderFilterCallbacks* callbacks_ = nullptr;
 
   bool allowed_ = false;
-  AccessLog::Entry log_entry_;
+  AccessLog::Entry* log_entry_ = nullptr;
 };
 
 } // namespace Cilium

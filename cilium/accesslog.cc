@@ -42,6 +42,13 @@ void AccessLog::Log(AccessLog::Entry& entry__, ::cilium::EntryType entry_type) {
   ::cilium::LogEntry& entry = entry__.entry_;
   entry.set_entry_type(entry_type);
 
+  if (entry_type != ::cilium::EntryType::Response) {
+    if (entry__.request_logged_) {
+      ENVOY_LOG_MISC(warn, "cilium.AccessLog: Request is logged twice");
+    }
+    entry__.request_logged_ = true;
+  }
+
   // encode protobuf
   std::string msg;
   entry.SerializeToString(&msg);

@@ -14,13 +14,15 @@
 namespace Envoy {
 namespace Cilium {
 
+constexpr absl::string_view AccessLogKey = "cilium.accesslog.entry";
+
 class AccessLog : public UDSClient {
 public:
   static std::shared_ptr<AccessLog> Open(const std::string& path);
   ~AccessLog();
 
   // wrapper for protobuf
-  class Entry {
+  class Entry : public StreamInfo::FilterState::Object {
   public:
     void InitFromRequest(const std::string& policy_name, uint32_t proxy_id, bool ingress,
                          uint32_t source_identity,
@@ -44,6 +46,7 @@ public:
     void AddMissing(absl::string_view key, absl::string_view value);
 
     ::cilium::LogEntry entry_{};
+    bool request_logged_ = false;
   };
 
   void Log(Entry& entry, ::cilium::EntryType);
