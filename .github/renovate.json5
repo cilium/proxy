@@ -29,6 +29,9 @@
     "kind/enhancement",
     "release-note/misc"
   ],
+  "schedule": [
+    "on monday"
+  ],
   postUpdateOptions: [
     "gomodTidy"
   ],
@@ -89,9 +92,6 @@
         "pin",
         "pinDigest"
       ],
-      "schedule": [
-        "on friday"
-      ]
     },
     {
       "matchFileNames": [
