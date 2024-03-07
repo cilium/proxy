@@ -16,9 +16,9 @@
   ],
   "pinDigests": true,
   "ignorePresets": [":prHourlyLimit2"],
-  "separateMajorMinor": true,
-  "separateMultipleMajor": true,
-  "separateMinorPatch": true,
+  "separateMajorMinor": false,
+  "separateMultipleMajor": false,
+  "separateMinorPatch": false,
   "pruneStaleBranches": true,
   "baseBranches": [
     "main",
