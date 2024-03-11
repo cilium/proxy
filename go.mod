@@ -16,8 +16,8 @@ require (
 	github.com/stretchr/testify v1.9.0
 	golang.org/x/sync v0.6.0
 	golang.org/x/sys v0.18.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20240308144416-29370a3891b7
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240308144416-29370a3891b7
+	google.golang.org/genproto/googleapis/api v0.0.0-20240311173647-c811ad7063a7
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240311173647-c811ad7063a7
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
 	k8s.io/klog/v2 v2.120.1
