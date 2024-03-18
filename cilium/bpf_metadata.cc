@@ -407,17 +407,15 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Pass the metadata to an Envoy socket option we can retrieve later in other
   // Cilium filters.
   uint32_t mark = 0;
-  if (!npmap_->is_sidecar_) {
-    // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
-    // processed by the the source endpoint's policy enforcement in the datapath.
-    if (east_west_l7_lb) {
-      mark = 0x0900 | endpoint_id << 16;
-    } else {
-      // Mark with source identity
-      uint32_t cluster_id = (source_identity >> 16) & 0xFF;
-      uint32_t identity_id = (source_identity & 0xFFFF) << 16;
-      mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
-    }
+  // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
+  // processed by the the source endpoint's policy enforcement in the datapath.
+  if (east_west_l7_lb) {
+    mark = 0x0900 | endpoint_id << 16;
+  } else {
+    // Mark with source identity
+    uint32_t cluster_id = (source_identity >> 16) & 0xFF;
+    uint32_t identity_id = (source_identity & 0xFFFF) << 16;
+    mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
   }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
       policy, mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),

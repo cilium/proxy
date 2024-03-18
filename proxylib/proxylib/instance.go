@@ -50,14 +50,12 @@ var (
 )
 
 func NewInstance(nodeID string, accessLogger AccessLogger) *Instance {
-
 	instanceId++
 
 	if nodeID == "" {
 		nodeID = fmt.Sprintf("host~127.0.0.2~libcilium-%d~localdomain", instanceId)
 	}
 
-	// TODO: Sidecar instance id needs to be different.
 	ins := &Instance{
 		id:           instanceId,
 		openCount:    1,
@@ -72,7 +70,8 @@ func NewInstance(nodeID string, accessLogger AccessLogger) *Instance {
 // OpenInstance creates a new instance or finds an existing one with equivalent parameters.
 // returns the instance id.
 func OpenInstance(nodeID string, xdsPath string, newPolicyClient func(path, nodeID string, updater PolicyUpdater) PolicyClient,
-	accessLogPath string, newAccessLogger func(accessLogPath string) AccessLogger) uint64 {
+	accessLogPath string, newAccessLogger func(accessLogPath string) AccessLogger,
+) uint64 {
 	mutex.Lock()
 	defer mutex.Unlock()
 

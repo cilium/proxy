@@ -242,9 +242,6 @@ private:
 
   ProtobufTypes::MessagePtr dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher);
   Server::ConfigTracker::EntryOwnerPtr config_tracker_entry_;
-
-public:
-  const bool is_sidecar_;
 };
 
 } // namespace Cilium

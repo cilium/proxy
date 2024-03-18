@@ -17,7 +17,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
-
 	"github.com/cilium/proxy/pkg/inctimer"
 	"github.com/cilium/proxy/pkg/lock"
 )
@@ -92,8 +91,7 @@ func StartAccessLogServer(accessLogName string, bufSize int) *AccessLogServer {
 	}
 	server.listener.SetUnlinkOnClose(true)
 
-	// Make the socket accessible by non-root Envoy proxies, e.g. running in
-	// sidecar containers.
+	// Make the socket accessible by non-root Envoy proxies.
 	if err = os.Chmod(accessLogPath, 0777); err != nil {
 		logrus.Fatalf("Failed to change mode of access log listen socket at %s: %v", accessLogPath, err)
 	}
