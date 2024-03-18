@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest-64-cores-256gb
     steps:
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@0d103c3126aa41d772a8362f6aa67afac040f80c # v3.1.0
+        uses: docker/setup-buildx-action@2b51285047da1547ffb1b2203d8be4c0af6b1f20 # v3.2.0
 
       - name: Cache Docker layers
         uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
@@ -26,7 +26,7 @@ jobs:
           restore-keys: docker-cache-master
 
       - name: Login to quay.io
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
@@ -57,7 +57,7 @@ jobs:
           fi
 
       - name: PR Multi-arch build & push of Builder image (dev)
-        uses: docker/build-push-action@af5a7ed5ba88268d5278f7203fb52cd833f66d6e # v5.2.0
+        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
         if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
         id: docker_build_builder_ci
         with:
@@ -76,7 +76,7 @@ jobs:
           echo "quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}@${{ steps.docker_build_builder_ci.outputs.digest }}"
 
       - name: PR Multi-arch build & push of cilium-envoy
-        uses: docker/build-push-action@af5a7ed5ba88268d5278f7203fb52cd833f66d6e # v5.2.0
+        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
         id: docker_build_ci
         with:
           provenance: false
