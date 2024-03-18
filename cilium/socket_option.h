@@ -43,7 +43,7 @@ public:
 
   bool setOption(Network::Socket& socket,
                  envoy::config::core::v3::SocketOption::SocketState state) const override {
-    // sidecars do not have mark
+    // don't set option for mark 0 -> tests rely on this (they fail due to missing capabilities)
     if (mark_ == 0) {
       return true;
     }
@@ -171,7 +171,7 @@ public:
   }
 
   void hashKey(std::vector<uint8_t>& key) const override {
-    // sidecars have no mark
+    // don't calculate hash key for mark 0
     if (mark_ == 0) {
       return;
     }
@@ -197,8 +197,6 @@ public:
   }
 
   bool isSupported() const override { return true; }
-
-  bool isSidecar() const { return mark_ == 0; }
 
   uint32_t identity_;
   uint32_t mark_;

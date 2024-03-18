@@ -256,8 +256,7 @@ func (p *PortNetworkPolicies) Matches(port, remoteId uint32, l7 interface{}) boo
 	}
 
 	// No policy for the port was found. Cilium always creates a policy for redirects it
-	// creates, so the host proxy never gets here. Sidecar gets all the traffic, which we need
-	// to pass through since the bpf datapath already allowed it.
+	// creates, so the host proxy never gets here.
 	// TODO: Change back to false only when non-bpf datapath is supported?
 
 	//	logrus.Debugf("NPDS::PortNetworkPolicies(port=%d, remoteId=%d): allowing traffic on port for which there is no policy, assuming L3/L4 has passed it! (%v)", port, remoteId, p)

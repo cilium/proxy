@@ -1074,8 +1074,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
               context.getServerFactoryContext(),
               context.getTransportSocketFactoryContext().sslContextManager(), *scope_,
               context.getServerFactoryContext().clusterManager(),
-              context.messageValidationContext().dynamicValidationVisitor())),
-      is_sidecar_(context.localInfo().nodeName().rfind("sidecar~", 0) == 0) {
+              context.messageValidationContext().dynamicValidationVisitor())) {
   // Use listener init manager for the first initialization
   transport_factory_context_->setInitManager(context.initManager());
   context.initManager().add(init_target_);

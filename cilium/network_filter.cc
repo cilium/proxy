@@ -100,8 +100,8 @@ Network::FilterStatus Instance::onNewConnection() {
   }
 
   // Pass metadata from tls_inspector to the filterstate, if any & not already
-  // set via upstream cluster config, but not in a sidecar, which have no mark
-  if (sni != "" && !option->isSidecar()) {
+  // set via upstream cluster config.
+  if (sni != "") {
     auto filterState = conn.streamInfo().filterState();
     auto have_sni =
         filterState->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
