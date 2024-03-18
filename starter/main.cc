@@ -2,6 +2,7 @@
 #error "Linux platform file is part of non-Linux build."
 #endif
 
+#include <cstring>
 #include <errno.h>
 #include <sys/prctl.h>
 #include <sys/types.h>
@@ -16,7 +17,7 @@
 #define STARTER_SUFFIX "-starter"
 #define STARTER_SUFFIX_LEN (sizeof(STARTER_SUFFIX) - 1)
 
-int main(int /* argc */, char** argv) {
+int main(int argc, char** argv) {
   // Check that we have the required capabilities
   uint64_t caps = Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE);
   if ((caps & (1UL << CAP_NET_ADMIN)) == 0 ||
@@ -24,6 +25,16 @@ int main(int /* argc */, char** argv) {
     fprintf(stderr, "CAP_NET_ADMIN and either CAP_SYS_ADMIN or CAP_BPF capabilities are needed for "
                     "Cilium datapath integration.\n");
     exit(1);
+  }
+
+  bool keep_cap_netbindservice = false;
+  for (int i = 0; i < argc; ++i) {
+    if (std::strcmp(argv[i], "--keep-cap-net-bind-service") == 0) {
+      // keep CAP_NET_BIND_SERVICE if it's present in the effective capabilities
+      keep_cap_netbindservice = (caps & (1UL << CAP_NET_BIND_SERVICE)) != 0;
+      // remove (reset) argument (not passing to Envoy process)
+      argv[i] = new char[0];
+    }
   }
 
   // Get the path we're running from
@@ -69,6 +80,12 @@ int main(int /* argc */, char** argv) {
     };
     struct __user_cap_data_struct data[2];
     memset(&data, 0, sizeof(data));
+
+    if (keep_cap_netbindservice) {
+      data[0].permitted = (1UL << CAP_NET_BIND_SERVICE);
+      data[0].effective = data[0].permitted;
+    }
+
     if (::syscall(SYS_capset, &hdr, &data, sizeof(data)) != 0) {
       perror("capset");
       exit(1);
@@ -80,10 +97,17 @@ int main(int /* argc */, char** argv) {
       exit(1);
     }
 
-    RELEASE_ASSERT(Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE) == 0 &&
-                       Envoy::Cilium::PrivilegedService::get_capabilities(CAP_PERMITTED) == 0 &&
-                       Envoy::Cilium::PrivilegedService::get_capabilities(CAP_INHERITABLE) == 0,
-                   "Failed dropping privileges");
+    uint64_t exp_eff_cap = 0;
+    uint64_t exp_perm_cap = 0;
+    if (keep_cap_netbindservice) {
+      exp_eff_cap = (1UL << CAP_NET_BIND_SERVICE);
+      exp_perm_cap = (1UL << CAP_NET_BIND_SERVICE);
+    }
+    RELEASE_ASSERT(
+        Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE) == exp_eff_cap &&
+            Envoy::Cilium::PrivilegedService::get_capabilities(CAP_PERMITTED) == exp_perm_cap &&
+            Envoy::Cilium::PrivilegedService::get_capabilities(CAP_INHERITABLE) == 0,
+        "Failed dropping privileges");
 
     // Dup the client end to CILIUM_PRIVILEGED_SERVICE_FD
     if (fds[1] != CILIUM_PRIVILEGED_SERVICE_FD) {
@@ -95,6 +119,7 @@ int main(int /* argc */, char** argv) {
     }
 
     // Exec cilium-envoy process
+    argv[0] = path;
     execv(path, argv);
     perror("execv");
     exit(1);
