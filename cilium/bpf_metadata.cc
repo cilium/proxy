@@ -375,8 +375,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
     pod_ip = ip->addressAsString();
 
-    auto new_id = resolvePolicyId(ip);
-    if (new_id == Cilium::ID::WORLD) {
+    auto new_source_id = resolvePolicyId(ip);
+    if (new_source_id == Cilium::ID::WORLD) {
       // No security ID available for the configured source IP
       ENVOY_LOG(warn,
                 "cilium.bpf_metadata (north/south L7 LB): Unknown local IP source address "
@@ -389,7 +389,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     if (enforce_policy_on_l7lb_)
       ingress_source_identity = source_identity;
 
-    source_identity = new_id;
+    source_identity = new_source_id;
 
     // AllowAllEgressPolicy will be returned if no explicit Ingress policy exists
     policy = getPolicy(pod_ip);
