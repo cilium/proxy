@@ -48,7 +48,11 @@ ifneq ($(DOCKER_BUILDER),default)
   # Only insert '--push' or '--output' if the user did not pass a conflicting '--output' or '--load' option
   ifeq ($(filter --output --load,$(DOCKER_BUILD_OPTS)),)
     ifdef IMAGE_PUSH
-      # Push to registry if IMAGE_PUSH=1 is set (needs auth)
+      # Push to registry if explicit push is enforce via IMAGE_PUSH=1 (needs auth)
+      DOCKER_BUILD_OPTS += --push
+    else ifeq ($(ARCH),multi)
+      # Push to registry if multi-arch is enforced via ARCH=multi (needs auth)
+      # (It's not supported to write multi-arch builds to the local Docker registry)
       DOCKER_BUILD_OPTS += --push
     else
       # Push to local docker registry by default
