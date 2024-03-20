@@ -53,6 +53,14 @@ private:
   uint32_t resolveSourceIdentity(const PolicyInstanceConstSharedPtr policy,
                                  const Network::Address::Ip* sip, const Network::Address::Ip* dip,
                                  bool ingress, bool isL7LB);
+
+  IPAddressPair getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sourceAddress,
+                                     const IPAddressPair& addresses);
+
+  const Network::Address::Ip*
+  selectIPVersion(const Network::Address::IpVersion version,
+                  const Network::Address::InstanceConstSharedPtr ipv4SourceAddress,
+                  const Network::Address::InstanceConstSharedPtr ipv6SourceAddress);
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;
