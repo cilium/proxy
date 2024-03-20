@@ -62,13 +62,13 @@ ifneq ($(DOCKER_BUILDER),default)
 endif
 $(info Using Docker Buildx builder "$(DOCKER_BUILDER)" with build flags "$(DOCKER_BUILD_OPTS)".)
 
-SLASH = -
+HYPHEN = -
 ARCH ?= $(subst aarch64,arm64,$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))))
 # Add -<arch> suffix if ARCH is not "multi"
 ifeq ($(ARCH),multi)
   ARCH :=
 else
-  IMAGE_ARCH := $(SLASH)$(ARCH)
+  IMAGE_ARCH := $(HYPHEN)$(ARCH)
 endif
 
 SOURCE_VERSION :=
