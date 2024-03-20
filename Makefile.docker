@@ -45,9 +45,15 @@ ifdef DOCKER_PLATFORMS
   endif
 endif
 ifneq ($(DOCKER_BUILDER),default)
-  # Only insert '--push' if user did not pass a conflicting '--output' or '--load' option
+  # Only insert '--push' or '--output' if the user did not pass a conflicting '--output' or '--load' option
   ifeq ($(filter --output --load,$(DOCKER_BUILD_OPTS)),)
-		DOCKER_BUILD_OPTS += --push
+    ifdef IMAGE_PUSH
+      # Push to registry if IMAGE_PUSH=1 is set (needs auth)
+      DOCKER_BUILD_OPTS += --push
+    else
+      # Push to local docker registry by default
+      DOCKER_BUILD_OPTS += --output type=docker
+    endif
   endif
   DOCKER_BUILD_OPTS += $(DOCKER_PLATFORMS)
   ifdef CACHE_PUSH
