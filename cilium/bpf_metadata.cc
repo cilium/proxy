@@ -331,78 +331,80 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // endpoint is the source, and the other node is the destination.
   uint32_t endpoint_id = policy ? policy->getEndpointID() : 0;
   bool east_west_l7_lb = false;
-  if (is_l7lb_) {
-    if (use_original_source_address_) {
-      // Use source pod's IP address for east/west l7 LB
-      if (endpoint_id == 0) {
-        // Local pod not found. Original source address can only be used for local pods.
-        ENVOY_LOG(warn,
-                  "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
-                  "source address: {}",
-                  pod_ip);
-        return false;
-      }
 
-      east_west_l7_lb = true;
+  if (is_l7lb_ && use_original_source_address_) {
+    // East/West L7LB
 
-      // Keep the original source address for the matching IP version, create a new source IP for
-      // the other version (with the same source port number) in case an upstream of a different
-      // IP version is chosen.
-      IPAddressPair sourceIPs = getIPAddressPairFrom(src_address, policy->getEndpointIPs());
-      ipv4_source_address = sourceIPs.ipv4_;
-      ipv6_source_address = sourceIPs.ipv6_;
-
-      // Original source address is now in one of 'ipv[46]_source_address'
-      src_address = nullptr;
-    } else {
-      // North/south L7 LB, assume the source security identity of the configured source addresses,
-      // if any and policy for this identity exists.
-      // Pick the local source address of the same family as the incoming connection
-      const Network::Address::Ip* ip =
-          selectIPVersion(sip->version(), ipv4_source_address, ipv6_source_address);
-
-      if (!ip) {
-        // IP family of the connection has no configured local source address
-        ENVOY_LOG(warn,
-                  "cilium.bpf_metadata (north/south L7 LB): No local IP source address configured "
-                  "for the family of {}",
-                  pod_ip);
-        return false;
-      }
-
-      pod_ip = ip->addressAsString();
-
-      auto new_id = resolvePolicyId(ip);
-      if (new_id == Cilium::ID::WORLD) {
-        // No security ID available for the configured source IP
-        ENVOY_LOG(warn,
-                  "cilium.bpf_metadata (north/south L7 LB): Unknown local IP source address "
-                  "configured: {}",
-                  pod_ip);
-        return false;
-      }
-
-      // Enforce ingress policy on the incoming Ingress traffic?
-      if (enforce_policy_on_l7lb_)
-        ingress_source_identity = source_identity;
-
-      source_identity = new_id;
-
-      // AllowAllEgressPolicy will be returned if no explicit Ingress policy exists
-      policy = getPolicy(pod_ip);
-
-      // Original source address is never used for north/south LB
-      // This means that a local host IP is used if no IP is configured to be used instead of it
-      // ('ip' above is null).
-      src_address = nullptr;
+    // Use source pod's IP address
+    if (endpoint_id == 0) {
+      // Local pod not found. Original source address can only be used for local pods.
+      ENVOY_LOG(warn,
+                "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
+                "source address: {}",
+                pod_ip);
+      return false;
     }
 
-    // Otherwise only use the original source address if permitted, destination identity is not a
-    // locally allocated identity, is not classified as WORLD, and the destination is not in the
-    // same node.
+    east_west_l7_lb = true;
+
+    // Keep the original source address for the matching IP version, create a new source IP for
+    // the other version (with the same source port number) in case an upstream of a different
+    // IP version is chosen.
+    IPAddressPair sourceIPs = getIPAddressPairFrom(src_address, policy->getEndpointIPs());
+    ipv4_source_address = sourceIPs.ipv4_;
+    ipv6_source_address = sourceIPs.ipv6_;
+
+    // Original source address is now in one of 'ipv[46]_source_address'
+    src_address = nullptr;
+  } else if (is_l7lb_ && !use_original_source_address_) {
+    // North/South L7 LB
+    // North/south L7 LB, assume the source security identity of the configured source addresses,
+    // if any and policy for this identity exists.
+    // Pick the local source address of the same family as the incoming connection
+    const Network::Address::Ip* ip =
+        selectIPVersion(sip->version(), ipv4_source_address, ipv6_source_address);
+
+    if (!ip) {
+      // IP family of the connection has no configured local source address
+      ENVOY_LOG(warn,
+                "cilium.bpf_metadata (north/south L7 LB): No local IP source address configured "
+                "for the family of {}",
+                pod_ip);
+      return false;
+    }
+
+    pod_ip = ip->addressAsString();
+
+    auto new_id = resolvePolicyId(ip);
+    if (new_id == Cilium::ID::WORLD) {
+      // No security ID available for the configured source IP
+      ENVOY_LOG(warn,
+                "cilium.bpf_metadata (north/south L7 LB): Unknown local IP source address "
+                "configured: {}",
+                pod_ip);
+      return false;
+    }
+
+    // Enforce ingress policy on the incoming Ingress traffic?
+    if (enforce_policy_on_l7lb_)
+      ingress_source_identity = source_identity;
+
+    source_identity = new_id;
+
+    // AllowAllEgressPolicy will be returned if no explicit Ingress policy exists
+    policy = getPolicy(pod_ip);
+
+    // Original source address is never used for north/south LB
+    // This means that a local host IP is used if no IP is configured to be used instead of it
+    // ('ip' above is null).
+    src_address = nullptr;
   } else if (!(use_original_source_address_ &&
                !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
                destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
+    // Otherwise only use the original source address if permitted, destination identity is not a
+    // locally allocated identity, is not classified as WORLD, and the destination is not in the
+    // same node.
+
     // Original source address is not used
     src_address = nullptr;
   }
