@@ -88,6 +88,10 @@ amd64 and arm64:
 ARCH=multi make docker-image-envoy
 ```
 
+This will try to push the images to the container registry. Appropriate
+authentication is required. (Pushing to the local Docker registry isn't
+supported for multi-arch builds. See [Docker documentation](https://docs.docker.com/reference/cli/docker/buildx/build/#docker))
+
 Builds will be performed concurrently when building for multiple
 architectures on a single machine. You most likely need to limit the
 number of jobs allowed for each builder, see the note above for
