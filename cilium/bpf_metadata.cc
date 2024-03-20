@@ -17,6 +17,7 @@
 
 #include "cilium/api/bpf_metadata.pb.validate.h"
 #include "cilium/socket_option.h"
+#include "network_policy.h"
 
 namespace Envoy {
 namespace Server {
@@ -208,6 +209,55 @@ uint32_t Config::resolveSourceIdentity(const PolicyInstanceConstSharedPtr policy
   return source_identity;
 }
 
+// Returns a new IPAddressPair that keeps the source address and fills in the other address version
+// from the given IPAddressPair.
+IPAddressPair
+Config::getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sourceAddress,
+                             const IPAddressPair& addresses) {
+  auto addressPair = IPAddressPair();
+
+  switch (sourceAddress->ip()->version()) {
+  case Network::Address::IpVersion::v4:
+    addressPair.ipv4_ = sourceAddress;
+    if (addresses.ipv6_) {
+      sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(addresses.ipv6_->sockAddr());
+      sa6.sin6_port = htons(sourceAddress->ip()->port());
+      addressPair.ipv6_ = std::make_shared<Network::Address::Ipv6Instance>(sa6);
+    }
+    break;
+  case Network::Address::IpVersion::v6:
+    addressPair.ipv6_ = sourceAddress;
+    if (addresses.ipv4_) {
+      sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(addresses.ipv4_->sockAddr());
+      sa4.sin_port = htons(sourceAddress->ip()->port());
+      addressPair.ipv4_ = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
+    }
+    break;
+  }
+
+  return addressPair;
+}
+
+const Network::Address::Ip*
+Config::selectIPVersion(const Network::Address::IpVersion version,
+                        const Network::Address::InstanceConstSharedPtr ipv4SourceAddress,
+                        const Network::Address::InstanceConstSharedPtr ipv6SourceAddress) {
+  switch (version) {
+  case Network::Address::IpVersion::v4:
+    if (ipv4SourceAddress) {
+      return ipv4SourceAddress->ip();
+    }
+    break;
+  case Network::Address::IpVersion::v6:
+    if (ipv6SourceAddress) {
+      return ipv6SourceAddress->ip();
+    }
+    break;
+  }
+
+  return nullptr;
+}
+
 const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) const {
   auto& policy = npmap_->GetPolicyInstance(pod_ip);
   if (policy == nullptr) {
@@ -298,49 +348,19 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       // Keep the original source address for the matching IP version, create a new source IP for
       // the other version (with the same source port number) in case an upstream of a different
       // IP version is chosen.
-      const auto& ips = policy->getEndpointIPs();
-      switch (sip->version()) {
-      case Network::Address::IpVersion::v4: {
-        ipv4_source_address = src_address;
-        if (ips.ipv6_) {
-          sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(ips.ipv6_->sockAddr());
-          sa6.sin6_port = htons(sip->port());
-          ipv6_source_address = std::make_shared<Network::Address::Ipv6Instance>(sa6);
-        } else {
-          ipv6_source_address = nullptr;
-        }
-      } break;
-      case Network::Address::IpVersion::v6: {
-        ipv6_source_address = src_address;
-        if (ips.ipv4_) {
-          sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(ips.ipv4_->sockAddr());
-          sa4.sin_port = htons(sip->port());
-          ipv4_source_address = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
-        } else {
-          ipv4_source_address = nullptr;
-        }
-      } break;
-      }
+      IPAddressPair sourceIPs = getIPAddressPairFrom(src_address, policy->getEndpointIPs());
+      ipv4_source_address = sourceIPs.ipv4_;
+      ipv6_source_address = sourceIPs.ipv6_;
+
       // Original source address is now in one of 'ipv[46]_source_address'
       src_address = nullptr;
     } else {
       // North/south L7 LB, assume the source security identity of the configured source addresses,
       // if any and policy for this identity exists.
-      const Network::Address::Ip* ip = nullptr;
-
       // Pick the local source address of the same family as the incoming connection
-      switch (sip->version()) {
-      case Network::Address::IpVersion::v4:
-        if (ipv4_source_address) {
-          ip = ipv4_source_address->ip();
-        }
-        break;
-      case Network::Address::IpVersion::v6:
-        if (ipv6_source_address) {
-          ip = ipv6_source_address->ip();
-        }
-        break;
-      }
+      const Network::Address::Ip* ip =
+          selectIPVersion(sip->version(), ipv4_source_address, ipv6_source_address);
+
       if (!ip) {
         // IP family of the connection has no configured local source address
         ENVOY_LOG(warn,
