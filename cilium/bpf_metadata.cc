@@ -299,20 +299,21 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {}", pod_ip, other_ip);
   }
 
+  // Load the policy for the Pod that sends or receives traffic.
+  // Might change later on for North/South L7LB traffic.
   auto policy = getPolicy(pod_ip);
 
+  // Resolve the source security ID from conntrack map, or from ip cache
   uint32_t source_identity = resolveSourceIdentity(policy, sip, dip, is_ingress_, is_l7lb_);
 
-  // Resolve the destination security ID for egress
-  uint32_t destination_identity = 0;
-  if (!is_ingress_) {
-    destination_identity = resolvePolicyId(dip);
-  }
+  // Resolve the destination security ID for egress traffic
+  uint32_t destination_identity = is_ingress_ ? 0 : resolvePolicyId(dip);
 
   // ingress_source_identity is non-zero when the egress path l7 LB should also enforce
   // the ingress path policy using the original source identity.
   uint32_t ingress_source_identity = 0;
 
+  // Use the configured IPv4/IPv6 Ingress IPs as starting point for the sources addresses
   Network::Address::InstanceConstSharedPtr ipv4_source_address = ipv4_source_address_;
   Network::Address::InstanceConstSharedPtr ipv6_source_address = ipv6_source_address_;
 
@@ -324,10 +325,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // that the L7 LB backend connection may fail in case of a 5-tuple collision that the host
   // networking namespace is aware of.
 
-  if (is_l7lb_ && use_original_source_address_) {
-    // East/West L7LB
-
-    // is_l7lb_ is only used for egress, so the local
+  if (is_l7lb_ && use_original_source_address_ /* East/West L7LB */) {
+    // In case of east/west, L7 LB is only used for egress, so the local
     // endpoint is the source, and the other node is the destination.
     if (policy == nullptr || policy->getEndpointID() == 0) {
       // Local pod not found. Original source address can only be used for local pods.
@@ -349,10 +348,10 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
     // Original source address is now in one of 'ipv[46]_source_address'
     src_address = nullptr;
-  } else if (is_l7lb_ && !use_original_source_address_) {
-    // North/South L7 LB
+  } else if (is_l7lb_ && !use_original_source_address_ /* North/South L7 LB */) {
     // North/south L7 LB, assume the source security identity of the configured source addresses,
     // if any and policy for this identity exists.
+
     // Pick the local source address of the same family as the incoming connection
     const Network::Address::Ip* ip =
         selectIPVersion(sip->version(), ipv4_source_address, ipv6_source_address);
@@ -446,6 +445,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       policy, mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(ipv4_source_address),
       std::move(ipv6_source_address), shared_from_this(), proxy_id_));
+
   return true;
 }
 
