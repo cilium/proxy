@@ -45,11 +45,9 @@ ifdef DOCKER_PLATFORMS
   endif
 endif
 ifneq ($(DOCKER_BUILDER),default)
-  # Only insert '--push' if user did not pass a conflicting '--output' option
-  ifeq ($(findstring --output,$(DOCKER_BUILD_OPTS)),)
-    ifeq ($(findstring --load,$(DOCKER_BUILD_OPTS)),)
-      DOCKER_BUILD_OPTS += --push
-    endif
+  # Only insert '--push' if user did not pass a conflicting '--output' or '--load' option
+  ifeq ($(filter --output --load,$(DOCKER_BUILD_OPTS)),)
+		DOCKER_BUILD_OPTS += --push
   endif
   DOCKER_BUILD_OPTS += $(DOCKER_PLATFORMS)
   ifdef CACHE_PUSH
