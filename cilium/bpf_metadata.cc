@@ -183,6 +183,31 @@ uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
   return id;
 }
 
+uint32_t Config::resolveSourceIdentity(const PolicyInstanceConstSharedPtr policy,
+                                       const Network::Address::Ip* sip,
+                                       const Network::Address::Ip* dip, bool ingress, bool isL7LB) {
+  uint32_t source_identity = 0;
+
+  // Resolve the source security ID from conntrack map, or from ip cache
+  if (ct_maps_ != nullptr) {
+    if (policy) {
+      const std::string& ct_name = policy->conntrackName();
+      if (ct_name.length() > 0) {
+        source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, ingress);
+      }
+    } else if (isL7LB) {
+      // non-local source should be in the global conntrack
+      source_identity = ct_maps_->lookupSrcIdentity("global", sip, dip, ingress);
+    }
+  }
+  // Fall back to ipcache lookup if conntrack entry can not be located
+  if (source_identity == 0) {
+    source_identity = resolvePolicyId(sip);
+  }
+
+  return source_identity;
+}
+
 const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) const {
   auto& policy = npmap_->GetPolicyInstance(pod_ip);
   if (policy == nullptr) {
@@ -226,23 +251,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
 
   auto policy = getPolicy(pod_ip);
 
-  uint32_t source_identity = 0;
-  // Resolve the source security ID from conntrack map, or from ip cache
-  if (ct_maps_ != nullptr) {
-    if (policy) {
-      const std::string& ct_name = policy->conntrackName();
-      if (ct_name.length() > 0) {
-        source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, is_ingress_);
-      }
-    } else if (is_l7lb_) {
-      // non-local source should be in the global conntrack
-      source_identity = ct_maps_->lookupSrcIdentity("global", sip, dip, is_ingress_);
-    }
-  }
-  // Fall back to ipcache lookup if conntrack entry can not be located
-  if (source_identity == 0) {
-    source_identity = resolvePolicyId(sip);
-  }
+  uint32_t source_identity = resolveSourceIdentity(policy, sip, dip, is_ingress_, is_l7lb_);
 
   // Resolve the destination security ID for egress
   uint32_t destination_identity = 0;
