@@ -58,7 +58,7 @@ jobs:
         with:
           path: /tmp/buildx-cache
           key: docker-cache-tests
-          restore-keys: docker-cache-master
+          restore-keys: docker-cache-main
 
       - name: Checkout PR Source Code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
