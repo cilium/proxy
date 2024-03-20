@@ -23,7 +23,7 @@ jobs:
         with:
           path: /tmp/buildx-cache
           key: docker-cache-${{ github.head_ref }}
-          restore-keys: docker-cache-master
+          restore-keys: docker-cache-main
 
       - name: Login to quay.io
         uses: docker/login-action@e92390c5fb421da1463c202d546fed0ec5c39f20 # v3.1.0

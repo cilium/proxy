@@ -42,7 +42,7 @@ jobs:
       github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
-      - name: Prepare variables for pushes to master
+      - name: Prepare variables for pushes to main
         if: github.event_name == 'push'
         run: |
           echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy" >> $GITHUB_ENV

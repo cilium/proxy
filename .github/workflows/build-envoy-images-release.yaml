@@ -179,14 +179,14 @@ jobs:
         uses: actions/cache@ab5e6d0c87105b4c9c2047343972218f562e4319 # v4.0.1
         with:
           path: /tmp/buildx-cache
-          key: docker-cache-master
+          key: docker-cache-main
 
       - name: Clear cache
         run: |
           rm -rf /tmp/buildx-cache/*
           docker buildx prune -f
 
-      - name: Multi-arch build & push master latest
+      - name: Multi-arch build & push main latest
         uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
         id: docker_build_cd
         with:
