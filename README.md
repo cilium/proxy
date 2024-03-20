@@ -68,6 +68,8 @@ architecture only:
 make docker-image-envoy
 ```
 
+This will write the image to the local Docker registry.
+
 Depending on hour host CPU and memory resources a fresh build can take
 an hour or more. Docker caching will speed up subsequent builds.
 
