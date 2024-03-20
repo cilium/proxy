@@ -316,9 +316,6 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr ipv4_source_address = ipv4_source_address_;
   Network::Address::InstanceConstSharedPtr ipv6_source_address = ipv6_source_address_;
 
-  // Use original source address with L7 LB for local endpoint sources if requested, as policy
-  // enforcement after the proxy depends on it (i.e., for "east/west" LB).
-  //
   // NOTE: As L7 LB does not use the original destination, there is a possibility of a 5-tuple
   // collision if the same source pod is communicating with the same backends on same destination
   // port directly, maybe via some other, non-L7 LB service. We keep the original source port number
@@ -326,17 +323,13 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // could then blackhole existing connections between the source pod and the backend. This means
   // that the L7 LB backend connection may fail in case of a 5-tuple collision that the host
   // networking namespace is aware of.
-  //
-  // NOTE: is_l7lb_ is only used for egress, so the local
-  // endpoint is the source, and the other node is the destination.
-  uint32_t endpoint_id = policy ? policy->getEndpointID() : 0;
-  bool east_west_l7_lb = false;
 
   if (is_l7lb_ && use_original_source_address_) {
     // East/West L7LB
 
-    // Use source pod's IP address
-    if (endpoint_id == 0) {
+    // is_l7lb_ is only used for egress, so the local
+    // endpoint is the source, and the other node is the destination.
+    if (policy == nullptr || policy->getEndpointID() == 0) {
       // Local pod not found. Original source address can only be used for local pods.
       ENVOY_LOG(warn,
                 "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
@@ -345,8 +338,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
       return false;
     }
 
-    east_west_l7_lb = true;
-
+    // Use original source address with L7 LB for local endpoint sources if requested, as policy
+    // enforcement after the proxy depends on it (i.e., for "east/west" LB).
     // Keep the original source address for the matching IP version, create a new source IP for
     // the other version (with the same source port number) in case an upstream of a different
     // IP version is chosen.
@@ -438,10 +431,11 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   // Pass the metadata to an Envoy socket option we can retrieve later in other
   // Cilium filters.
   uint32_t mark = 0;
-  // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
-  // processed by the the source endpoint's policy enforcement in the datapath.
-  if (east_west_l7_lb) {
-    mark = 0x0900 | endpoint_id << 16;
+
+  if (is_l7lb_ && use_original_source_address_ /* E/W L7LB */) {
+    // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
+    // processed by the the source endpoint's policy enforcement in the datapath.
+    mark = 0x0900 | policy->getEndpointID() << 16;
   } else {
     // Mark with source identity
     uint32_t cluster_id = (source_identity >> 16) & 0xFF;
