@@ -17,8 +17,6 @@ CHECK_FORMAT ?= ./bazel-bin/check_format.py
 BAZEL_CACHE ?= ~/.cache/bazel
 BAZEL_ARCHIVE ?= ~/bazel-cache.tar.bz2
 
-all: precheck envoy-default
-
 # @envoy_api//:v3_protos must be built before invoking Makefile.api
 API_DEPS = @envoy_api//:v3_protos
 PROTOC_TARGET = @com_google_protobuf//:protoc
@@ -33,16 +31,6 @@ api-clean:
 	find go -empty -type d -delete
 	mkdir -p go/contrib/envoy
 	mkdir go/envoy
-
-envoy-default: $(COMPILER_DEP) SOURCE_VERSION install-bazel
-	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
-
-debug: envoy-debug
-
-envoy-debug: $(COMPILER_DEP) SOURCE_VERSION install-bazel
-	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) -c dbg //:cilium-envoy $(BAZEL_FILTER)
 
 $(CHECK_FORMAT): force-non-root SOURCE_VERSION install-bazel clang.bazelrc
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:check_format.py
