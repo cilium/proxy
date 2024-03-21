@@ -90,6 +90,9 @@ private:
 class IPAddressPair {
 public:
   IPAddressPair(){};
+  IPAddressPair(Network::Address::InstanceConstSharedPtr& ipv4,
+                Network::Address::InstanceConstSharedPtr& ipv6)
+      : ipv4_(ipv4), ipv6_(ipv6){};
   IPAddressPair(const cilium::NetworkPolicy& proto);
 
   Network::Address::InstanceConstSharedPtr ipv4_{};

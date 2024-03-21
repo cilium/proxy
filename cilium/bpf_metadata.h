@@ -57,10 +57,8 @@ private:
   IPAddressPair getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sourceAddress,
                                      const IPAddressPair& addresses);
 
-  const Network::Address::Ip*
-  selectIPVersion(const Network::Address::IpVersion version,
-                  const Network::Address::InstanceConstSharedPtr ipv4SourceAddress,
-                  const Network::Address::InstanceConstSharedPtr ipv6SourceAddress);
+  const Network::Address::Ip* selectIPVersion(const Network::Address::IpVersion version,
+                                              const IPAddressPair& sourceAddresses);
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;

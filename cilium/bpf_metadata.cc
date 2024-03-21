@@ -238,19 +238,17 @@ Config::getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sour
   return addressPair;
 }
 
-const Network::Address::Ip*
-Config::selectIPVersion(const Network::Address::IpVersion version,
-                        const Network::Address::InstanceConstSharedPtr ipv4SourceAddress,
-                        const Network::Address::InstanceConstSharedPtr ipv6SourceAddress) {
+const Network::Address::Ip* Config::selectIPVersion(const Network::Address::IpVersion version,
+                                                    const IPAddressPair& source_addresses) {
   switch (version) {
   case Network::Address::IpVersion::v4:
-    if (ipv4SourceAddress) {
-      return ipv4SourceAddress->ip();
+    if (source_addresses.ipv4_) {
+      return source_addresses.ipv4_->ip();
     }
     break;
   case Network::Address::IpVersion::v6:
-    if (ipv6SourceAddress) {
-      return ipv6SourceAddress->ip();
+    if (source_addresses.ipv6_) {
+      return source_addresses.ipv6_->ip();
     }
     break;
   }
@@ -314,8 +312,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   uint32_t ingress_source_identity = 0;
 
   // Use the configured IPv4/IPv6 Ingress IPs as starting point for the sources addresses
-  Network::Address::InstanceConstSharedPtr ipv4_source_address = ipv4_source_address_;
-  Network::Address::InstanceConstSharedPtr ipv6_source_address = ipv6_source_address_;
+  IPAddressPair source_addresses(ipv4_source_address_, ipv6_source_address_);
 
   // NOTE: As L7 LB does not use the original destination, there is a possibility of a 5-tuple
   // collision if the same source pod is communicating with the same backends on same destination
@@ -342,9 +339,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     // Keep the original source address for the matching IP version, create a new source IP for
     // the other version (with the same source port number) in case an upstream of a different
     // IP version is chosen.
-    IPAddressPair sourceIPs = getIPAddressPairFrom(src_address, policy->getEndpointIPs());
-    ipv4_source_address = sourceIPs.ipv4_;
-    ipv6_source_address = sourceIPs.ipv6_;
+    source_addresses = getIPAddressPairFrom(src_address, policy->getEndpointIPs());
 
     // Original source address is now in one of 'ipv[46]_source_address'
     src_address = nullptr;
@@ -353,8 +348,7 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     // if any and policy for this identity exists.
 
     // Pick the local source address of the same family as the incoming connection
-    const Network::Address::Ip* ip =
-        selectIPVersion(sip->version(), ipv4_source_address, ipv6_source_address);
+    const Network::Address::Ip* ip = selectIPVersion(sip->version(), source_addresses);
 
     if (!ip) {
       // IP family of the connection has no configured local source address
@@ -443,8 +437,8 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
   }
   socket.addOption(std::make_shared<Cilium::SocketOption>(
       policy, mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
-      std::move(pod_ip), std::move(src_address), std::move(ipv4_source_address),
-      std::move(ipv6_source_address), shared_from_this(), proxy_id_));
+      std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
+      std::move(source_addresses.ipv6_), shared_from_this(), proxy_id_));
 
   return true;
 }
