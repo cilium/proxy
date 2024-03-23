@@ -3,15 +3,9 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/socket.h>
-#include <sys/un.h>
 #include <unistd.h>
 
 #include <string>
-
-#include "source/common/common/lock_guard.h"
-#include "source/common/common/utility.h"
-
-#include "test/test_common/thread_factory_for_test.h"
 
 namespace Envoy {
 

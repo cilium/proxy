@@ -3,15 +3,12 @@
 #include <string>
 
 #include "envoy/registry/registry.h"
-#include "envoy/singleton/manager.h"
 
 #include "source/common/buffer/buffer_impl.h"
-#include "source/common/common/enum_to_int.h"
 #include "source/common/config/utility.h"
 #include "source/common/http/header_map_impl.h"
 #include "source/common/http/utility.h"
 #include "source/common/network/upstream_server_name.h"
-#include "source/common/network/upstream_subject_alt_names.h"
 
 #include "cilium/api/l7policy.pb.validate.h"
 #include "cilium/network_policy.h"
@@ -22,7 +19,7 @@ namespace Cilium {
 
 class ConfigFactory : public Server::Configuration::NamedHttpFilterConfigFactory {
 public:
-  Http::FilterFactoryCb
+  absl::StatusOr<Http::FilterFactoryCb>
   createFilterFactoryFromProto(const Protobuf::Message& proto_config, const std::string&,
                                Server::Configuration::FactoryContext& context) override {
     auto config = std::make_shared<Cilium::Config>(
@@ -48,8 +45,8 @@ REGISTER_FACTORY(ConfigFactory, Server::Configuration::NamedHttpFilterConfigFact
 
 Config::Config(const std::string& access_log_path, const std::string& denied_403_body,
                Server::Configuration::FactoryContext& context)
-    : time_source_(context.timeSource()), stats_{ALL_CILIUM_STATS(
-                                              POOL_COUNTER_PREFIX(context.scope(), "cilium"))},
+    : time_source_(context.serverFactoryContext().timeSource()),
+      stats_{ALL_CILIUM_STATS(POOL_COUNTER_PREFIX(context.scope(), "cilium"))},
       denied_403_body_(denied_403_body), access_log_(nullptr) {
   if (access_log_path.length()) {
     access_log_ = AccessLog::Open(access_log_path);

@@ -26,9 +26,10 @@ protected:
 
     ON_CALL(context_, getTransportSocketFactoryContext())
         .WillByDefault(ReturnRef(transport_socket_factory_context_));
-    ON_CALL(context_, api()).WillByDefault(testing::ReturnRef(*api_));
 
-    ON_CALL(context_.dispatcher_, createFilesystemWatcher_())
+    ON_CALL(context_.server_factory_context_, api()).WillByDefault(testing::ReturnRef(*api_));
+
+    ON_CALL(context_.server_factory_context_.dispatcher_, createFilesystemWatcher_())
         .WillByDefault(Invoke([]() -> Filesystem::Watcher* {
           auto watcher = new Filesystem::MockWatcher();
           EXPECT_CALL(*watcher, addWatch(_, Filesystem::Watcher::Events::MovedTo, _))

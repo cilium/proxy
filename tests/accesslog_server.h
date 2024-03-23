@@ -5,9 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "source/common/common/logger.h"
-#include "source/common/common/thread.h"
-
 #include "test/test_common/utility.h"
 
 #include "absl/synchronization/mutex.h"

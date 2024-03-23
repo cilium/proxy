@@ -47,14 +47,14 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
                const std::string& key, const std::string& version, const std::string& origin,
                const ProtobufWkt::Duration& handshake_timeout,
                const ProtobufWkt::Duration& ping_interval, bool ping_when_idle)
-    : time_source_(context.timeSource()),
-      dispatcher_(context.mainThreadDispatcher()), stats_{ALL_WEBSOCKET_STATS(POOL_COUNTER_PREFIX(
-                                                       context.scope(), "websocket"))},
-      random_(context.api().randomGenerator()), client_(client), host_(absl::AsciiStrToLower(host)),
-      path_(absl::AsciiStrToLower(path)), key_(key), version_(absl::AsciiStrToLower(version)),
-      origin_(absl::AsciiStrToLower(origin)), handshake_timeout_(std::chrono::seconds(5)),
-      ping_interval_(std::chrono::milliseconds(0)), ping_when_idle_(ping_when_idle),
-      access_log_(nullptr) {
+    : time_source_(context.serverFactoryContext().timeSource()),
+      dispatcher_(context.serverFactoryContext().mainThreadDispatcher()),
+      stats_{ALL_WEBSOCKET_STATS(POOL_COUNTER_PREFIX(context.scope(), "websocket"))},
+      random_(context.serverFactoryContext().api().randomGenerator()), client_(client),
+      host_(absl::AsciiStrToLower(host)), path_(absl::AsciiStrToLower(path)), key_(key),
+      version_(absl::AsciiStrToLower(version)), origin_(absl::AsciiStrToLower(origin)),
+      handshake_timeout_(std::chrono::seconds(5)), ping_interval_(std::chrono::milliseconds(0)),
+      ping_when_idle_(ping_when_idle), access_log_(nullptr) {
   envoy::extensions::filters::network::http_connection_manager::v3::RequestIDExtension x_rid_config;
   x_rid_config.mutable_typed_config()->PackFrom(
       envoy::extensions::request_id::uuid::v3::UuidRequestIdConfig());
