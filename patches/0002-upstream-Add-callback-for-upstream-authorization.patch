@@ -21,12 +21,20 @@ adding the callback, as the calls to the callbacks are only ever be
 done from the router filter in the same filter chain.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ envoy/http/filter.h                           | 30 +++++++++++++++++++
+ source/common/http/async_client_impl.h        |  5 ++++
+ source/common/http/filter_manager.cc          | 20 +++++++++++++
+ source/common/http/filter_manager.h           | 13 ++++++++
+ source/common/router/upstream_codec_filter.cc |  9 ++++++
+ source/common/router/upstream_request.cc      |  9 ++++++
+ 6 files changed, 86 insertions(+)
 
 diff --git a/envoy/http/filter.h b/envoy/http/filter.h
-index 88123f71b2..7b529bec55 100644
+index 7bc9480ac6..b10d254a9a 100644
 --- a/envoy/http/filter.h
 +++ b/envoy/http/filter.h
-@@ -463,6 +463,24 @@ public:
+@@ -495,6 +495,24 @@ public:
     */
    virtual void onDecoderFilterBelowWriteBufferLowWatermark() PURE;
  };
@@ -51,13 +59,13 @@ index 88123f71b2..7b529bec55 100644
  /**
   * Stream decoder filter callbacks add additional callbacks that allow a
   * decoding filter to restart decoding if they decide to hold data (e.g. for
-@@ -759,6 +777,18 @@ public:
+@@ -774,6 +792,18 @@ public:
     */
    virtual bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr,
                                          StreamInfo::StreamInfo&) PURE;
 +
 +  /*
-+   * Adds the given callback to be executed later via 
++   * Adds the given callback to be executed later via
 +   */
 +  virtual void addUpstreamCallback(const UpstreamCallback& cb) PURE;
 +
@@ -68,14 +76,14 @@ index 88123f71b2..7b529bec55 100644
 +  virtual bool iterateUpstreamCallbacks(Http::RequestHeaderMap&,
 +                                        StreamInfo::StreamInfo&) PURE;
  };
- 
+
  /**
 diff --git a/source/common/http/async_client_impl.h b/source/common/http/async_client_impl.h
-index c3849b092f..f66d5cd9ef 100644
+index 9792b12636..3100c7da60 100644
 --- a/source/common/http/async_client_impl.h
 +++ b/source/common/http/async_client_impl.h
-@@ -258,6 +258,11 @@ private:
-                                 StreamInfo::StreamInfo&) override {
+@@ -266,6 +266,11 @@ private:
+                               StreamInfo::StreamInfo&) override {
      return true;
    }
 +  void addUpstreamCallback(const UpstreamCallback&) override {}
@@ -83,17 +91,17 @@ index c3849b092f..f66d5cd9ef 100644
 +                                StreamInfo::StreamInfo&) override {
 +    return true;
 +  }
- 
+
    // ScopeTrackedObject
    void dumpState(std::ostream& os, int indent_level) const override {
 diff --git a/source/common/http/filter_manager.cc b/source/common/http/filter_manager.cc
-index 5c46a28091..93c94ff698 100644
+index 57da69321f..3a2a550281 100644
 --- a/source/common/http/filter_manager.cc
 +++ b/source/common/http/filter_manager.cc
-@@ -1111,6 +1111,17 @@ void DownstreamFilterManager::sendDirectLocalReply(
+@@ -1141,6 +1141,17 @@ void DownstreamFilterManager::sendDirectLocalReply(
        Utility::LocalReplyData{state_.is_grpc_request_, code, body, grpc_status, is_head_request});
  }
- 
+
 +bool DownstreamFilterManager::iterateUpstreamCallbacks(Http::RequestHeaderMap& headers,
 +                                                       StreamInfo::StreamInfo& upstream_info) {
 +  bool accept = true;
@@ -108,10 +116,10 @@ index 5c46a28091..93c94ff698 100644
  void FilterManager::encode1xxHeaders(ActiveStreamEncoderFilter* filter,
                                       ResponseHeaderMap& headers) {
    filter_manager_callbacks_.resetIdleTimer();
-@@ -1765,5 +1776,14 @@ bool ActiveStreamDecoderFilter::iterateUpstreamCallbacks(Upstream::HostDescripti
- 
+@@ -1820,5 +1831,14 @@ bool ActiveStreamDecoderFilter::iterateUpstreamCallbacks(Upstream::HostDescripti
+
  }
- 
+
 +void ActiveStreamDecoderFilter::addUpstreamCallback(const UpstreamCallback& cb) {
 +  parent_.addUpstreamCallback(cb);
 +}
@@ -124,23 +132,23 @@ index 5c46a28091..93c94ff698 100644
  } // namespace Http
  } // namespace Envoy
 diff --git a/source/common/http/filter_manager.h b/source/common/http/filter_manager.h
-index 3329051489..3f4de05554 100644
+index 0ee3c64df2..4bc493179f 100644
 --- a/source/common/http/filter_manager.h
 +++ b/source/common/http/filter_manager.h
-@@ -243,6 +243,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
-   absl::optional<absl::string_view> upstreamOverrideHost() const override;
+@@ -269,6 +269,9 @@ struct ActiveStreamDecoderFilter : public ActiveStreamFilterBase,
+   absl::optional<Upstream::LoadBalancerContext::OverrideHost> upstreamOverrideHost() const override;
    bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr host,
                                  StreamInfo::StreamInfo& stream_info) override;
 +  void addUpstreamCallback(const UpstreamCallback& cb) override;
 +  bool iterateUpstreamCallbacks(Http::RequestHeaderMap& headers,
 +                                StreamInfo::StreamInfo& stream_info) override;
- 
+
    // Each decoder filter instance checks if the request passed to the filter is gRPC
    // so that we can issue gRPC local responses to gRPC requests. Filter's decodeHeaders()
-@@ -836,6 +839,12 @@ public:
+@@ -861,6 +864,12 @@ public:
    void onDownstreamReset() { state_.saw_downstream_reset_ = true; }
    bool sawDownstreamReset() { return state_.saw_downstream_reset_; }
- 
+
 +  void addUpstreamCallback(const UpstreamCallback& cb) {
 +    decoder_filter_upstream_cbs_.emplace_back(cb);
 +  }
@@ -150,19 +158,19 @@ index 3329051489..3f4de05554 100644
  protected:
    struct State {
      State()
-@@ -1002,6 +1011,8 @@ private:
+@@ -1027,6 +1036,8 @@ private:
    Buffer::BufferMemoryAccountSharedPtr account_;
    const bool proxy_100_continue_;
- 
+
 +  std::vector<UpstreamCallback> decoder_filter_upstream_cbs_{};
 +
    std::list<ActiveStreamDecoderFilterPtr> decoder_filters_;
    std::list<ActiveStreamEncoderFilterPtr> encoder_filters_;
    std::list<StreamFilterBase*> filters_;
-@@ -1114,6 +1125,8 @@ public:
+@@ -1141,6 +1152,8 @@ public:
             streamInfo().downstreamTiming()->lastDownstreamRxByteReceived().has_value();
    }
- 
+
 +  bool iterateUpstreamCallbacks(Http::RequestHeaderMap&, StreamInfo::StreamInfo&) override;
 +
  private:
@@ -175,7 +183,7 @@ index 158d2b7297..8aee672826 100644
 @@ -58,6 +58,15 @@ Http::FilterHeadersStatus UpstreamCodecFilter::decodeHeaders(Http::RequestHeader
      return Http::FilterHeadersStatus::StopAllIterationAndWatermark;
    }
- 
+
 +  // This block has to be right before the encodeHeaders() (and any related logging) call below!
 +  bool accepted = callbacks_->iterateUpstreamCallbacks(headers, callbacks_->streamInfo());
 +  if (!accepted) {
@@ -189,7 +197,7 @@ index 158d2b7297..8aee672826 100644
    calling_encode_headers_ = true;
    const Http::Status status =
 diff --git a/source/common/router/upstream_request.cc b/source/common/router/upstream_request.cc
-index 5ba6402235..750eccec7d 100644
+index 1f2a72d76f..b8d554051f 100644
 --- a/source/common/router/upstream_request.cc
 +++ b/source/common/router/upstream_request.cc
 @@ -75,6 +75,15 @@ public:
@@ -207,7 +215,7 @@ index 5ba6402235..750eccec7d 100644
 +
    UpstreamRequest& upstream_request_;
  };
- 
--- 
-2.41.0
+
+--
+2.44.0
 
