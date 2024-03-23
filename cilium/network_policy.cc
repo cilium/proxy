@@ -1063,18 +1063,20 @@ private:
 // Common base constructor
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
-    : tls_map_(context.threadLocal()),
-      local_ip_str_(context.localInfo().address()->ip()->addressAsString()),
+    : tls_map_(context.serverFactoryContext().threadLocal()),
+      local_ip_str_(context.serverFactoryContext().localInfo().address()->ip()->addressAsString()),
       name_(fmt::format("cilium.policymap.{}.{}.", local_ip_str_, ++instance_id_)),
-      scope_(context.serverScope().createScope(name_)),
+      scope_(context.serverFactoryContext().serverScope().createScope(name_)),
       init_target_(fmt::format("Cilium Network Policy subscription start"),
                    [this]() { subscription_->start({}); }),
       transport_factory_context_(
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
-              context.getServerFactoryContext(),
+              context.serverFactoryContext(),
               context.getTransportSocketFactoryContext().sslContextManager(), *scope_,
-              context.getServerFactoryContext().clusterManager(),
-              context.messageValidationContext().dynamicValidationVisitor())) {
+              context.serverFactoryContext().clusterManager(),
+              context.serverFactoryContext()
+                  .messageValidationContext()
+                  .dynamicValidationVisitor())) {
   // Use listener init manager for the first initialization
   transport_factory_context_->setInitManager(context.initManager());
   context.initManager().add(init_target_);
@@ -1082,9 +1084,9 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
   tls_map_.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
 
-  if (context.admin().has_value()) {
+  if (context.serverFactoryContext().admin().has_value()) {
     ENVOY_LOG(debug, "Registering NetworkPolicies to config tracker");
-    config_tracker_entry_ = context.admin()->getConfigTracker().add(
+    config_tracker_entry_ = context.serverFactoryContext().admin()->getConfigTracker().add(
         "networkpolicies", [this](const Matchers::StringMatcher& name_matcher) {
           return dumpNetworkPolicyConfigs(name_matcher);
         });
@@ -1104,9 +1106,11 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
 // pointer is formed by the caller of the constructor, hence this
 // can't be called from the constructor!
 void NetworkPolicyMap::startSubscription(Server::Configuration::FactoryContext& context) {
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", context.localInfo(),
-                            context.clusterManager(), context.mainThreadDispatcher(),
-                            context.api().randomGenerator(), *scope_, *this,
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy",
+                            context.serverFactoryContext().localInfo(),
+                            context.serverFactoryContext().clusterManager(),
+                            context.serverFactoryContext().mainThreadDispatcher(),
+                            context.serverFactoryContext().api().randomGenerator(), *scope_, *this,
                             std::make_shared<NetworkPolicyDecoder>());
 }
 

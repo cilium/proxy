@@ -84,17 +84,17 @@ namespace {
 
 std::shared_ptr<const Cilium::PolicyHostMap>
 createHostMap(Server::Configuration::ListenerFactoryContext& context) {
-  return context.singletonManager().getTyped<const Cilium::PolicyHostMap>(
+  return context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context] {
-        auto map = std::make_shared<Cilium::PolicyHostMap>(context);
-        map->startSubscription(context);
+        auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
+        map->startSubscription(context.serverFactoryContext());
         return map;
       });
 }
 
 std::shared_ptr<const Cilium::NetworkPolicyMap>
 createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct) {
-  return context.singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
+  return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, &ct] {
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context, ct);
         map->startSubscription(context);
@@ -136,13 +136,13 @@ Config::Config(const ::cilium::BpfMetadata& config,
   // configured
   std::string bpf_root = config.bpf_root();
   if (bpf_root.length() > 0) {
-    ct_maps_ = context.singletonManager().getTyped<Cilium::CtMap>(
+    ct_maps_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::CtMap>(
         SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
           // Even if opening the global maps fail, local maps may still succeed
           // later.
           return std::make_shared<Cilium::CtMap>(bpf_root);
         });
-    ipcache_ = context.singletonManager().getTyped<Cilium::IPCache>(
+    ipcache_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::IPCache>(
         SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
           auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
           if (!ipcache->Open()) {
