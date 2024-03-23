@@ -56,7 +56,7 @@ namespace CiliumL3 {
 
 Config::Config(const ::cilium::NetworkFilter& config,
                Server::Configuration::FactoryContext& context)
-    : time_source_(context.timeSource()), access_log_(nullptr) {
+    : time_source_(context.serverFactoryContext().timeSource()), access_log_(nullptr) {
   const auto& access_log_path = config.access_log_path();
   if (access_log_path.length()) {
     access_log_ = Cilium::AccessLog::Open(access_log_path);
