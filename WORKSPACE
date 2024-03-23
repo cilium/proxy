@@ -36,6 +36,9 @@ git_repository(
         "@//patches:0002-upstream-Add-callback-for-upstream-authorization.patch",
         "@//patches:0003-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
         "@//patches:0004-listener-add-socket-options.patch",
+        # This patch is needed to fix the build with clang for envoy 1.29+
+        # https://github.com/envoyproxy/envoy/pull/31894
+        "@//patches:0005-Patch-cel-cpp-to-not-break-build.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
