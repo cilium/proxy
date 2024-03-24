@@ -27,7 +27,7 @@ PROTO_DEPS = \
 	-I bazel-proxy/external/opencensus_proto \
 	-I bazel-proxy/external/opentelemetry_proto \
 	-I bazel-proxy/external/prometheus_metrics_model \
-	-I bazel-proxy/external/com_github_cncf_udpa
+	-I bazel-proxy/external/com_github_cncf_xds
 
 GO_OUT = go
 
