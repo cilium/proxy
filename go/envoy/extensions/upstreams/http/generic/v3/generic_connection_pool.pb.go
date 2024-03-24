@@ -26,7 +26,7 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
-// A connection pool which forwards downstream HTTP as TCP or HTTP to upstream,
+// A connection pool which forwards downstream HTTP as TCP, UDP or HTTP to upstream,
 // based on CONNECT configuration.
 // [#extension: envoy.upstreams.http.generic]
 type GenericConnectionPoolProto struct {

@@ -27,7 +27,7 @@ const (
 // of the legacy proto package is being used.
 const _ = proto.ProtoPackageIsVersion4
 
-// Buf Connect gRPC bridge filter configuration
+// Connect RPC to gRPC bridge filter configuration
 type FilterConfig struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
