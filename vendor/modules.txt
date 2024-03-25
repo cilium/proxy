@@ -8,7 +8,7 @@ github.com/cilium/checkmate
 # github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
 ## explicit
 github.com/cilium/kafka/proto
-# github.com/cncf/xds/go v0.0.0-20240318125728-8a4994d93e50
+# github.com/cncf/xds/go v0.0.0-20240322125752-6b7cb9e61ad7
 ## explicit; go 1.19
 github.com/cncf/xds/go/udpa/annotations
 github.com/cncf/xds/go/xds/annotations/v3
@@ -28,8 +28,6 @@ github.com/go-logr/logr
 ## explicit; go 1.17
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/ptypes/any
-github.com/golang/protobuf/ptypes/struct
-github.com/golang/protobuf/ptypes/wrappers
 # github.com/golang/snappy v0.0.4
 ## explicit
 github.com/golang/snappy
