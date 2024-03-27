@@ -10,8 +10,8 @@ namespace PrivilegedService {
 
 ProtocolClient::ProtocolClient()
     : Protocol(CILIUM_PRIVILEGED_SERVICE_FD), call_mutex_(PTHREAD_MUTEX_INITIALIZER), seq_(0) {
-  RELEASE_ASSERT(get_capabilities(CAP_EFFECTIVE) == 0 && get_capabilities(CAP_PERMITTED) == 0,
-                 "cilium-envoy running with privileges, exiting");
+  /* RELEASE_ASSERT(get_capabilities(CAP_EFFECTIVE) == 0 && get_capabilities(CAP_PERMITTED) == 0, */
+  /*                "cilium-envoy running with privileges, exiting"); */
 
   if (!check_privileged_service()) {
     // No Cilium privileged service detected

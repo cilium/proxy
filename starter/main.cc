@@ -2,6 +2,7 @@
 #error "Linux platform file is part of non-Linux build."
 #endif
 
+#include <string>
 #include <errno.h>
 #include <sys/prctl.h>
 #include <sys/types.h>
@@ -16,7 +17,7 @@
 #define STARTER_SUFFIX "-starter"
 #define STARTER_SUFFIX_LEN (sizeof(STARTER_SUFFIX) - 1)
 
-int main(int /* argc */, char** argv) {
+int main(int argc, char** argv) {
   // Check that we have the required capabilities
   uint64_t caps = Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE);
   if ((caps & (1UL << CAP_NET_ADMIN)) == 0 ||
@@ -24,6 +25,16 @@ int main(int /* argc */, char** argv) {
     fprintf(stderr, "CAP_NET_ADMIN and either CAP_SYS_ADMIN or CAP_BPF capabilities are needed for "
                     "Cilium datapath integration.\n");
     exit(1);
+  }
+
+  bool keepCapNetBindService = false;
+  for (int i = 0; i < argc; ++i) {
+    if (std::string(argv[i]) == "--keep-cap-net-bind-service") {
+      // keep CAP_NET_BIND_SERVICE if it's present in the effective capabilities
+      keepCapNetBindService = (caps & (1UL << CAP_NET_BIND_SERVICE)) != 0;
+      // remove (reset) argument (not passing to Envoy process)
+      argv[i] = new char[0];
+    }
   }
 
   // Get the path we're running from
@@ -69,6 +80,12 @@ int main(int /* argc */, char** argv) {
     };
     struct __user_cap_data_struct data[2];
     memset(&data, 0, sizeof(data));
+
+    if (keepCapNetBindService) {
+      data[0].permitted = (1UL << CAP_NET_BIND_SERVICE);
+      data[0].effective = data[0].permitted;
+    }
+
     if (::syscall(SYS_capset, &hdr, &data, sizeof(data)) != 0) {
       perror("capset");
       exit(1);
@@ -80,8 +97,15 @@ int main(int /* argc */, char** argv) {
       exit(1);
     }
 
-    RELEASE_ASSERT(Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE) == 0 &&
-                       Envoy::Cilium::PrivilegedService::get_capabilities(CAP_PERMITTED) == 0 &&
+    uint64_t expEffCap = 0;
+    uint64_t expPermCap = 0;
+    if (keepCapNetBindService) {
+      expEffCap = (1UL << CAP_NET_BIND_SERVICE);
+      expPermCap = (1UL << CAP_NET_BIND_SERVICE);
+    }
+    RELEASE_ASSERT(Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE) == expEffCap &&
+                       Envoy::Cilium::PrivilegedService::get_capabilities(CAP_PERMITTED) ==
+                           expPermCap &&
                        Envoy::Cilium::PrivilegedService::get_capabilities(CAP_INHERITABLE) == 0,
                    "Failed dropping privileges");
 
@@ -95,6 +119,7 @@ int main(int /* argc */, char** argv) {
     }
 
     // Exec cilium-envoy process
+    argv[0] = path;
     execv(path, argv);
     perror("execv");
     exit(1);
