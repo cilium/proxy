@@ -36,8 +36,8 @@ struct FilterStats {
 class Config : public Logger::Loggable<Logger::Id::filter> {
 public:
   Config(const std::string& access_log_path, const std::string& denied_403_body,
-         Server::Configuration::FactoryContext& context);
-  Config(const ::cilium::L7Policy& config, Server::Configuration::FactoryContext& context);
+         TimeSource& time_source, Stats::Scope& scope);
+  Config(const ::cilium::L7Policy& config, TimeSource& time_source, Stats::Scope& scope);
 
   void Log(AccessLog::Entry&, ::cilium::EntryType);
 
@@ -91,6 +91,12 @@ public:
   }
 
 private:
+  void sendLocalError(absl::string_view details) {
+    ENVOY_LOG(warn, details);
+    callbacks_->sendLocalReply(Http::Code::InternalServerError, "", nullptr, absl::nullopt,
+			       details);
+  }
+
   ConfigSharedPtr config_;
   Http::StreamDecoderFilterCallbacks* callbacks_;
 
