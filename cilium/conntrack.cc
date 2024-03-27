@@ -225,7 +225,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
     auto ct = it->second.get();
     if (!ct->ctmap4_tcp_.lookup(&key4, &value)) {
       ct_maps4_.erase(it); // flush the map to force reload after each failure.
-      ENVOY_LOG(info, "cilium.bpf_metadata: IPv4 conntrack map {} lookup failed: {}", map_name,
+      ENVOY_LOG(debug, "cilium.bpf_metadata: IPv4 conntrack map {} lookup failed: {}", map_name,
                 Envoy::errorDetails(errno));
       return 0;
     }
@@ -243,7 +243,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
     auto ct = it->second.get();
     if (!ct->ctmap6_tcp_.lookup(&key6, &value)) {
       ct_maps6_.erase(it); // flush the map to force reload after each failure.
-      ENVOY_LOG(info, "cilium.bpf_metadata: IPv6 conntrack map {} lookup failed: {}", map_name,
+      ENVOY_LOG(debug, "cilium.bpf_metadata: IPv6 conntrack map {} lookup failed: {}", map_name,
                 Envoy::errorDetails(errno));
       return 0;
     }
