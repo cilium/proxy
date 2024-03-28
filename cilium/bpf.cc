@@ -1,5 +1,7 @@
 #include "cilium/bpf.h"
 
+#include <errno.h>
+
 #include "source/common/common/utility.h"
 
 #include "cilium/privileged_service_client.h"
@@ -92,12 +94,21 @@ bool Bpf::open(const std::string& path) {
               Envoy::errorDetails(ret.errno_));
   }
 
+  errno = ret.errno_;
+
   return false;
 }
 
 bool Bpf::lookup(const void* key, void* value) {
   auto& cilium_calls = PrivilegedService::Singleton::get();
-  return cilium_calls.bpf_lookup(fd_, key, key_size_, value, value_size_).return_value_ == 0;
+  auto result = cilium_calls.bpf_lookup(fd_, key, key_size_, value, value_size_);
+
+  if (result.return_value_ == 0) {
+    return true;
+  }
+
+  errno = result.errno_;
+  return false;
 }
 
 } // namespace Cilium
