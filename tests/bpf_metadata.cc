@@ -28,20 +28,22 @@ namespace {
 
 std::shared_ptr<const Cilium::PolicyHostMap>
 createHostMap(const std::string& config, Server::Configuration::ListenerFactoryContext& context) {
-  return context.singletonManager().getTyped<const Cilium::PolicyHostMap>(
+  return context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
       "cilium_host_map_singleton", [&config, &context] {
         std::string path = TestEnvironment::writeStringToFileForTest("host_map.yaml", config);
         ENVOY_LOG_MISC(debug, "Loading Cilium Host Map from file \'{}\' instead of using gRPC",
                        path);
 
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(path, context.api());
+        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
+            path, context.serverFactoryContext().api());
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
-        auto map = std::make_shared<Cilium::PolicyHostMap>(context);
+        auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(path), *map,
+            context.serverFactoryContext().mainThreadDispatcher(),
+            Envoy::Config::makePathConfigSource(path), *map,
             std::make_shared<Cilium::PolicyHostDecoder>(), stats,
-            ProtobufMessage::getNullValidationVisitor(), context.api());
+            ProtobufMessage::getNullValidationVisitor(), context.serverFactoryContext().api());
         map->startSubscription(std::move(subscription));
         return map;
       });
@@ -51,7 +53,7 @@ std::shared_ptr<const Cilium::NetworkPolicyMap>
 createPolicyMap(const std::string& config,
                 const std::vector<std::pair<std::string, std::string>>& secret_configs,
                 Server::Configuration::FactoryContext& context) {
-  return context.singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
+  return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
       "cilium_network_policy_singleton", [&config, &secret_configs, &context] {
         if (secret_configs.size() > 0) {
           for (auto sds_pair : secret_configs) {
@@ -59,7 +61,8 @@ createPolicyMap(const std::string& config,
             auto& sds_config = sds_pair.second;
             std::string sds_path = TestEnvironment::writeStringToFileForTest(
                 fmt::sprintf("secret-%s.yaml", name), sds_config);
-            Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(sds_path, context.api());
+            Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
+                sds_path, context.serverFactoryContext().api());
           }
           Cilium::setSDSConfigFunc(
               [](const std::string& name) -> envoy::config::core::v3::ConfigSource {
@@ -79,14 +82,16 @@ createPolicyMap(const std::string& config,
                        "Loading Cilium Network Policy from file \'{}\' instead "
                        "of using gRPC",
                        policy_path);
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(policy_path, context.api());
+        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
+            policy_path, context.serverFactoryContext().api());
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
-            context.mainThreadDispatcher(), Envoy::Config::makePathConfigSource(policy_path), *map,
+            context.serverFactoryContext().mainThreadDispatcher(),
+            Envoy::Config::makePathConfigSource(policy_path), *map,
             std::make_shared<Cilium::NetworkPolicyDecoder>(), stats,
-            ProtobufMessage::getNullValidationVisitor(), context.api());
+            ProtobufMessage::getNullValidationVisitor(), context.serverFactoryContext().api());
         map->startSubscription(std::move(subscription));
         return map;
       });
