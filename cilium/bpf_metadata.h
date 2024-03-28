@@ -48,6 +48,17 @@ public:
   Cilium::CtMapSharedPtr ct_maps_{};
   Cilium::IPCacheSharedPtr ipcache_{};
   std::shared_ptr<const Cilium::PolicyHostMap> hosts_{};
+
+private:
+  uint32_t resolveSourceIdentity(const PolicyInstanceConstSharedPtr policy,
+                                 const Network::Address::Ip* sip, const Network::Address::Ip* dip,
+                                 bool ingress, bool isL7LB);
+
+  IPAddressPair getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sourceAddress,
+                                     const IPAddressPair& addresses);
+
+  const Network::Address::Ip* selectIPVersion(const Network::Address::IpVersion version,
+                                              const IPAddressPair sourceAddresses);
 };
 
 typedef std::shared_ptr<Config> ConfigSharedPtr;
