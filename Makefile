@@ -62,7 +62,6 @@ else
   BAZEL_BUILD_OPTS += --config=release
 endif
 
-include Makefile.dev
 ifdef PKG_BUILD
   all: cilium-envoy-starter cilium-envoy
 
@@ -71,6 +70,8 @@ ifdef PKG_BUILD
 	echo "Bazel assumed to be installed in the builder image"
 
 else
+  all: precheck cilium-envoy-starter cilium-envoy
+
   include Makefile.docker
 
   # Fetch and install Bazel if needed
@@ -78,6 +79,8 @@ else
   install-bazel:
 	tools/install_bazel.sh `cat .bazelversion`
 endif
+
+include Makefile.dev
 
 BUILD_DEP_HASHES: $(BUILD_DEP_FILES)
 	sha256sum $^ >$@
@@ -105,7 +108,7 @@ clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-15
 	echo "build --config=clang" >> $@
 
 .PHONY: bazel-bin/cilium-envoy
-bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION
+bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION install-bazel
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
@@ -113,7 +116,7 @@ cilium-envoy: bazel-bin/cilium-envoy
 	mv $< $@
 
 .PHONY: bazel-bin/cilium-envoy-starter
-bazel-bin/cilium-envoy-starter: $(COMPILER_DEP) SOURCE_VERSION
+bazel-bin/cilium-envoy-starter: $(COMPILER_DEP) SOURCE_VERSION install-bazel
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-starter $(BAZEL_FILTER)
 
