@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
+#include <vector>
 
 #include "starter/privileged_service_server.h"
 
@@ -18,25 +19,6 @@
 #define STARTER_SUFFIX_LEN (sizeof(STARTER_SUFFIX) - 1)
 
 int main(int argc, char** argv) {
-  // Check that we have the required capabilities
-  uint64_t caps = Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE);
-  if ((caps & (1UL << CAP_NET_ADMIN)) == 0 ||
-      (caps & (1UL << CAP_SYS_ADMIN | 1UL << CAP_BPF)) == 0) {
-    fprintf(stderr, "CAP_NET_ADMIN and either CAP_SYS_ADMIN or CAP_BPF capabilities are needed for "
-                    "Cilium datapath integration.\n");
-    exit(1);
-  }
-
-  bool keep_cap_netbindservice = false;
-  for (int i = 0; i < argc; ++i) {
-    if (std::strcmp(argv[i], "--keep-cap-net-bind-service") == 0) {
-      // keep CAP_NET_BIND_SERVICE if it's present in the effective capabilities
-      keep_cap_netbindservice = (caps & (1UL << CAP_NET_BIND_SERVICE)) != 0;
-      // remove (reset) argument (not passing to Envoy process)
-      argv[i] = new char[0];
-    }
-  }
-
   // Get the path we're running from
   char* path = new char[PATH_MAX];
   constexpr size_t path_size = PATH_MAX;
@@ -61,6 +43,62 @@ int main(int argc, char** argv) {
             "\" and not be empty without it: \"%s\"\n",
             path);
     exit(1);
+  }
+
+  // Check that we have the required capabilities
+  uint64_t caps = Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE);
+  if ((caps & (1UL << CAP_NET_ADMIN)) == 0 ||
+      (caps & (1UL << CAP_SYS_ADMIN | 1UL << CAP_BPF)) == 0) {
+    fprintf(stderr, "CAP_NET_ADMIN and either CAP_SYS_ADMIN or CAP_BPF capabilities are needed for "
+                    "Cilium datapath integration.\n");
+    exit(1);
+  }
+
+  bool delimiter_present = false;
+  std::vector<char*> args;
+
+  // skip first arg (program name)
+  for (int i = 1; i < argc; ++i) {
+    if (std::strcmp(argv[i], "--") == 0) {
+      delimiter_present = true;
+    }
+
+    args.push_back(argv[i]);
+  }
+
+  bool keep_cap_netbindservice = false;
+  std::vector<char*> envoy_args;
+  envoy_args.push_back(path); // program
+
+  if (!delimiter_present) {
+    // backwards compabitility: handle all args as Envoys if delimiter isn't present
+    envoy_args.insert(envoy_args.begin(), args.begin(), args.end());
+  } else {
+    // parse arguments and split by delimiter "--"
+    // before: arguments for starter process
+    // after: pass to envoy process
+    bool delimiter_reached = false;
+    for (char* arg : args) {
+      if (delimiter_reached) {
+        // argument for Envoy
+        envoy_args.push_back(arg);
+        continue;
+      }
+
+      if (std::strcmp(arg, "--") == 0) {
+        delimiter_reached = true;
+        continue;
+      }
+
+      if (std::strcmp(arg, "--keep-cap-net-bind-service") == 0) {
+        // keep CAP_NET_BIND_SERVICE if it's present in the effective capabilities
+        keep_cap_netbindservice = (caps & (1UL << CAP_NET_BIND_SERVICE)) != 0;
+        continue;
+      }
+
+      fprintf(stderr, "Unknown starter argument '%s'.\n", arg);
+      exit(1);
+    }
   }
 
   int fds[2];
@@ -118,9 +156,8 @@ int main(int argc, char** argv) {
       close(fds[1]);
     }
 
-    // Exec cilium-envoy process
-    argv[0] = path;
-    execv(path, argv);
+    envoy_args.push_back(nullptr);
+    execv(path, &envoy_args[0]);
     perror("execv");
     exit(1);
   }
