@@ -36,6 +36,7 @@ git_repository(
         "@//patches:0002-upstream-Add-callback-for-upstream-authorization.patch",
         "@//patches:0003-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
         "@//patches:0004-listener-add-socket-options.patch",
+        "@//patches:0005-ci-tests-Re-issue-test-certs-33389.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
