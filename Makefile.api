@@ -110,16 +110,8 @@ cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api 
 	go mod tidy && go mod vendor
 
 godeps:
-# @envoy//api/bazel/repository_locations.bzl
-	GO111MODULE=on go get go.opentelemetry.io/proto/otlp/common/v1@v1.0.0
-	GO111MODULE=on go get github.com/cncf/xds@e9ce68804cb4e64cab5a52e3c8baf840d4ff87b7
-	GO111MODULE=on go get github.com/census-instrumentation/opencensus-proto@v0.4.1
-	GO111MODULE=on go get github.com/envoyproxy/protoc-gen-validate@v1.0.1
-	GO111MODULE=on go get github.com/prometheus/client_model@v0.4.0
-# Latest and/or matching cilium/cilium/go.mod:
-	GO111MODULE=on go get google.golang.org/genproto/...@f966b187b2e5
-	GO111MODULE=on go get google.golang.org/protobuf/...@v1.31.0
-	GO111MODULE=on go get google.golang.org/grpc@v1.57.0
+# We have Renovate updating Go dependencies for us now
+#
 # Have to keep using github.com/golang/protobuf@v1.4.x version of protoc-gen-go to retain grpc
 # plugin support needed by Envoy API protos.
 # - google.golang.org/protobuf version of protoc-gen-go needs a separate protoc plugin for grpc,
