@@ -94,17 +94,17 @@ define add_clang_apt_source
 	if [ ! -f /etc/apt/trusted.gpg.d/apt.llvm.org.asc ]; then \
 	  $(SUDO) wget -q -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key; \
 	fi
-	apt_source="deb http://apt.llvm.org/$(1)/ llvm-toolchain-$(1)-15 main" && \
+	apt_source="deb http://apt.llvm.org/$(1)/ llvm-toolchain-$(1)-17 main" && \
 	$(SUDO) apt-add-repository -y "$${apt_source}" && \
 	$(SUDO) apt update
 endef
 
-/usr/lib/llvm-15:
-	$(SUDO) apt info clang-15 || $(call add_clang_apt_source,$(shell lsb_release -cs))
-	$(SUDO) apt install -y clang-15 llvm-15-dev lld-15 clang-format-15
+/usr/lib/llvm-17:
+	$(SUDO) apt info clang-17 || $(call add_clang_apt_source,$(shell lsb_release -cs))
+	$(SUDO) apt install -y clang-17 llvm-17-dev lld-17 clang-format-17
 
-clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-15
-	bazel/setup_clang.sh /usr/lib/llvm-15
+clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-17
+	bazel/setup_clang.sh /usr/lib/llvm-17
 	echo "build --config=clang" >> $@
 
 .PHONY: bazel-bin/cilium-envoy
