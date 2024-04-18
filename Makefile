@@ -166,7 +166,9 @@ envoy-test-deps: $(COMPILER_DEP) SOURCE_VERSION
 .PHONY: envoy-tests
 envoy-tests: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) test  -c fastbuild $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) test -c fastbuild $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
+	# To validate the upstream integration tests to make sure that our custom patches didn't break anything
+	$(BAZEL) $(BAZEL_OPTS) test -c fastbuild $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) @envoy//test/integration:tcp_proxy_integration_test
 
 .PHONY: \
 	install \
