@@ -62,29 +62,6 @@ else
   BAZEL_BUILD_OPTS += --config=release
 endif
 
-ifdef PKG_BUILD
-  all: cilium-envoy-starter cilium-envoy
-
-  .PHONY: install-bazel
-  install-bazel:
-	echo "Bazel assumed to be installed in the builder image"
-
-else
-  all: precheck cilium-envoy-starter cilium-envoy
-
-  include Makefile.docker
-
-  # Fetch and install Bazel if needed
-  .PHONY: install-bazel
-  install-bazel:
-	tools/install_bazel.sh `cat .bazelversion`
-endif
-
-include Makefile.dev
-
-BUILD_DEP_HASHES: $(BUILD_DEP_FILES)
-	sha256sum $^ >$@
-
 SUDO=
 ifneq ($(shell whoami),root)
   SUDO=$(shell if sudo -h 1>/dev/null 2>/dev/null; then echo "sudo"; fi)
@@ -99,11 +76,40 @@ define add_clang_apt_source
 	$(SUDO) apt update
 endef
 
-/usr/lib/llvm-17:
+ifdef PKG_BUILD
+  all: cilium-envoy-starter cilium-envoy
+
+  .PHONY: install-bazel
+  install-bazel:
+	echo "Bazel assumed to be installed in the builder image"
+
+  define install_clang
+	echo "Clang assumed to be installed in the builder image"
+  endef
+else
+  all: precheck cilium-envoy-starter cilium-envoy
+
+  include Makefile.docker
+
+  # Fetch and install Bazel if needed
+  .PHONY: install-bazel
+  install-bazel:
+	tools/install_bazel.sh `cat .bazelversion`
+
+  # Install clang if needed
+  define install_clang
 	$(SUDO) apt info clang-17 || $(call add_clang_apt_source,$(shell lsb_release -cs))
 	$(SUDO) apt install -y clang-17 llvm-17-dev lld-17 clang-format-17
+  endef
+endif
 
-clang.bazelrc: bazel/setup_clang.sh /usr/lib/llvm-17
+include Makefile.dev
+
+BUILD_DEP_HASHES: $(BUILD_DEP_FILES)
+	sha256sum $^ >$@
+
+clang.bazelrc: bazel/setup_clang.sh
+	$(call install_clang)
 	bazel/setup_clang.sh /usr/lib/llvm-17
 	echo "build --config=clang" >> $@
 
