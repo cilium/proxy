@@ -16,6 +16,7 @@ New Envoy minor version might require new Bazel version.
 
 1. Update `.bazelversion` file.
 2. Sync up `WORKSPACE` file with upstream.
+3. Sync up `envoy.bazelrc` file with upstream.
 
 ```shell
 # Building a new builder image locally with your own docker account
