@@ -1,7 +1,7 @@
 name: CI check format
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [ opened, synchronize, reopened ]
 
 # By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
 permissions:
@@ -14,46 +14,46 @@ jobs:
     name: Check source format
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR Source Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
+    - name: Checkout PR Source Code
+      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        persist-credentials: false
 
-      - name: Prep for build
-        run: |
-          echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
-          echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
+    - name: Prep for build
+      run: |
+        echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+        echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
+        echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
+        echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
 
-      - name: Wait for cilium-envoy-builder to be available
-        timeout-minutes: 45
-        shell: bash
-        run: until docker manifest inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &> /dev/null; do sleep 15s; done
+    - name: Wait for cilium-envoy-builder to be available
+      timeout-minutes: 45
+      shell: bash
+      run: until docker manifest inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &> /dev/null; do sleep 15s; done
 
-      - name: Check format
-        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
-        id: docker_format_ciak
-        with:
-          target: format
-          provenance: false
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          outputs: type=local,dest=check-format-results
-          build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
-          cache-from: type=local,src=/tmp/buildx-cache
-          push: false
+    - name: Check format
+      uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.3.0
+      id: docker_format_ciak
+      with:
+        target: format
+        provenance: false
+        context: .
+        file: ./Dockerfile
+        platforms: linux/amd64
+        outputs: type=local,dest=check-format-results
+        build-args: |
+          BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+        cache-from: type=local,src=/tmp/buildx-cache
+        push: false
 
-      - name: Check for failure
-        run: '! grep "^Format check failed" check-format-results/format-output.txt'
+    - name: Check for failure
+      run: '! grep "^Format check failed" check-format-results/format-output.txt'
 
-      - name: Upload Format results
-        if: failure()
-        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
-        with:
-          name: check-format-results
-          path: check-format-results/format-output.txt
-          retention-days: 5
+    - name: Upload Format results
+      if: failure()
+      uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+      with:
+        name: check-format-results
+        path: check-format-results/format-output.txt
+        retention-days: 5
