@@ -69,8 +69,14 @@ public:
               : port_policy.getServerTlsContext(remote_id, &config);
       if (ctx) {
         // create the underlying SslSocket
-        socket_ = std::make_unique<Extensions::TransportSockets::Tls::SslSocket>(
+        auto status_or_socket = Extensions::TransportSockets::Tls::SslSocket::create(
             std::move(ctx), state_, transport_socket_options_, config->createHandshaker());
+        if (status_or_socket.ok()) {
+          socket_ = std::move(status_or_socket.value());
+        } else {
+          ENVOY_LOG_MISC(error, "Unable to create ssl socket {}",
+                         status_or_socket.status().message());
+        }
       } else {
         ENVOY_LOG_MISC(debug,
                        "cilium.tls_wrapper: Could not get {} TLS context for port {}, defaulting "
