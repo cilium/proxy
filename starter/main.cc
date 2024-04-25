@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
 
   if (!delimiter_present) {
     // backwards compabitility: handle all args as Envoys if delimiter isn't present
-    envoy_args.insert(envoy_args.begin(), args.begin(), args.end());
+    envoy_args.insert(envoy_args.end(), args.begin(), args.end());
   } else {
     // parse arguments and split by delimiter "--"
     // before: arguments for starter process
