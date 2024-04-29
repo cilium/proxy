@@ -11,7 +11,7 @@ github.com/cilium/checkmate
 # github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
 ## explicit
 github.com/cilium/kafka/proto
-# github.com/cncf/xds/go v0.0.0-20240329184929-0c46c01016dc
+# github.com/cncf/xds/go v0.0.0-20240423153145-555b57ec207b
 ## explicit; go 1.19
 github.com/cncf/xds/go/udpa/annotations
 github.com/cncf/xds/go/xds/annotations/v3
