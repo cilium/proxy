@@ -180,13 +180,18 @@ public:
     // hash key. Note that since the identity is 3 bytes it will not collide
     // with neither an IPv4 nor IPv6 address.
     if (original_source_address_) {
-      if (original_source_address_->ip()->version() == Network::Address::IpVersion::v4) {
-        uint32_t raw_address = original_source_address_->ip()->ipv4()->address();
+      const auto& ip = original_source_address_->ip();
+      uint16_t port = ip->port();
+      if (ip->version() == Network::Address::IpVersion::v4) {
+        uint32_t raw_address = ip->ipv4()->address();
         addressIntoVector(key, raw_address);
-      } else if (original_source_address_->ip()->version() == Network::Address::IpVersion::v6) {
-        absl::uint128 raw_address = original_source_address_->ip()->ipv6()->address();
+      } else if (ip->version() == Network::Address::IpVersion::v6) {
+        absl::uint128 raw_address = ip->ipv6()->address();
         addressIntoVector(key, raw_address);
       }
+      // Add source port to the hash key
+      key.emplace_back(uint8_t(port >> 16));
+      key.emplace_back(uint8_t(port));
     } else {
       // Add the source identity to the hash key. This will separate upstream
       // connection pools per security ID.
