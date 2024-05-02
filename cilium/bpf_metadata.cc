@@ -384,12 +384,9 @@ bool Config::getMetadata(Network::ConnectionSocket& socket) {
     // This means that a local host IP is used if no IP is configured to be used instead of it
     // ('ip' above is null).
     src_address = nullptr;
-  } else if (!(use_original_source_address_ &&
-               !(destination_identity & Cilium::ID::LocalIdentityFlag) &&
-               destination_identity != Cilium::ID::WORLD && !npmap_->exists(other_ip))) {
-    // Otherwise only use the original source address if permitted, destination identity is not a
-    // locally allocated identity, is not classified as WORLD, and the destination is not in the
-    // same node.
+  } else if (!use_original_source_address_ || npmap_->exists(other_ip)) {
+    // Otherwise only use the original source address if permitted and the destination is not
+    // in the same node.
 
     // Original source address is not used
     src_address = nullptr;
