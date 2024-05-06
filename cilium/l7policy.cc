@@ -113,8 +113,15 @@ void AccessFilter::onUpstreamConnectionEstablished() {
 
 Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& headers,
                                                       bool end_stream) {
+  StreamInfo::StreamInfo& stream_info = callbacks_->streamInfo();
+
   // Pause upstream decoding until connection has been established
   if (config_->is_upstream_) {
+    // Skip enforcement or logging on shadows
+    if (stream_info.isShadow()) {
+      return Http::FilterHeadersStatus::Continue;
+    }
+
     ASSERT(callbacks_->upstreamCallbacks());
     if (!callbacks_->upstreamCallbacks()->upstream()) {
       latched_headers_ = headers;
@@ -140,8 +147,6 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     sendLocalError("cilium.l7policy: Cilium Socket Option not found");
     return Http::FilterHeadersStatus::StopIteration;
   }
-
-  StreamInfo::StreamInfo& stream_info = callbacks_->streamInfo();
 
   // Destination may have changed due to upstream routing and load balancing.
   // Use original destination address for policy enforcement when not L7 LB, even if the actual
