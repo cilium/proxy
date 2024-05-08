@@ -158,13 +158,16 @@ clean: force
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
 	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
 
+proxylib/libcilium.so:
+	make -C proxylib
+
 .PHONY: envoy-test-deps
-envoy-test-deps: $(COMPILER_DEP) SOURCE_VERSION
+envoy-test-deps: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build --build_tests_only -c fastbuild $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
 .PHONY: envoy-tests
-envoy-tests: $(COMPILER_DEP) SOURCE_VERSION
+envoy-tests: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) test -c fastbuild $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 	# To validate the upstream integration tests to make sure that our custom patches didn't break anything

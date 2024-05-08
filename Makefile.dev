@@ -51,7 +51,7 @@ fix: force-non-root
 	bazel $(BAZEL_OPTS) run @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
 
 # Run tests without debug by default.
-tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION install-bazel
+tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION proxylib/libcilium.so install-bazel
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 	$(MAKE) -C proxylib test
