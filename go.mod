@@ -17,8 +17,8 @@ require (
 	go.opentelemetry.io/proto/otlp v1.2.0
 	golang.org/x/sync v0.7.0
 	golang.org/x/sys v0.20.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20240509183442-62759503f434
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240509183442-62759503f434
+	google.golang.org/genproto/googleapis/api v0.0.0-20240513163218-0867130af1f8
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240513163218-0867130af1f8
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.34.1
 	k8s.io/klog/v2 v2.120.1
