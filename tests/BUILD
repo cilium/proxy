@@ -227,6 +227,28 @@ envoy_cc_test(
 )
 
 envoy_cc_test(
+    name = "cilium_http_upstream_integration_test",
+    srcs = ["cilium_http_upstream_integration_test.cc"],
+    data = [
+        "//proxylib:libcilium.so",
+    ],
+    repository = "@envoy",
+    deps = [
+        ":bpf_metadata_lib",
+        ":cilium_http_integration_lib",
+        "//cilium:l7policy_lib",
+        "//cilium:network_filter_lib",
+        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
+        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
+        "@envoy//source/extensions/clusters/static:static_cluster_lib",
+        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
+        "@envoy//source/extensions/upstreams/http/http:config",
+        "@envoy//source/extensions/upstreams/http/http:upstream_request_lib",
+        "@envoy//test/integration/clusters:custom_static_cluster",
+    ],
+)
+
+envoy_cc_test(
     name = "cilium_websocket_decap_integration_test",
     srcs = ["cilium_websocket_decap_integration_test.cc"],
     data = [

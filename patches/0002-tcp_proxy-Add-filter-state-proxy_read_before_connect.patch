@@ -1,7 +1,7 @@
-From e8369043306edba8921ab5ef71efd0522ff325c7 Mon Sep 17 00:00:00 2001
+From 0d5c620f92cc6ff8cd492094944495be8c4f05a2 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 8 Apr 2024 15:21:08 +0200
-Subject: [PATCH 3/6] tcp_proxy: Add filter state proxy_read_before_connect
+Subject: [PATCH 2/6] tcp_proxy: Add filter state proxy_read_before_connect
 
 Add filter state object bool proxy_receive_before_connect that tcp_proxy
 filter checks for and when set to 'true' will not set readDisable on the

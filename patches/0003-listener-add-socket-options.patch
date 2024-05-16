@@ -1,12 +1,11 @@
-From b74e92a3de474778e1398756046554f16f00b6a5 Mon Sep 17 00:00:00 2001
+From 4f3ed287031b7fac68c73e9d18215b5010ed19e5 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 14 Aug 2023 10:01:21 +0300
-Subject: [PATCH 4/4] listener: add socket options
+Subject: [PATCH 3/6] listener: add socket options
 
 This reverts commit 170c89eb0b2afb7a39d44d0f8dfb77444ffc038f.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
-
 ---
  envoy/server/factory_context.h                  | 8 +++++++-
  source/common/listener_manager/listener_impl.cc | 3 +++
@@ -31,7 +30,7 @@ index 8a139fbcb0..e9c0c25a99 100644
 +   */
 +  virtual void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& options) PURE;
 +};
-
+ 
  /**
   * FactoryContext for ProtocolOptionsFactory.
 diff --git a/source/common/listener_manager/listener_impl.cc b/source/common/listener_manager/listener_impl.cc
@@ -46,25 +45,25 @@ index 1c4034620a..aa4f26bb8a 100644
 +  listener_impl_.addListenSocketOptions(options);
 +}
  Init::Manager& PerListenerFactoryContextImpl::initManager() { return listener_impl_.initManager(); }
-
+ 
  bool ListenerImpl::createNetworkFilterChain(
 diff --git a/source/common/listener_manager/listener_impl.h b/source/common/listener_manager/listener_impl.h
 index 9bb5b87024..16e6608cd9 100644
 --- a/source/common/listener_manager/listener_impl.h
 +++ b/source/common/listener_manager/listener_impl.h
 @@ -178,6 +178,8 @@ public:
-
+ 
    Stats::Scope& listenerScope() override;
-
+ 
 +  void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& options) override;
 +
    ListenerFactoryContextBaseImpl& parentFactoryContext() { return *listener_factory_context_base_; }
    friend class ListenerImpl;
-
+ 
 @@ -321,6 +323,13 @@ public:
      return listener_factory_context_->listener_factory_context_base_->listener_info_;
    }
-
+ 
 +  void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& append_options) {
 +    for (std::vector<Network::Address::InstanceConstSharedPtr>::size_type i = 0;
 +      i < addresses_.size(); i++) {
@@ -84,7 +83,7 @@ index 594afca75f..6eb1bad290 100644
    MOCK_METHOD(Stats::Scope&, listenerScope, ());
    MOCK_METHOD(const Network::ListenerInfo&, listenerInfo, (), (const));
 +  MOCK_METHOD(void, addListenSocketOptions, (const Network::Socket::OptionsSharedPtr&));
-
+ 
    testing::NiceMock<MockServerFactoryContext> server_factory_context_;
    testing::NiceMock<MockTransportSocketFactoryContext> transport_socket_factory_context_;
 diff --git a/test/mocks/server/listener_factory_context.h b/test/mocks/server/listener_factory_context.h
@@ -94,11 +93,11 @@ index 10fbe1e217..b05c37c36a 100644
 @@ -21,6 +21,7 @@ public:
    MockListenerFactoryContext();
    ~MockListenerFactoryContext() override;
-
+ 
 +  MOCK_METHOD(void, addListenSocketOptions, (const Network::Socket::OptionsSharedPtr&));
    MOCK_METHOD(ServerFactoryContext&, serverFactoryContext, (), (const));
    MOCK_METHOD(TransportSocketFactoryContext&, getTransportSocketFactoryContext, (), (const));
    MOCK_METHOD(const Network::DrainDecision&, drainDecision, ());
---
+-- 
 2.44.0
 

@@ -33,9 +33,10 @@ git_repository(
     patch_tool = "git",
     patches = [
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
-        "@//patches:0002-upstream-Add-callback-for-upstream-authorization.patch",
-        "@//patches:0003-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
-        "@//patches:0004-listener-add-socket-options.patch",
+        "@//patches:0002-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
+        "@//patches:0003-listener-add-socket-options.patch",
+        # This patch is already in upstream Envoy main branch:
+        "@//patches:0004-factory_base-Backport-is_upstream.patch",
         # This patch is needed to fix the build with clang for envoy 1.29+
         # https://github.com/envoyproxy/envoy/pull/31894
         "@//patches:0005-Patch-cel-cpp-to-not-break-build.patch",
