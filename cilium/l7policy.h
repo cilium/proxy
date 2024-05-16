@@ -36,14 +36,15 @@ struct FilterStats {
 class Config : public Logger::Loggable<Logger::Id::filter> {
 public:
   Config(const std::string& access_log_path, const std::string& denied_403_body,
-         Server::Configuration::FactoryContext& context);
-  Config(const ::cilium::L7Policy& config, Server::Configuration::FactoryContext& context);
+         TimeSource& time_source, Stats::Scope& scope, bool is_upstream);
+  Config(const ::cilium::L7Policy& config, TimeSource& time_source, Stats::Scope& scope, bool is_upstream);
 
   void Log(AccessLog::Entry&, ::cilium::EntryType);
 
   TimeSource& time_source_;
   FilterStats stats_;
   std::string denied_403_body_;
+  bool is_upstream_;
 
 private:
   Cilium::AccessLogSharedPtr access_log_;
@@ -54,9 +55,12 @@ typedef std::shared_ptr<Config> ConfigSharedPtr;
 // Each request gets their own instance of this filter, and
 // they can run parallel from multiple worker threads, all accessing
 // the shared configuration.
-class AccessFilter : public Http::StreamFilter, Logger::Loggable<Logger::Id::filter> {
+  class AccessFilter : public Http::StreamFilter, Logger::Loggable<Logger::Id::filter>, public Http::UpstreamCallbacks {
 public:
   AccessFilter(ConfigSharedPtr& config) : config_(config) {}
+
+  // UpstreamCallbacks
+  void onUpstreamConnectionEstablished() override;
 
   // Http::StreamFilterBase
   void onStreamComplete() override;
@@ -90,11 +94,16 @@ public:
   }
 
 private:
+  void sendLocalError(absl::string_view details);
+
   ConfigSharedPtr config_;
   Http::StreamDecoderFilterCallbacks* callbacks_ = nullptr;
 
   bool allowed_ = false;
   AccessLog::Entry* log_entry_ = nullptr;
+
+  OptRef<Http::RequestHeaderMap> latched_headers_;
+  absl::optional<bool> latched_end_stream_;
 };
 
 } // namespace Cilium

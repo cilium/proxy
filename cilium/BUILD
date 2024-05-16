@@ -108,6 +108,7 @@ envoy_cc_library(
         "@envoy//source/common/http:utility_lib",
         "@envoy//source/common/network:upstream_server_name_lib",
         "@envoy//source/common/network:upstream_subject_alt_names_lib",
+        "@envoy//source/extensions/filters/http/common:factory_base_lib",
     ],
 )
 

@@ -115,6 +115,7 @@ namespace {
 ::cilium::BpfMetadata getTestConfig(const ::cilium::TestBpfMetadata& config) {
   ::cilium::BpfMetadata test_config;
   test_config.set_is_ingress(config.is_ingress());
+  test_config.set_is_l7lb(config.is_l7lb());
   return test_config;
 }
 } // namespace
@@ -177,9 +178,9 @@ Cilium::SocketOptionSharedPtr TestConfig::getMetadata(Network::ConnectionSocket&
     ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
   }
 
-  return std::make_shared<Cilium::SocketOption>(policy, 0, 0, source_identity, is_ingress_, false,
-                                                port, std::move(pod_ip), nullptr, nullptr, nullptr,
-                                                shared_from_this(), 0);
+  return std::make_shared<Cilium::SocketOption>(policy, 0, 0, source_identity, is_ingress_,
+                                                is_l7lb_, port, std::move(pod_ip), nullptr, nullptr,
+                                                nullptr, shared_from_this(), 0);
 }
 
 } // namespace BpfMetadata

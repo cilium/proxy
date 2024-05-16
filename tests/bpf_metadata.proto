@@ -7,4 +7,5 @@ package cilium;
 message TestBpfMetadata {
   // 'true' if the filter is on ingress listener, 'false' for egress listener.
   bool is_ingress = 2;
+  bool is_l7lb = 4;
 }
