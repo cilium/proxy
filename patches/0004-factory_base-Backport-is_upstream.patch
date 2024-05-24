@@ -1,7 +1,7 @@
-From 5eab57efac5beb0f2e6edb4b2aaf7493b03c532b Mon Sep 17 00:00:00 2001
+From a940e129f8dfedd434961509de351a24bf68c29e Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Thu, 29 Feb 2024 13:21:20 +0100
-Subject: [PATCH 6/6] factory_base: Backport "is_upstream"
+Subject: [PATCH 4/6] factory_base: Backport "is_upstream"
 
 Upstream commit 26a4eb87428dbf3a39ff4f6f61b69538c34d07b6 introduced
 'is_upstream' field in 'DualInfo' that allows filter operation to know if
@@ -14,9 +14,6 @@ version bump with the upstream commit
 26a4eb87428dbf3a39ff4f6f61b69538c34d07b6.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
----
- source/extensions/filters/http/common/factory_base.h | 5 +++--
- 1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/source/extensions/filters/http/common/factory_base.h b/source/extensions/filters/http/common/factory_base.h
 index ae0288c8e1..3773237ae8 100644
@@ -38,5 +35,5 @@ index ae0288c8e1..3773237ae8 100644
  
    absl::StatusOr<Envoy::Http::FilterFactoryCb>
 -- 
-2.44.0
+2.45.0
 

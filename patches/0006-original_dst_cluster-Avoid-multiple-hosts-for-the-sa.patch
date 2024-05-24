@@ -1,0 +1,458 @@
+From 6bbf94884ee4ec2b434f5d265b154d778df53d77 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Fri, 24 May 2024 18:27:28 +0200
+Subject: [PATCH 6/6] original_dst_cluster: Avoid multiple hosts for the same
+ address
+
+Connection pool containers use HostSharedPtr as map keys, rather than the
+address of the host. This leads to multiple connections when there are
+multiple Host instances for the same address. This is breaking use of the
+original source address and port for upstream connections since only one
+such connection can exist at any one time.
+
+Original destination cluster implementation creates such duplicate Host
+instances when two worker threads are racing to create a Host for the
+same destination at the same time.
+
+Fix this by keeping a separate 'updates_map' where each worker places a
+newly created Host for the original destination. This map is used to look
+for the Host is it can not be found from the shared read-only
+'host_map'. Access to 'updates_map' is syncronized so that it can be
+safely shared by the worker threads. The main threads consolidates the
+updates from the 'updates_map' to a new instance of the shared, read-only
+hosts map, so that the workers do not need to stall for possibly large
+map updates.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+
+diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.cc b/source/extensions/clusters/original_dst/original_dst_cluster.cc
+index 2b33138629..723b236d83 100644
+--- a/source/extensions/clusters/original_dst/original_dst_cluster.cc
++++ b/source/extensions/clusters/original_dst/original_dst_cluster.cc
+@@ -29,6 +29,19 @@ OriginalDstClusterHandle::~OriginalDstClusterHandle() {
+   dispatcher.post([cluster = std::move(cluster)]() mutable { cluster.reset(); });
+ }
+ 
++namespace {
++HostConstSharedPtr findHost(const HostUseMap& map, const std::string& address) {
++  auto it = map.find(address);
++  if (it != map.cend()) {
++    HostConstSharedPtr chost = it->second->host_;
++    ENVOY_LOG_MISC(trace, "Using existing host {}.", *chost);
++    it->second->used_ = true;
++    return chost;
++  }
++  return nullptr;
++}
++} // namespace
++
+ HostConstSharedPtr OriginalDstCluster::LoadBalancer::chooseHost(LoadBalancerContext* context) {
+   if (context) {
+     // Check if filter state override is present, if yes use it before anything else.
+@@ -59,40 +72,8 @@ HostConstSharedPtr OriginalDstCluster::LoadBalancer::chooseHost(LoadBalancerCont
+     if (dst_host) {
+       const Network::Address::Instance& dst_addr = *dst_host.get();
+       // Check if a host with the destination address is already in the host set.
+-      auto it = host_map_->find(dst_addr.asString());
+-      if (it != host_map_->end()) {
+-        HostConstSharedPtr host = it->second->host_;
+-        ENVOY_LOG(trace, "Using existing host {} {}.", *host, host->address()->asString());
+-        it->second->used_ = true;
+-        return host;
+-      }
+-      // Add a new host
+-      const Network::Address::Ip* dst_ip = dst_addr.ip();
+-      if (dst_ip) {
+-        Network::Address::InstanceConstSharedPtr host_ip_port(
+-            Network::Utility::copyInternetAddressAndPort(*dst_ip));
+-        // Create a host we can use immediately.
+-        auto info = parent_->cluster_->info();
+-        HostSharedPtr host(std::make_shared<HostImpl>(
+-            info, info->name() + dst_addr.asString(), std::move(host_ip_port), nullptr, 1,
+-            envoy::config::core::v3::Locality().default_instance(),
+-            envoy::config::endpoint::v3::Endpoint::HealthCheckConfig().default_instance(), 0,
+-            envoy::config::core::v3::UNKNOWN, parent_->cluster_->time_source_));
+-        ENVOY_LOG(debug, "Created host {} {}.", *host, host->address()->asString());
+-
+-        // Tell the cluster about the new host
+-        // lambda cannot capture a member by value.
+-        std::weak_ptr<OriginalDstClusterHandle> post_parent = parent_;
+-        parent_->cluster_->dispatcher_.post([post_parent, host]() mutable {
+-          // The main cluster may have disappeared while this post was queued.
+-          if (std::shared_ptr<OriginalDstClusterHandle> parent = post_parent.lock()) {
+-            parent->cluster_->addHost(host);
+-          }
+-        });
+-        return host;
+-      } else {
+-        ENVOY_LOG(debug, "Failed to create host for {}.", dst_addr.asString());
+-      }
++      HostConstSharedPtr host = findHost(*host_map_.get(), dst_addr.asString());
++      return host ? host : parent_->cluster_->getHost(dst_addr);
+     }
+   }
+   // TODO(ramaraochavali): add a stat and move this log line to debug.
+@@ -195,7 +176,7 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
+       cleanup_interval_ms_(
+           std::chrono::milliseconds(PROTOBUF_GET_MS_OR_DEFAULT(config, cleanup_interval, 5000))),
+       cleanup_timer_(dispatcher_.createTimer([this]() -> void { cleanup(); })),
+-      host_map_(std::make_shared<HostMultiMap>()) {
++      host_map_(std::make_shared<HostUseMap>()), updates_map_(std::make_unique<HostUseMap>()) {
+   if (const auto& config_opt = info_->lbOriginalDstConfig(); config_opt.has_value()) {
+     if (config_opt->use_http_header()) {
+       http_header_name_ = config_opt->http_header_name().empty()
+@@ -212,47 +193,146 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
+   cleanup_timer_->enableTimer(cleanup_interval_ms_);
+ }
+ 
+-void OriginalDstCluster::addHost(HostSharedPtr& host) {
+-  std::string address = host->address()->asString();
+-  HostMultiMapSharedPtr new_host_map = std::make_shared<HostMultiMap>(*getCurrentHostMap());
+-  auto it = new_host_map->find(address);
+-  if (it != new_host_map->end()) {
+-    // If the entry already exists, that means the worker that posted this host
+-    // had a stale host map. Because the host is potentially in that worker's
+-    // connection pools, we save the host in the host map hosts_ list and the
+-    // cluster priority set. Subsequently, the entire hosts_ list and the
+-    // primary host are removed collectively, once no longer in use.
+-    it->second->hosts_.push_back(host);
+-  } else {
+-    // The first worker that creates a host for the address defines the primary
+-    // host structure.
+-    new_host_map->emplace(address, std::make_shared<HostsForAddress>(host));
++// getHost returns the host for the address. A new host is created when needed.
++// Called from the worker threads.
++// When multiple worker threads call this at the same time the updates of the
++// updates map are serialized via updates_map_lock_. For any given address, only the
++// first thread creates a new host for that address, so that at any time there is
++// only one host for any given address. This is important as HostSharedPtr is used
++// as a map key in connection pools.
++// Returns a nullptr if the host cannot be added for the given address.
++HostConstSharedPtr OriginalDstCluster::getHost(const Network::Address::Instance& dst_addr) {
++  HostSharedPtr host;
++  HostConstSharedPtr chost;
++  auto address = dst_addr.asString();
++  const Network::Address::Ip* dst_ip = dst_addr.ip();
++
++  if (dst_ip == nullptr) {
++    ENVOY_LOG(debug, "Cannot create host for non-IP address {}.", address);
++    return nullptr;
++  }
++
++  // Scope the lock for reading the host_map_
++  {
++    absl::ReaderMutexLock lock(&host_map_lock_);
++    // Check if a host with the destination address is already in the host map.
++    // This may have been updated since the loadbalancer was created.
++    chost = findHost(*host_map_.get(), address);
++    if (chost) {
++      return chost;
++    }
++
++    // Not found, check the updates map and add a new entry if needed.
++    // Note that the read lock is still held on the hosts_map_, so that it is not possible
++    // for the main thread to move the host from updates_map_ to the hosts_map_ while we wait
++    // for the lock here.
++    // Scope the lock for reading the updates_map_
++    {
++      absl::ReaderMutexLock updates_lock(&updates_map_lock_);
++      // Check if a host with the destination address is already in the updates map.
++      // The main thread may have not had the opportinity to consolidate the maps yet.
++      chost = findHost(*updates_map_.get(), address);
++      if (chost) {
++        return chost;
++      }
++    }
++    // Not found, create a new host, take a writer lock and create a new host,
++    // Unless another worker does it first.
++    // Scope the lock for updating the updates_map_
++    {
++      absl::WriterMutexLock updates_lock(&updates_map_lock_);
++      // Check if a host with the destination address is already in the updates map.
++      // The main thread may have not had the opportinity to consolidate the maps yet.
++      chost = findHost(*updates_map_.get(), address);
++      if (chost) {
++        return chost;
++      }
++
++      // Not found, create a new host
++      Network::Address::InstanceConstSharedPtr host_ip_port(
++          Network::Utility::copyInternetAddressAndPort(*dst_ip));
++      host = std::make_shared<HostImpl>(
++          info(), info()->name() + ":" + address, std::move(host_ip_port), nullptr, 1,
++          envoy::config::core::v3::Locality().default_instance(),
++          envoy::config::endpoint::v3::Endpoint::HealthCheckConfig().default_instance(), 0,
++          envoy::config::core::v3::UNKNOWN, time_source_);
++      ENVOY_LOG(debug, "Created host {}.", *host);
++
++      // Add the new host
++      updates_map_->emplace(address, std::make_shared<HostUse>(host));
++    }
++  }
++
++  // Tell cluster to update hosts.
++  auto weak_this = weak_from_this();
++  dispatcher_.post([weak_this]() mutable {
++    // The main cluster may have disappeared while this post was queued.
++    if (std::shared_ptr<OriginalDstCluster> cluster = weak_this.lock()) {
++      cluster->updateHosts();
++    }
++  });
++
++  return host;
++}
++
++// updateHosts updates the host map and the priotiry sets of the cluster.
++void OriginalDstCluster::updateHosts() {
++  ASSERT_IS_MAIN_OR_TEST_THREAD();
++
++  // Allocate new maps without keeping locks.
++  // This is possible since the main thread is the only one updating the host map.
++  auto new_host_map = std::make_shared<HostUseMap>(*getHostMap());
++  auto empty_map = std::make_unique<HostUseMap>();
++  HostVector new_hosts;
++  new_hosts.reserve(4); // try avoid allocation while holding locks below
++
++  // Consolidate updates into the new host map
++  // Loadbalancers can not add any updates while we keep these locks, so keep this short!
++  {
++    absl::WriterMutexLock lock(&host_map_lock_);
++    absl::WriterMutexLock updates_lock(&updates_map_lock_);
++
++    if (updates_map_->empty()) {
++      return; // nothing to do
++    }
++
++    new_hosts.reserve(updates_map_->size());
++
++    for (const auto& [addr, host_use] : *updates_map_) {
++      new_host_map->emplace(addr, host_use);
++      new_hosts.emplace_back(host_use->host_);
++    }
++
++    // Make available for load balancers
++    host_map_ = new_host_map;
++    updates_map_.swap(empty_map);
+   }
+-  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
+-  setHostMap(new_host_map);
+ 
+-  // Given the current config, only EDS clusters support multiple priorities.
+   ASSERT(priority_set_.hostSetsPerPriority().size() == 1);
+   const auto& first_host_set = priority_set_.getOrCreateHostSet(0);
+   HostVectorSharedPtr all_hosts(new HostVector(first_host_set.hosts()));
+-  all_hosts->emplace_back(host);
++  for (auto host : new_hosts) {
++    all_hosts->emplace_back(host);
++  }
+   priority_set_.updateHosts(0,
+                             HostSetImpl::partitionHosts(all_hosts, HostsPerLocalityImpl::empty()),
+-                            {}, {std::move(host)}, {}, absl::nullopt, absl::nullopt);
++                            {}, new_hosts, {}, absl::nullopt, absl::nullopt);
+ }
+ 
+ void OriginalDstCluster::cleanup() {
+-  HostVectorSharedPtr keeping_hosts(new HostVector);
+-  HostVector to_be_removed;
+-  absl::flat_hash_set<absl::string_view> removed_addresses;
+-  auto host_map = getCurrentHostMap();
++  ASSERT_IS_MAIN_OR_TEST_THREAD();
++  const auto* host_map = getHostMap();
++
+   if (!host_map->empty()) {
++    HostVectorSharedPtr keeping_hosts = std::make_shared<HostVector>();
++    HostVector to_be_removed;
++    absl::flat_hash_set<absl::string_view> removed_addresses;
++
+     ENVOY_LOG(trace, "Cleaning up stale original dst hosts.");
+-    for (const auto& [addr, hosts] : *host_map) {
++    for (const auto& [addr, host_use] : *host_map) {
+       // Address is kept in the cluster if either of the two things happen:
+-      // 1) a host has been recently selected for the address; 2) none of the
+-      // hosts are currently in any of the connection pools.
+-      // The set of hosts for a single address are treated as a unit.
++      // 1) a host has been recently selected for the address;
++      // 2) a host is currently in a connection pool.
+       //
+       // Using the used_ bit is preserved for backwards compatibility and to
+       // add a delay between load balancers choosing a host and grabbing a
+@@ -267,49 +347,41 @@ void OriginalDstCluster::cleanup() {
+       // 3) will not delete h since it takes at least one cleanup_interval for
+       // the host to set used_ bit for h to false.
+       bool keep = false;
+-      if (hosts->used_) {
++      if (host_use->used_) {
+         keep = true;
+-        hosts->used_ = false; // Mark to be removed during the next round.
++        host_use->used_ = false; // Mark to be removed during the next round.
+       } else if (Runtime::runtimeFeatureEnabled(
+                      "envoy.reloadable_features.original_dst_rely_on_idle_timeout")) {
+-        // Check that all hosts (first, as well as others that may have been added concurrently)
+-        // are not in use by any connection pool.
+-        if (hosts->host_->used()) {
++        // Check if the host is in use by any connection pool.
++        if (host_use->host_->used()) {
+           keep = true;
+-        } else {
+-          for (const auto& host : hosts->hosts_) {
+-            if (host->used()) {
+-              keep = true;
+-              break;
+-            }
+-          }
+         }
+       }
+       if (keep) {
+         ENVOY_LOG(trace, "Keeping active address {}.", addr);
+-        keeping_hosts->emplace_back(hosts->host_);
+-        if (!hosts->hosts_.empty()) {
+-          keeping_hosts->insert(keeping_hosts->end(), hosts->hosts_.begin(), hosts->hosts_.end());
+-        }
++        keeping_hosts->emplace_back(host_use->host_);
+       } else {
+         ENVOY_LOG(trace, "Removing stale address {}.", addr);
+         removed_addresses.insert(addr);
+-        to_be_removed.emplace_back(hosts->host_);
+-        if (!hosts->hosts_.empty()) {
+-          to_be_removed.insert(to_be_removed.end(), hosts->hosts_.begin(), hosts->hosts_.end());
+-        }
++        to_be_removed.emplace_back(host_use->host_);
+       }
+     }
+-  }
+-  if (!to_be_removed.empty()) {
+-    HostMultiMapSharedPtr new_host_map = std::make_shared<HostMultiMap>(*host_map);
+-    for (const auto& addr : removed_addresses) {
+-      new_host_map->erase(addr);
++
++    if (!to_be_removed.empty()) {
++      auto new_host_map = std::make_shared<HostUseMap>();
++      new_host_map->reserve(host_map->size() - removed_addresses.size());
++      for (const auto& [addr, host_use] : *host_map) {
++        if (removed_addresses.find(addr) == removed_addresses.end()) {
++          new_host_map->emplace(addr, host_use);
++        }
++      }
++
++      setHostMap(new_host_map);
++
++      priority_set_.updateHosts(
++          0, HostSetImpl::partitionHosts(keeping_hosts, HostsPerLocalityImpl::empty()), {}, {},
++          to_be_removed, false, absl::nullopt);
+     }
+-    setHostMap(new_host_map);
+-    priority_set_.updateHosts(
+-        0, HostSetImpl::partitionHosts(keeping_hosts, HostsPerLocalityImpl::empty()), {}, {},
+-        to_be_removed, false, absl::nullopt);
+   }
+ 
+   cleanup_timer_->enableTimer(cleanup_interval_ms_);
+@@ -339,9 +411,6 @@ OriginalDstClusterFactory::createClusterImpl(const envoy::config::cluster::v3::C
+         cluster.original_dst_lb_config().http_header_name()));
+   }
+ 
+-  // TODO(mattklein123): The original DST load balancer type should be deprecated and instead
+-  //                     the cluster should directly supply the load balancer. This will remove
+-  //                     a special case and allow this cluster to be compiled out as an extension.
+   auto new_cluster = std::shared_ptr<OriginalDstCluster>(new OriginalDstCluster(cluster, context));
+   auto lb = std::make_unique<OriginalDstCluster::ThreadAwareLoadBalancer>(
+       std::make_shared<OriginalDstClusterHandle>(new_cluster));
+diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.h b/source/extensions/clusters/original_dst/original_dst_cluster.h
+index 68a44cf5b9..a9b25cc9c0 100644
+--- a/source/extensions/clusters/original_dst/original_dst_cluster.h
++++ b/source/extensions/clusters/original_dst/original_dst_cluster.h
+@@ -22,25 +22,21 @@ namespace Upstream {
+ class OriginalDstClusterFactory;
+ class OriginalDstClusterTest;
+ 
+-struct HostsForAddress {
+-  HostsForAddress(HostSharedPtr& host) : host_(host), used_(true) {}
++// HostUse tracks the recent use of a host to avoid clearing out a host
++// which is not recorded as used in any connection pool.
++struct HostUse {
++  HostUse(HostSharedPtr& host) : host_(host), used_(true) {}
+ 
+-  // Primary host for the address. This is set by the first worker that posts
+-  // to the main to add a host. The field is read by all workers.
++  // The host for an address.
+   const HostSharedPtr host_;
+-  // Hosts that are added concurrently with host_ are stored in this list.
+-  // This is populated by the subsequent workers that have not received the
+-  // updated table with set host_. The field is only accessed from the main
+-  // thread.
+-  std::vector<HostSharedPtr> hosts_;
+   // Marks as recently used by load balancers.
+   std::atomic<bool> used_;
+ };
+ 
+-using HostsForAddressSharedPtr = std::shared_ptr<HostsForAddress>;
+-using HostMultiMap = absl::flat_hash_map<std::string, HostsForAddressSharedPtr>;
+-using HostMultiMapSharedPtr = std::shared_ptr<HostMultiMap>;
+-using HostMultiMapConstSharedPtr = std::shared_ptr<const HostMultiMap>;
++using HostUseSharedPtr = std::shared_ptr<HostUse>;
++using HostUseMap = absl::flat_hash_map<std::string, HostUseSharedPtr>;
++using HostUseMapUniquePtr = std::unique_ptr<HostUseMap>;
++using HostUseMapConstSharedPtr = std::shared_ptr<const HostUseMap>;
+ 
+ class OriginalDstCluster;
+ 
+@@ -65,7 +61,8 @@ using OriginalDstClusterHandleSharedPtr = std::shared_ptr<OriginalDstClusterHand
+  * cleaned up after they have not seen traffic for a configurable cleanup interval time
+  * ("cleanup_interval_ms").
+  */
+-class OriginalDstCluster : public ClusterImplBase {
++class OriginalDstCluster : public ClusterImplBase,
++                           public std::enable_shared_from_this<OriginalDstCluster> {
+ public:
+   ~OriginalDstCluster() override {
+     ASSERT_IS_MAIN_OR_TEST_THREAD();
+@@ -120,7 +117,7 @@ public:
+     const absl::optional<Http::LowerCaseString>& http_header_name_;
+     const absl::optional<Config::MetadataKey>& metadata_key_;
+     const absl::optional<uint32_t> port_override_;
+-    HostMultiMapConstSharedPtr host_map_;
++    HostUseMapConstSharedPtr host_map_;
+   };
+ 
+   const absl::optional<Http::LowerCaseString>& httpHeaderName() { return http_header_name_; }
+@@ -156,17 +153,23 @@ private:
+     const OriginalDstClusterHandleSharedPtr cluster_;
+   };
+ 
+-  HostMultiMapConstSharedPtr getCurrentHostMap() {
++  const HostUseMap* getHostMap() {
++    absl::ReaderMutexLock lock(&host_map_lock_);
++    return host_map_.get();
++  }
++
++  HostUseMapConstSharedPtr getCurrentHostMap() {
+     absl::ReaderMutexLock lock(&host_map_lock_);
+     return host_map_;
+   }
+ 
+-  void setHostMap(const HostMultiMapConstSharedPtr& new_host_map) {
++  void setHostMap(const HostUseMapConstSharedPtr& new_host_map) {
+     absl::WriterMutexLock lock(&host_map_lock_);
+     host_map_ = new_host_map;
+   }
+ 
+-  void addHost(HostSharedPtr&);
++  HostConstSharedPtr getHost(const Network::Address::Instance&);
++  void updateHosts();
+   void cleanup();
+ 
+   // ClusterImplBase
+@@ -177,7 +180,9 @@ private:
+   Event::TimerPtr cleanup_timer_;
+ 
+   absl::Mutex host_map_lock_;
+-  HostMultiMapConstSharedPtr host_map_ ABSL_GUARDED_BY(host_map_lock_);
++  HostUseMapConstSharedPtr host_map_ ABSL_GUARDED_BY(host_map_lock_);
++  absl::Mutex updates_map_lock_ ABSL_ACQUIRED_AFTER(host_map_lock_);
++  HostUseMapUniquePtr updates_map_ ABSL_GUARDED_BY(updates_map_lock_);
+   absl::optional<Http::LowerCaseString> http_header_name_;
+   absl::optional<Config::MetadataKey> metadata_key_;
+   absl::optional<uint32_t> port_override_;
+-- 
+2.45.0
+

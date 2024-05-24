@@ -1,4 +1,4 @@
-From 0d5c620f92cc6ff8cd492094944495be8c4f05a2 Mon Sep 17 00:00:00 2001
+From d5069995b4a4a0f9da3de3cda5271820532cfa16 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 8 Apr 2024 15:21:08 +0200
 Subject: [PATCH 2/6] tcp_proxy: Add filter state proxy_read_before_connect
@@ -29,13 +29,6 @@ reliant on the tcp_proxy internal detail, such as balancing and timing of
 the readDisable() calls on the downstream connection.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
----
- source/common/tcp_proxy/BUILD                 |  1 +
- source/common/tcp_proxy/tcp_proxy.cc          | 34 ++++++++--
- source/common/tcp_proxy/tcp_proxy.h           |  6 ++
- test/integration/BUILD                        |  1 +
- .../integration/tcp_proxy_integration_test.cc | 68 +++++++++++++------
- 5 files changed, 84 insertions(+), 26 deletions(-)
 
 diff --git a/source/common/tcp_proxy/BUILD b/source/common/tcp_proxy/BUILD
 index 07d5c5995d..75f9047969 100644
@@ -296,5 +289,5 @@ index 90ad072b81..95a6b1cf80 100644
  
  INSTANTIATE_TEST_SUITE_P(TcpProxyIntegrationTestParams, TcpProxySslIntegrationTest,
 -- 
-2.44.0
+2.45.0
 
