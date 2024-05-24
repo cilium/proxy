@@ -3,6 +3,7 @@
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/network/listen_socket.h"
 
+#include "source/common/common/hex.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 
@@ -189,9 +190,14 @@ public:
         absl::uint128 raw_address = ip->ipv6()->address();
         addressIntoVector(key, raw_address);
       }
-      // Add source port to the hash key
-      key.emplace_back(uint8_t(port >> 16));
-      key.emplace_back(uint8_t(port));
+      // Add source port to the hash key if defined
+      if (port != 0) {
+        ENVOY_LOG(trace, "hashKey port: {:x}", port);
+        key.emplace_back(uint8_t(port >> 8));
+        key.emplace_back(uint8_t(port));
+      }
+      ENVOY_LOG(trace, "hashKey after Cilium: {}, source: {}", Hex::encode(key),
+                original_source_address_->asString());
     } else {
       // Add the source identity to the hash key. This will separate upstream
       // connection pools per security ID.

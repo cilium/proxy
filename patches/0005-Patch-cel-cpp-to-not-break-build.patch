@@ -1,14 +1,9 @@
-From 1ac8bd0dbc9ce72e13fa1bab42ba5511cfa9c4ac Mon Sep 17 00:00:00 2001
+From bf362edf3af51a2df5de26a9c5f472c69b685e8b Mon Sep 17 00:00:00 2001
 From: Raven Black <ravenblack@dropbox.com>
 Date: Thu, 18 Jan 2024 16:34:15 +0000
 Subject: [PATCH 5/6] Patch cel-cpp to not break build
 
 Signed-off-by: Raven Black <ravenblack@dropbox.com>
----
- bazel/cel-cpp-memory.patch | 44 ++++++++++++++++++++++++++++++++++++++
- bazel/repositories.bzl     |  5 ++++-
- 2 files changed, 48 insertions(+), 1 deletion(-)
- create mode 100644 bazel/cel-cpp-memory.patch
 
 diff --git a/bazel/cel-cpp-memory.patch b/bazel/cel-cpp-memory.patch
 new file mode 100644
@@ -77,5 +72,5 @@ index aa93c9c838..3220aeb2ec 100644
      )
  
 -- 
-2.44.0
+2.45.0
 

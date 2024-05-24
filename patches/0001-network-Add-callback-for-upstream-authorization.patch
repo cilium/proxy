@@ -1,4 +1,4 @@
-From 0d3d01a4d6918efc629716913b3e43dc3f129836 Mon Sep 17 00:00:00 2001
+From 527272bbdfb624250c0cf5bc5e7eae219126f3b8 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 24 Jan 2022 15:40:28 +0200
 Subject: [PATCH 1/6] network: Add callback for upstream authorization
@@ -25,23 +25,6 @@ done from the tcp_proxy or router filter in the same filter chain.
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 
 Signed-off-by: Tam Mach <sayboras@yahoo.com>
----
- envoy/http/filter.h                         |  8 ++++++
- envoy/network/filter.h                      | 28 +++++++++++++++++++++
- envoy/tcp/upstream.h                        |  5 ++++
- source/common/http/async_client_impl.h      |  5 ++++
- source/common/http/conn_manager_impl.h      |  6 +++++
- source/common/http/filter_manager.cc        |  6 +++++
- source/common/http/filter_manager.h         | 10 +++++++-
- source/common/network/filter_manager_impl.h | 21 ++++++++++++++++
- source/common/router/router.cc              |  8 ++++++
- source/common/router/upstream_request.h     |  5 ++++
- source/common/tcp_proxy/tcp_proxy.cc        |  7 ++++++
- source/common/tcp_proxy/tcp_proxy.h         |  1 +
- source/common/tcp_proxy/upstream.cc         |  8 ++++++
- source/common/tcp_proxy/upstream.h          |  2 ++
- source/server/api_listener_impl.h           |  3 +++
- 15 files changed, 122 insertions(+), 1 deletion(-)
 
 diff --git a/envoy/http/filter.h b/envoy/http/filter.h
 index e250b3ab66..7bc9480ac6 100644
@@ -373,5 +356,5 @@ index 5ac8a3b7c0..f27bd198f6 100644
      // Synthetic class that acts as a stub for the connection backing the
      // Network::ReadFilterCallbacks.
 -- 
-2.44.0
+2.45.0
 
