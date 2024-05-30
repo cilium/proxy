@@ -97,7 +97,7 @@ createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSha
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, &ct] {
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context, ct);
-        map->startSubscription(context);
+        map->startSubscription();
         return map;
       });
 }
