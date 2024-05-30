@@ -77,7 +77,6 @@ namespace BpfMetadata {
 // Singleton registration via macro defined in envoy/singleton/manager.h
 SINGLETON_MANAGER_REGISTRATION(cilium_bpf_conntrack);
 SINGLETON_MANAGER_REGISTRATION(cilium_host_map);
-SINGLETON_MANAGER_REGISTRATION(cilium_ipcache);
 SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
 
 namespace {
@@ -142,14 +141,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
           // later.
           return std::make_shared<Cilium::CtMap>(bpf_root);
         });
-    ipcache_ = context.singletonManager().getTyped<Cilium::IPCache>(
-        SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
-          auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
-          if (!ipcache->Open()) {
-            ipcache.reset();
-          }
-          return ipcache;
-        });
+    ipcache_ = IPCache::NewIPCache(context.getServerFactoryContext(), bpf_root);
     if (bpf_root != ct_maps_->bpfRoot()) {
       // bpf root may not change during runtime
       throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
