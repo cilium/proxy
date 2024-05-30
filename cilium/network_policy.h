@@ -223,6 +223,8 @@ private:
   void pause();
   void resume();
 
+  bool isNewStream();
+
   static uint64_t instance_id_;
 
   Server::Configuration::ServerFactoryContext& context_;

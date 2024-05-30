@@ -41,6 +41,7 @@ envoy_cc_library(
         "//cilium:accesslog_lib",
         "//cilium:conntrack_lib",
         "//cilium:grpc_subscription_lib",
+        "//cilium:ipcache_lib",
         "//cilium/api:npds_cc_proto",
         "@envoy//envoy/config:subscription_interface",
         "@envoy//envoy/singleton:manager_interface",
