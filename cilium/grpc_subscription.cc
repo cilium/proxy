@@ -156,8 +156,8 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
   };
 
   return std::make_unique<Config::GrpcSubscriptionImpl>(
-      std::make_shared<Config::GrpcMuxImpl>(grpc_mux_context,
-                                            api_config_source.set_node_on_first_message_only()),
+      std::make_shared<GrpcMuxImpl>(grpc_mux_context,
+                                    api_config_source.set_node_on_first_message_only()),
       callbacks, resource_decoder, stats, type_url, dispatcher, init_fetch_timeout,
       /*is_aggregated*/ false, options);
 }
