@@ -178,7 +178,7 @@ public:
   // shared_from_this(), which cannot be called before a shared
   // pointer is formed by the caller of the constructor, hence this
   // can't be called from the constructor!
-  void startSubscription(Server::Configuration::FactoryContext& context);
+  void startSubscription();
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
@@ -225,6 +225,7 @@ private:
 
   static uint64_t instance_id_;
 
+  Server::Configuration::ServerFactoryContext& context_;
   ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map_;
   const std::string local_ip_str_;
   std::string name_;

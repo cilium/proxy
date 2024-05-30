@@ -1063,20 +1063,17 @@ private:
 // Common base constructor
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
-    : tls_map_(context.serverFactoryContext().threadLocal()),
-      local_ip_str_(context.serverFactoryContext().localInfo().address()->ip()->addressAsString()),
+    : context_(context.serverFactoryContext()), tls_map_(context_.threadLocal()),
+      local_ip_str_(context_.localInfo().address()->ip()->addressAsString()),
       name_(fmt::format("cilium.policymap.{}.{}.", local_ip_str_, ++instance_id_)),
-      scope_(context.serverFactoryContext().serverScope().createScope(name_)),
+      scope_(context_.serverScope().createScope(name_)),
       init_target_(fmt::format("Cilium Network Policy subscription start"),
                    [this]() { subscription_->start({}); }),
       transport_factory_context_(
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
-              context.serverFactoryContext(),
-              context.getTransportSocketFactoryContext().sslContextManager(), *scope_,
-              context.serverFactoryContext().clusterManager(),
-              context.serverFactoryContext()
-                  .messageValidationContext()
-                  .dynamicValidationVisitor())) {
+              context_, context.getTransportSocketFactoryContext().sslContextManager(), *scope_,
+              context_.clusterManager(),
+              context_.messageValidationContext().dynamicValidationVisitor())) {
   // Use listener init manager for the first initialization
   transport_factory_context_->setInitManager(context.initManager());
   context.initManager().add(init_target_);
@@ -1084,9 +1081,9 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
   tls_map_.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
 
-  if (context.serverFactoryContext().admin().has_value()) {
+  if (context_.admin().has_value()) {
     ENVOY_LOG(debug, "Registering NetworkPolicies to config tracker");
-    config_tracker_entry_ = context.serverFactoryContext().admin()->getConfigTracker().add(
+    config_tracker_entry_ = context_.admin()->getConfigTracker().add(
         "networkpolicies", [this](const Matchers::StringMatcher& name_matcher) {
           return dumpNetworkPolicyConfigs(name_matcher);
         });
@@ -1105,12 +1102,10 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
 // shared_from_this(), which cannot be called before a shared
 // pointer is formed by the caller of the constructor, hence this
 // can't be called from the constructor!
-void NetworkPolicyMap::startSubscription(Server::Configuration::FactoryContext& context) {
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy",
-                            context.serverFactoryContext().localInfo(),
-                            context.serverFactoryContext().clusterManager(),
-                            context.serverFactoryContext().mainThreadDispatcher(),
-                            context.serverFactoryContext().api().randomGenerator(), *scope_, *this,
+void NetworkPolicyMap::startSubscription() {
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", context_.localInfo(),
+                            context_.clusterManager(), context_.mainThreadDispatcher(),
+                            context_.api().randomGenerator(), *scope_, *this,
                             std::make_shared<NetworkPolicyDecoder>());
 }
 
@@ -1274,7 +1269,7 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
         ENVOY_LOG(trace, "Resuming NPDS subscription");
         shared_this->resume();
       } else {
-        ENVOY_LOG_MISC(debug, "NetworkPolicyMap expired on watcher completion!");
+        ENVOY_LOG(debug, "NetworkPolicyMap expired on watcher completion!");
       }
     });
 
