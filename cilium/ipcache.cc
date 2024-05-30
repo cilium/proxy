@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 
 #include "envoy/common/platform.h"
+#include "envoy/singleton/manager.h"
 
 #include "source/common/common/utility.h"
 
@@ -46,6 +47,25 @@ struct remote_endpoint_info {
 
 #define ENDPOINT_KEY_IPV4 1
 #define ENDPOINT_KEY_IPV6 2
+
+SINGLETON_MANAGER_REGISTRATION(cilium_ipcache);
+
+IPCacheSharedPtr IPCache::NewIPCache(Server::Configuration::ServerFactoryContext& context,
+                                     const std::string& bpf_root) {
+  return context.singletonManager().getTyped<Cilium::IPCache>(
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
+        auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
+        if (!ipcache->Open()) {
+          ipcache.reset();
+        }
+        return ipcache;
+      });
+}
+
+IPCacheSharedPtr IPCache::GetIPCache(Server::Configuration::ServerFactoryContext& context) {
+  return context.singletonManager().getTyped<Cilium::IPCache>(
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache));
+}
 
 IPCache::IPCache(const std::string& bpf_root)
     : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct ipcache_key), sizeof(struct remote_endpoint_info)),
