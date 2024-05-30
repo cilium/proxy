@@ -16,6 +16,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
 #include "cilium/grpc_subscription.h"
+#include "cilium/ipcache.h"
 #include "cilium/secret_watcher.h"
 
 namespace Envoy {
@@ -1134,6 +1135,20 @@ void NetworkPolicyMap::pause() {
 
 void NetworkPolicyMap::resume() { resume_.reset(); }
 
+bool NetworkPolicyMap::isNewStream() {
+  auto sub = dynamic_cast<Config::GrpcSubscriptionImpl*>(subscription_.get());
+  if (!sub) {
+    ENVOY_LOG(error, "Cilium NetworkPolicyMap: Cannot get GrpcSubscriptionImpl");
+    return false;
+  }
+  auto mux = dynamic_cast<GrpcMuxImpl*>(sub->grpcMux().get());
+  if (!mux) {
+    ENVOY_LOG(error, "Cilium NetworkPolicyMap: Cannot get GrpcMuxImpl");
+    return false;
+  }
+  return mux->isNewStream();
+}
+
 void ThreadLocalPolicyMap::Update(std::vector<std::shared_ptr<PolicyInstanceImpl>>& added,
                                   std::vector<std::string>& deleted,
                                   const std::string& version_info) {
@@ -1239,6 +1254,19 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
   // threads to have applied policy updates before NPDS ACK is sent.
   // First setting of this also causes future updates to use the local init manager.
   version_init_target_ = std::make_shared<Init::TargetImpl>(version_name, []() {});
+
+  // Reopen IPcache for every new stream. Cilium agent re-creates IP cache on restart,
+  // and that is also when the old stream terminates and a new one is created.
+  // New security identities (e.g., for FQDN policies) only get inserted to the new IP cache,
+  // so open it before the workers get a chance to enforce policy on the new IDs.
+  if (isNewStream()) {
+    // Get ipcache singleton only if it was successfully created previously
+    IPCacheSharedPtr ipcache = IPCache::GetIPCache(context_);
+    if (ipcache != nullptr) {
+      ENVOY_LOG(trace, "Reopening ipcache on new stream");
+      ipcache->Open();
+    }
+  }
 
   // Skip pausing if nothing to be done
   if (to_be_added->size() == 0 && to_be_deleted->size() == 0 && cts_to_be_closed->size() == 0) {
