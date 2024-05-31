@@ -56,6 +56,7 @@ public:
   bool lookup(const void* key, void* value);
 
 protected:
+  std::string path_;
   int fd_;
 
 public:
