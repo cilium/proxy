@@ -28,6 +28,13 @@ void Bpf::close() {
 bool Bpf::open(const std::string& path) {
   bool log_on_error = ENVOY_LOG_CHECK_LEVEL(trace);
 
+  // close old fd if any
+  close();
+
+  // store the path for later
+  if (path != path_)
+    path_ = path;
+
   auto& cilium_calls = PrivilegedService::Singleton::get();
   auto ret = cilium_calls.bpf_open(path.c_str());
   fd_ = ret.return_value_;
@@ -100,6 +107,12 @@ bool Bpf::open(const std::string& path) {
 }
 
 bool Bpf::lookup(const void* key, void* value) {
+  // Try reopen if open failed previously
+  if (fd_ < 0) {
+    if (!open(path_))
+      return false;
+  }
+
   auto& cilium_calls = PrivilegedService::Singleton::get();
   auto result = cilium_calls.bpf_lookup(fd_, key, key_size_, value, value_size_);
 
