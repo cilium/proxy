@@ -179,6 +179,7 @@ resources:
         validation_context_sds_secret: ca-certs
       downstream_tls_context:
         tls_sds_secret: tls-certs
+        alpn_protocols: [ "h2", "http/1.1" ]
     - remote_policies: [ 2 ]
       http_rules:
         http_rules:

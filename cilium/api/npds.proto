@@ -118,6 +118,9 @@ message TLSContext {
   // from the same gRPC source as this Network Policy.
   // May not be used at the same time with 'certificate_chain' or 'private_key'.
   string tls_sds_secret = 6;
+
+  // Set of ALPN protocols, e.g., [ “h2", "http/1.1” ] when both HTTP 1.1 and HTTP 2 are supported.
+  repeated string alpn_protocols = 7;
 }
 
 // A network policy rule, as a conjunction of predicates on L3/L7 flows.

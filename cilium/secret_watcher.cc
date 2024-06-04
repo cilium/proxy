@@ -91,6 +91,12 @@ void setCommonConfig(const cilium::TLSContext config,
       throw EnvoyException("TLS Context: missing private key");
     }
   }
+  if (!config.alpn_protocols().empty()) {
+    for (const std::string& protocol : config.alpn_protocols()) {
+      ENVOY_LOG_MISC(trace, "setCommonConfig adding ALPN {}", protocol);
+      tls_context->add_alpn_protocols(protocol);
+    }
+  }
 }
 
 } // namespace
