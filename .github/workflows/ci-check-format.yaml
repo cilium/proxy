@@ -33,7 +33,7 @@ jobs:
       run: until docker manifest inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &> /dev/null; do sleep 15s; done
 
     - name: Check format
-      uses: docker/build-push-action@31159d49c0d4756269a0940a750801a1ea5d7003 # v6.1.0
+      uses: docker/build-push-action@15560696de535e4014efeff63c48f16952e52dd1 # v6.2.0
       id: docker_format_ciak
       with:
         target: format
