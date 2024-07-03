@@ -17,13 +17,13 @@ ARG PROXYLIB_BUILDER=quay.io/cilium/cilium-builder:832f86bb0f7c7129c1536d5620174
 #
 ARG ARCHIVE_IMAGE=builder-fresh
 
-FROM --platform=$BUILDPLATFORM $PROXYLIB_BUILDER as proxylib
+FROM --platform=$BUILDPLATFORM $PROXYLIB_BUILDER AS proxylib
 WORKDIR /go/src/github.com/cilium/proxy
 ARG TARGETARCH
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/proxy --mount=mode=0777,target=/cilium/proxy/.cache,type=cache --mount=mode=0777,target=/go/pkg,type=cache \
     GOARCH=${TARGETARCH} make -C proxylib all && mv proxylib/libcilium.so /tmp/libcilium.so
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder-fresh
+FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -44,9 +44,9 @@ RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUI
 
 # By default this stage picks up the result of the build above, but ARCHIVE_IMAGE can be
 # overridden to point to a saved image of an earlier run of that stage.
-FROM $ARCHIVE_IMAGE as archive-cache
+FROM $ARCHIVE_IMAGE AS archive-cache
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder
+FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -68,7 +68,7 @@ RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,r
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-test-deps && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; fi
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE as runner
+FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS runner
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -101,20 +101,20 @@ RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,i
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" BAZEL_TEST_OPTS="${BAZEL_TEST_OPTS}" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-tests && \
     cp -Lr /cilium/proxy/bazel-testlogs testlogs
 
-FROM scratch as empty-builder-archive
+FROM scratch AS empty-builder-archive
 LABEL maintainer="maintainer@cilium.io"
 USER 1337:1337
 WORKDIR /tmp/bazel-cache
 
 # This stage retains only the build caches from the builder stage.
 # This is used as the target for persisting Bazel build caches for later re-use.
-FROM empty-builder-archive as builder-archive
+FROM empty-builder-archive AS builder-archive
 ARG COPY_CACHE_EXT
 COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 
 #
 # Keep only the test logs
 #
-FROM scratch as testlogs
+FROM scratch AS testlogs
 LABEL maintainer="maintainer@cilium.io"
 COPY --from=runner /cilium/proxy/testlogs testlogs

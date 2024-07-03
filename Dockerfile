@@ -14,7 +14,7 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.1.0-latest
 #
 ARG ARCHIVE_IMAGE=builder-fresh
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE as proxylib
+FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS proxylib
 WORKDIR /go/src/github.com/cilium/proxy
 COPY --chown=1337:1337 . ./
 ARG TARGETARCH
@@ -23,7 +23,7 @@ RUN --mount=mode=0777,gid=1337,uid=1337,target=/cilium/proxy/.cache,type=cache \
     --mount=mode=0777,gid=1337,uid=1337,target=/go/pkg,type=cache \
     PATH=$PATH:/usr/local/go/bin GOARCH=${TARGETARCH} make -C proxylib all && mv proxylib/libcilium.so /tmp/libcilium.so
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder-fresh
+FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -46,14 +46,14 @@ RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUI
 # overridden to point to a saved image of an earlier run of that stage.
 # Must pick the TARGETPLATFORM image here, so NO --platform=$BUILDPLATFORM, otherwise cross-compilation
 # will pick up build-artifacts for the build platform when an external image is used.
-FROM $ARCHIVE_IMAGE as builder-cache
+FROM $ARCHIVE_IMAGE AS builder-cache
 
 #
 # Release builder, uses 'builder-cache' from $ARCHIVE_IMAGE
 #
 # Persist Bazel disk cache by passing COPY_CACHE=1
 #
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE as builder
+FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -77,19 +77,19 @@ RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,i
 #
 COPY --from=proxylib /tmp/libcilium.so /tmp/install/usr/lib/libcilium.so
 
-FROM scratch as empty-builder-archive
+FROM scratch AS empty-builder-archive
 LABEL maintainer="maintainer@cilium.io"
 USER 1337:1337
 WORKDIR /tmp/bazel-cache
 
 # This stage retains only the build caches from the previous step. This is used as the target for persisting
 # Bazel build caches for later re-use.
-FROM empty-builder-archive as builder-archive
+FROM empty-builder-archive AS builder-archive
 ARG COPY_CACHE_EXT
 COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 
 # Format check
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE as check-format
+FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS check-format
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY --chown=1337:1337 . ./
@@ -102,7 +102,7 @@ ENV TARGETARCH=$TARGETARCH
 #
 RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS}" PKG_BUILD=1 V=$V DEBUG=$DEBUG make V=1 check > format-output.txt
 
-FROM scratch as format
+FROM scratch AS format
 COPY --from=check-format /cilium/proxy/format-output.txt /
 
 #
