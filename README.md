@@ -14,7 +14,8 @@ Other combinations may work but are not tested.
 
 | Cilium Version | Envoy version |
 |----------------|---------------|
-| (main)         | v1.29.x       |
+| (main)         | v1.30.x       |
+| v1.16.0        | v1.29.7       |
 | v1.15.6        | v1.28.4       |
 | v1.15.5        | v1.28.3       |
 | v1.15.4        | v1.27.4       |
