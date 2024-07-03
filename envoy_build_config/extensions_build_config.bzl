@@ -6,6 +6,7 @@ EXTENSIONS = {
     "envoy.access_loggers.file": "//source/extensions/access_loggers/file:config",
     "envoy.access_loggers.extension_filters.cel": "//source/extensions/access_loggers/filters/cel:config",
     "envoy.access_loggers.http_grpc": "//source/extensions/access_loggers/grpc:http_config",
+    "envoy.access_loggers.fluentd"  :                   "//source/extensions/access_loggers/fluentd:config",
     "envoy.access_loggers.tcp_grpc": "//source/extensions/access_loggers/grpc:tcp_config",
     "envoy.access_loggers.open_telemetry": "//source/extensions/access_loggers/open_telemetry:config",
     "envoy.access_loggers.stdout": "//source/extensions/access_loggers/stream:config",
@@ -110,6 +111,11 @@ EXTENSIONS = {
     #
 
     # "envoy.matching.actions.format_string":             "//source/extensions/matching/actions/format_string:config",
+
+    #
+    # StringMatchers
+    #
+    # "envoy.string_matcher.lua":                         "//source/extensions/string_matcher/lua:config",
 
     #
     # HTTP filters
@@ -290,6 +296,7 @@ EXTENSIONS = {
     # "envoy.transport_sockets.tap":                      "//source/extensions/transport_sockets/tap:config",
     # "envoy.transport_sockets.starttls":                 "//source/extensions/transport_sockets/starttls:config",
     # "envoy.transport_sockets.tcp_stats":                "//source/extensions/transport_sockets/tcp_stats:config",
+    "envoy.transport_sockets.tls":                      "//source/extensions/transport_sockets/tls:config",
     "envoy.transport_sockets.internal_upstream": "//source/extensions/transport_sockets/internal_upstream:config",
 
     #
@@ -339,7 +346,6 @@ EXTENSIONS = {
     "envoy.wasm.runtime.null": "//source/extensions/wasm_runtime/null:config",
     "envoy.wasm.runtime.v8": "//source/extensions/wasm_runtime/v8:config",
     "envoy.wasm.runtime.wamr": "//source/extensions/wasm_runtime/wamr:config",
-    "envoy.wasm.runtime.wavm": "//source/extensions/wasm_runtime/wavm:config",
     "envoy.wasm.runtime.wasmtime": "//source/extensions/wasm_runtime/wasmtime:config",
 
     #
@@ -386,6 +392,12 @@ EXTENSIONS = {
 
     # "envoy.http.custom_response.redirect_policy":             "//source/extensions/http/custom_response/redirect_policy:redirect_policy_lib",
     # "envoy.http.custom_response.local_response_policy":       "//source/extensions/http/custom_response/local_response_policy:local_response_policy_lib",
+
+    #
+    # Injected credentials
+    #
+
+    # "envoy.http.injected_credentials.generic":              "//source/extensions/http/injected_credentials/generic:config",
 
     #
     # QUIC extensions
