@@ -1,13 +1,11 @@
 #include "cilium/tls_wrapper.h"
 
-#include "envoy/extensions/transport_sockets/tls/v3/cert.pb.h"
 #include "envoy/extensions/transport_sockets/tls/v3/cert.pb.validate.h"
 
 #include "source/common/network/raw_buffer_socket.h"
 #include "source/common/protobuf/utility.h"
 #include "source/extensions/transport_sockets/tls/context_config_impl.h"
 #include "source/extensions/transport_sockets/tls/ssl_socket.h"
-#include "source/server/transport_socket_config_impl.h"
 
 #include "cilium/api/tls_wrapper.pb.h"
 #include "cilium/network_policy.h"
