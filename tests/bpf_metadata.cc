@@ -122,7 +122,10 @@ namespace {
 
 TestConfig::TestConfig(const ::cilium::TestBpfMetadata& config,
                        Server::Configuration::ListenerFactoryContext& context)
-    : Config(getTestConfig(config), context) {}
+    : Config(getTestConfig(config), context) {
+  hosts_ = hostmap;
+  npmap_ = npmap;
+}
 
 TestConfig::~TestConfig() {
   hostmap.reset();

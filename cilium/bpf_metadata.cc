@@ -147,16 +147,16 @@ Config::Config(const ::cilium::BpfMetadata& config,
       // bpf root may not change during runtime
       throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
     }
-  }
-  // Only create the hosts map if ipcache can't be opened
-  if (ipcache_ == nullptr) {
-    hosts_ = createHostMap(context);
-  }
+    // Only create the hosts map if ipcache can't be opened
+    if (ipcache_ == nullptr) {
+      hosts_ = createHostMap(context);
+    }
 
-  // Get the shared policy provider, or create it if not already created.
-  // Note that the API config source is assumed to be the same for all filter
-  // instances!
-  npmap_ = createPolicyMap(context, ct_maps_);
+    // Get the shared policy provider, or create it if not already created.
+    // Note that the API config source is assumed to be the same for all filter
+    // instances!
+    npmap_ = createPolicyMap(context, ct_maps_);
+  }
 }
 
 uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
@@ -250,13 +250,17 @@ const Network::Address::Ip* Config::selectIPVersion(const Network::Address::IpVe
 }
 
 const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) const {
-  auto& policy = npmap_->GetPolicyInstance(pod_ip);
+  PolicyInstanceConstSharedPtr policy{nullptr};
+  if (npmap_ != nullptr)
+    policy = npmap_->GetPolicyInstance(pod_ip);
+
   if (policy == nullptr) {
-    // Allow all traffic for egress without a policy when 'is_l7lb_' is true.
+    // Allow all traffic for egress without a policy when 'is_l7lb_' is true,
+    // or if configured without bpf.
     // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
     // Ingress (which is implemented as an egress listener!).
-    if (!enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_) {
-      return npmap_->AllowAllEgressPolicy;
+    if (npmap_ == nullptr || (!enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_)) {
+      return NetworkPolicyMap::AllowAllEgressPolicy;
     }
   }
   return policy;
@@ -377,10 +381,12 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
     // This means that a local host IP is used if no IP is configured to be used instead of it
     // ('ip' above is null).
     src_address = nullptr;
-  } else if (!use_original_source_address_ || npmap_->exists(other_ip)) {
+  } else if (!use_original_source_address_ || (npmap_ != nullptr && npmap_->exists(other_ip))) {
     // Otherwise only use the original source address if permitted and the destination is not
     // in the same node.
-
+    //
+    // If bpf root is not configured (npmap_ == nullptr) we assume all destinations are non-local!
+    //
     // Original source address is not used
     src_address = nullptr;
   }
