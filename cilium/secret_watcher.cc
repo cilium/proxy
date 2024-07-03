@@ -45,7 +45,9 @@ void SecretWatcher::store() {
   const auto* secret = secret_provider_->secret();
   if (secret != nullptr) {
     Api::Api& api = parent_.transportFactoryContext().serverFactoryContext().api();
-    std::string* p = new std::string(Config::DataSource::read(secret->secret(), true, api));
+    auto string_or_error = Config::DataSource::read(secret->secret(), true, api);
+    THROW_IF_STATUS_NOT_OK(string_or_error, throw)
+    std::string* p = new std::string(string_or_error.value());
     std::string* old = ptr_.exchange(p, std::memory_order_release);
     if (old != nullptr) {
       // Delete old value after all threads have scheduled
@@ -125,7 +127,7 @@ DownstreamTLSContext::DownstreamTLSContext(const NetworkPolicyMap& parent,
       context_config, parent.transportFactoryContext());
   auto create_server_context = [this]() {
     ENVOY_LOG(debug, "Server secret is updated.");
-    auto ctx = manager_.createSslServerContext(scope_, *server_config_, server_names_);
+    auto ctx = manager_.createSslServerContext(scope_, *server_config_, server_names_, nullptr);
     {
       absl::WriterMutexLock l(&ssl_context_mutex_);
       std::swap(ctx, server_context_);

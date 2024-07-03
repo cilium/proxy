@@ -1,5 +1,4 @@
 #include "test/integration/integration.h"
-#include "test/integration/utility.h"
 #include "test/test_common/environment.h"
 
 #include "tests/cilium_tcp_integration.h"

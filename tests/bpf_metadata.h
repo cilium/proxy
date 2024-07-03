@@ -4,10 +4,8 @@
 #include <string>
 
 #include "envoy/network/address.h"
-#include "envoy/network/filter.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/server/factory_context.h"
-#include "envoy/server/filter_config.h"
 
 #include "cilium/bpf_metadata.h"
 #include "cilium/host_map.h"

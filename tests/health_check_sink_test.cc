@@ -6,7 +6,6 @@
 #include "test/mocks/access_log/mocks.h"
 #include "test/mocks/event/mocks.h"
 #include "test/mocks/server/health_checker_factory_context.h"
-#include "test/mocks/stats/mocks.h"
 #include "test/test_common/utility.h"
 
 #include "cilium/api/health_check_sink.pb.h"

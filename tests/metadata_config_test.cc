@@ -36,8 +36,9 @@ protected:
         .WillByDefault(Invoke([]() -> Filesystem::Watcher* {
           auto watcher = new Filesystem::MockWatcher();
           EXPECT_CALL(*watcher, addWatch(_, Filesystem::Watcher::Events::MovedTo, _))
-              .WillOnce(
-                  Invoke([](absl::string_view, uint32_t, Filesystem::Watcher::OnChangedCb) {}));
+              .WillOnce(Invoke([](absl::string_view, uint32_t, Filesystem::Watcher::OnChangedCb) {
+                return absl::OkStatus();
+              }));
           Mock::AllowLeak(watcher);
           return watcher;
         }));

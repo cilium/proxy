@@ -125,8 +125,8 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
           std::chrono::milliseconds init_fetch_timeout) {
   const envoy::config::core::v3::ApiConfigSource& api_config_source =
       cilium_xds_api_config.api_config_source();
-  Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(cm.primaryClusters(),
-                                                                  api_config_source);
+  THROW_IF_NOT_OK(Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(
+      cm.primaryClusters(), api_config_source));
 
   Config::SubscriptionStats stats = Config::Utility::generateStats(scope);
   Envoy::Config::SubscriptionOptions options;
@@ -134,15 +134,20 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
   // No-op custom validators
   Envoy::Config::CustomConfigValidatorsPtr nop_config_validators =
       std::make_unique<NopConfigValidatorsImpl>();
+  auto factory_or_error = Config::Utility::factoryForGrpcApiConfigSource(
+      cm.grpcAsyncClientManager(), api_config_source, scope, true);
+  THROW_IF_STATUS_NOT_OK(factory_or_error, throw);
+
+  absl::StatusOr<Config::RateLimitSettings> rate_limit_settings_or_error =
+      Config::Utility::parseRateLimitSettings(api_config_source);
+  THROW_IF_STATUS_NOT_OK(rate_limit_settings_or_error, throw);
 
   Config::GrpcMuxContext grpc_mux_context{
-      Config::Utility::factoryForGrpcApiConfigSource(cm.grpcAsyncClientManager(), api_config_source,
-                                                     scope, true)
-          ->createUncachedRawAsyncClient(),
+      factory_or_error.value()->createUncachedRawAsyncClient(),
       /*dispatcher_=*/dispatcher,
       /*service_method_=*/sotwGrpcMethod(type_url),
       /*local_info_=*/local_info,
-      /*rate_limit_settings_=*/Config::Utility::parseRateLimitSettings(api_config_source),
+      /*rate_limit_settings_=*/rate_limit_settings_or_error.value(),
       /*scope_=*/scope,
       /*config_validators_=*/std::move(nop_config_validators),
       /*xds_resources_delegate_=*/absl::nullopt,

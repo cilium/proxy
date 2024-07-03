@@ -4,8 +4,8 @@
 
 #include "source/common/network/raw_buffer_socket.h"
 #include "source/common/protobuf/utility.h"
-#include "source/extensions/transport_sockets/tls/context_config_impl.h"
-#include "source/extensions/transport_sockets/tls/ssl_socket.h"
+#include "source/common/tls/context_config_impl.h"
+#include "source/common/tls/ssl_socket.h"
 
 #include "cilium/api/tls_wrapper.pb.h"
 #include "cilium/network_policy.h"
@@ -16,7 +16,7 @@ namespace Cilium {
 
 namespace {
 
-using SslSocketPtr = std::unique_ptr<Extensions::TransportSockets::Tls::SslSocket>;
+using SslSocketPtr = std::unique_ptr<Envoy::Extensions::TransportSockets::Tls::SslSocket>;
 
 constexpr absl::string_view NotReadyReason{"TLS error: Secret is not supplied by SDS"};
 

@@ -2,11 +2,10 @@
 
 #include <string>
 
-#include "envoy/secret/secret_manager.h"
 #include "envoy/secret/secret_provider.h"
 
 #include "source/common/init/target_impl.h"
-#include "source/extensions/transport_sockets/tls/context_config_impl.h"
+#include "source/common/tls/context_config_impl.h"
 
 #include "cilium/network_policy.h"
 

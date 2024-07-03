@@ -1,6 +1,5 @@
 #include "source/common/config/decoded_resource_impl.h"
 #include "source/common/network/address_impl.h"
-#include "source/common/protobuf/protobuf.h"
 #include "source/common/thread_local/thread_local_impl.h"
 
 #include "cilium/secret_watcher.h"
