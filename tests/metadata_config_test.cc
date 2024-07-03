@@ -17,6 +17,9 @@ namespace Envoy {
 namespace Cilium {
 namespace {
 
+// Test Cilium::BpfMetadata::Config filter config
+// (NOT Cilium::BpfMetadata::TestConfig)
+
 class MetadataConfigTest : public testing::Test {
 protected:
   MetadataConfigTest() : api_(Api::createApiForTest()) {
@@ -161,6 +164,8 @@ resources:
     context_.initManager().initialize(watcher);
 
     config_ = std::make_shared<Cilium::BpfMetadata::Config>(config, context_);
+    config_->hosts_ = hostmap;
+    config_->npmap_ = npmap;
   }
 
   void TearDown() override {}
