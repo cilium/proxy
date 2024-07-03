@@ -168,7 +168,8 @@ public:
     ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
     headers_.reserve(rule.headers().size());
     for (const auto& header : rule.headers()) {
-      headers_.emplace_back(std::make_unique<Http::HeaderUtility::HeaderData>(header));
+      headers_.emplace_back(std::make_unique<Http::HeaderUtility::HeaderData>(
+          header, parent.transportFactoryContext().serverFactoryContext()));
       const auto& header_data = *headers_.back();
       ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
                 header_data.name_.get(),
@@ -284,9 +285,11 @@ public:
 
 class L7NetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
 public:
-  L7NetworkPolicyRule(const cilium::L7NetworkPolicyRule& rule) : name_(rule.name()) {
+  L7NetworkPolicyRule(const NetworkPolicyMap& parent, const cilium::L7NetworkPolicyRule& rule)
+      : name_(rule.name()) {
     for (const auto& matcher : rule.metadata_rule()) {
-      metadata_matchers_.emplace_back(matcher);
+      metadata_matchers_.emplace_back(matcher,
+                                      parent.transportFactoryContext().serverFactoryContext());
       matchers_.emplace_back(matcher);
     }
   }
@@ -353,10 +356,10 @@ public:
     if (l7_proto_.length() > 0 && rule.has_l7_rules()) {
       const auto& ruleset = rule.l7_rules();
       for (const auto& l7_rule : ruleset.l7_deny_rules()) {
-        l7_deny_rules_.emplace_back(l7_rule);
+        l7_deny_rules_.emplace_back(parent, l7_rule);
       }
       for (const auto& l7_rule : ruleset.l7_allow_rules()) {
-        l7_allow_rules_.emplace_back(l7_rule);
+        l7_allow_rules_.emplace_back(parent, l7_rule);
       }
     }
   }

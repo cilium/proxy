@@ -1,5 +1,7 @@
 #include "tests/bpf_metadata.h"
 
+#include "envoy/common/exception.h"
+
 #include "source/common/common/logger.h"
 #include "source/common/config/utility.h"
 #include "source/extensions/config_subscription/filesystem/filesystem_subscription_impl.h"
@@ -34,8 +36,8 @@ createHostMap(const std::string& config, Server::Configuration::ListenerFactoryC
         ENVOY_LOG_MISC(debug, "Loading Cilium Host Map from file \'{}\' instead of using gRPC",
                        path);
 
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
-            path, context.serverFactoryContext().api());
+        THROW_IF_NOT_OK(Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
+            path, context.serverFactoryContext().api()));
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
@@ -61,8 +63,8 @@ createPolicyMap(const std::string& config,
             auto& sds_config = sds_pair.second;
             std::string sds_path = TestEnvironment::writeStringToFileForTest(
                 fmt::sprintf("secret-%s.yaml", name), sds_config);
-            Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
-                sds_path, context.serverFactoryContext().api());
+            THROW_IF_NOT_OK(Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
+                sds_path, context.serverFactoryContext().api()));
           }
           Cilium::setSDSConfigFunc(
               [](const std::string& name) -> envoy::config::core::v3::ConfigSource {
@@ -82,8 +84,8 @@ createPolicyMap(const std::string& config,
                        "Loading Cilium Network Policy from file \'{}\' instead "
                        "of using gRPC",
                        policy_path);
-        Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
-            policy_path, context.serverFactoryContext().api());
+        THROW_IF_NOT_OK(Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
+            policy_path, context.serverFactoryContext().api()));
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);

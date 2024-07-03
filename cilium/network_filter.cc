@@ -25,8 +25,9 @@ namespace Configuration {
 class CiliumNetworkConfigFactory : public NamedNetworkFilterConfigFactory {
 public:
   // NamedNetworkFilterConfigFactory
-  Network::FilterFactoryCb createFilterFactoryFromProto(const Protobuf::Message& proto_config,
-                                                        FactoryContext& context) override {
+  absl::StatusOr<Network::FilterFactoryCb>
+  createFilterFactoryFromProto(const Protobuf::Message& proto_config,
+                               FactoryContext& context) override {
     auto config = std::make_shared<Filter::CiliumL3::Config>(
         MessageUtil::downcastAndValidate<const ::cilium::NetworkFilter&>(
             proto_config, context.messageValidationVisitor()),
