@@ -78,7 +78,8 @@ class CiliumWebSocketIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumWebSocketIntegrationTest()
       : CiliumTcpIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam()), "true")) {}
+            fmt::runtime(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam())),
+            "true")) {}
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(R"EOF(version_info: "0"

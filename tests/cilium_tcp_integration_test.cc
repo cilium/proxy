@@ -66,7 +66,8 @@ class CiliumTcpProxyIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumTcpProxyIntegrationTest()
       : CiliumTcpIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam()), "true")) {}
+            fmt::runtime(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam())),
+            "true")) {}
 };
 
 INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumTcpProxyIntegrationTest,
@@ -348,7 +349,8 @@ class CiliumGoLinetesterIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumGoLinetesterIntegrationTest()
       : CiliumTcpIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_linetester_config_fmt, GetParam()), "true")) {}
+            fmt::runtime(TestEnvironment::substitute(cilium_linetester_config_fmt, GetParam())),
+            "true")) {}
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(TCP_POLICY_LINEPARSER_fmt, GetParam());
@@ -577,7 +579,8 @@ class CiliumGoBlocktesterIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumGoBlocktesterIntegrationTest()
       : CiliumTcpIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_blocktester_config_fmt, GetParam()), "true")) {}
+            fmt::runtime(TestEnvironment::substitute(cilium_blocktester_config_fmt, GetParam())),
+            "true")) {}
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(TCP_POLICY_BLOCKPARSER_fmt, GetParam());

@@ -82,7 +82,8 @@ class CiliumWebSocketIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumWebSocketIntegrationTest()
       : CiliumTcpIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam()), "true")) {}
+            fmt::runtime(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam())),
+            "true")) {}
   size_t unmaskData(void* void_frame, size_t len, uint8_t opcode = OPCODE_BIN) {
     uint8_t* frame = reinterpret_cast<uint8_t*>(void_frame);
     if (frame[0] != (0x80 | opcode)) {
@@ -171,7 +172,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeNonHTTPResponse) 
                                                        std::chrono::milliseconds(1000000)));
 
   std::string expected_handshake =
-      fmt::format(EXPECTED_HANDSHAKE_FMT, original_dst_address->asString());
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
   std::string received_handshake;
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(),
@@ -201,14 +202,15 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeInvalidResponse) 
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string expected_handshake =
-      fmt::format(EXPECTED_HANDSHAKE_FMT, original_dst_address->asString());
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
   std::string received_data;
   ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
   ASSERT_EQ(normalize_x_request_id(received_data), sizeof(X_REQUEST_ID_VALUE) - 1);
   ASSERT_EQ(received_data, expected_handshake);
 
   // Handshake response with invalid hash value
-  std::string handshake_response = fmt::format(HANDSHAKE_RESPONSE_FMT, "invalid-hash");
+  std::string handshake_response =
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "invalid-hash");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   test_server_->waitForCounterGe("websocket.handshake_invalid_websocket_response", 1);
@@ -227,7 +229,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeSuccess) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string expected_handshake =
-      fmt::format(EXPECTED_HANDSHAKE_FMT, original_dst_address->asString());
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
   std::string received_data;
   ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
   ASSERT_EQ(normalize_x_request_id(received_data), sizeof(X_REQUEST_ID_VALUE) - 1);
@@ -235,7 +237,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeSuccess) {
 
   // Handshake response with the correct hash value
   std::string handshake_response =
-      fmt::format(HANDSHAKE_RESPONSE_FMT, "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   // check we get the hello in a websocket binary data frame
@@ -266,7 +268,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeNoData) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string expected_handshake =
-      fmt::format(EXPECTED_HANDSHAKE_FMT, original_dst_address->asString());
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
   std::string received_data;
   ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
   ASSERT_EQ(normalize_x_request_id(received_data), sizeof(X_REQUEST_ID_VALUE) - 1);
@@ -274,7 +276,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeNoData) {
 
   // Handshake response with the correct hash value
   std::string handshake_response =
-      fmt::format(HANDSHAKE_RESPONSE_FMT, "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   ASSERT_TRUE(fake_upstream_connection->write("\x82\x5"
@@ -297,7 +299,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string expected_handshake =
-      fmt::format(EXPECTED_HANDSHAKE_FMT, original_dst_address->asString());
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
   std::string received_data;
   ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
   ASSERT_EQ(normalize_x_request_id(received_data), sizeof(X_REQUEST_ID_VALUE) - 1);
@@ -305,7 +307,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
 
   // Handshake response with the correct hash value
   std::string handshake_response =
-      fmt::format(HANDSHAKE_RESPONSE_FMT, "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   ASSERT_TRUE(
@@ -351,7 +353,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string expected_handshake =
-      fmt::format(EXPECTED_HANDSHAKE_FMT, original_dst_address->asString());
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
   std::string received_data;
   ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
   ASSERT_EQ(normalize_x_request_id(received_data), sizeof(X_REQUEST_ID_VALUE) - 1);
@@ -359,7 +361,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
 
   // Handshake response with the correct hash value
   std::string handshake_response =
-      fmt::format(HANDSHAKE_RESPONSE_FMT, "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   // Data is split into 16k chunks, so there are 2 headers of 8 bytes each
@@ -413,7 +415,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string expected_handshake =
-      fmt::format(EXPECTED_HANDSHAKE_FMT, original_dst_address->asString());
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
   std::string received_data;
   ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
   ASSERT_EQ(normalize_x_request_id(received_data), sizeof(X_REQUEST_ID_VALUE) - 1);
@@ -421,7 +423,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
 
   // Handshake response with the correct hash value
   std::string handshake_response =
-      fmt::format(HANDSHAKE_RESPONSE_FMT, "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   tcp_client->readDisable(true);
@@ -468,7 +470,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string expected_handshake =
-      fmt::format(EXPECTED_HANDSHAKE_FMT, original_dst_address->asString());
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
   std::string received_data;
   ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
   ASSERT_EQ(normalize_x_request_id(received_data), sizeof(X_REQUEST_ID_VALUE) - 1);
@@ -476,7 +478,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
 
   // Handshake response with the correct hash value
   std::string handshake_response =
-      fmt::format(HANDSHAKE_RESPONSE_FMT, "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
@@ -515,7 +517,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   std::string expected_handshake =
-      fmt::format(EXPECTED_HANDSHAKE_FMT, original_dst_address->asString());
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
   std::string received_data;
   ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
   ASSERT_EQ(normalize_x_request_id(received_data), sizeof(X_REQUEST_ID_VALUE) - 1);
@@ -523,7 +525,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
 
   // Handshake response with the correct hash value
   std::string handshake_response =
-      fmt::format(HANDSHAKE_RESPONSE_FMT, "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
