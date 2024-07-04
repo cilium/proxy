@@ -313,7 +313,8 @@ class CiliumTLSHttpIntegrationTest : public CiliumHttpTLSIntegrationTest {
 public:
   CiliumTLSHttpIntegrationTest()
       : CiliumHttpTLSIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_tls_http_proxy_config_fmt, GetParam()), "true")) {}
+            fmt::runtime(TestEnvironment::substitute(cilium_tls_http_proxy_config_fmt, GetParam())),
+            "true")) {}
 };
 
 INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumTLSHttpIntegrationTest,

@@ -303,7 +303,8 @@ class CiliumIntegrationTest : public CiliumHttpIntegrationTest {
 public:
   CiliumIntegrationTest()
       : CiliumHttpIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_upstream_config_fmt, GetParam()), "false")) {
+            fmt::runtime(TestEnvironment::substitute(cilium_upstream_config_fmt, GetParam())),
+            "false")) {
     host_map_config = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -641,7 +642,8 @@ class CiliumIntegrationEgressTest : public CiliumIntegrationTest {
 public:
   CiliumIntegrationEgressTest()
       : CiliumIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_upstream_config_fmt, GetParam()), "false")) {
+            fmt::runtime(TestEnvironment::substitute(cilium_upstream_config_fmt, GetParam())),
+            "false")) {
     host_map_config = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -856,7 +858,7 @@ TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
 
   // Update policy that still has the missing secret
   auto port = fake_upstreams_[0]->localAddress()->ip()->port();
-  auto config = fmt::format(testPolicyFmt2(), port);
+  auto config = fmt::format(fmt::runtime(testPolicyFmt2()), port);
   std::string temp_path =
       TestEnvironment::writeStringToFileForTest("network_policy_tmp.yaml", config);
   std::string backup_path = policy_path + ".backup";

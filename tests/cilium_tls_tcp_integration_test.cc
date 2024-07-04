@@ -233,7 +233,8 @@ class CiliumTLSProxyIntegrationTest : public CiliumTLSIntegrationTest {
 public:
   CiliumTLSProxyIntegrationTest()
       : CiliumTLSIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_tls_tcp_proxy_config_fmt, GetParam()), "true")) {}
+            fmt::runtime(TestEnvironment::substitute(cilium_tls_tcp_proxy_config_fmt, GetParam())),
+            "true")) {}
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(TCP_POLICY_UPSTREAM_TLS_fmt, GetParam());
@@ -543,9 +544,10 @@ static_resources:
 class CiliumDownstreamTLSIntegrationTest : public CiliumTLSIntegrationTest {
 public:
   CiliumDownstreamTLSIntegrationTest()
-      : CiliumTLSIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_tls_downstream_tcp_proxy_config_fmt, GetParam()),
-            "true")) {}
+      : CiliumTLSIntegrationTest(
+            fmt::format(fmt::runtime(TestEnvironment::substitute(
+                            cilium_tls_downstream_tcp_proxy_config_fmt, GetParam())),
+                        "true")) {}
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(TCP_POLICY_UPSTREAM_TLS_fmt, GetParam());

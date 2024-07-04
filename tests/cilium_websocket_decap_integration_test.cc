@@ -70,7 +70,8 @@ class CiliumWebSocketIntegrationTest : public CiliumHttpIntegrationTest {
 public:
   CiliumWebSocketIntegrationTest()
       : CiliumHttpIntegrationTest(fmt::format(
-            TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam()), "false")) {
+            fmt::runtime(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam())),
+            "false")) {
     host_map_config = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
