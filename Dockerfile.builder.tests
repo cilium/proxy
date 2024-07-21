@@ -37,12 +37,13 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 #
-# Install Bazel
+# Install Bazelisk
 #
-COPY .bazelversion ./
-RUN export BAZEL_VERSION=$(cat .bazelversion) \
-	&& ARCH=$TARGETARCH && [ "$ARCH" != "amd64" ] || ARCH="x86_64" \
-	&& curl -sfL https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -o /usr/bin/bazel \
+# renovate: datasource=datasource depName=bazelbuild/bazelisk
+ENV BAZELISK_VERSION=v1.20.0
+
+RUN ARCH=$TARGETARCH \
+	&& curl -sfL https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-${ARCH} -o /usr/bin/bazel \
 	&& chmod +x /usr/bin/bazel
 #
 # Switch to non-root user for builds
