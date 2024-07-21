@@ -10,9 +10,6 @@ on:
       - synchronize
     branches:
       - main
-  issue_comment:
-    types:
-      - created
 
 # By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
 permissions:
@@ -31,15 +28,7 @@ jobs:
   cilium-connectivity-tests:
     timeout-minutes: 360
     name: Cilium Connectivity Tests
-    if: |
-      (
-        github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        startsWith(github.event.comment.body, '/test-cilium-integration') &&
-        contains(fromJson('["MEMBER", "COLLABORATOR", "OWNER"]'), github.event.comment.author_association)
-      ) ||
-      github.event_name == 'push' ||
-      github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
       - name: Prepare variables for pushes to main
@@ -55,54 +44,6 @@ jobs:
           echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy-dev" >> $GITHUB_ENV
           echo "PROXY_TAG=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
           echo "PROXY_GITHUB_REPO=github.com/${{github.event.pull_request.head.repo.full_name}}" >> $GITHUB_ENV
-
-      - name: Prepare variables for issue comment on a PR
-        if: github.event_name == 'issue_comment'
-        run: |
-          echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy-dev" >> $GITHUB_ENV
-          echo "PROXY_TAG=$(curl -s ${{ github.event.issue.pull_request.url }} | jq -r '.head.sha')" >> $GITHUB_ENV
-          echo "PROXY_GITHUB_REPO=github.com/$(curl -s ${{ github.event.issue.pull_request.url }} | jq -r '.head.repo.full_name')" >> $GITHUB_ENV
-
-          commentBody="${{ github.event.comment.body }}"
-
-          ciliumRepoOwner=${CILIUM_REPO_OWNER}
-          if [[ "$commentBody" == *" ciliumRepoOwner="* ]]; then
-            ciliumRepoOwner=$(echo "$commentBody" | sed -E 's|.* ciliumRepoOwner=([^ ]*).*|\1|g')
-          fi
-          echo "CILIUM_REPO_OWNER=${ciliumRepoOwner}" >> $GITHUB_ENV
-
-          ciliumRef=${CILIUM_REPO_REF}
-          if [[ "$commentBody" == *" cilium="* ]]; then
-            ciliumRef=$(echo "$commentBody" | sed -E 's|.* cilium=([^ ]*).*|\1|g')
-          fi
-          echo "CILIUM_REPO_REF=${ciliumRef}" >> $GITHUB_ENV
-
-          ciliumCliRef=${CILIUM_CLI_REF}
-          if [[ "$commentBody" == *" ciliumCli="* ]]; then
-            ciliumCliRef=$(echo "$commentBody" | sed -E 's|.* ciliumCli=([^ ]*).*|\1|g')
-          fi
-          echo "CILIUM_CLI_REF=${ciliumCliRef}" >> $GITHUB_ENV
-
-      - name: Reporting start to issue comment
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        if: github.event_name == 'issue_comment'
-        with:
-          script: |
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: ${{ github.event.comment.id }},
-              body: `${{ github.event.comment.body }}
-            
-              👋 https://github.com/${{ github.repository_owner }}/${{ github.event.repository.name }}/actions/runs/${{ github.run_id }}`
-            })
-            
-            await github.rest.reactions.createForIssueComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: ${{ github.event.comment.id }},
-              content: 'rocket'
-            })
 
       - name: Checkout Cilium ${{ env.CILIUM_REPO_REF }}
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -216,18 +157,6 @@ jobs:
         shell: bash
         run: cilium connectivity test --test=l7
 
-      - name: Reporting success to issue comment
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        if: success() && github.event_name == 'issue_comment'
-        with:
-          script: |
-            await github.rest.reactions.createForIssueComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: ${{ github.event.comment.id }},
-              content: '+1'
-            })
-
       - name: Gather Cilium system dump
         if: failure()
         shell: bash
@@ -241,15 +170,3 @@ jobs:
           name: cilium-integration-test-sysdump
           path: cilium-integration-test-sysdump.zip
           retention-days: 5
-
-      - name: Reporting failure to issue comment
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        if: failure() && github.event_name == 'issue_comment'
-        with:
-          script: |
-            await github.rest.reactions.createForIssueComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: ${{ github.event.comment.id }},
-              content: '-1'
-            })
