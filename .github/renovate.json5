@@ -23,6 +23,7 @@
   "baseBranches": [
     "main",
     "v1.28",
+    "v1.29",
   ],
   "labels": [
     "kind/enhancement",
@@ -77,6 +78,24 @@
       ]
     },
     {
+      "groupName": "all go dependencies stable",
+      "groupSlug": "all-go-deps-stable",
+      "matchFiles": [
+        "go.mod",
+        "go.sum"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "digest",
+        "patch",
+        "pin",
+        "pinDigest"
+      ],
+      matchBaseBranches: [
+        "v1.29"
+      ]
+    },
+    {
       "groupName": "all github action dependencies",
       "groupSlug": "all-github-action",
       "matchFileNames": [
@@ -102,6 +121,7 @@
       "matchBaseBranches": [
         "main",
         "v1.28",
+        "v1.29",
       ]
     },
     {
@@ -121,10 +141,11 @@
       "matchPackageNames": [
         "docker.io/library/ubuntu"
       ],
-      "allowedVersions": "20.04",
+      "allowedVersions": "22.04",
       "matchBaseBranches": [
         "main",
         "v1.28",
+        "v1.29",
       ]
     },
     {
@@ -138,6 +159,7 @@
       "matchBaseBranches": [
         "main",
         "v1.28",
+        "v1.29",
       ]
     },
     {
@@ -157,6 +179,16 @@
       ],
       "allowedVersions": "<=1.29",
       "matchBaseBranches": [
+        "v1.29"
+      ]
+    },
+    {
+      "groupName": "envoy 1.30.x",
+      "matchDepNames": [
+        "envoyproxy/envoy"
+      ],
+      "allowedVersions": "<=1.30",
+      "matchBaseBranches": [
         "main"
       ]
     },
@@ -172,6 +204,7 @@
       "matchBaseBranches": [
         "main",
         "v1.28",
+        "v1.29",
       ]
     },
   ],
