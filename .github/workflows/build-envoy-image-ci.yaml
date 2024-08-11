@@ -57,7 +57,7 @@ jobs:
           fi
 
       - name: PR Multi-arch build & push of Builder image (dev)
-        uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
         if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
         id: docker_build_builder_ci
         with:
@@ -76,7 +76,7 @@ jobs:
           echo "quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}@${{ steps.docker_build_builder_ci.outputs.digest }}"
 
       - name: PR Multi-arch build & push of cilium-envoy
-        uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
         id: docker_build_ci
         with:
           provenance: false
@@ -93,7 +93,7 @@ jobs:
           tags: quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
+        uses: sigstore/cosign-installer@4959ce089c160fddf62f7b42464195ba1a56d382 # v3.6.0
 
       - name: Sign Container Image
         run: |
