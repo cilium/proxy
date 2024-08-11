@@ -56,7 +56,7 @@ jobs:
         fi
 
     - name: Multi-arch build & push of Builder image (test)
-      uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+      uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
       if: steps.cilium-builder-test-tag-in-repositories.outputs.exists == 'false'
       id: docker_build_builder_test
       with:
@@ -70,7 +70,7 @@ jobs:
           quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-latest
 
     - name: Multi-arch update integration test archive
-      uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+      uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
       id: docker_tests_ci_build
       with:
         context: .
@@ -96,7 +96,7 @@ jobs:
       run: rm -rf /tmp/buildx-cache/*
 
     - name: Run integration tests on amd64 to update docker cache
-      uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+      uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
       id: docker_tests_ci_cache_update
       with:
         provenance: false
@@ -148,7 +148,7 @@ jobs:
         fi
 
     - name: Multi-arch build & push of Builder image
-      uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+      uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
       if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
       id: docker_build_builder
       with:
@@ -161,7 +161,7 @@ jobs:
           quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
           quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-latest
     - name: Multi-arch build & push of build artifact archive
-      uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+      uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
       with:
         context: .
         file: ./Dockerfile
@@ -187,7 +187,7 @@ jobs:
         docker buildx prune -f
 
     - name: Multi-arch build & push ${{ github.ref_name }} latest
-      uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
+      uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
       id: docker_build_cd
       with:
         provenance: false
@@ -206,7 +206,7 @@ jobs:
           quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_PATCH_RELEASE }}-${{ github.sha }}
 
     - name: Install Cosign
-      uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
+      uses: sigstore/cosign-installer@4959ce089c160fddf62f7b42464195ba1a56d382 # v3.6.0
 
     - name: Sign Container Image
       run: |
