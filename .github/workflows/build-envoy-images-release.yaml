@@ -136,6 +136,7 @@ jobs:
           echo "ENVOY_PATCH_RELEASE=$(cat ENVOY_VERSION | sed 's/^envoy-\([0-9]\+\.[0-9]\+\.[0-9]\+$\)/v\1/')" >> $GITHUB_ENV
           echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
+          echo "SOURCE_TIMESTAMP=$(git log -1 --pretty=format:"%ct" .)" >> $GITHUB_ENV
 
       - name: Checking if cilium-envoy-builder image exists
         id: cilium-builder-tag-in-repositories
@@ -205,6 +206,7 @@ jobs:
             quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }}
             quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_MINOR_RELEASE }}-${{ github.sha }}
             quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_PATCH_RELEASE }}-${{ github.sha }}
+            quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_PATCH_RELEASE }}-${{ env.SOURCE_TIMESTAMP }}-${{ github.sha }}
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@4959ce089c160fddf62f7b42464195ba1a56d382 # v3.6.0
