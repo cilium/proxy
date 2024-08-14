@@ -39,14 +39,15 @@ public:
       // Resolve the destination security ID and port
       uint32_t destination_identity = 0;
       uint32_t destination_port = option->port_;
+      const Network::Address::Ip* dip = nullptr;
+      bool is_client = state_ == Extensions::TransportSockets::Tls::InitialState::Client;
 
       if (!option->ingress_) {
         Network::Address::InstanceConstSharedPtr dst_address =
-            state_ == Extensions::TransportSockets::Tls::InitialState::Client
-                ? callbacks.connection().connectionInfoProvider().remoteAddress()
-                : callbacks.connection().connectionInfoProvider().localAddress();
+            is_client ? callbacks.connection().connectionInfoProvider().remoteAddress()
+                      : callbacks.connection().connectionInfoProvider().localAddress();
         if (dst_address) {
-          const auto dip = dst_address->ip();
+          dip = dst_address->ip();
           if (dip) {
             destination_port = dip->port();
             destination_identity = option->resolvePolicyId(dip);
@@ -63,36 +64,49 @@ public:
       auto port_policy =
           option->initial_policy_->findPortPolicy(option->ingress_, destination_port);
       const Envoy::Ssl::ContextConfig* config;
-      Envoy::Ssl::ContextSharedPtr ctx =
-          state_ == Extensions::TransportSockets::Tls::InitialState::Client
-              ? port_policy.getClientTlsContext(remote_id, &config)
-              : port_policy.getServerTlsContext(remote_id, &config);
+      Envoy::Ssl::ContextSharedPtr ctx = is_client
+                                             ? port_policy.getClientTlsContext(remote_id, &config)
+                                             : port_policy.getServerTlsContext(remote_id, &config);
       if (ctx) {
         // create the underlying SslSocket
         auto status_or_socket = Extensions::TransportSockets::Tls::SslSocket::create(
             std::move(ctx), state_, transport_socket_options_, config->createHandshaker());
         if (status_or_socket.ok()) {
           socket_ = std::move(status_or_socket.value());
+          // Set the callbacks
+          socket_->setTransportSocketCallbacks(callbacks);
         } else {
           ENVOY_LOG_MISC(error, "Unable to create ssl socket {}",
                          status_or_socket.status().message());
         }
       } else {
-        ENVOY_LOG_MISC(debug,
-                       "cilium.tls_wrapper: Could not get {} TLS context for port {}, defaulting "
-                       "to raw socket",
-                       state_ == Extensions::TransportSockets::Tls::InitialState::Client ? "client"
-                                                                                         : "server",
-                       destination_port);
-        // default to a RawBufferSocket
-        socket_ = std::make_unique<Network::RawBufferSocket>();
+        std::string ipStr("<none>");
+        if (option->ingress_) {
+          Network::Address::InstanceConstSharedPtr src_address =
+              is_client ? callbacks.connection().connectionInfoProvider().localAddress()
+                        : callbacks.connection().connectionInfoProvider().remoteAddress();
+          if (src_address) {
+            const auto sip = src_address->ip();
+            if (sip) {
+              ipStr = sip->addressAsString();
+            }
+          }
+        } else {
+          if (dip) {
+            ipStr = dip->addressAsString();
+          }
+        }
+        ENVOY_LOG_MISC(
+            warn, "cilium.tls_wrapper: Could not get {} TLS context for {} IP {} (id {}) port {}",
+            is_client ? "client" : "server", option->ingress_ ? "source" : "destination", ipStr,
+            remote_id, destination_port);
       }
-      // Set the callbacks
-      socket_->setTransportSocketCallbacks(callbacks);
-    } else if (!option) {
-      ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Cilium socket option not found!");
+    } else {
+      ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Can not correlate connection with Cilium Network "
+                           "Policy (Cilium socket option not found)");
     }
   }
+
   std::string protocol() const override { return socket_ ? socket_->protocol() : EMPTY_STRING; }
   absl::string_view failureReason() const override {
     return socket_ ? socket_->failureReason() : NotReadyReason;
@@ -138,7 +152,7 @@ public:
 private:
   Extensions::TransportSockets::Tls::InitialState state_;
   const Network::TransportSocketOptionsConstSharedPtr transport_socket_options_;
-  Network::TransportSocketPtr socket_;
+  Network::TransportSocketPtr socket_{nullptr};
 };
 
 class ClientSslSocketFactory : public Network::CommonUpstreamTransportSocketFactory {
