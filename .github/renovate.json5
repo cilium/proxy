@@ -22,7 +22,6 @@
   "pruneStaleBranches": true,
   "baseBranches": [
     "main",
-    "v1.28",
     "v1.29",
   ],
   "labels": [
@@ -74,24 +73,6 @@
         "pinDigest"
       ],
       matchBaseBranches: [
-        "v1.28"
-      ]
-    },
-    {
-      "groupName": "all go dependencies stable",
-      "groupSlug": "all-go-deps-stable",
-      "matchFiles": [
-        "go.mod",
-        "go.sum"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "digest",
-        "patch",
-        "pin",
-        "pinDigest"
-      ],
-      matchBaseBranches: [
         "v1.29"
       ]
     },
@@ -120,7 +101,6 @@
       "allowedVersions": "22.04",
       "matchBaseBranches": [
         "main",
-        "v1.28",
         "v1.29",
       ]
     },
@@ -144,7 +124,6 @@
       "allowedVersions": "22.04",
       "matchBaseBranches": [
         "main",
-        "v1.28",
         "v1.29",
       ]
     },
@@ -158,18 +137,7 @@
       "allowedVersions": "<=1.22",
       "matchBaseBranches": [
         "main",
-        "v1.28",
         "v1.29",
-      ]
-    },
-    {
-      "groupName": "envoy 1.28.x",
-      "matchDepNames": [
-        "envoyproxy/envoy"
-      ],
-      "allowedVersions": "<=1.28",
-      "matchBaseBranches": [
-        "v1.28"
       ]
     },
     {
@@ -203,7 +171,6 @@
       "allowedVersions": "<=1.22",
       "matchBaseBranches": [
         "main",
-        "v1.28",
         "v1.29",
       ]
     },
