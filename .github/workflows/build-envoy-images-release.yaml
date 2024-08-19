@@ -56,7 +56,7 @@ jobs:
           fi
 
       - name: Multi-arch build & push of Builder image (test)
-        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         if: steps.cilium-builder-test-tag-in-repositories.outputs.exists == 'false'
         id: docker_build_builder_test
         with:
@@ -70,7 +70,7 @@ jobs:
             quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-latest
 
       - name: Multi-arch update integration test archive
-        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         id: docker_tests_ci_build
         with:
           context: .
@@ -96,7 +96,7 @@ jobs:
         run: rm -rf /tmp/buildx-cache/*
 
       - name: Run integration tests on amd64 to update docker cache
-        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         id: docker_tests_ci_cache_update
         with:
           provenance: false
@@ -149,7 +149,7 @@ jobs:
           fi
 
       - name: Multi-arch build & push of Builder image
-        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
         id: docker_build_builder
         with:
@@ -162,7 +162,7 @@ jobs:
             quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
             quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-latest
       - name: Multi-arch build & push of build artifact archive
-        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         with:
           context: .
           file: ./Dockerfile
@@ -188,7 +188,7 @@ jobs:
           docker buildx prune -f
 
       - name: Multi-arch build & push main latest
-        uses: docker/build-push-action@16ebe778df0e7752d2cfcbd924afdbbd89c1a755 # v6.6.1
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         id: docker_build_cd
         with:
           provenance: false
