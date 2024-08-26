@@ -11,7 +11,7 @@ github.com/cilium/checkmate
 # github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
 ## explicit
 github.com/cilium/kafka/proto
-# github.com/cncf/xds/go v0.0.0-20240723142845-024c85f92f20
+# github.com/cncf/xds/go v0.0.0-20240822171458-6449f94b4d59
 ## explicit; go 1.19
 github.com/cncf/xds/go/udpa/annotations
 github.com/cncf/xds/go/xds/annotations/v3
@@ -89,12 +89,12 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
-# google.golang.org/genproto/googleapis/api v0.0.0-20240820151423-278611b39280
+# google.golang.org/genproto/googleapis/api v0.0.0-20240823204242-4ba0660f739c
 ## explicit; go 1.21
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/expr/v1alpha1
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20240820151423-278611b39280
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20240823204242-4ba0660f739c
 ## explicit; go 1.21
 google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.65.0
