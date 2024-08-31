@@ -3,10 +3,12 @@
 #include <algorithm>
 #include <string>
 
+#include "envoy/common/random_generator.h"
 #include "envoy/type/matcher/v3/metadata.pb.h"
 
 #include "source/common/common/matchers.h"
 #include "source/common/config/utility.h"
+#include "source/common/crypto/utility.h"
 #include "source/common/init/manager_impl.h"
 #include "source/common/init/watcher_impl.h"
 #include "source/common/network/utility.h"
@@ -44,7 +46,8 @@ class HeaderMatch : public Logger::Loggable<Logger::Id::config> {
 public:
   HeaderMatch(const NetworkPolicyMap& parent, const cilium::HeaderMatch& config)
       : name_(config.name()), value_(config.value()), match_action_(config.match_action()),
-        mismatch_action_(config.mismatch_action()) {
+        mismatch_action_(config.mismatch_action()),
+        random_(parent.transportFactoryContext().serverFactoryContext().api().randomGenerator()) {
     if (config.value_sds_secret().length() > 0)
       secret_ = std::make_unique<SecretWatcher>(parent, config.value_sds_secret());
   }
@@ -75,8 +78,15 @@ public:
         else if (value_.length() == 0)
           ENVOY_LOG(info, "Cilium HeaderMatch missing SDS secret value for header {}", name_);
       }
-      if (header_value.result().has_value())
-        matches = (header_value.result().value() == *match_value);
+      if (header_value.result().has_value()) {
+        std::string key = random_.uuid();
+        auto& crypto_util = Envoy::Common::Crypto::UtilitySingleton::get();
+        auto hmac1 = crypto_util.getSha256Hmac(std::vector<uint8_t>(key.begin(), key.end()),
+                                               header_value.result().value());
+        auto hmac2 =
+            crypto_util.getSha256Hmac(std::vector<uint8_t>(key.begin(), key.end()), *match_value);
+        matches = (hmac1 == hmac2);
+      }
     }
 
     if (matches) {
@@ -160,6 +170,7 @@ public:
   cilium::HeaderMatch::MatchAction match_action_;
   cilium::HeaderMatch::MismatchAction mismatch_action_;
   SecretWatcherPtr secret_;
+  Random::RandomGenerator& random_;
 };
 
 class HttpNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
