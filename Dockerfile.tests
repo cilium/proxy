@@ -4,7 +4,7 @@
 ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:test-6.1.0-latest
 
 # Common Builder image used in cilium/cilium
-ARG PROXYLIB_BUILDER=quay.io/cilium/cilium-builder:832f86bb0f7c7129c1536d5620174deeec645117@sha256:6dbac9f9eba3e20f8edad4676689aa8c11b172035fe5e25b533552f42dea4e9a
+ARG PROXYLIB_BUILDER=quay.io/cilium/cilium-builder:767c4152bb156a879fca4c5b76f445de4b4cdaa9@sha256:26392846fa25ab2607c120ece242d61365724a5f21e85f5733f72221637b70fa
 
 #
 # ARCHIVE_IMAGE defaults to the result of the first stage below,
