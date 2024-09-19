@@ -140,7 +140,7 @@ jobs:
     - name: Patch Cilium Agent Dockerfile
       shell: bash
       run: |
-        sed -i -E 's|(ARG CILIUM_ENVOY_IMAGE=)(quay\.io\/cilium\/cilium-envoy:)(.*)(@sha256:[0-9a-z]*)|\1${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }}|' ./images/cilium/Dockerfile
+        sed -i -E 's|(FROM )(quay\.io\/cilium\/cilium-envoy:)(.*)(@sha256:[0-9a-z]*)|\1${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }}|' ./images/cilium/Dockerfile
         cat ./images/cilium/Dockerfile
         if git diff --exit-code ./images/cilium/Dockerfile; then
           echo "Dockerfile not modified"
