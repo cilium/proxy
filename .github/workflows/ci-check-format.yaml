@@ -24,13 +24,12 @@ jobs:
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
-          echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
 
       - name: Wait for cilium-envoy-builder to be available
         timeout-minutes: 45
         shell: bash
-        run: until docker manifest inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &> /dev/null; do sleep 15s; done
+        run: until docker manifest inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }} &> /dev/null; do sleep 15s; done
 
       - name: Check format
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
@@ -43,7 +42,7 @@ jobs:
           platforms: linux/amd64
           outputs: type=local,dest=check-format-results
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
           cache-from: type=local,src=/tmp/buildx-cache
           push: false
 
