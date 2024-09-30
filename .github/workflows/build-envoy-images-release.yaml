@@ -42,14 +42,13 @@ jobs:
           echo "${{ github.sha }}" >SOURCE_VERSION
           echo "ENVOY_MINOR_RELEASE=$(cat ENVOY_VERSION | sed 's/envoy-\([0-9]\+\.[0-9]\+\)\..*/v\1/')" >> $GITHUB_ENV
           echo "ENVOY_PATCH_RELEASE=$(cat ENVOY_VERSION | sed 's/^envoy-\([0-9]\+\.[0-9]\+\.[0-9]\+$\)/v\1/')" >> $GITHUB_ENV
-          echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $3 }')" >> $GITHUB_ENV
 
       - name: Checking if cilium-envoy-builder:test image exists
         id: cilium-builder-test-tag-in-repositories
         shell: bash
         run: |
-          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
             echo exists="true" >> $GITHUB_OUTPUT
           else
             echo exists="false" >> $GITHUB_OUTPUT
@@ -66,8 +65,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
-            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-latest
+            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }}
+            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-latest
 
       - name: Multi-arch update integration test archive
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
@@ -78,7 +77,7 @@ jobs:
           target: builder-archive
           platforms: linux/amd64,linux/arm64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             COPY_CACHE_EXT=.new
             BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
@@ -104,7 +103,7 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
             BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1 --flaky_test_attempts=3
@@ -134,7 +133,6 @@ jobs:
           echo "${{ github.sha }}" >SOURCE_VERSION
           echo "ENVOY_MINOR_RELEASE=$(cat ENVOY_VERSION | sed 's/envoy-\([0-9]\+\.[0-9]\+\)\..*/v\1/')" >> $GITHUB_ENV
           echo "ENVOY_PATCH_RELEASE=$(cat ENVOY_VERSION | sed 's/^envoy-\([0-9]\+\.[0-9]\+\.[0-9]\+$\)/v\1/')" >> $GITHUB_ENV
-          echo "BAZEL_VERSION=$(cat .bazelversion)" >> $GITHUB_ENV
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
           echo "SOURCE_TIMESTAMP=$(git log -1 --pretty=format:"%ct" .)" >> $GITHUB_ENV
 
@@ -142,7 +140,7 @@ jobs:
         id: cilium-builder-tag-in-repositories
         shell: bash
         run: |
-          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
             echo exists="true" >> $GITHUB_OUTPUT
           else
             echo exists="false" >> $GITHUB_OUTPUT
@@ -159,8 +157,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
-            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-latest
+            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
+            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:latest
       - name: Multi-arch build & push of build artifact archive
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         with:
@@ -169,7 +167,7 @@ jobs:
           target: builder-archive
           platforms: linux/amd64,linux/arm64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
             COPY_CACHE_EXT=.new
             BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
@@ -196,7 +194,7 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BAZEL_VERSION }}-${{ env.BUILDER_DOCKER_HASH }}
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
