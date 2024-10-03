@@ -1301,6 +1301,9 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
       }
     });
 
+    auto time_source = &context_.timeSource();
+    auto start_time = time_source->monotonicTime();
+
     // Execute changes on all threads.
     tls_map_.runOnAllThreads(
         [to_be_added, to_be_deleted, version_info](OptRef<ThreadLocalPolicyMap> npmap) {
@@ -1318,7 +1321,18 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
           npmap->Update(*to_be_added, *to_be_deleted, version_info);
         },
         // All threads have executed updates, delete old cts and mark the local init target ready.
-        [shared_this, to_be_added, to_be_deleted, version_info, cts_to_be_closed]() {
+        [shared_this, to_be_added, to_be_deleted, version_info, cts_to_be_closed, time_source,
+         start_time]() {
+          auto workers_done_time = time_source->monotonicTime();
+          auto duration =
+              std::chrono::duration_cast<std::chrono::milliseconds>(workers_done_time - start_time)
+                  .count();
+          if (duration > 100) {
+            ENVOY_LOG(warn,
+                      "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Worker threads took longer "
+                      "than 100ms to update network policy for version {} ({}ms)",
+                      version_info, duration);
+          }
           // Update on the main thread last, so that deletes happen on the same thread as allocs
           auto npmap = shared_this->tls_map_.get();
           npmap->Update(*to_be_added, *to_be_deleted, version_info);
