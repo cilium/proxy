@@ -105,7 +105,7 @@ jobs:
           })
 
     - name: Checkout Cilium ${{ env.CILIUM_REPO_REF }}
-      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938 # v4.2.0
+      uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       with:
         repository: ${{ env.CILIUM_REPO_OWNER }}/cilium # Be aware that this is the Cilium repository and not the one of the proxy itself!
         ref: ${{ env.CILIUM_REPO_REF }}
@@ -236,7 +236,7 @@ jobs:
 
     - name: Upload Cilium system dump
       if: failure()
-      uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+      uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4.4.1
       with:
         name: cilium-integration-test-sysdump
         path: cilium-integration-test-sysdump.zip
