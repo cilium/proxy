@@ -41,6 +41,8 @@ git_repository(
         # https://github.com/envoyproxy/envoy/pull/31894
         "@//patches:0005-Patch-cel-cpp-to-not-break-build.patch",
         "@//patches:0006-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
+        # This is for https://github.com/envoyproxy/envoy/pull/36515
+        "@//patches:0006-googleurl-dep.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
