@@ -47,12 +47,6 @@ jobs:
           username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
           password: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
 
-      - name: Enable Docker IPv6
-        run: |
-          modprobe -v ipv6
-          sudo sed -i -e '1s!^{!\{ "ipv6": true, "fixed-cidr-v6": "fd00::/80",!' /etc/docker/daemon.json || echo '{ "ipv6": true, "fixed-cidr-v6": "fd00::/80" }' | sudo tee /etc/docker/daemon.json
-          sudo systemctl restart docker
-
       - name: Cache Docker layers
         uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8 # v4.1.1
         with:
