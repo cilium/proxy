@@ -13,7 +13,7 @@ jobs:
   build-and-push-prs:
     timeout-minutes: 360
     name: Build and push multi-arch images
-    runs-on: ubuntu-latest-64-cores-256gb
+    runs-on: equinix-32cpu-256gb
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
