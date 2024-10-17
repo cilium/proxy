@@ -18,6 +18,7 @@
 #include "cilium/grpc_subscription.h"
 #include "cilium/ipcache.h"
 #include "cilium/secret_watcher.h"
+#include "openssl/ssl.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -75,8 +76,13 @@ public:
         else if (value_.length() == 0)
           ENVOY_LOG(info, "Cilium HeaderMatch missing SDS secret value for header {}", name_);
       }
-      if (header_value.result().has_value())
-        matches = (header_value.result().value() == *match_value);
+      if (header_value.result().has_value()) {
+        const absl::string_view val = header_value.result().value();
+        if (val.length() == match_value->length()) {
+          // Use constant time comparison for security reason
+          matches = CRYPTO_memcmp(val.data(), match_value->data(), match_value->length()) == 0;
+        }
+      }
     }
 
     if (matches) {
