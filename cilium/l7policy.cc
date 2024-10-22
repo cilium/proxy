@@ -51,7 +51,7 @@ Config::Config(const std::string& access_log_path, const std::string& denied_403
     : time_source_(time_source), stats_{ALL_CILIUM_STATS(POOL_COUNTER_PREFIX(scope, "cilium"))},
       denied_403_body_(denied_403_body), is_upstream_(is_upstream), access_log_(nullptr) {
   if (access_log_path.length()) {
-    access_log_ = AccessLog::Open(access_log_path);
+    access_log_ = AccessLog::Open(access_log_path, time_source);
   }
   if (denied_403_body_.length() == 0) {
     denied_403_body_ = "Access denied";

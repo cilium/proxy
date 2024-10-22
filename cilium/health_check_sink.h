@@ -18,7 +18,8 @@ public:
 protected:
   friend class HealthCheckEventPipeSinkFactory;
   friend class HealthCheckEventPipeSink_logTest_Test;
-  explicit HealthCheckEventPipeSink(const cilium::HealthCheckEventPipeSink& config);
+  explicit HealthCheckEventPipeSink(const cilium::HealthCheckEventPipeSink& config,
+                                    TimeSource& time_source);
 
 private:
   static Thread::MutexBasicLockable udss_mutex;

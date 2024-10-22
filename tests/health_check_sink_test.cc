@@ -21,6 +21,16 @@ using testing::SaveArg;
 namespace Envoy {
 namespace Cilium {
 
+TEST(HealthCheckEventPipeSinkFactory, createEmptyHealthCheckEventSink) {
+  auto factory =
+      Envoy::Registry::FactoryRegistry<Upstream::HealthCheckEventSinkFactory>::getFactory(
+          "cilium.health_check.event_sink.pipe");
+  EXPECT_NE(factory, nullptr);
+  auto empty_proto = factory->createEmptyConfigProto();
+  auto config = *dynamic_cast<cilium::HealthCheckEventPipeSink*>(empty_proto.get());
+  EXPECT_TRUE(config.path().empty());
+}
+
 TEST(HealthCheckEventPipeSinkFactory, createHealthCheckEventSink) {
   auto factory =
       Envoy::Registry::FactoryRegistry<Upstream::HealthCheckEventSinkFactory>::getFactory(
@@ -36,16 +46,6 @@ TEST(HealthCheckEventPipeSinkFactory, createHealthCheckEventSink) {
   EXPECT_NE(factory->createHealthCheckEventSink(typed_config, context), nullptr);
 }
 
-TEST(HealthCheckEventPipeSinkFactory, createEmptyHealthCheckEventSink) {
-  auto factory =
-      Envoy::Registry::FactoryRegistry<Upstream::HealthCheckEventSinkFactory>::getFactory(
-          "cilium.health_check.event_sink.pipe");
-  EXPECT_NE(factory, nullptr);
-  auto empty_proto = factory->createEmptyConfigProto();
-  auto config = *dynamic_cast<cilium::HealthCheckEventPipeSink*>(empty_proto.get());
-  EXPECT_TRUE(config.path().empty());
-}
-
 TEST(HealthCheckEventPipeSink, logTest) {
   for (Logger::Logger& logger : Logger::Registry::loggers()) {
     logger.setLevel(spdlog::level::trace);
@@ -55,10 +55,22 @@ TEST(HealthCheckEventPipeSink, logTest) {
   std::string normal_path("test_path");
   HealthCheckSinkServer eventSink(normal_path);
 
+  // Set up client factory
+  auto factory =
+      Envoy::Registry::FactoryRegistry<Upstream::HealthCheckEventSinkFactory>::getFactory(
+          "cilium.health_check.event_sink.pipe");
+  EXPECT_NE(factory, nullptr);
+
   // Set up client
-  cilium::HealthCheckEventPipeSink config;
+  auto empty_proto = factory->createEmptyConfigProto();
+  auto config = *dynamic_cast<cilium::HealthCheckEventPipeSink*>(empty_proto.get());
+  EXPECT_TRUE(config.path().empty());
   config.set_path(normal_path);
-  HealthCheckEventPipeSink pipe_sink(config);
+  Envoy::ProtobufWkt::Any typed_config;
+  typed_config.PackFrom(config);
+  NiceMock<Server::Configuration::MockHealthCheckerFactoryContext> context;
+  auto pipe_sink = factory->createHealthCheckEventSink(typed_config, context);
+  EXPECT_NE(pipe_sink, nullptr);
 
   envoy::data::core::v3::HealthCheckEvent eject_event;
   TestUtility::loadFromYaml(R"EOF(
@@ -77,14 +89,15 @@ TEST(HealthCheckEventPipeSink, logTest) {
   )EOF",
                             eject_event);
 
-  pipe_sink.log(eject_event);
+  pipe_sink->log(eject_event);
   EXPECT_TRUE(
       eventSink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
         return Protobuf::util::MessageDifferencer::Equals(observed_event, eject_event);
       }));
 
   // Set up 2nd client on the same socket
-  HealthCheckEventPipeSink pipe_sink2(config);
+  auto pipe_sink2 = factory->createHealthCheckEventSink(typed_config, context);
+  EXPECT_NE(pipe_sink2, nullptr);
 
   envoy::data::core::v3::HealthCheckEvent add_event;
   TestUtility::loadFromYaml(R"EOF(
@@ -103,7 +116,7 @@ TEST(HealthCheckEventPipeSink, logTest) {
   )EOF",
                             add_event);
 
-  pipe_sink2.log(add_event);
+  pipe_sink2->log(add_event);
   EXPECT_TRUE(
       eventSink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
         return Protobuf::util::MessageDifferencer::Equals(observed_event, add_event);
@@ -118,9 +131,11 @@ TEST(HealthCheckEventPipeSink, logTest) {
   // Set up 3rd client on a different socket
   cilium::HealthCheckEventPipeSink config3;
   config3.set_path(abstract_name);
-  HealthCheckEventPipeSink pipe_sink3(config3);
+  typed_config.PackFrom(config3);
+  auto pipe_sink3 = factory->createHealthCheckEventSink(typed_config, context);
+  EXPECT_NE(pipe_sink3, nullptr);
 
-  pipe_sink3.log(eject_event);
+  pipe_sink3->log(eject_event);
   EXPECT_TRUE(
       eventSink3.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
         return Protobuf::util::MessageDifferencer::Equals(observed_event, eject_event);
