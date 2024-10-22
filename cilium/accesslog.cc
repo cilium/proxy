@@ -15,7 +15,7 @@ namespace Cilium {
 Thread::MutexBasicLockable AccessLog::logs_mutex;
 std::map<std::string, std::weak_ptr<AccessLog>> AccessLog::logs;
 
-AccessLogSharedPtr AccessLog::Open(const std::string& path) {
+AccessLogSharedPtr AccessLog::Open(const std::string& path, TimeSource& time_source) {
   Thread::LockGuard guard(logs_mutex);
   auto it = logs.find(path);
   if (it != logs.end()) {
@@ -27,7 +27,7 @@ AccessLogSharedPtr AccessLog::Open(const std::string& path) {
   }
   // Not found, open and store as a weak_ptr
   AccessLogSharedPtr log;
-  log.reset(new AccessLog(path));
+  log.reset(new AccessLog(path, time_source));
   logs.emplace(path, log);
   return log;
 }

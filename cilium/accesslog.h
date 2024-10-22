@@ -18,7 +18,7 @@ constexpr absl::string_view AccessLogKey = "cilium.accesslog.entry";
 
 class AccessLog : public UDSClient {
 public:
-  static std::shared_ptr<AccessLog> Open(const std::string& path);
+  static std::shared_ptr<AccessLog> Open(const std::string& path, TimeSource& time_source);
   ~AccessLog();
 
   // wrapper for protobuf
@@ -52,7 +52,8 @@ public:
   void Log(Entry& entry, ::cilium::EntryType);
 
 private:
-  explicit AccessLog(const std::string& path) : UDSClient(path), path_(path) {}
+  explicit AccessLog(const std::string& path, TimeSource& time_source)
+      : UDSClient(path, time_source), path_(path) {}
 
   static Thread::MutexBasicLockable logs_mutex;
   static std::map<std::string, std::weak_ptr<AccessLog>> logs ABSL_GUARDED_BY(logs_mutex);
