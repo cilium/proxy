@@ -10,7 +10,8 @@ namespace Cilium {
 Thread::MutexBasicLockable HealthCheckEventPipeSink::udss_mutex;
 std::map<std::string, std::weak_ptr<UDSClient>> HealthCheckEventPipeSink::udss;
 
-HealthCheckEventPipeSink::HealthCheckEventPipeSink(const cilium::HealthCheckEventPipeSink& config)
+HealthCheckEventPipeSink::HealthCheckEventPipeSink(const cilium::HealthCheckEventPipeSink& config,
+                                                   TimeSource& time_source)
     : uds_client_(nullptr) {
   auto path = config.path();
   Thread::LockGuard guard(udss_mutex);
@@ -23,7 +24,7 @@ HealthCheckEventPipeSink::HealthCheckEventPipeSink(const cilium::HealthCheckEven
   }
   if (!uds_client_) {
     // Not found, allocate and store as a weak_ptr
-    uds_client_ = std::make_shared<UDSClient>(path);
+    uds_client_ = std::make_shared<UDSClient>(path, time_source);
     udss.emplace(path, uds_client_);
   }
 }
@@ -45,7 +46,8 @@ Upstream::HealthCheckEventSinkPtr HealthCheckEventPipeSinkFactory::createHealthC
       Envoy::MessageUtil::anyConvertAndValidate<cilium::HealthCheckEventPipeSink>(
           config, context.messageValidationVisitor());
   Upstream::HealthCheckEventSinkPtr uds;
-  uds.reset(new HealthCheckEventPipeSink(validator_config));
+  uds.reset(
+      new HealthCheckEventPipeSink(validator_config, context.serverFactoryContext().timeSource()));
   return uds;
 }
 
