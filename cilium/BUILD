@@ -177,6 +177,7 @@ envoy_cc_library(
     deps = [
         "@envoy//source/common/common:minimal_logger_lib",
         "@envoy//source/common/common:thread_lib",
+        "@envoy//source/common/common:token_bucket_impl_lib",
         "@envoy//source/common/common:utility_lib",
         "@envoy//source/common/network:address_lib",
     ],

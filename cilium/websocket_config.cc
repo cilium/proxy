@@ -68,7 +68,7 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
   }
 
   if (!access_log_path.empty()) {
-    access_log_ = AccessLog::Open(access_log_path);
+    access_log_ = AccessLog::Open(access_log_path, time_source_);
   }
 
   const uint64_t timeout = DurationUtil::durationToMilliseconds(handshake_timeout);

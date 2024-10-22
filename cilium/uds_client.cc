@@ -14,7 +14,9 @@
 namespace Envoy {
 namespace Cilium {
 
-UDSClient::UDSClient(const std::string& path) : addr_(path), fd_(-1), errno_(0) {
+UDSClient::UDSClient(const std::string& path, TimeSource& time_source)
+    : addr_(path), fd_(-1), errno_(0),
+      logging_limiter_(std::make_unique<TokenBucketImpl>(10, time_source)) {
   if (path.length() == 0) {
     throw EnvoyException(fmt::format("cilium: Invalid Unix domain socket path: {}", path));
   }
@@ -30,20 +32,31 @@ UDSClient::~UDSClient() {
 }
 
 void UDSClient::Log(const std::string& msg) {
-  int tries = 2;
-  ssize_t length = msg.length();
+  {
+    int tries = 2;
+    ssize_t length = msg.length();
 
-  Thread::LockGuard guard(fd_mutex_);
-  while (tries-- > 0 && try_connect()) {
-    ssize_t sent = ::send(fd_, msg.data(), length, MSG_DONTWAIT | MSG_EOR | MSG_NOSIGNAL);
-    if (sent == -1) {
-      errno_ = errno;
-      continue; // retry
+    Thread::LockGuard guard(fd_mutex_);
+    while (tries-- > 0) {
+      if (!try_connect())
+        continue; // retry
+
+      ssize_t sent = ::send(fd_, msg.data(), length, MSG_DONTWAIT | MSG_EOR | MSG_NOSIGNAL);
+      if (sent == -1) {
+        errno_ = errno;
+        continue;
+      }
+
+      if (sent < length) {
+        ENVOY_LOG(debug, "Cilium access log send truncated by {} bytes.", length - sent);
+      }
+      return;
     }
-    if (sent < length) {
-      ENVOY_LOG(debug, "Cilium access log send truncated by {} bytes.", length - sent);
-    }
-    return;
+  }
+
+  // rate-limit to 1/second to avoid spamming the logs
+  if (logging_limiter_->consume(1, false)) {
+    ENVOY_LOG(warn, "Logging to {} failed: {}", asStringView(), Envoy::errorDetails(errno_));
   }
 }
 
@@ -68,7 +81,6 @@ bool UDSClient::try_connect() {
 
   if (::connect(fd_, addr_.sockAddr(), addr_.sockAddrLen()) == -1) {
     errno_ = errno;
-    ENVOY_LOG(warn, "Connect to {} failed: {}", asStringView(), Envoy::errorDetails(errno_));
     ::close(fd_);
     fd_ = -1;
     return false;
