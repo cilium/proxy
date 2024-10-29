@@ -63,25 +63,28 @@ public:
     bool matches = false;
     const std::string* match_value = &value_;
     const auto header_value = Http::HeaderUtility::getAllOfHeaderAsString(headers, name_);
-    bool isPresentMatch = (value_.length() == 0 && !secret_);
 
+    // Get secret value?
+    if (secret_) {
+      auto* secret_value = secret_->value();
+      if (secret_value)
+        match_value = secret_value;
+      else if (value_.length() == 0) {
+        // fail if secret has no value and the inline value to match is also empty
+        ENVOY_LOG(info, "Cilium HeaderMatch missing SDS secret value for header {}", name_);
+        return false;
+      }
+    }
+
+    // Perform presence match if the value to match is empty
+    bool isPresentMatch = match_value->length() == 0;
     if (isPresentMatch)
       matches = header_value.result().has_value();
-    else {
-      // Value match, update secret?
-      if (secret_) {
-        auto* secret_value = secret_->value();
-        if (secret_value)
-          match_value = secret_value;
-        else if (value_.length() == 0)
-          ENVOY_LOG(info, "Cilium HeaderMatch missing SDS secret value for header {}", name_);
-      }
-      if (header_value.result().has_value()) {
-        const absl::string_view val = header_value.result().value();
-        if (val.length() == match_value->length()) {
-          // Use constant time comparison for security reason
-          matches = CRYPTO_memcmp(val.data(), match_value->data(), match_value->length()) == 0;
-        }
+    else if (header_value.result().has_value()) {
+      const absl::string_view val = header_value.result().value();
+      if (val.length() == match_value->length()) {
+        // Use constant time comparison for security reason
+        matches = CRYPTO_memcmp(val.data(), match_value->data(), match_value->length()) == 0;
       }
     }
 
@@ -137,7 +140,7 @@ public:
       }
     }
     IS_ENVOY_BUG("HeaderMatch reached unreachable return");
-    return true;
+    return false;
   }
 
   void toString(int indent, std::string& res) const {
