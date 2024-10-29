@@ -14,8 +14,8 @@ ENVOY_REPO = "envoy"
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.30.6
-ENVOY_SHA = "810bfcb8cae456e3a5e6541a0ee853185e2586f7"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.30.7
+ENVOY_SHA = "349011c2ebd40f070510e34f4605bff1da64fb0e"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -39,8 +39,6 @@ git_repository(
         # https://github.com/envoyproxy/envoy/pull/31894
         "@//patches:0004-Patch-cel-cpp-to-not-break-build.patch",
         "@//patches:0005-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
-        # This is for https://github.com/envoyproxy/envoy/pull/36515
-        "@//patches:0006-googleurl-dep.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
