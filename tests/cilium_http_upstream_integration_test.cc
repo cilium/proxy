@@ -873,17 +873,14 @@ TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
   absl::SleepFor(absl::Milliseconds(100));
 
   // 2nd round, on updated policy
-  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
+  Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
-  EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
-                         ->ip()
-                         ->addressAsString();
+  EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
     const auto& http = entry.http();
     const auto& missing = http.missing_headers();
-    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 2 &&
-           hasHeader(missing, "header42") && hasHeader(missing, "bearer-token", "[redacted]");
+    return http.rejected_headers_size() == 0 && http.missing_headers_size() == 1 &&
+           hasHeader(missing, "header42");
   }));
 
   // 3rd round back to the initial policy
@@ -900,9 +897,6 @@ TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
-                         ->ip()
-                         ->addressAsString();
     const auto& http = entry.http();
     return http.rejected_headers_size() == 0 && http.missing_headers_size() == 0;
   }));
