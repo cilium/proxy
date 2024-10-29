@@ -1097,8 +1097,8 @@ resources:
 )EOF"));
   EXPECT_EQ(version, "2");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
-  // Allowed remote ID, port, & path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Drop due to the missing SDS secret
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
