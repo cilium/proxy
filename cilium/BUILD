@@ -53,6 +53,7 @@ envoy_cc_library(
         "@envoy//source/common/local_info:local_info_lib",
         "@envoy//source/common/network:address_lib",
         "@envoy//source/common/router:config_utility_lib",
+        "@envoy//source/common/stats:timespan_lib",
         "@envoy//source/common/tls:context_config_lib",
         "@envoy//source/server:transport_socket_config_lib",
         "@envoy_api//envoy/type/matcher/v3:pkg_cc_proto",
