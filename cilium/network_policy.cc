@@ -1272,10 +1272,12 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
   // New security identities (e.g., for FQDN policies) only get inserted to the new IP cache,
   // so open it before the workers get a chance to enforce policy on the new IDs.
   if (isNewStream()) {
+    ENVOY_LOG(info, "New NetworkPolicy stream");
+
     // Get ipcache singleton only if it was successfully created previously
     IPCacheSharedPtr ipcache = IPCache::GetIPCache(context_);
     if (ipcache != nullptr) {
-      ENVOY_LOG(trace, "Reopening ipcache on new stream");
+      ENVOY_LOG(info, "Reopening ipcache on new stream");
       ipcache->Open();
     }
   }
