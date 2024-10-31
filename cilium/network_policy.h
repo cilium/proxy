@@ -4,6 +4,8 @@
 #include "envoy/http/header_map.h"
 #include "envoy/server/filter_config.h"
 #include "envoy/singleton/instance.h"
+#include "envoy/stats/stats_macros.h"
+#include "envoy/stats/timespan.h"
 #include "envoy/thread_local/thread_local.h"
 
 #include "source/common/common/logger.h"
@@ -163,13 +165,32 @@ private:
   ProtobufMessage::ValidationVisitor& validation_visitor_;
 };
 
+/**
+ * All Cilium L7 filter stats. @see stats_macros.h
+ */
+// clang-format off
+#define ALL_CILIUM_POLICY_STATS(COUNTER, HISTOGRAM)	\
+  COUNTER(updates)					\
+  COUNTER(updates_rejected)				\
+  COUNTER(updates_timed_out)				\
+  HISTOGRAM(update_latency_ms, Milliseconds)
+// clang-format on
+
+/**
+ * Struct definition for all policy stats. @see stats_macros.h
+ */
+struct PolicyStats {
+  ALL_CILIUM_POLICY_STATS(GENERATE_COUNTER_STRUCT, GENERATE_HISTOGRAM_STRUCT)
+};
+
 class NetworkPolicyMap : public Singleton::Instance,
                          public Envoy::Config::SubscriptionCallbacks,
                          public std::enable_shared_from_this<NetworkPolicyMap>,
                          public Logger::Loggable<Logger::Id::config> {
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context);
-  NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct);
+  NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct,
+                   std::chrono::milliseconds policy_update_warning_limit_ms);
   ~NetworkPolicyMap() {
     ENVOY_LOG(debug, "Cilium L7 NetworkPolicyMap({}): NetworkPolicyMap is deleted NOW!", name_);
   }
@@ -232,6 +253,9 @@ private:
   const std::string local_ip_str_;
   std::string name_;
   Stats::ScopeSharedPtr scope_;
+  PolicyStats stats_;
+  Stats::TimespanPtr update_latency_ms_;
+  std::chrono::milliseconds policy_update_warning_limit_ms_;
 
   // init target which starts gRPC subscription
   Init::TargetImpl init_target_;

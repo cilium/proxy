@@ -4,6 +4,8 @@ option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
 
 package cilium;
 
+import "google/protobuf/duration.proto";
+
 message BpfMetadata {
   // File system root for bpf. Defaults to "/sys/fs/bpf" if left empty.
   string bpf_root = 1;
@@ -44,4 +46,8 @@ message BpfMetadata {
   // proxy_id is passed to access log messages and allows relating access log messages to
   // listeners.
   uint32 proxy_id = 8;
+
+  // policy_update_warning_limit is the time in milliseconds after which a warning is logged if
+  // network policy update took longer
+  google.protobuf.Duration policy_update_warning_limit = 9;
 }
