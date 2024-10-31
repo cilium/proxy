@@ -11,6 +11,7 @@
 #include "source/common/init/watcher_impl.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h"
+#include "source/common/stats/timespan_impl.h"
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
@@ -1077,6 +1078,9 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
       local_ip_str_(context_.localInfo().address()->ip()->addressAsString()),
       name_(fmt::format("cilium.policymap.{}.{}.", local_ip_str_, ++instance_id_)),
       scope_(context_.serverScope().createScope(name_)),
+      stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER_PREFIX(*scope_, "policy."),
+                                     POOL_HISTOGRAM_PREFIX(*scope_, "policy."))},
+      policy_update_warning_limit_ms_(100),
       init_target_(fmt::format("Cilium Network Policy subscription start"),
                    [this]() { subscription_->start({}); }),
       transport_factory_context_(
@@ -1103,9 +1107,11 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
 
 // This is used in production
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context,
-                                   Cilium::CtMapSharedPtr& ct)
+                                   Cilium::CtMapSharedPtr& ct,
+                                   std::chrono::milliseconds policy_update_warning_limit_ms)
     : NetworkPolicyMap(context) {
   ctmap_ = ct;
+  policy_update_warning_limit_ms_ = policy_update_warning_limit_ms;
 }
 
 // Both subscribe() call and subscription_->start() use
@@ -1182,6 +1188,9 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
                                  const std::string& version_info) {
   ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", name_,
             resources.size(), version_info);
+  update_latency_ms_ = std::make_unique<Stats::HistogramCompletableTimespanImpl>(
+      stats_.update_latency_ms_, context_.timeSource());
+  stats_.updates_.inc();
 
   absl::flat_hash_set<std::string> keeps;
   absl::flat_hash_set<std::string> ct_maps_to_keep;
@@ -1228,7 +1237,8 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
       to_be_added->emplace_back(std::make_shared<PolicyInstanceImpl>(*this, new_hash, config));
     }
   } catch (const EnvoyException& e) {
-    ENVOY_LOG(debug, "NetworkPolicy update for version {} failed: {}", version_info, e.what());
+    ENVOY_LOG(warn, "NetworkPolicy update for version {} failed: {}", version_info, e.what());
+    stats_.updates_rejected_.inc();
 
     // Allow main (Listener) init to continue after exceptions
     init_target_.ready();
@@ -1310,9 +1320,6 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
       }
     });
 
-    auto time_source = &context_.timeSource();
-    auto start_time = time_source->monotonicTime();
-
     // Execute changes on all threads.
     tls_map_.runOnAllThreads(
         [to_be_added, to_be_deleted, version_info](OptRef<ThreadLocalPolicyMap> npmap) {
@@ -1330,18 +1337,7 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
           npmap->Update(*to_be_added, *to_be_deleted, version_info);
         },
         // All threads have executed updates, delete old cts and mark the local init target ready.
-        [shared_this, to_be_added, to_be_deleted, version_info, cts_to_be_closed, time_source,
-         start_time]() {
-          auto workers_done_time = time_source->monotonicTime();
-          auto duration =
-              std::chrono::duration_cast<std::chrono::milliseconds>(workers_done_time - start_time)
-                  .count();
-          if (duration > 100) {
-            ENVOY_LOG(warn,
-                      "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Worker threads took longer "
-                      "than 100ms to update network policy for version {} ({}ms)",
-                      version_info, duration);
-          }
+        [shared_this, to_be_added, to_be_deleted, version_info, cts_to_be_closed]() {
           // Update on the main thread last, so that deletes happen on the same thread as allocs
           auto npmap = shared_this->tls_map_.get();
           npmap->Update(*to_be_added, *to_be_deleted, version_info);
@@ -1350,6 +1346,19 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
             shared_this->ctmap_->closeMaps(cts_to_be_closed);
           }
           shared_this->version_init_target_->ready();
+
+          shared_this->update_latency_ms_->complete();
+          auto duration = shared_this->update_latency_ms_->elapsed();
+          shared_this->update_latency_ms_.reset();
+
+          if (duration > shared_this->policy_update_warning_limit_ms_) {
+            shared_this->stats_.updates_timed_out_.inc();
+            ENVOY_LOG(warn,
+                      "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Worker threads took longer "
+                      "than {}ms to update network policy for version {} ({}ms)",
+                      shared_this->policy_update_warning_limit_ms_.count(), version_info,
+                      duration.count());
+          }
         });
     // Initialize SDS secrets, the watcher callback above will be called after all threads have
     // updated policies and secrets have been fetched, or timeout (15 seconds) hits.
