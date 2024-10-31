@@ -18,8 +18,8 @@ namespace Cilium {
  * All Cilium L7 filter stats. @see stats_macros.h
  */
 // clang-format off
-#define ALL_CILIUM_STATS(COUNTER)                                                                  \
-  COUNTER(access_denied)                                                                                \
+#define ALL_CILIUM_STATS(COUNTER)	\
+  COUNTER(access_denied)
 // clang-format on
 
 /**
@@ -37,7 +37,8 @@ class Config : public Logger::Loggable<Logger::Id::filter> {
 public:
   Config(const std::string& access_log_path, const std::string& denied_403_body,
          TimeSource& time_source, Stats::Scope& scope, bool is_upstream);
-  Config(const ::cilium::L7Policy& config, TimeSource& time_source, Stats::Scope& scope, bool is_upstream);
+  Config(const ::cilium::L7Policy& config, TimeSource& time_source, Stats::Scope& scope,
+         bool is_upstream);
 
   void Log(AccessLog::Entry&, ::cilium::EntryType);
 
@@ -55,7 +56,9 @@ typedef std::shared_ptr<Config> ConfigSharedPtr;
 // Each request gets their own instance of this filter, and
 // they can run parallel from multiple worker threads, all accessing
 // the shared configuration.
-  class AccessFilter : public Http::StreamFilter, Logger::Loggable<Logger::Id::filter>, public Http::UpstreamCallbacks {
+class AccessFilter : public Http::StreamFilter,
+                     Logger::Loggable<Logger::Id::filter>,
+                     public Http::UpstreamCallbacks {
 public:
   AccessFilter(ConfigSharedPtr& config) : config_(config) {}
 
