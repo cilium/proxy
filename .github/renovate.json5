@@ -23,8 +23,7 @@
   separateMinorPatch: false,
   pruneStaleBranches: true,
   baseBranches: [
-    'main',
-    'v1.29',
+    'main'
   ],
   labels: [
     'kind/enhancement',
@@ -60,24 +59,6 @@
       ],
     },
     {
-      groupName: 'all go dependencies stable',
-      groupSlug: 'all-go-deps-stable',
-      matchFileNames: [
-        'go.mod',
-        'go.sum',
-      ],
-      matchUpdateTypes: [
-        'minor',
-        'digest',
-        'patch',
-        'pin',
-        'pinDigest',
-      ],
-      matchBaseBranches: [
-        'v1.29',
-      ],
-    },
-    {
       groupName: 'all github action dependencies',
       groupSlug: 'all-github-action',
       matchFileNames: [
@@ -102,7 +83,6 @@
       allowedVersions: '22.04',
       matchBaseBranches: [
         'main',
-        'v1.29',
       ],
     },
     {
@@ -124,7 +104,6 @@
       allowedVersions: '22.04',
       matchBaseBranches: [
         'main',
-        'v1.29',
       ],
     },
     {
@@ -134,20 +113,9 @@
       matchPackageNames: [
         'go',
       ],
-      allowedVersions: '<=1.22',
+      allowedVersions: '<=1.23',
       matchBaseBranches: [
         'main',
-        'v1.29',
-      ],
-    },
-    {
-      groupName: 'envoy 1.29.x',
-      matchDepNames: [
-        'envoyproxy/envoy',
-      ],
-      allowedVersions: '<=1.29',
-      matchBaseBranches: [
-        'v1.29',
       ],
     },
     {
@@ -161,17 +129,16 @@
       ],
     },
     {
-      groupName: 'go 1.22.x',
+      groupName: 'go 1.23.x',
       matchFileNames: [
         '.github/workflows/**',
       ],
       matchPackageNames: [
         'go',
       ],
-      allowedVersions: '<=1.22',
+      allowedVersions: '<=1.23',
       matchBaseBranches: [
-        'main',
-        'v1.29',
+        'main'
       ],
     },
   ],
