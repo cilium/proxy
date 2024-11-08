@@ -12,6 +12,19 @@
 namespace Envoy {
 namespace Cilium {
 
+#define ON_CALL_SDS_SECRET_PROVIDER(SECRET_MANAGER, PROVIDER_TYPE, API_TYPE)                       \
+  ON_CALL(SECRET_MANAGER, findOrCreate##PROVIDER_TYPE##Provider(_, _, _, _))                       \
+      .WillByDefault(                                                                              \
+          Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,                \
+                    const std::string& config_name,                                                \
+                    Server::Configuration::TransportSocketFactoryContext& secret_provider_context, \
+                    Init::Manager& init_manager) {                                                 \
+            auto secret_provider = Secret::API_TYPE##SdsApi::create(                               \
+                secret_provider_context, sds_config_source, config_name, []() {});                 \
+            init_manager.add(*secret_provider->initTarget());                                      \
+            return secret_provider;                                                                \
+          }))
+
 class CiliumNetworkPolicyTest : public ::testing::Test {
 protected:
   CiliumNetworkPolicyTest() {
@@ -26,17 +39,11 @@ protected:
     // SDS server. This is only useful for testing functionality with a missing secret.
     auto& secret_manager = factory_context_.server_factory_context_.cluster_manager_
                                .cluster_manager_factory_.secretManager();
-    ON_CALL(secret_manager, findOrCreateGenericSecretProvider(_, _, _, _))
-        .WillByDefault(
-            Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,
-                      const std::string& config_name,
-                      Server::Configuration::TransportSocketFactoryContext& secret_provider_context,
-                      Init::Manager& init_manager) {
-              auto secret_provider = Secret::GenericSecretSdsApi::create(
-                  secret_provider_context, sds_config_source, config_name, []() {});
-              init_manager.add(*secret_provider->initTarget());
-              return secret_provider;
-            }));
+    ON_CALL_SDS_SECRET_PROVIDER(secret_manager, TlsCertificate, TlsCertificate);
+    ON_CALL_SDS_SECRET_PROVIDER(secret_manager, CertificateValidationContext,
+                                CertificateValidationContext);
+    ON_CALL_SDS_SECRET_PROVIDER(secret_manager, TlsSessionTicketKeysContext, TlsSessionTicketKeys);
+    ON_CALL_SDS_SECRET_PROVIDER(secret_manager, GenericSecret, GenericSecret);
 
     policy_map_ = std::make_shared<NetworkPolicyMap>(factory_context_);
   }
@@ -89,6 +96,82 @@ protected:
                                          uint16_t port,
                                          Http::TestRequestHeaderMapImpl&& headers = {}) {
     return Allowed(false, pod_ip, remote_id, port, std::move(headers));
+  }
+
+  testing::AssertionResult TlsAllowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
+                                      uint16_t port, absl::string_view sni,
+                                      bool& tls_socket_required, bool& raw_socket_allowed) {
+    auto policy = policy_map_->GetPolicyInstance(pod_ip);
+    if (policy == nullptr)
+      return testing::AssertionFailure() << "Policy not found for " << pod_ip;
+
+    auto port_policy = policy->findPortPolicy(ingress, port);
+    const Envoy::Ssl::ContextConfig* config = nullptr;
+
+    // TLS context lookup does not check SNI
+    tls_socket_required = false;
+    raw_socket_allowed = false;
+    Envoy::Ssl::ContextSharedPtr ctx =
+        !ingress ? port_policy.getClientTlsContext(remote_id, sni, &config, raw_socket_allowed)
+                 : port_policy.getServerTlsContext(remote_id, sni, &config, raw_socket_allowed);
+
+    // separate policy lookup for validation
+    bool allowed = policy->allowed(ingress, remote_id, sni, port);
+
+    // if connection is allowed without TLS socket then TLS context is not required
+    if (raw_socket_allowed) {
+      EXPECT_TRUE(ctx == nullptr && config == nullptr);
+      tls_socket_required = false;
+    }
+
+    // if TLS config or context is returned then connection is not allowed without TLS socket
+    if (ctx != nullptr || config != nullptr) {
+      EXPECT_FALSE(raw_socket_allowed);
+      tls_socket_required = true;
+    }
+
+    // config must exist if ctx is returned
+    if (ctx != nullptr)
+      EXPECT_TRUE(config != nullptr);
+
+    EXPECT_TRUE(allowed == (tls_socket_required || raw_socket_allowed));
+
+    if (!allowed)
+      return testing::AssertionFailure() << pod_ip << " policy not allowing id " << remote_id
+                                         << " on port " << port << " with SNI \"" << sni << "\"";
+
+    // sanity check
+    EXPECT_TRUE(!(tls_socket_required && raw_socket_allowed) && tls_socket_required ||
+                raw_socket_allowed);
+
+    if (raw_socket_allowed)
+      return testing::AssertionSuccess()
+             << pod_ip << " policy allows id " << remote_id << " on port " << port << " with SNI \""
+             << sni << "\" without TLS socket";
+
+    if (tls_socket_required && ctx != nullptr)
+      return testing::AssertionSuccess()
+             << pod_ip << " policy allows id " << remote_id << " on port " << port << " with SNI \""
+             << sni << "\" with TLS socket";
+
+    if (tls_socket_required && ctx == nullptr)
+      return testing::AssertionSuccess()
+             << pod_ip << " policy allows id " << remote_id << " on port " << port << " with SNI \""
+             << sni << "\" but missing TLS context";
+
+    return testing::AssertionFailure();
+  }
+
+  testing::AssertionResult TlsIngressAllowed(const std::string& pod_ip, uint64_t remote_id,
+                                             uint16_t port, absl::string_view sni,
+                                             bool& tls_socket_required, bool& raw_socket_allowed) {
+    return TlsAllowed(true, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
+  }
+
+  testing::AssertionResult TlsEgressAllowed(const std::string& pod_ip, uint64_t remote_id,
+                                            uint16_t port, absl::string_view sni,
+                                            bool& tls_socket_required, bool& raw_socket_allowed) {
+    return TlsAllowed(false, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
   }
 
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;
@@ -1105,6 +1188,268 @@ resources:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Wrong path:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+}
+
+TEST_F(CiliumNetworkPolicyTest, TlsPolicyUpdate) {
+  bool tls_socket_required;
+  bool raw_socket_allowed;
+
+  std::string version;
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "0"
+)EOF"));
+  EXPECT_EQ(version, "0");
+  EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
+  // No policy for the pod
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  // SNI does not make a difference
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
+                                 raw_socket_allowed));
+
+  // 1st update without TLS requirements
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+)EOF"));
+  EXPECT_EQ(version, "1");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  // Allowed remote ID & port:
+  EXPECT_TRUE(TlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
+                                raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_TRUE(raw_socket_allowed);
+  // SNI does not matter:
+  EXPECT_TRUE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_TRUE(raw_socket_allowed);
+  // Wrong remote ID:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required,
+                                 raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Wrong port:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+                                 raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+
+  // No egress is allowed:
+  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+
+  // TLS SNI update
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      server_names: [ "cilium.io", "example.com" ]
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  // Allowed remote ID, port, SNI:
+  EXPECT_TRUE(TlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
+                                raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_TRUE(raw_socket_allowed);
+  // Allowed remote ID, port, incorrect SNI:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
+                                 raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Allowed remote ID, port, SNI:
+  EXPECT_TRUE(
+      TlsIngressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_TRUE(raw_socket_allowed);
+  // Missing SNI:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Wrong remote ID:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required,
+                                 raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Wrong port:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+                                 raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+
+  // No egress is allowed:
+  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+
+  // TLS Interception update
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      server_names: [ "cilium.io", "example.com" ]
+      downstream_tls_context:
+        tls_sds_secret: "secret1"
+      upstream_tls_context:
+        validation_context_sds_secret: "cacerts"
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  // Allowed remote ID, port, SNI:
+  EXPECT_TRUE(
+      TlsEgressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required, raw_socket_allowed));
+  EXPECT_TRUE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Allowed remote ID, port, incorrect SNI:
+  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
+                                raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Allowed remote ID, port, SNI:
+  EXPECT_TRUE(
+      TlsEgressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
+  EXPECT_TRUE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Missing SNI:
+  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Wrong remote ID:
+  EXPECT_FALSE(
+      TlsEgressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Wrong port:
+  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+                                raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+
+  // No igress is allowed:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+
+  // TLS Termination update
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      server_names: [ "cilium.io", "example.com" ]
+      downstream_tls_context:
+        tls_sds_secret: "secret1"
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  // Allowed remote ID, port, SNI:
+  EXPECT_TRUE(TlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
+                                raw_socket_allowed));
+  EXPECT_TRUE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Allowed remote ID, port, incorrect SNI:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
+                                 raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Allowed remote ID, port, SNI:
+  EXPECT_TRUE(
+      TlsIngressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
+  EXPECT_TRUE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Missing SNI:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Wrong remote ID:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required,
+                                 raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Wrong port:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+                                 raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+
+  // No egress is allowed:
+  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+
+  // TLS Origination update
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      upstream_tls_context:
+        validation_context_sds_secret: "cacerts"
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  // Allowed remote ID, port, SNI:
+  EXPECT_TRUE(
+      TlsEgressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required, raw_socket_allowed));
+  EXPECT_TRUE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Allowed remote ID, port,  SNI:
+  EXPECT_TRUE(TlsEgressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
+                               raw_socket_allowed));
+  EXPECT_TRUE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Allowed remote ID, port, SNI:
+  EXPECT_TRUE(
+      TlsEgressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
+  EXPECT_TRUE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Empty SNI:
+  EXPECT_TRUE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_TRUE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Wrong remote ID:
+  EXPECT_FALSE(
+      TlsEgressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+  // Wrong port:
+  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+                                raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
+
+  // No igress is allowed:
+  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tls_socket_required);
+  EXPECT_FALSE(raw_socket_allowed);
 }
 
 } // namespace Cilium

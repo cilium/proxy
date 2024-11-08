@@ -147,9 +147,10 @@ Network::FilterStatus Instance::onNewConnection() {
       if (option->ingress_source_identity_ != 0) {
         auto ingress_port_policy = option->initial_policy_->findPortPolicy(true, destination_port_);
         if (!ingress_port_policy.allowed(option->ingress_source_identity_, sni)) {
-          ENVOY_CONN_LOG(debug,
-                         "cilium.network: ingress policy drop for source identity: {} port: {}",
-                         conn, option->ingress_source_identity_, destination_port_);
+          ENVOY_CONN_LOG(
+              debug,
+              "cilium.network: ingress policy DROP for source identity: {} port: {} sni: \"{}\"",
+              conn, option->ingress_source_identity_, destination_port_, sni);
           return false;
         }
       }
@@ -160,9 +161,13 @@ Network::FilterStatus Instance::onNewConnection() {
     remote_id_ = option->ingress_ ? option->identity_ : destination_identity;
     if (!port_policy.allowed(remote_id_, sni)) {
       // Connection not allowed by policy
-      ENVOY_CONN_LOG(warn, "cilium.network: Policy DENY on id: {} port: {}", conn, remote_id_,
-                     destination_port_);
+      ENVOY_CONN_LOG(debug, "cilium.network: Policy DENY on id: {} port: {} sni: \"{}\"", conn,
+                     remote_id_, destination_port_, sni);
       return false;
+    } else {
+      // Connection allowed by policy
+      ENVOY_CONN_LOG(debug, "cilium.network: Policy ALLOW on id: {} port: {} sni: \"{}\"", conn,
+                     remote_id_, destination_port_, sni);
     }
 
     const std::string& policy_name = option->pod_ip_;

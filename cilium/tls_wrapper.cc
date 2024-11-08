@@ -34,6 +34,9 @@ public:
   void setTransportSocketCallbacks(Network::TransportSocketCallbacks& callbacks) override {
     // Get the Cilium socket option from the callbacks in order to get the TLS
     // configuration
+    // Cilium socket option is only created if the (intial) policy for the local pod exists.
+    // If the policy requires TLS then a TLS socket is used, but if the policy does not require
+    // TLS a raw socket is used instead,
     const auto option = Cilium::GetSocketOption(callbacks.connection().socketOptions());
     if (option) {
       // Resolve the destination security ID and port
@@ -60,13 +63,17 @@ public:
         }
       }
 
+      // get the requested server name from the connection, if any
+      const auto& sni = option->sni_;
+
       auto remote_id = option->ingress_ ? option->identity_ : destination_identity;
       auto port_policy =
           option->initial_policy_->findPortPolicy(option->ingress_, destination_port);
-      const Envoy::Ssl::ContextConfig* config;
-      Envoy::Ssl::ContextSharedPtr ctx = is_client
-                                             ? port_policy.getClientTlsContext(remote_id, &config)
-                                             : port_policy.getServerTlsContext(remote_id, &config);
+      const Envoy::Ssl::ContextConfig* config = nullptr;
+      bool raw_socket_allowed = false;
+      Envoy::Ssl::ContextSharedPtr ctx =
+          is_client ? port_policy.getClientTlsContext(remote_id, sni, &config, raw_socket_allowed)
+                    : port_policy.getServerTlsContext(remote_id, sni, &config, raw_socket_allowed);
       if (ctx) {
         // create the underlying SslSocket
         auto status_or_socket = Extensions::TransportSockets::Tls::SslSocket::create(
@@ -79,7 +86,15 @@ public:
           ENVOY_LOG_MISC(error, "Unable to create ssl socket {}",
                          status_or_socket.status().message());
         }
+      } else if (config == nullptr && raw_socket_allowed) {
+        // Use RawBufferSocket when policy allows without TLS.
+        // If policy has TLS context config then a raw socket must NOT be used.
+        socket_ = std::make_unique<Network::RawBufferSocket>();
+        // Set the callbacks
+        socket_->setTransportSocketCallbacks(callbacks);
       } else {
+        option->initial_policy_->tlsWrapperMissingPolicyInc();
+
         std::string ipStr("<none>");
         if (option->ingress_) {
           Network::Address::InstanceConstSharedPtr src_address =
@@ -96,10 +111,11 @@ public:
             ipStr = dip->addressAsString();
           }
         }
-        ENVOY_LOG_MISC(
-            warn, "cilium.tls_wrapper: Could not get {} TLS context for {} IP {} (id {}) port {}",
-            is_client ? "client" : "server", option->ingress_ ? "source" : "destination", ipStr,
-            remote_id, destination_port);
+        ENVOY_LOG_MISC(warn,
+                       "cilium.tls_wrapper: Could not get {} TLS context for {} IP {} (id {}) port "
+                       "{} sni \"{}\" and raw socket is not allowed",
+                       is_client ? "client" : "server", option->ingress_ ? "source" : "destination",
+                       ipStr, remote_id, destination_port, sni);
       }
     } else {
       ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Can not correlate connection with Cilium Network "

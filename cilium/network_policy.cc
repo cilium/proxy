@@ -486,22 +486,30 @@ public:
     return true; // allowed by default
   }
 
-  Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
-                                            const Ssl::ContextConfig** config) const {
+  Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id, absl::string_view sni,
+                                            const Ssl::ContextConfig** config,
+                                            bool& raw_socket_allowed) const {
     bool denied = false;
-    if (server_context_ && allowed(remote_id, denied)) {
-      *config = &server_context_->getTlsContextConfig();
-      return server_context_->getTlsContext();
+    if (allowed(remote_id, sni, denied)) {
+      if (server_context_) {
+        *config = &server_context_->getTlsContextConfig();
+        return server_context_->getTlsContext();
+      }
+      raw_socket_allowed = true;
     }
     return nullptr;
   }
 
-  Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id,
-                                            const Ssl::ContextConfig** config) const {
+  Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id, absl::string_view sni,
+                                            const Ssl::ContextConfig** config,
+                                            bool& raw_socket_allowed) const {
     bool denied = false;
-    if (client_context_ && allowed(remote_id, denied)) {
-      *config = &client_context_->getTlsContextConfig();
-      return client_context_->getTlsContext();
+    if (allowed(remote_id, sni, denied)) {
+      if (client_context_) {
+        *config = &client_context_->getTlsContextConfig();
+        return client_context_->getTlsContext();
+      }
+      raw_socket_allowed = true;
     }
     return nullptr;
   }
@@ -668,20 +676,24 @@ public:
     return allowed && !denied;
   }
 
-  Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
-                                            const Ssl::ContextConfig** config) const {
+  Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id, absl::string_view sni,
+                                            const Ssl::ContextConfig** config,
+                                            bool& raw_socket_allowed) const {
     for (const auto& rule : rules_) {
-      Ssl::ContextSharedPtr server_context = rule->getServerTlsContext(remote_id, config);
+      Ssl::ContextSharedPtr server_context =
+          rule->getServerTlsContext(remote_id, sni, config, raw_socket_allowed);
       if (server_context)
         return server_context;
     }
     return nullptr;
   }
 
-  Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id,
-                                            const Ssl::ContextConfig** config) const {
+  Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id, absl::string_view sni,
+                                            const Ssl::ContextConfig** config,
+                                            bool& raw_socket_allowed) const {
     for (const auto& rule : rules_) {
-      Ssl::ContextSharedPtr client_context = rule->getClientTlsContext(remote_id, config);
+      Ssl::ContextSharedPtr client_context =
+          rule->getClientTlsContext(remote_id, sni, config, raw_socket_allowed);
       if (client_context)
         return client_context;
     }
@@ -784,21 +796,23 @@ bool PortPolicy::allowed(uint32_t remote_id,
   });
 }
 
-Ssl::ContextSharedPtr PortPolicy::getServerTlsContext(uint32_t remote_id,
-                                                      const Ssl::ContextConfig** config) const {
+Ssl::ContextSharedPtr PortPolicy::getServerTlsContext(uint32_t remote_id, absl::string_view sni,
+                                                      const Ssl::ContextConfig** config,
+                                                      bool& raw_socket_allowed) const {
   Ssl::ContextSharedPtr ret;
   for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
-    ret = rules.getServerTlsContext(remote_id, config);
+    ret = rules.getServerTlsContext(remote_id, sni, config, raw_socket_allowed);
     return ret != nullptr;
   });
   return ret;
 }
 
-Ssl::ContextSharedPtr PortPolicy::getClientTlsContext(uint32_t remote_id,
-                                                      const Ssl::ContextConfig** config) const {
+Ssl::ContextSharedPtr PortPolicy::getClientTlsContext(uint32_t remote_id, absl::string_view sni,
+                                                      const Ssl::ContextConfig** config,
+                                                      bool& raw_socket_allowed) const {
   Ssl::ContextSharedPtr ret;
   for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
-    ret = rules.getClientTlsContext(remote_id, config);
+    ret = rules.getClientTlsContext(remote_id, sni, config, raw_socket_allowed);
     return ret != nullptr;
   });
   return ret;
@@ -1017,7 +1031,7 @@ public:
   PolicyInstanceImpl(const NetworkPolicyMap& parent, uint64_t hash,
                      const cilium::NetworkPolicy& proto)
       : conntrack_map_name_(proto.conntrack_map_name()), endpoint_id_(proto.endpoint_id()),
-        hash_(hash), policy_proto_(proto), endpoint_ips_(proto),
+        hash_(hash), policy_proto_(proto), endpoint_ips_(proto), parent_(parent),
         ingress_(parent, policy_proto_.ingress_per_port_policies()),
         egress_(parent, policy_proto_.egress_per_port_policies()) {}
 
@@ -1059,6 +1073,8 @@ public:
     return res;
   }
 
+  void tlsWrapperMissingPolicyInc() const override { parent_.tlsWrapperMissingPolicyInc(); }
+
 public:
   std::string conntrack_map_name_;
   uint32_t endpoint_id_;
@@ -1067,6 +1083,7 @@ public:
   const IPAddressPair endpoint_ips_;
 
 private:
+  const NetworkPolicyMap& parent_;
   const PortNetworkPolicy ingress_;
   const PortNetworkPolicy egress_;
 };
@@ -1441,6 +1458,8 @@ public:
   const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
 
   std::string String() const override { return "AllowAllEgressPolicyInstanceImpl"; }
+
+  void tlsWrapperMissingPolicyInc() const override {}
 
 private:
   PolicyMap empty_map_;
