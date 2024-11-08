@@ -73,12 +73,18 @@ public:
   bool allowed(uint32_t remote_id, const envoy::config::core::v3::Metadata& metadata) const;
   // getServerTlsContext returns the server TLS context, if any. If a non-null pointer is returned,
   // then also the config pointer '*config' is set.
-  Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id,
-                                            const Ssl::ContextConfig** config) const;
+  // If '*config' is nullptr and 'raw_socket_allowed' is 'true' on return then the policy
+  // allows the connection without TLS and a raw socket should be used.
+  Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id, absl::string_view sni,
+                                            const Ssl::ContextConfig** config,
+                                            bool& raw_socket_allowed) const;
   // getClientTlsContext returns the client TLS context, if any. If a non-null pointer is returned,
   // then also the config pointer '*config' is set.
-  Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id,
-                                            const Ssl::ContextConfig** config) const;
+  // If '*config' is nullptr and 'raw_socket_allowed' is 'true' on return then the policy
+  // allows the connection without TLS and a raw socket should be used.
+  Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id, absl::string_view sni,
+                                            const Ssl::ContextConfig** config,
+                                            bool& raw_socket_allowed) const;
 
 private:
   bool for_range(std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const;
@@ -127,6 +133,8 @@ public:
   virtual const IPAddressPair& getEndpointIPs() const PURE;
 
   virtual std::string String() const PURE;
+
+  virtual void tlsWrapperMissingPolicyInc() const PURE;
 };
 using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
 
@@ -173,7 +181,8 @@ private:
   COUNTER(updates)					\
   COUNTER(updates_rejected)				\
   COUNTER(updates_timed_out)				\
-  HISTOGRAM(update_latency_ms, Milliseconds)
+  HISTOGRAM(update_latency_ms, Milliseconds)		\
+  COUNTER(tls_wrapper_missing_policy)
 // clang-format on
 
 /**
@@ -236,6 +245,8 @@ public:
   Server::Configuration::TransportSocketFactoryContext& transportFactoryContext() const {
     return *transport_factory_context_;
   }
+
+  void tlsWrapperMissingPolicyInc() const { stats_.tls_wrapper_missing_policy_.inc(); }
 
 private:
   const std::shared_ptr<const PolicyInstanceImpl>&
