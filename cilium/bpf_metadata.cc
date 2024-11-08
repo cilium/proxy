@@ -281,6 +281,7 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
   const auto sip = src_address->ip();
   const auto dst_address = socket.ioHandle().localAddress();
   const auto dip = dst_address->ip();
+  auto sni = socket.requestedServerName();
 
   if (!sip || !dip) {
     ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}", src_address->asString(),
@@ -296,11 +297,12 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
   if (is_ingress_) {
     pod_ip = dip->addressAsString();
     other_ip = sip->addressAsString();
-    ENVOY_LOG_MISC(debug, "INGRESS POD IP: {}, source IP: {}", pod_ip, other_ip);
+    ENVOY_LOG_MISC(debug, "INGRESS POD IP: {}, source IP: {}, sni: \"{}\"", pod_ip, other_ip, sni);
   } else {
     pod_ip = sip->addressAsString();
     other_ip = dip->addressAsString();
-    ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {}", pod_ip, other_ip);
+    ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {} sni: \"{}\"", pod_ip, other_ip,
+                   sni);
   }
 
   // Load the policy for the Pod that sends or receives traffic.
@@ -402,8 +404,8 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
 
   // policy must exist at this point
   if (policy == nullptr) {
-    ENVOY_LOG(warn, "cilium.bpf_metadata ({}): No policy found for {}",
-              is_ingress_ ? "ingress" : "egress", pod_ip);
+    ENVOY_LOG(warn, "cilium.bpf_metadata ({}): No policy found for {} sni: \"{}\"",
+              is_ingress_ ? "ingress" : "egress", pod_ip, sni);
     return nullptr;
   }
 
@@ -443,7 +445,7 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
   return std::make_shared<Cilium::SocketOption>(
       policy, mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
-      std::move(source_addresses.ipv6_), shared_from_this(), proxy_id_);
+      std::move(source_addresses.ipv6_), shared_from_this(), proxy_id_, sni);
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
