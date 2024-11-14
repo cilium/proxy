@@ -61,10 +61,10 @@ index 0000000000..3b8fa32e5a
 +   }
 +
 diff --git a/bazel/repositories.bzl b/bazel/repositories.bzl
-index dd35bcdd08..94932e8e49 100644
+index 02f7abd725..db6a4e774e 100644
 --- a/bazel/repositories.bzl
 +++ b/bazel/repositories.bzl
-@@ -703,7 +703,10 @@ def _com_github_facebook_zstd():
+@@ -702,7 +702,10 @@ def _com_github_facebook_zstd():
  def _com_google_cel_cpp():
      external_http_archive(
          "com_google_cel_cpp",
@@ -77,5 +77,5 @@ index dd35bcdd08..94932e8e49 100644
      )
 
 --
-2.34.1
+2.45.2
 

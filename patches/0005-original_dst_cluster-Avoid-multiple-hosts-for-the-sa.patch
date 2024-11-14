@@ -25,12 +25,12 @@ map updates.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- .../original_dst/original_dst_cluster.cc      | 259 +++++++++++-------
+ .../original_dst/original_dst_cluster.cc      | 256 +++++++++++-------
  .../original_dst/original_dst_cluster.h       |  43 +--
- 2 files changed, 188 insertions(+), 114 deletions(-)
+ 2 files changed, 188 insertions(+), 111 deletions(-)
 
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.cc b/source/extensions/clusters/original_dst/original_dst_cluster.cc
-index d6e39adbbe..3afd678ac2 100644
+index ebc2871637..e325b16607 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.cc
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.cc
 @@ -29,6 +29,19 @@ OriginalDstClusterHandle::~OriginalDstClusterHandle() {
@@ -72,7 +72,7 @@ index d6e39adbbe..3afd678ac2 100644
 -        // Create a host we can use immediately.
 -        auto info = parent_->cluster_->info();
 -        HostSharedPtr host(std::make_shared<HostImpl>(
--            info, info->name() + dst_addr.asString(), std::move(host_ip_port), nullptr, 1,
+-            info, info->name() + dst_addr.asString(), std::move(host_ip_port), nullptr, nullptr, 1,
 -            envoy::config::core::v3::Locality().default_instance(),
 -            envoy::config::endpoint::v3::Endpoint::HealthCheckConfig().default_instance(), 0,
 -            envoy::config::core::v3::UNKNOWN, parent_->cluster_->time_source_));
@@ -96,16 +96,16 @@ index d6e39adbbe..3afd678ac2 100644
      }
    }
    // TODO(ramaraochavali): add a stat and move this log line to debug.
-@@ -195,7 +176,7 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
+@@ -196,7 +177,7 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
        cleanup_interval_ms_(
            std::chrono::milliseconds(PROTOBUF_GET_MS_OR_DEFAULT(config, cleanup_interval, 5000))),
        cleanup_timer_(dispatcher_.createTimer([this]() -> void { cleanup(); })),
 -      host_map_(std::make_shared<HostMultiMap>()) {
 +      host_map_(std::make_shared<HostUseMap>()), updates_map_(std::make_unique<HostUseMap>()) {
-   if (const auto& config_opt = info_->lbOriginalDstConfig(); config_opt.has_value()) {
-     if (config_opt->use_http_header()) {
-       http_header_name_ = config_opt->http_header_name().empty()
-@@ -212,47 +193,146 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
+   if (config.has_original_dst_lb_config()) {
+     const auto& lb_config = config.original_dst_lb_config();
+     if (lb_config.use_http_header()) {
+@@ -214,47 +195,146 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
    cleanup_timer_->enableTimer(cleanup_interval_ms_);
  }
 
@@ -183,7 +183,7 @@ index d6e39adbbe..3afd678ac2 100644
 +      Network::Address::InstanceConstSharedPtr host_ip_port(
 +          Network::Utility::copyInternetAddressAndPort(*dst_ip));
 +      host = std::make_shared<HostImpl>(
-+          info(), info()->name() + ":" + address, std::move(host_ip_port), nullptr, 1,
++          info(), info()->name() + ":" + address, std::move(host_ip_port), nullptr, nullptr, 1,
 +          envoy::config::core::v3::Locality().default_instance(),
 +          envoy::config::endpoint::v3::Endpoint::HealthCheckConfig().default_instance(), 0,
 +          envoy::config::core::v3::UNKNOWN, time_source_);
@@ -280,7 +280,7 @@ index d6e39adbbe..3afd678ac2 100644
        //
        // Using the used_ bit is preserved for backwards compatibility and to
        // add a delay between load balancers choosing a host and grabbing a
-@@ -267,49 +347,41 @@ void OriginalDstCluster::cleanup() {
+@@ -269,49 +349,41 @@ void OriginalDstCluster::cleanup() {
        // 3) will not delete h since it takes at least one cleanup_interval for
        // the host to set used_ bit for h to false.
        bool keep = false;
@@ -351,18 +351,8 @@ index d6e39adbbe..3afd678ac2 100644
    }
 
    cleanup_timer_->enableTimer(cleanup_interval_ms_);
-@@ -339,9 +411,6 @@ OriginalDstClusterFactory::createClusterImpl(const envoy::config::cluster::v3::C
-         cluster.original_dst_lb_config().http_header_name()));
-   }
-
--  // TODO(mattklein123): The original DST load balancer type should be deprecated and instead
--  //                     the cluster should directly supply the load balancer. This will remove
--  //                     a special case and allow this cluster to be compiled out as an extension.
-   auto new_cluster = std::shared_ptr<OriginalDstCluster>(new OriginalDstCluster(cluster, context));
-   auto lb = std::make_unique<OriginalDstCluster::ThreadAwareLoadBalancer>(
-       std::make_shared<OriginalDstClusterHandle>(new_cluster));
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.h b/source/extensions/clusters/original_dst/original_dst_cluster.h
-index 68a44cf5b9..a9b25cc9c0 100644
+index 8afc58d8b2..e2dbaaacac 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.h
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.h
 @@ -22,25 +22,21 @@ namespace Upstream {
@@ -419,7 +409,7 @@ index 68a44cf5b9..a9b25cc9c0 100644
    };
 
    const absl::optional<Http::LowerCaseString>& httpHeaderName() { return http_header_name_; }
-@@ -156,17 +153,23 @@ private:
+@@ -158,17 +155,23 @@ private:
      const OriginalDstClusterHandleSharedPtr cluster_;
    };
 
@@ -446,7 +436,7 @@ index 68a44cf5b9..a9b25cc9c0 100644
    void cleanup();
 
    // ClusterImplBase
-@@ -177,7 +180,9 @@ private:
+@@ -179,7 +182,9 @@ private:
    Event::TimerPtr cleanup_timer_;
 
    absl::Mutex host_map_lock_;

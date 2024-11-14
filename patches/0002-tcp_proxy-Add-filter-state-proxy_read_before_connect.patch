@@ -37,7 +37,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  4 files changed, 82 insertions(+), 26 deletions(-)
 
 diff --git a/source/common/tcp_proxy/BUILD b/source/common/tcp_proxy/BUILD
-index c6883b43ae..99dafdb9df 100644
+index cf6d9e8bd3..ec65d5d7ef 100644
 --- a/source/common/tcp_proxy/BUILD
 +++ b/source/common/tcp_proxy/BUILD
 @@ -58,6 +58,7 @@ envoy_cc_library(
@@ -49,7 +49,7 @@ index c6883b43ae..99dafdb9df 100644
          "//envoy/tcp:conn_pool_interface",
          "//envoy/tcp:upstream_interface",
 diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
-index 7c645872fa..57737ed9b7 100644
+index e5540b093c..f28bf3f2ec 100644
 --- a/source/common/tcp_proxy/tcp_proxy.cc
 +++ b/source/common/tcp_proxy/tcp_proxy.cc
 @@ -12,6 +12,7 @@
@@ -92,7 +92,7 @@ index 7c645872fa..57737ed9b7 100644
  }
 
  void Filter::onClusterDiscoveryCompletion(Upstream::ClusterDiscoveryStatus cluster_status) {
-@@ -760,12 +774,18 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
+@@ -761,12 +775,18 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
    if (upstream_) {
      getStreamInfo().getUpstreamBytesMeter()->addWireBytesSent(data.length());
      upstream_->encodeData(data, end_stream);
@@ -112,7 +112,7 @@ index 7c645872fa..57737ed9b7 100644
    return Network::FilterStatus::StopIteration;
  }
 
-@@ -891,7 +911,13 @@ void Filter::onUpstreamConnection() {
+@@ -892,7 +912,13 @@ void Filter::onUpstreamConnection() {
    connecting_ = false;
    // Re-enable downstream reads now that the upstream connection is established
    // so we have a place to send downstream data to.
@@ -128,7 +128,7 @@ index 7c645872fa..57737ed9b7 100644
    read_callbacks_->upstreamHost()->outlierDetector().putResult(
        Upstream::Outlier::Result::LocalOriginConnectSuccessFinal);
 diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
-index 3116ce909d..62e1958740 100644
+index 097703692f..f839ec7455 100644
 --- a/source/common/tcp_proxy/tcp_proxy.h
 +++ b/source/common/tcp_proxy/tcp_proxy.h
 @@ -43,6 +43,8 @@ namespace TcpProxy {
@@ -140,7 +140,7 @@ index 3116ce909d..62e1958740 100644
  /**
   * All tcp proxy stats. @see stats_macros.h
   */
-@@ -664,6 +666,9 @@ protected:
+@@ -667,6 +669,9 @@ protected:
    uint32_t connect_attempts_{};
    bool connecting_{};
    bool downstream_closed_{};
@@ -275,5 +275,5 @@ index c87c43a39c..f7081fdd42 100644
 
  INSTANTIATE_TEST_SUITE_P(TcpProxyIntegrationTestParams, TcpProxySslIntegrationTest,
 --
-2.34.1
+2.45.2
 
