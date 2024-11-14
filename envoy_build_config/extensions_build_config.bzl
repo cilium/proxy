@@ -173,6 +173,7 @@ EXTENSIONS = {
     "envoy.filters.http.set_filter_state":              "//source/extensions/filters/http/set_filter_state:config",
     "envoy.filters.http.set_metadata": "//source/extensions/filters/http/set_metadata:config",
     # "envoy.filters.http.tap":                           "//source/extensions/filters/http/tap:config",
+    # "envoy.filters.http.thrift_to_metadata":            "//source/extensions/filters/http/thrift_to_metadata:config",
     "envoy.filters.http.wasm": "//source/extensions/filters/http/wasm:config",
     # "envoy.filters.http.stateful_session":              "//source/extensions/filters/http/stateful_session:config",
     # "envoy.filters.http.header_mutation":               "//source/extensions/filters/http/header_mutation:config",
@@ -278,6 +279,7 @@ EXTENSIONS = {
 
     # "envoy.tracers.opentelemetry.resource_detectors.environment":         "//source/extensions/tracers/opentelemetry/resource_detectors/environment:config",
     # "envoy.tracers.opentelemetry.resource_detectors.dynatrace":           "//source/extensions/tracers/opentelemetry/resource_detectors/dynatrace:config",
+    # "envoy.tracers.opentelemetry.resource_detectors.static_config":       "//source/extensions/tracers/opentelemetry/resource_detectors/static:config",
 
     #
     # OpenTelemetry tracer samplers
@@ -398,6 +400,7 @@ EXTENSIONS = {
     #
 
     # "envoy.http.injected_credentials.generic":              "//source/extensions/http/injected_credentials/generic:config",
+    # "envoy.http.injected_credentials.oauth2":               "//source/extensions/http/injected_credentials/oauth2:config",
 
     #
     # QUIC extensions
@@ -407,6 +410,8 @@ EXTENSIONS = {
     # "envoy.quic.crypto_stream.server.quiche":           "//source/extensions/quic/crypto_stream:envoy_quic_default_crypto_server_stream",
     # "envoy.quic.proof_source.filter_chain":             "//source/extensions/quic/proof_source:envoy_quic_default_proof_source",
     # "envoy.quic.server_preferred_address.fixed":        "//source/extensions/quic/server_preferred_address:fixed_server_preferred_address_config_factory_config",
+    # "envoy.quic.server_preferred_address.datasource":   "//source/extensions/quic/server_preferred_address:datasource_server_preferred_address_config_factory_config",
+    # "envoy.quic.connection_debug_visitor.basic":        "//source/extensions/quic/connection_debug_visitor:envoy_quic_connection_debug_visitor_basic",
 
     #
     # UDP packet writers
