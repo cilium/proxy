@@ -1,7 +1,6 @@
 #pragma once
 
 #include <atomic>
-#include <chrono>
 #include <string>
 
 #include "source/common/common/logger.h"
@@ -20,7 +19,7 @@ private:
   void threadRoutine();
 
   std::function<void(const std::string&)> msg_cb_;
-  const Network::Address::PipeInstance addr_;
+  std::shared_ptr<Network::Address::PipeInstance> addr_;
   std::atomic<int> fd_;
   std::atomic<int> fd2_;
   Thread::ThreadPtr thread_;

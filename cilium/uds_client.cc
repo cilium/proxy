@@ -3,7 +3,6 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/socket.h>
-#include <sys/un.h>
 #include <unistd.h>
 
 #include "envoy/common/exception.h"
@@ -15,11 +14,16 @@ namespace Envoy {
 namespace Cilium {
 
 UDSClient::UDSClient(const std::string& path, TimeSource& time_source)
-    : addr_(path), fd_(-1), errno_(0),
-      logging_limiter_(std::make_unique<TokenBucketImpl>(10, time_source)) {
+    : addr_(THROW_OR_RETURN_VALUE(Network::Address::PipeInstance::create(path),
+                                  std::unique_ptr<Network::Address::PipeInstance>)),
+      fd_(-1), errno_(0), logging_limiter_(std::make_unique<TokenBucketImpl>(10, time_source)) {
   if (path.length() == 0) {
     throw EnvoyException(fmt::format("cilium: Invalid Unix domain socket path: {}", path));
   }
+
+  fd_ = -1;
+  errno_ = 0;
+  logging_limiter_ = std::make_unique<TokenBucketImpl>(10, time_source);
 }
 
 UDSClient::~UDSClient() {
@@ -79,7 +83,7 @@ bool UDSClient::try_connect() {
     return false;
   }
 
-  if (::connect(fd_, addr_.sockAddr(), addr_.sockAddrLen()) == -1) {
+  if (::connect(fd_, addr_->sockAddr(), addr_->sockAddrLen()) == -1) {
     errno_ = errno;
     ::close(fd_);
     fd_ = -1;

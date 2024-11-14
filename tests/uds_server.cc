@@ -7,6 +7,8 @@
 
 #include <string>
 
+#include "envoy/common/exception.h"
+
 #include "source/common/common/lock_guard.h"
 #include "source/common/common/utility.h"
 
@@ -15,10 +17,12 @@
 namespace Envoy {
 
 UDSServer::UDSServer(const std::string& path, std::function<void(const std::string&)> cb)
-    : msg_cb_(cb), addr_(path), fd2_(-1) {
-  ENVOY_LOG(trace, "Creating unix domain socket server: {}", addr_.asStringView());
-  if (!addr_.pipe()->abstractNamespace()) {
-    ::unlink(addr_.asString().c_str());
+    : msg_cb_(cb), addr_(THROW_OR_RETURN_VALUE(Network::Address::PipeInstance::create(path),
+                                               std::unique_ptr<Network::Address::PipeInstance>)),
+      fd2_(-1) {
+  ENVOY_LOG(trace, "Creating unix domain socket server: {}", addr_->asStringView());
+  if (!addr_->pipe()->abstractNamespace()) {
+    ::unlink(addr_->asString().c_str());
   }
   fd_ = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
   if (fd_ == -1) {
@@ -26,16 +30,16 @@ UDSServer::UDSServer(const std::string& path, std::function<void(const std::stri
     return;
   }
 
-  ENVOY_LOG(trace, "Binding to {}", addr_.asStringView());
-  if (::bind(fd_, addr_.sockAddr(), addr_.sockAddrLen()) == -1) {
-    ENVOY_LOG(warn, "Bind to {} failed: {}", addr_.asStringView(), Envoy::errorDetails(errno));
+  ENVOY_LOG(trace, "Binding to {}", addr_->asStringView());
+  if (::bind(fd_, addr_->sockAddr(), addr_->sockAddrLen()) == -1) {
+    ENVOY_LOG(warn, "Bind to {} failed: {}", addr_->asStringView(), Envoy::errorDetails(errno));
     Close();
     return;
   }
 
-  ENVOY_LOG(trace, "Listening on {}", addr_.asStringView());
+  ENVOY_LOG(trace, "Listening on {}", addr_->asStringView());
   if (::listen(fd_, 5) == -1) {
-    ENVOY_LOG(warn, "Listen on {} failed: {}", addr_.asStringView(), Envoy::errorDetails(errno));
+    ENVOY_LOG(warn, "Listen on {} failed: {}", addr_->asStringView(), Envoy::errorDetails(errno));
     Close();
     return;
   }
@@ -61,8 +65,8 @@ void UDSServer::Close() {
   errno = 0;
   ::close(fd_);
   fd_ = -1;
-  if (!addr_.pipe()->abstractNamespace()) {
-    ::unlink(addr_.asString().c_str());
+  if (!addr_->pipe()->abstractNamespace()) {
+    ::unlink(addr_->asString().c_str());
   }
 }
 

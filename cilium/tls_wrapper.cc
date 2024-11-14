@@ -16,8 +16,6 @@ namespace Cilium {
 
 namespace {
 
-using SslSocketPtr = std::unique_ptr<Envoy::Extensions::TransportSockets::Tls::SslSocket>;
-
 constexpr absl::string_view NotReadyReason{"TLS error: Secret is not supplied by SDS"};
 
 // This SslSocketWrapper wraps a real SslSocket and hooks it up with
@@ -195,7 +193,8 @@ public:
 
 } // namespace
 
-Network::UpstreamTransportSocketFactoryPtr UpstreamTlsWrapperFactory::createTransportSocketFactory(
+absl::StatusOr<Network::UpstreamTransportSocketFactoryPtr>
+UpstreamTlsWrapperFactory::createTransportSocketFactory(
     const Protobuf::Message&, Server::Configuration::TransportSocketFactoryContext&) {
   return std::make_unique<ClientSslSocketFactory>();
 }
@@ -207,7 +206,7 @@ ProtobufTypes::MessagePtr UpstreamTlsWrapperFactory::createEmptyConfigProto() {
 REGISTER_FACTORY(UpstreamTlsWrapperFactory,
                  Server::Configuration::UpstreamTransportSocketConfigFactory);
 
-Network::DownstreamTransportSocketFactoryPtr
+absl::StatusOr<Network::DownstreamTransportSocketFactoryPtr>
 DownstreamTlsWrapperFactory::createTransportSocketFactory(
     const Protobuf::Message&, Server::Configuration::TransportSocketFactoryContext&,
     const std::vector<std::string>&) {

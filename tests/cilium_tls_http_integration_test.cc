@@ -1,5 +1,5 @@
-#include "source/common/tls/context_config_impl.h"
-#include "source/common/tls/ssl_socket.h"
+#include "source/common/tls/server_context_config_impl.h"
+#include "source/common/tls/server_ssl_socket.h"
 
 #include "test/integration/ssl_utility.h"
 
@@ -250,13 +250,19 @@ public:
     tls_cert->mutable_private_key()->set_filename(TestEnvironment::runfilesPath(
         fmt::format("test/config/integration/certs/{}key.pem", upstream_cert_name_)));
     ENVOY_LOG_MISC(debug, "Fake Upstream Downstream TLS context: {}", tls_context.DebugString());
-    auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
-        tls_context, factory_context_);
+
+    auto server_config_or_error =
+        Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(tls_context,
+                                                                           factory_context_);
+    THROW_IF_NOT_OK(server_config_or_error.status());
+    auto cfg = std::move(server_config_or_error.value());
 
     static auto* upstream_stats_store = new Stats::IsolatedStoreImpl();
-    return std::make_unique<Extensions::TransportSockets::Tls::ServerSslSocketFactory>(
+    auto factory_or_error = Extensions::TransportSockets::Tls::ServerSslSocketFactory::create(
         std::move(cfg), context_manager_, *upstream_stats_store->rootScope(),
         std::vector<std::string>{});
+    THROW_IF_NOT_OK(factory_or_error.status());
+    return std::move(factory_or_error.value());
   }
 
   std::string testPolicyFmt() override {

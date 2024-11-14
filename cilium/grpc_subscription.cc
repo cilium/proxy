@@ -135,7 +135,7 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
   Envoy::Config::CustomConfigValidatorsPtr nop_config_validators =
       std::make_unique<NopConfigValidatorsImpl>();
   auto factory_or_error = Config::Utility::factoryForGrpcApiConfigSource(
-      cm.grpcAsyncClientManager(), api_config_source, scope, true);
+      cm.grpcAsyncClientManager(), api_config_source, scope, true, 0);
   THROW_IF_STATUS_NOT_OK(factory_or_error, throw);
 
   absl::StatusOr<Config::RateLimitSettings> rate_limit_settings_or_error =
@@ -144,6 +144,7 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
 
   Config::GrpcMuxContext grpc_mux_context{
       factory_or_error.value()->createUncachedRawAsyncClient(),
+      /*failover_async_client_=*/nullptr,
       /*dispatcher_=*/dispatcher,
       /*service_method_=*/sotwGrpcMethod(type_url),
       /*local_info_=*/local_info,

@@ -3,8 +3,8 @@
 #include "envoy/api/api.h"
 #include "envoy/network/transport_socket.h"
 
+#include "source/common/tls/client_ssl_socket.h"
 #include "source/common/tls/context_config_impl.h"
-#include "source/common/tls/ssl_socket.h"
 
 #include "test/integration/server.h"
 #include "test/mocks/server/transport_socket_factory_context.h"
@@ -29,12 +29,15 @@ createClientSslTransportSocketFactory(Ssl::ContextManager& context_manager, Api:
 
   NiceMock<Server::Configuration::MockTransportSocketFactoryContext> mock_factory_ctx;
   ON_CALL(mock_factory_ctx.server_context_, api()).WillByDefault(testing::ReturnRef(api));
-  auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
+  auto cfg_or_error = Extensions::TransportSockets::Tls::ClientContextConfigImpl::create(
       tls_context, mock_factory_ctx);
+  THROW_IF_NOT_OK(cfg_or_error.status());
+  auto cfg = std::move(cfg_or_error.value());
   static auto* client_stats_store = new Stats::TestIsolatedStoreImpl();
-  return Network::UpstreamTransportSocketFactoryPtr{
-      new Extensions::TransportSockets::Tls::ClientSslSocketFactory(
-          std::move(cfg), context_manager, *client_stats_store->rootScope())};
+  auto factory_or_error = Extensions::TransportSockets::Tls::ClientSslSocketFactory::create(
+      std::move(cfg), context_manager, *client_stats_store->rootScope());
+  THROW_IF_NOT_OK(factory_or_error.status());
+  return std::move(factory_or_error.value());
 }
 
 } // namespace Cilium

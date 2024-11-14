@@ -5,7 +5,7 @@
 #include "envoy/secret/secret_provider.h"
 
 #include "source/common/init/target_impl.h"
-#include "source/common/tls/context_config_impl.h"
+#include "source/common/tls/server_context_config_impl.h"
 
 #include "cilium/network_policy.h"
 
@@ -28,7 +28,7 @@ public:
 
 private:
   Envoy::Common::CallbackHandlePtr readAndWatchSecret();
-  void store();
+  absl::Status store();
   const std::string* load() const;
 
   const NetworkPolicyMap& parent_;
