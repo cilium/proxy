@@ -15,7 +15,7 @@
 #include "source/common/init/target_impl.h"
 #include "source/common/init/watcher_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "source/common/tls/context_config_impl.h"
+#include "source/common/tls/server_context_config_impl.h"
 #include "source/server/transport_socket_config_impl.h"
 
 #include "cilium/accesslog.h"

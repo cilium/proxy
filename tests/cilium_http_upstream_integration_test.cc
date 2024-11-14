@@ -816,7 +816,7 @@ TEST_P(SDSIntegrationTest, TestDeniedL3) {
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+    auto source_ip = Network::Utility::parseInternetAddressAndPortNoThrow(entry.source_address())
                          ->ip()
                          ->addressAsString();
     const auto& http = entry.http();
@@ -834,7 +834,7 @@ TEST_P(SDSIntegrationTest, TestDeniedL3SpoofedXFF) {
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+    auto source_ip = Network::Utility::parseInternetAddressAndPortNoThrow(entry.source_address())
                          ->ip()
                          ->addressAsString();
     const auto& http = entry.http();
@@ -849,7 +849,7 @@ TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+    auto source_ip = Network::Utility::parseInternetAddressAndPortNoThrow(entry.source_address())
                          ->ip()
                          ->addressAsString();
     const auto& http = entry.http();

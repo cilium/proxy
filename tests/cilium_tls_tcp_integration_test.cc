@@ -1,5 +1,5 @@
-#include "source/common/tls/context_config_impl.h"
-#include "source/common/tls/ssl_socket.h"
+#include "source/common/tls/server_context_config_impl.h"
+#include "source/common/tls/server_ssl_socket.h"
 
 #include "test/integration/ssl_utility.h"
 
@@ -110,13 +110,17 @@ public:
     tls_cert->mutable_private_key()->set_filename(TestEnvironment::runfilesPath(
         fmt::format("test/config/integration/certs/{}key.pem", upstream_cert_name_)));
 
-    auto cfg = std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
+    auto cfg_or_error = Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(
         tls_context, factory_context_);
+    THROW_IF_NOT_OK(cfg_or_error.status());
+    auto cfg = std::move(cfg_or_error.value());
 
     static auto* upstream_stats_store = new Stats::IsolatedStoreImpl();
-    return std::make_unique<Extensions::TransportSockets::Tls::ServerSslSocketFactory>(
+    auto server_or_error = Extensions::TransportSockets::Tls::ServerSslSocketFactory::create(
         std::move(cfg), context_manager_, *upstream_stats_store->rootScope(),
         std::vector<std::string>{});
+    THROW_IF_NOT_OK(server_or_error.status());
+    return std::move(server_or_error.value());
   }
 
   void setupConnections() {

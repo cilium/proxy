@@ -37,16 +37,18 @@ SecretWatcher::SecretWatcher(const NetworkPolicyMap& parent, const std::string& 
 SecretWatcher::~SecretWatcher() { delete load(); }
 
 Envoy::Common::CallbackHandlePtr SecretWatcher::readAndWatchSecret() {
-  store();
-  return secret_provider_->addUpdateCallback([this]() { store(); });
+  THROW_IF_NOT_OK(store());
+  return secret_provider_->addUpdateCallback([this]() { return store(); });
 }
 
-void SecretWatcher::store() {
+absl::Status SecretWatcher::store() {
   const auto* secret = secret_provider_->secret();
   if (secret != nullptr) {
     Api::Api& api = parent_.transportFactoryContext().serverFactoryContext().api();
     auto string_or_error = Config::DataSource::read(secret->secret(), true, api);
-    THROW_IF_STATUS_NOT_OK(string_or_error, throw)
+    if (!string_or_error.ok()) {
+      return string_or_error.status();
+    }
     std::string* p = new std::string(string_or_error.value());
     std::string* old = ptr_.exchange(p, std::memory_order_release);
     if (old != nullptr) {
@@ -54,6 +56,7 @@ void SecretWatcher::store() {
       parent_.runAfterAllThreads([old]() { delete old; });
     }
   }
+  return absl::OkStatus();
 }
 
 const std::string* SecretWatcher::load() const { return ptr_.load(std::memory_order_acquire); }
@@ -123,21 +126,28 @@ DownstreamTLSContext::DownstreamTLSContext(const NetworkPolicyMap& parent,
   for (int i = 0; i < config.server_names_size(); i++) {
     server_names_.emplace_back(config.server_names(i));
   }
-  server_config_ = std::make_unique<Extensions::TransportSockets::Tls::ServerContextConfigImpl>(
+  auto server_config_or_error = Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(
       context_config, parent.transportFactoryContext());
+  THROW_IF_NOT_OK(server_config_or_error.status());
+  server_config_ = std::move(server_config_or_error.value());
+
   auto create_server_context = [this]() {
     ENVOY_LOG(debug, "Server secret is updated.");
-    auto ctx = manager_.createSslServerContext(scope_, *server_config_, server_names_, nullptr);
+    auto ctx_or_error =
+        manager_.createSslServerContext(scope_, *server_config_, server_names_, nullptr);
+    THROW_IF_NOT_OK(ctx_or_error.status());
+    auto ctx = std::move(ctx_or_error.value());
     {
       absl::WriterMutexLock l(&ssl_context_mutex_);
       std::swap(ctx, server_context_);
     }
     manager_.removeContext(ctx);
     init_target_.ready();
+    return absl::OkStatus();
   };
   server_config_->setSecretUpdateCallback(create_server_context);
   if (server_config_->isReady())
-    create_server_context();
+    static_cast<void>(create_server_context());
   else
     parent.transportFactoryContext().initManager().add(init_target_);
 }
@@ -159,21 +169,27 @@ UpstreamTLSContext::UpstreamTLSContext(const NetworkPolicyMap& parent, cilium::T
     }
     context_config.set_sni(config.server_names(0));
   }
-  client_config_ = std::make_unique<Extensions::TransportSockets::Tls::ClientContextConfigImpl>(
+  auto client_config_or_error = Extensions::TransportSockets::Tls::ClientContextConfigImpl::create(
       context_config, parent.transportFactoryContext());
+  THROW_IF_NOT_OK(client_config_or_error.status());
+
+  client_config_ = std::move(client_config_or_error.value());
   auto create_client_context = [this]() {
     ENVOY_LOG(debug, "Client secret is updated.");
-    auto ctx = manager_.createSslClientContext(scope_, *client_config_);
+    auto ctx_or_error = manager_.createSslClientContext(scope_, *client_config_);
+    THROW_IF_NOT_OK(ctx_or_error.status());
+    auto ctx = std::move(ctx_or_error.value());
     {
       absl::WriterMutexLock l(&ssl_context_mutex_);
       std::swap(ctx, client_context_);
     }
     manager_.removeContext(ctx);
     init_target_.ready();
+    return absl::OkStatus();
   };
   client_config_->setSecretUpdateCallback(create_client_context);
   if (client_config_->isReady())
-    create_client_context();
+    static_cast<void>(create_client_context());
   else
     parent.transportFactoryContext().initManager().add(init_target_);
 }

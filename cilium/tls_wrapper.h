@@ -2,6 +2,8 @@
 
 #include "envoy/registry/registry.h"
 #include "envoy/server/transport_socket_config.h"
+#include "envoy/stats/scope.h"
+#include "envoy/stats/stats_macros.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -22,7 +24,7 @@ class UpstreamTlsWrapperFactory
     : public Server::Configuration::UpstreamTransportSocketConfigFactory,
       public TlsWrapperConfigFactory {
 public:
-  Network::UpstreamTransportSocketFactoryPtr createTransportSocketFactory(
+  absl::StatusOr<Network::UpstreamTransportSocketFactoryPtr> createTransportSocketFactory(
       const Protobuf::Message& config,
       Server::Configuration::TransportSocketFactoryContext& context) override;
   ProtobufTypes::MessagePtr createEmptyConfigProto() override;
@@ -34,7 +36,7 @@ class DownstreamTlsWrapperFactory
     : public Server::Configuration::DownstreamTransportSocketConfigFactory,
       public TlsWrapperConfigFactory {
 public:
-  Network::DownstreamTransportSocketFactoryPtr
+  absl::StatusOr<Network::DownstreamTransportSocketFactoryPtr>
   createTransportSocketFactory(const Protobuf::Message& config,
                                Server::Configuration::TransportSocketFactoryContext& context,
                                const std::vector<std::string>& server_names) override;

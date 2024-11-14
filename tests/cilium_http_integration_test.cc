@@ -1,3 +1,4 @@
+// <gtest.h> TEST
 #include "source/common/config/decoded_resource_impl.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/protobuf/protobuf.h"
@@ -1140,11 +1141,10 @@ TEST_P(SDSIntegrationTest, TestDeniedL3) {
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+    auto source_ip = Network::Utility::parseInternetAddressAndPortNoThrow(entry.source_address())
                          ->ip()
                          ->addressAsString();
     const auto& http = entry.http();
-
     ENVOY_LOG_MISC(info, "Access Log entry: {}", entry.DebugString());
 
     return http.rejected_headers_size() == 0 && http.missing_headers_size() == 0 &&
@@ -1161,7 +1161,7 @@ TEST_P(SDSIntegrationTest, TestDeniedL3SpoofedXFF) {
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
-    auto source_ip = Network::Utility::parseInternetAddressAndPort(entry.source_address())
+    auto source_ip = Network::Utility::parseInternetAddressAndPortNoThrow(entry.source_address())
                          ->ip()
                          ->addressAsString();
     const auto& http = entry.http();
