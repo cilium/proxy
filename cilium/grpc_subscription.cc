@@ -136,11 +136,11 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
       std::make_unique<NopConfigValidatorsImpl>();
   auto factory_or_error = Config::Utility::factoryForGrpcApiConfigSource(
       cm.grpcAsyncClientManager(), api_config_source, scope, true, 0);
-  THROW_IF_STATUS_NOT_OK(factory_or_error, throw);
+  THROW_IF_NOT_OK_REF(factory_or_error.status());
 
   absl::StatusOr<Config::RateLimitSettings> rate_limit_settings_or_error =
       Config::Utility::parseRateLimitSettings(api_config_source);
-  THROW_IF_STATUS_NOT_OK(rate_limit_settings_or_error, throw);
+  THROW_IF_NOT_OK_REF(rate_limit_settings_or_error.status());
 
   Config::GrpcMuxContext grpc_mux_context{
       factory_or_error.value()->createUncachedRawAsyncClient(),
