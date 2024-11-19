@@ -78,7 +78,7 @@ public:
 
     ssize_t rc = http_parser_execute(&parser_, &settings, msg.data(), msg.length());
     ENVOY_LOG(trace, "websocket: http_parser parsed {} chars, error code: {}", rc,
-              HTTP_PARSER_ERRNO(&parser_));
+              static_cast<int>(HTTP_PARSER_ERRNO(&parser_)));
 
     // Errors in parsing HTTP.
     if (HTTP_PARSER_ERRNO(&parser_) != HPE_OK) {

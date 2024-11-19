@@ -44,7 +44,7 @@ UDSServer::UDSServer(const std::string& path, std::function<void(const std::stri
     return;
   }
 
-  ENVOY_LOG(trace, "Starting unix domain socket server thread fd: {}", fd_);
+  ENVOY_LOG(trace, "Starting unix domain socket server thread fd: {}", fd_.load());
 
   thread_ = Thread::threadFactoryForTest().createThread([this]() { threadRoutine(); });
 }
@@ -72,32 +72,33 @@ void UDSServer::Close() {
 
 void UDSServer::threadRoutine() {
   while (fd_ >= 0) {
-    ENVOY_LOG(debug, "Unix domain socket server thread started on fd: {}", fd_);
+    ENVOY_LOG(debug, "Unix domain socket server thread started on fd: {}", fd_.load());
     // Accept a new connection
     struct sockaddr_un addr;
     socklen_t addr_len = sizeof(addr);
-    ENVOY_LOG(trace, "Unix domain socket server blocking accept on fd: {}", fd_);
+    ENVOY_LOG(trace, "Unix domain socket server blocking accept on fd: {}", fd_.load());
     fd2_ = ::accept(fd_, reinterpret_cast<sockaddr*>(&addr), &addr_len);
     if (fd2_ < 0) {
       if (errno == EINVAL) {
         return; // fd_ was closed
       }
-      ENVOY_LOG(warn, "Unix domain socket server accept on fd {} failed: {}", fd_,
+      ENVOY_LOG(warn, "Unix domain socket server accept on fd {} failed: {}", fd_.load(),
                 Envoy::errorDetails(errno));
       continue;
     }
     char buf[8192];
     while (true) {
-      ENVOY_LOG(trace, "Unix domain socket server blocking recv on fd: {}", fd2_);
+      ENVOY_LOG(trace, "Unix domain socket server blocking recv on fd: {}", fd2_.load());
       ssize_t received = ::recv(fd2_, buf, sizeof(buf), 0);
       if (received < 0) {
         if (errno == EINTR)
           continue;
-        ENVOY_LOG(warn, "Unix domain socket server recv on fd {} failed: {}", fd2_,
+        ENVOY_LOG(warn, "Unix domain socket server recv on fd {} failed: {}", fd2_.load(),
                   Envoy::errorDetails(errno));
         break;
       } else if (received == 0) {
-        ENVOY_LOG(trace, "Unix domain socket server client on fd {} has closed socket", fd2_);
+        ENVOY_LOG(trace, "Unix domain socket server client on fd {} has closed socket",
+                  fd2_.load());
         break;
       } else {
         std::string data(buf, received);

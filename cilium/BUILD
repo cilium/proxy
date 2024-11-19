@@ -130,12 +130,12 @@ envoy_cc_library(
         "websocket_config.h",
         "websocket_protocol.h",
     ],
-    external_deps = ["http_parser"],
     repository = "@envoy",
     deps = [
         "//cilium:accesslog_lib",
         "//cilium:socket_option_lib",
         "//cilium/api:websocket_cc_proto",
+        "@envoy//bazel/external/http_parser",
         "@envoy//envoy/common/crypto:crypto_interface",
         "@envoy//source/common/common:base64_lib",
         "@envoy//source/common/common:hex_lib",

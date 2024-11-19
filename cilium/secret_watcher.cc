@@ -133,7 +133,7 @@ DownstreamTLSContext::DownstreamTLSContext(const NetworkPolicyMap& parent,
     server_names_.emplace_back(config.server_names(i));
   }
   auto server_config_or_error = Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(
-      context_config, parent.transportFactoryContext());
+      context_config, parent.transportFactoryContext(), false);
   THROW_IF_NOT_OK(server_config_or_error.status());
   server_config_ = std::move(server_config_or_error.value());
 

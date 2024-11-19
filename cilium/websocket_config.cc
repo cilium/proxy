@@ -59,7 +59,7 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
   x_rid_config.mutable_typed_config()->PackFrom(
       envoy::extensions::request_id::uuid::v3::UuidRequestIdConfig());
   auto extension_or_error = Http::RequestIDExtensionFactory::fromProto(x_rid_config, context);
-  THROW_IF_STATUS_NOT_OK(extension_or_error, throw);
+  THROW_IF_NOT_OK_REF(extension_or_error.status());
   request_id_extension_ = extension_or_error.value();
 
   // Base64 encode the given/expected key, if any.
