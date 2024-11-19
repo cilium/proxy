@@ -111,7 +111,7 @@ public:
         fmt::format("test/config/integration/certs/{}key.pem", upstream_cert_name_)));
 
     auto cfg_or_error = Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(
-        tls_context, factory_context_);
+        tls_context, factory_context_, false);
     THROW_IF_NOT_OK(cfg_or_error.status());
     auto cfg = std::move(cfg_or_error.value());
 

@@ -81,32 +81,6 @@ GoFilter::~GoFilter() {
   }
 }
 
-namespace {
-
-const char* filter_strerror(FilterResult res) {
-  switch (res) {
-  case FILTER_OK:
-    return "No error";
-  case FILTER_PARSER_ERROR:
-    return "Parser error";
-  case FILTER_UNKNOWN_CONNECTION:
-    return "Unknown connection";
-  case FILTER_UNKNOWN_PARSER:
-    return "Unknown parser";
-  case FILTER_INVALID_ADDRESS:
-    return "Invalid address";
-  case FILTER_POLICY_DROP:
-    return "Connection rejected";
-  case FILTER_INVALID_INSTANCE:
-    return "Invalid proxylib instance";
-  case FILTER_UNKNOWN_ERROR:
-    break;
-  }
-  return "Unknown error";
-}
-
-} // namespace
-
 GoFilter::InstancePtr GoFilter::NewInstance(Network::Connection& conn, const std::string& go_proto,
                                             bool ingress, uint32_t src_id, uint32_t dst_id,
                                             const std::string& src_addr,
@@ -123,7 +97,7 @@ GoFilter::InstancePtr GoFilter::NewInstance(Network::Connection& conn, const std
       parser->connection_id_ = conn.id();
     } else {
       ENVOY_CONN_LOG(warn, "Cilium Network: Connection with parser \"{}\" rejected: {}", conn,
-                     go_proto, filter_strerror(res));
+                     go_proto, toString(res));
       parser.reset(nullptr);
     }
   }
@@ -240,8 +214,8 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
     ENVOY_CONN_LOG(trace, "Cilium Network::OnIO: Calling go module with {} bytes of data", conn_,
                    total_length);
     res = (*parent_.go_on_data_)(connection_id_, reply, end_stream, &input_slices, &ops);
-    ENVOY_CONN_LOG(trace, "Cilium Network::OnIO: \'go_on_data\' returned {}, ops({})", conn_, res,
-                   ops.len());
+    ENVOY_CONN_LOG(trace, "Cilium Network::OnIO: \'go_on_data\' returned {}, ops({})", conn_,
+                   toString(res), ops.len());
     if (res == FILTER_OK) {
       // Process all returned filter operations.
       for (int i = 0; i < ops.len(); i++) {
@@ -257,7 +231,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
         if (terminal_op_seen) {
           ENVOY_CONN_LOG(warn,
                          "Cilium Network::OnIO: Filter operation {} after "
-                         "terminal opertion.",
+                         "terminal operation.",
                          conn_, op);
           return FILTER_PARSER_ERROR;
         }
@@ -319,8 +293,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
       }
     } else {
       // Close the connection an any error
-      ENVOY_CONN_LOG(warn, "Cilium Network::OnIO: FILTER_POLICY_DROP {}", conn_,
-                     filter_strerror(res));
+      ENVOY_CONN_LOG(warn, "Cilium Network::OnIO: FILTER_POLICY_DROP {}", conn_, toString(res));
       return FILTER_PARSER_ERROR;
     }
 

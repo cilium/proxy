@@ -38,6 +38,28 @@ template <typename T> struct GoSlice {
   GoInt cap_;
 };
 
+inline std::string toString(const FilterResult res) {
+  switch (res) {
+  case FILTER_OK:
+    return "No error";
+  case FILTER_PARSER_ERROR:
+    return "Parser error";
+  case FILTER_UNKNOWN_CONNECTION:
+    return "Unknown connection";
+  case FILTER_UNKNOWN_PARSER:
+    return "Unknown parser";
+  case FILTER_INVALID_ADDRESS:
+    return "Invalid address";
+  case FILTER_POLICY_DROP:
+    return "Connection rejected";
+  case FILTER_INVALID_INSTANCE:
+    return "Invalid proxylib instance";
+  case FILTER_UNKNOWN_ERROR:
+    break;
+  }
+  return "Unknown error";
+}
+
 // Slice that remembers the base pointer and that can be reset.
 // Note that these have more header data than GoSlices and therefore may not
 // used as array elements passed to Go!

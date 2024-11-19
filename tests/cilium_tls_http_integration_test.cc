@@ -253,7 +253,7 @@ public:
 
     auto server_config_or_error =
         Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(tls_context,
-                                                                           factory_context_);
+                                                                           factory_context_, false);
     THROW_IF_NOT_OK(server_config_or_error.status());
     auto cfg = std::move(server_config_or_error.value());
 
