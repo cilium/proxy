@@ -78,6 +78,7 @@ EXTENSIONS = {
     # "envoy.matching.matchers.ip":                       "//source/extensions/matching/input_matchers/ip:config",
     # "envoy.matching.matchers.runtime_fraction":         "//source/extensions/matching/input_matchers/runtime_fraction:config",
     # "envoy.matching.matchers.cel_matcher":              "//source/extensions/matching/input_matchers/cel_matcher:config",
+    # "envoy.matching.matchers.metadata_matcher":         "//source/extensions/matching/input_matchers/metadata:config",
 
     #
     # Network Matchers
@@ -105,6 +106,11 @@ EXTENSIONS = {
     # CEL Matching Input
     #
     # "envoy.matching.inputs.cel_data_input":             "//source/extensions/matching/http/cel_input:cel_input_lib",
+
+    #
+    # Dynamic Metadata Matching Input
+    #
+    # "envoy.matching.inputs.dynamic_metadata":           "//source/extensions/matching/http/metadata_input:metadata_input_lib",
 
     #
     # Matching actions
@@ -167,6 +173,7 @@ EXTENSIONS = {
     "envoy.filters.http.oauth2": "//source/extensions/filters/http/oauth2:config",
     # "envoy.filters.http.on_demand":                     "//source/extensions/filters/http/on_demand:config",
     # "envoy.filters.http.original_src":                  "//source/extensions/filters/http/original_src:config",
+    # "envoy.filters.http.proto_message_extraction":       "//source/extensions/filters/http/proto_message_extraction:config",
     "envoy.filters.http.ratelimit": "//source/extensions/filters/http/ratelimit:config",
     "envoy.filters.http.rbac":                          "//source/extensions/filters/http/rbac:config",
     "envoy.filters.http.router": "//source/extensions/filters/http/router:config",
@@ -183,8 +190,7 @@ EXTENSIONS = {
     #
 
     "envoy.filters.listener.http_inspector":            "//source/extensions/filters/listener/http_inspector:config",
-    "envoy.filters.listener.local_ratelimit":           "//source/extensions/filters/listener/local_ratelimit:config",
-    # NOTE: The original_dst filter is implicitly loaded if original_dst functionality is
+    "envoy.filters.listener.local_ratelimit":           "//source/extensions/filters/listener/local_ratelimit:config",    # NOTE: The original_dst filter is implicitly loaded if original_dst functionality is
     #       configured on the listener. Do not remove it in that case or configs will fail to load.
     # "envoy.filters.listener.original_dst":              "//source/extensions/filters/listener/original_dst:config",
     # "envoy.filters.listener.original_src":              "//source/extensions/filters/listener/original_src:config",
@@ -217,6 +223,7 @@ EXTENSIONS = {
     "envoy.filters.network.sni_dynamic_forward_proxy": "//source/extensions/filters/network/sni_dynamic_forward_proxy:config",
     "envoy.filters.network.wasm": "//source/extensions/filters/network/wasm:config",
     # "envoy.filters.network.zookeeper_proxy":                      "//source/extensions/filters/network/zookeeper_proxy:config",
+    # "envoy.filters.network.generic_proxy":                        "//source/extensions/filters/network/generic_proxy:config",
 
     #
     # UDP filters
@@ -238,7 +245,8 @@ EXTENSIONS = {
 
     # "envoy.resource_monitors.fixed_heap":               "//source/extensions/resource_monitors/fixed_heap:config",
     # "envoy.resource_monitors.injected_resource":        "//source/extensions/resource_monitors/injected_resource:config",
-    "envoy.resource_monitors.downstream_connections":   "//source/extensions/resource_monitors/downstream_connections:config",
+    "envoy.resource_monitors.global_downstream_max_connections": "//source/extensions/resource_monitors/downstream_connections:config",
+    "envoy.resource_monitors.cpu_utilization": "//source/extensions/resource_monitors/cpu_utilization:config",
 
     #
     # Stat sinks
@@ -265,7 +273,6 @@ EXTENSIONS = {
     # Tracers
     #
 
-    # "envoy.tracers.dynamic_ot":                         "//source/extensions/tracers/dynamic_ot:config",
     # "envoy.tracers.datadog":                            "//source/extensions/tracers/datadog:config",
     # "envoy.tracers.zipkin":                             "//source/extensions/tracers/zipkin:config",
     # "envoy.tracers.opencensus":                         "//source/extensions/tracers/opencensus:config",
@@ -482,6 +489,7 @@ EXTENSIONS = {
     "envoy.load_balancing_policies.ring_hash": "//source/extensions/load_balancing_policies/ring_hash:config",
     "envoy.load_balancing_policies.subset": "//source/extensions/load_balancing_policies/subset:config",
     "envoy.load_balancing_policies.cluster_provided": "//source/extensions/load_balancing_policies/cluster_provided:config",
+    "envoy.load_balancing_policies.client_side_weighted_round_robin": "//source/extensions/load_balancing_policies/client_side_weighted_round_robin:config",
 
     #
     # HTTP Early Header Mutation
@@ -513,6 +521,13 @@ EXTENSIONS = {
     #
 
     # "envoy.router.cluster_specifier_plugin.lua": "//source/extensions/router/cluster_specifiers/lua:config",
+
+    #
+    # Extensions for generic proxy
+    #
+    # "envoy.filters.generic.router": "//source/extensions/filters/network/generic_proxy/router:config",
+    # "envoy.generic_proxy.codecs.dubbo": "//source/extensions/filters/network/generic_proxy/codecs/dubbo:config",
+    # "envoy.generic_proxy.codecs.http1": "//source/extensions/filters/network/generic_proxy/codecs/http1:config",
 }
 
 # These can be changed to ["//visibility:public"], for  downstream builds which
