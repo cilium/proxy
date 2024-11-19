@@ -201,9 +201,10 @@ public:
                 "Cilium L7 HttpNetworkPolicyRule(): HeaderMatch {}={} (match: {}, mismatch: {})",
                 header_match.name_.get(),
                 header_match.secret_ ? fmt::format("<SECRET {}>", header_match.secret_->name())
-                : header_match.value_.length() > 0 ? header_match.value_
-                                                   : "<PRESENT>",
-                header_match.match_action_, header_match.mismatch_action_);
+                : !header_match.value_.empty() ? header_match.value_
+                                               : "<PRESENT>",
+                cilium::HeaderMatch::MatchAction_Name(header_match.match_action_),
+                cilium::HeaderMatch::MismatchAction_Name(header_match.mismatch_action_));
     }
   }
 
