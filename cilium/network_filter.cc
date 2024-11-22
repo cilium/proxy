@@ -135,6 +135,11 @@ Network::FilterStatus Instance::onNewConnection() {
       ENVOY_LOG(warn, "cilium.network (egress): No destination address ");
       return false;
     }
+    const auto& policy = option->getPolicy();
+    if (!policy) {
+      ENVOY_LOG_MISC(warn, "cilium.network: No policy found for pod {}", option->pod_ip_);
+      return false;
+    }
     if (!option->ingress_) {
       const auto dip = dst_address->ip();
       if (!dip) {
@@ -146,7 +151,7 @@ Network::FilterStatus Instance::onNewConnection() {
       destination_identity = option->resolvePolicyId(dip);
 
       if (option->ingress_source_identity_ != 0) {
-        auto ingress_port_policy = option->initial_policy_->findPortPolicy(true, destination_port_);
+        auto ingress_port_policy = policy->findPortPolicy(true, destination_port_);
         if (!ingress_port_policy.allowed(option->ingress_source_identity_, sni)) {
           ENVOY_CONN_LOG(
               debug,
@@ -157,7 +162,7 @@ Network::FilterStatus Instance::onNewConnection() {
       }
     }
 
-    auto port_policy = option->initial_policy_->findPortPolicy(option->ingress_, destination_port_);
+    auto port_policy = policy->findPortPolicy(option->ingress_, destination_port_);
 
     remote_id_ = option->ingress_ ? option->identity_ : destination_identity;
     if (!port_policy.allowed(remote_id_, sni)) {
