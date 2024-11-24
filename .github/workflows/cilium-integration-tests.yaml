@@ -147,6 +147,7 @@ jobs:
           --helm-set operator.image.useDigest=false \
           --helm-set operator.image.pullPolicy=Never \
           --helm-set debug.enabled=true \
+          --helm-set envoy.enabled=false \
           --helm-set debug.verbose=envoy
         
         cilium hubble enable
@@ -155,7 +156,7 @@ jobs:
 
     - name: Execute Cilium L7 Connectivity Tests
       shell: bash
-      run: cilium connectivity test --test=l7
+      run: cilium connectivity test --test="l7|sni|check-log-errors"
 
     - name: Gather Cilium system dump
       if: failure()
