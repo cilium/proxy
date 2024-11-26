@@ -21,7 +21,7 @@ permissions:
 env:
   KIND_VERSION: v0.18.0
   CILIUM_REPO_OWNER: cilium
-  CILIUM_REPO_REF: main
+  CILIUM_REPO_REF: v1.16
   CILIUM_CLI_REF: latest
 
 jobs:
