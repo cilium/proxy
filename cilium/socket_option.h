@@ -8,6 +8,7 @@
 #include "source/common/common/utility.h"
 
 #include "cilium/conntrack.h"
+#include "cilium/policy_id.h"
 #include "cilium/privileged_service_client.h"
 
 namespace Envoy {
@@ -227,7 +228,7 @@ public:
                Network::Address::InstanceConstSharedPtr original_source_address,
                Network::Address::InstanceConstSharedPtr ipv4_source_address,
                Network::Address::InstanceConstSharedPtr ipv6_source_address,
-               const std::shared_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
+               const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
                absl::string_view sni)
       : SocketMarkOption(mark, source_identity, original_source_address, ipv4_source_address,
                          ipv6_source_address),
@@ -246,11 +247,17 @@ public:
   }
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
-    return policy_resolver_->resolvePolicyId(ip);
+    const auto resolver = policy_resolver_.lock();
+    if (resolver)
+      return resolver->resolvePolicyId(ip);
+    return Cilium::ID::WORLD; // default to WORLD policy ID if resolver is no longer available
   }
 
   const PolicyInstanceConstSharedPtr getPolicy() const {
-    return policy_resolver_->getPolicy(pod_ip_);
+    const auto resolver = policy_resolver_.lock();
+    if (resolver)
+      return resolver->getPolicy(pod_ip_);
+    return nullptr;
   }
 
   // policyUseUpstreamDestinationAddress returns 'true' if policy enforcement should be done on the
@@ -267,7 +274,7 @@ public:
   std::string sni_;
 
 private:
-  const std::shared_ptr<PolicyResolver> policy_resolver_;
+  const std::weak_ptr<PolicyResolver> policy_resolver_;
 };
 
 using SocketOptionSharedPtr = std::shared_ptr<SocketOption>;

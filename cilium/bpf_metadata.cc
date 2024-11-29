@@ -445,7 +445,7 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
   return std::make_shared<Cilium::SocketOption>(
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
-      std::move(source_addresses.ipv6_), shared_from_this(), proxy_id_, sni);
+      std::move(source_addresses.ipv6_), weak_from_this(), proxy_id_, sni);
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
