@@ -17,6 +17,7 @@
 #include "absl/numeric/int128.h"
 #include "cilium/api/nphds.pb.h"
 #include "cilium/api/nphds.pb.validate.h"
+#include "cilium/policy_id.h"
 
 // std::hash specialization for Abseil uint128, needed for unordered_map key.
 namespace std {
@@ -45,14 +46,6 @@ template <> inline absl::uint128 hton(absl::uint128 addr) {
 template <typename I> I masked(I addr, unsigned int plen) {
   const unsigned int PLEN_MAX = sizeof(I) * 8;
   return plen == 0 ? I(0) : addr & ~hton((I(1) << (PLEN_MAX - plen)) - 1);
-};
-
-enum ID : uint64_t {
-  UNKNOWN = 0,
-  WORLD = 2,
-  // LocalIdentityFlag is the bit in the numeric identity that identifies
-  // a numeric identity to have local scope
-  LocalIdentityFlag = 1 << 24,
 };
 
 class PolicyHostDecoder : public Envoy::Config::OpaqueResourceDecoder {

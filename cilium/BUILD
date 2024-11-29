@@ -65,6 +65,7 @@ envoy_cc_library(
 envoy_cc_library(
     name = "socket_option_lib",
     hdrs = [
+        "policy_id.h",
         "socket_option.h",
     ],
     repository = "@envoy",
@@ -300,6 +301,7 @@ envoy_cc_library(
     hdrs = [
         "bpf_metadata.h",
         "host_map.h",
+        "policy_id.h",
     ],
     repository = "@envoy",
     deps = [
