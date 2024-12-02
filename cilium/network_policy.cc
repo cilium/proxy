@@ -608,12 +608,8 @@ public:
 
   ~PortNetworkPolicyRules() {
     if (!Thread::MainThread::isMainOrTestThread()) {
-      ENVOY_LOG_TO_LOGGER(Envoy::Logger::Registry::getLog(Envoy::Logger::Id::envoy_bug), error,
-                          "envoy bug failure: !Thread::MainThread::isMainOrTestThread()");
-      Envoy::Assert::EnvoyBugStackTrace st;
-      st.capture();
-      st.logStackTrace();
-      ::abort();
+      ENVOY_LOG(error, "PortNetworkPolicyRules: Destructor executing in a worker thread, while "
+                       "only main thread should destruct xDS resources");
     }
   }
 
