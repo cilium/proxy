@@ -606,17 +606,6 @@ public:
     }
   }
 
-  ~PortNetworkPolicyRules() {
-    if (!Thread::MainThread::isMainOrTestThread()) {
-      ENVOY_LOG_TO_LOGGER(Envoy::Logger::Registry::getLog(Envoy::Logger::Id::envoy_bug), error,
-                          "envoy bug failure: !Thread::MainThread::isMainOrTestThread()");
-      Envoy::Assert::EnvoyBugStackTrace st;
-      st.capture();
-      st.logStackTrace();
-      ::abort();
-    }
-  }
-
   bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry, bool& denied) const {
     // Empty set matches any payload from anyone
