@@ -183,9 +183,9 @@ Cilium::SocketOptionSharedPtr TestConfig::getMetadata(Network::ConnectionSocket&
     ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
   }
 
-  return std::make_shared<Cilium::SocketOption>(0, 0, source_identity, is_ingress_, is_l7lb_, port,
-                                                std::move(pod_ip), nullptr, nullptr, nullptr,
-                                                shared_from_this(), 0, "");
+  return std::make_shared<Cilium::SocketOption>(policy, 0, 0, source_identity, is_ingress_,
+                                                is_l7lb_, port, std::move(pod_ip), nullptr, nullptr,
+                                                nullptr, shared_from_this(), 0, "");
 }
 
 } // namespace BpfMetadata
