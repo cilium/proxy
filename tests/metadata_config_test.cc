@@ -263,6 +263,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
+  EXPECT_NE(nullptr, option->initial_policy_);
   EXPECT_EQ(0, option->ingress_source_identity_);
 
   // Check that Ingress security ID is used in the socket mark
@@ -295,13 +296,14 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
+  EXPECT_NE(nullptr, option->initial_policy_);
   EXPECT_EQ(12345678, option->ingress_source_identity_);
 
   // Check that Ingress security ID is used in the socket mark
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 
   // Expect policy accepts security ID 12345678 on ingress on port 80
-  auto port_policy = option->getPolicy()->findPortPolicy(true, 80);
+  auto port_policy = option->initial_policy_->findPortPolicy(true, 80);
   EXPECT_TRUE(port_policy.allowed(12345678, ""));
 }
 
@@ -331,13 +333,14 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
+  EXPECT_NE(nullptr, option->initial_policy_);
   EXPECT_EQ(2, option->ingress_source_identity_);
 
   // Check that Ingress security ID is used in the socket mark
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
 
   // Expect policy does not accept security ID 2 on ingress on port 80
-  auto port_policy = option->getPolicy()->findPortPolicy(true, 80);
+  auto port_policy = option->initial_policy_->findPortPolicy(true, 80);
   EXPECT_FALSE(port_policy.allowed(2, ""));
 }
 
@@ -384,6 +387,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_EQ("[face::1:1:1]:41234", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.1", option->pod_ip_);
+  EXPECT_NE(nullptr, option->initial_policy_);
 
   // Check that Endpoint's ID is used in the socket mark
   EXPECT_TRUE((option->mark_ & 0xffff) == 0x0900 && (option->mark_ >> 16) == 2048);
@@ -413,6 +417,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
+  EXPECT_NE(nullptr, option->initial_policy_);
   EXPECT_EQ(0, option->ingress_source_identity_);
 
   // Check that Ingress ID is used in the socket mark

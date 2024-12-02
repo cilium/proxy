@@ -222,18 +222,19 @@ public:
 
 class SocketOption : public SocketMarkOption {
 public:
-  SocketOption(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
-               bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
+  SocketOption(PolicyInstanceConstSharedPtr policy, uint32_t mark, uint32_t ingress_source_identity,
+               uint32_t source_identity, bool ingress, bool l7lb, uint16_t port,
+               std::string&& pod_ip,
                Network::Address::InstanceConstSharedPtr original_source_address,
                Network::Address::InstanceConstSharedPtr ipv4_source_address,
                Network::Address::InstanceConstSharedPtr ipv6_source_address,
-               const std::shared_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
+               const std::shared_ptr<PolicyResolver>& policy_id_resolver, uint32_t proxy_id,
                absl::string_view sni)
       : SocketMarkOption(mark, source_identity, original_source_address, ipv4_source_address,
                          ipv6_source_address),
-        ingress_source_identity_(ingress_source_identity), ingress_(ingress), is_l7lb_(l7lb),
-        port_(port), pod_ip_(std::move(pod_ip)), proxy_id_(proxy_id), sni_(sni),
-        policy_resolver_(policy_resolver) {
+        ingress_source_identity_(ingress_source_identity), initial_policy_(policy),
+        ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
+        proxy_id_(proxy_id), sni_(sni), policy_id_resolver_(policy_id_resolver) {
     ENVOY_LOG(debug,
               "Cilium SocketOption(): source_identity: {}, "
               "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {:x} (magic "
@@ -243,14 +244,15 @@ public:
               ipv4_source_address_ ? ipv4_source_address_->asString() : "",
               ipv6_source_address_ ? ipv6_source_address_->asString() : "", mark_, mark & 0xff00,
               mark & 0xff, mark >> 16, proxy_id_, sni_);
+    ASSERT(initial_policy_ != nullptr);
   }
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
-    return policy_resolver_->resolvePolicyId(ip);
+    return policy_id_resolver_->resolvePolicyId(ip);
   }
 
   const PolicyInstanceConstSharedPtr getPolicy() const {
-    return policy_resolver_->getPolicy(pod_ip_);
+    return policy_id_resolver_->getPolicy(pod_ip_);
   }
 
   // policyUseUpstreamDestinationAddress returns 'true' if policy enforcement should be done on the
@@ -259,6 +261,7 @@ public:
 
   // Additional ingress policy enforcement is performed if ingress_source_identity is non-zero
   uint32_t ingress_source_identity_;
+  const PolicyInstanceConstSharedPtr initial_policy_; // Never NULL
   bool ingress_;
   bool is_l7lb_;
   uint16_t port_;
@@ -267,7 +270,7 @@ public:
   std::string sni_;
 
 private:
-  const std::shared_ptr<PolicyResolver> policy_resolver_;
+  const std::shared_ptr<PolicyResolver> policy_id_resolver_;
 };
 
 using SocketOptionSharedPtr = std::shared_ptr<SocketOption>;
