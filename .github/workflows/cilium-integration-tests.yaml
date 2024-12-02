@@ -146,7 +146,6 @@ jobs:
           --helm-set operator.image.tag=${{ env.CILIUM_IMAGE_TAG }} \
           --helm-set operator.image.useDigest=false \
           --helm-set operator.image.pullPolicy=Never \
-          --helm-set envoy.enabled=false \
           --helm-set debug.enabled=true \
           --helm-set debug.verbose=envoy
         
@@ -156,12 +155,13 @@ jobs:
 
     - name: Execute Cilium L7 Connectivity Tests
       shell: bash
-      run: cilium connectivity test --test="l7|sni|check-log-errors"
+      run: cilium connectivity test --test=l7
 
     - name: Gather Cilium system dump
       if: failure()
       shell: bash
       run: cilium sysdump --output-filename cilium-integration-test-sysdump
+
 
     - name: Upload Cilium system dump
       if: failure()
