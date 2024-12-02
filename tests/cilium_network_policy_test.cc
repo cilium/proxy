@@ -1020,8 +1020,10 @@ egress:
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "PUSH"}, {":path", "/allowed"}}));
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
   // wrong port for GET
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_FALSE(
+      IngressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_FALSE(
+      IngressAllowed("10.1.2.3", 43, 90, {{":method", "GET"}, {":path", "/also_allowed"}}));
   // Wrong remote ID:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
@@ -1105,9 +1107,11 @@ egress:
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "PUSH"}, {":path", "/allowed"}}));
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
   EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "GET"}, {":path", "/also_allowed"}}));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_TRUE(
+      IngressAllowed("10.1.2.3", 43, 8080, {{":method", "GET"}, {":path", "/also_allowed"}}));
   // wrong port for GET
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_FALSE(
+      IngressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
   // Wrong remote ID:
   EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
