@@ -25,7 +25,7 @@ build:release --fission=dbg
 
 # Manual link stamping, forces link to include current git SHA even if binary is otherwise
 # upto-date
-build --define manual_stamp=manual_stamp
+build:release --define manual_stamp=manual_stamp
 
 # Always have LD_LIBRARY_PATH=/usr/cross-compat/lib defined in the test environment.
 # The path does not need to exist, but can be created when needed for running tests.
