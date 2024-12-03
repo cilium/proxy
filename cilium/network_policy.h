@@ -109,7 +109,12 @@ public:
 
 class PolicyInstance {
 public:
-  virtual ~PolicyInstance() { ASSERT_IS_MAIN_OR_TEST_THREAD(); };
+  virtual ~PolicyInstance() {
+    if (!Thread::MainThread::isMainOrTestThread()) {
+      ENVOY_LOG_MISC(error, "PolicyInstance: Destructor executing in a worker thread, while "
+                            "only main thread should destruct xDS resources");
+    }
+  };
 
   virtual bool allowed(bool ingress, uint32_t remote_id, uint16_t port,
                        Envoy::Http::RequestHeaderMap& headers,
