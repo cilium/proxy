@@ -35,7 +35,10 @@ SecretWatcher::SecretWatcher(const NetworkPolicyMap& parent, const std::string& 
       update_secret_(readAndWatchSecret()) {}
 
 SecretWatcher::~SecretWatcher() {
-  ASSERT_IS_MAIN_OR_TEST_THREAD();
+  if (!Thread::MainThread::isMainOrTestThread()) {
+    ENVOY_LOG(error, "SecretWatcher: Destructor executing in a worker thread, while "
+                     "only main thread should destruct xDS resources");
+  }
   delete load();
 }
 
