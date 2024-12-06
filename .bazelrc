@@ -15,13 +15,13 @@ build --platform_mappings=bazel/platform_mappings
 build --define path_normalization_by_default=true
 
 # release builds are optimized
-build:release -c opt
+build:release -c dbg
 
 # No debug info for release builds
-build:release --define no_debug_info=1
-build:release --linkopt=-Wl,--strip-all
-build:release --features=-per_object_debug_info
-build:release --fission=dbg
+#build:release --define no_debug_info=1
+#build:release --linkopt=-Wl,--strip-all
+#build:release --features=-per_object_debug_info
+#build:release --fission=dbg
 
 # Manual link stamping, forces link to include current git SHA even if binary is otherwise
 # upto-date
