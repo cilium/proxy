@@ -220,7 +220,8 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
   if (go_parser_) {
     FilterResult res =
         go_parser_->OnIO(false, data, end_stream); // 'false' marks original direction data
-    ENVOY_CONN_LOG(trace, "cilium.network::onData: \'GoFilter::OnIO\' returned {}", conn, res);
+    ENVOY_CONN_LOG(trace, "cilium.network::onData: \'GoFilter::OnIO\' returned {}", conn,
+                   Envoy::Cilium::toString(res));
 
     if (res != FILTER_OK) {
       // Drop the connection due to an error
@@ -287,7 +288,7 @@ Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream)
     FilterResult res =
         go_parser_->OnIO(true, data, end_stream); // 'true' marks reverse direction data
     ENVOY_CONN_LOG(trace, "cilium.network::OnWrite: \'GoFilter::OnIO\' returned {}",
-                   callbacks_->connection(), res);
+                   callbacks_->connection(), Envoy::Cilium::toString(res));
 
     if (res != FILTER_OK) {
       // Drop the connection due to an error
