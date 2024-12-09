@@ -23,7 +23,8 @@
   separateMinorPatch: false,
   pruneStaleBranches: true,
   baseBranches: [
-    'main'
+    'main',
+    'v1.30'
   ],
   labels: [
     'kind/enhancement',
