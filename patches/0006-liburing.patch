@@ -1,5 +1,5 @@
 diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index bf859db838..cf2bdc7b44 100644
+index 60271a4925..991c1928f7 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
 @@ -11,6 +11,19 @@ envoy_package()
@@ -22,23 +22,3 @@ index bf859db838..cf2bdc7b44 100644
      lib_source = "@com_github_axboe_liburing//:all",
      tags = [
          "nocompdb",
-diff --git a/bazel/repository_locations.bzl b/bazel/repository_locations.bzl
-index 439206a2d1..12c66b9f70 100644
---- a/bazel/repository_locations.bzl
-+++ b/bazel/repository_locations.bzl
-@@ -203,12 +203,12 @@ REPOSITORY_LOCATIONS_SPEC = dict(
-         project_name = "liburing",
-         project_desc = "C helpers to set up and tear down io_uring instances",
-         project_url = "https://github.com/axboe/liburing",
--        version = "2.5",
--        sha256 = "456f5f882165630f0dc7b75e8fd53bd01a955d5d4720729b4323097e6e9f2a98",
-+        version = "2.7",
-+        sha256 = "56202ad443c50e684dde3692819be3b91bbe003e1c14bf5abfa11973669978c1",
-         strip_prefix = "liburing-liburing-{version}",
-         urls = ["https://github.com/axboe/liburing/archive/liburing-{version}.tar.gz"],
-         use_category = ["dataplane_core", "controlplane"],
--        release_date = "2023-11-29",
-+        release_date = "2024-08-16",
-         cpe = "N/A",
-     ),
-     # This dependency is built only when performance tracing is enabled with the
