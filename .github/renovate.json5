@@ -87,6 +87,18 @@
       ],
     },
     {
+      matchFileNames: [
+        'Dockerfile',
+      ],
+      matchPackageNames: [
+        'docker.io/library/ubuntu',
+      ],
+      allowedVersions: '22.04',
+      matchBaseBranches: [
+        'v1.30',
+      ],
+    },
+    {
       enabled: false,
       matchFileNames: [
         'Dockerfile',
