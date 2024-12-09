@@ -119,6 +119,18 @@
       ],
     },
     {
+      matchFileNames: [
+        'Dockerfile.builder',
+      ],
+      matchPackageNames: [
+        'go',
+      ],
+      allowedVersions: '<=1.22',
+      matchBaseBranches: [
+        'v1.30',
+      ],
+    },
+    {
       groupName: 'envoy 1.30.x',
       matchDepNames: [
         'envoyproxy/envoy',
@@ -141,6 +153,19 @@
         'main'
       ],
     },
+    {
+      groupName: 'go 1.22.x',
+      matchFileNames: [
+        '.github/workflows/**',
+      ],
+      matchPackageNames: [
+        'go',
+      ],
+      allowedVersions: '<=1.22',
+      matchBaseBranches: [
+        'v1.30'
+      ],
+    }
   ],
   customManagers: [
     {
