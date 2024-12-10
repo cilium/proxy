@@ -5,6 +5,10 @@ on:
     paths:
       - '.github/renovate.json5'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     name: Validate Renovate configuration

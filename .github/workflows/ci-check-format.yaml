@@ -8,6 +8,10 @@ permissions:
   # To be able to access the repository with actions/checkout
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
+  cancel-in-progress: true
+
 jobs:
   format:
     timeout-minutes: 30
