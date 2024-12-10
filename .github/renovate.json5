@@ -57,6 +57,7 @@
       ],
       matchBaseBranches: [
         'main',
+        'v1.30',
       ],
     },
     {
@@ -73,10 +74,15 @@
         'pin',
         'pinDigest',
       ],
+      matchBaseBranches: [
+        'main',
+        'v1.30',
+      ],
     },
     {
       matchFileNames: [
         'Dockerfile',
+        'Dockerfile.builder'
       ],
       matchPackageNames: [
         'docker.io/library/ubuntu',
@@ -84,17 +90,6 @@
       allowedVersions: '22.04',
       matchBaseBranches: [
         'main',
-      ],
-    },
-    {
-      matchFileNames: [
-        'Dockerfile',
-      ],
-      matchPackageNames: [
-        'docker.io/library/ubuntu',
-      ],
-      allowedVersions: '22.04',
-      matchBaseBranches: [
         'v1.30',
       ],
     },
@@ -105,18 +100,6 @@
       ],
       matchPackageNames: [
         'quay.io/cilium/cilium-envoy-builder',
-      ],
-    },
-    {
-      matchFileNames: [
-        'Dockerfile.builder',
-      ],
-      matchPackageNames: [
-        'docker.io/library/ubuntu',
-      ],
-      allowedVersions: '22.04',
-      matchBaseBranches: [
-        'main',
       ],
     },
     {
