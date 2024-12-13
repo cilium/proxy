@@ -269,7 +269,8 @@ private:
 
   Server::Configuration::ServerFactoryContext& context_;
   ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map_;
-  Stats::ScopeSharedPtr scope_;
+  Stats::ScopeSharedPtr npds_stats_scope_;
+  Stats::ScopeSharedPtr policy_stats_scope_;
   Stats::TimespanPtr update_latency_ms_;
   std::chrono::milliseconds policy_update_warning_limit_ms_;
 

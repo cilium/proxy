@@ -1102,16 +1102,18 @@ private:
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
     : context_(context.serverFactoryContext()), tls_map_(context_.threadLocal()),
-      scope_(context_.serverScope().createScope("cilium.")), policy_update_warning_limit_ms_(100),
+      npds_stats_scope_(context_.serverScope().createScope("cilium.npds.")),
+      policy_stats_scope_(context_.serverScope().createScope("cilium.policy.")),
+      policy_update_warning_limit_ms_(100),
       init_target_(fmt::format("Cilium Network Policy subscription start"),
                    [this]() { subscription_->start({}); }),
       transport_factory_context_(
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
-              context_, context.getTransportSocketFactoryContext().sslContextManager(), *scope_,
-              context_.clusterManager(),
+              context_, context.getTransportSocketFactoryContext().sslContextManager(),
+              *npds_stats_scope_, context_.clusterManager(),
               context_.messageValidationContext().dynamicValidationVisitor())),
-      stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER_PREFIX(*scope_, "policy."),
-                                     POOL_HISTOGRAM_PREFIX(*scope_, "policy."))} {
+      stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER(*policy_stats_scope_),
+                                     POOL_HISTOGRAM(*policy_stats_scope_))} {
   // Use listener init manager for the first initialization
   transport_factory_context_->setInitManager(context.initManager());
   context.initManager().add(init_target_);
@@ -1145,7 +1147,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
 void NetworkPolicyMap::startSubscription() {
   subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", context_.localInfo(),
                             context_.clusterManager(), context_.mainThreadDispatcher(),
-                            context_.api().randomGenerator(), *scope_, *this,
+                            context_.api().randomGenerator(), *npds_stats_scope_, *this,
                             std::make_shared<NetworkPolicyDecoder>());
 }
 
