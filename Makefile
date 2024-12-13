@@ -116,7 +116,7 @@ BUILD_DEP_HASHES: $(BUILD_DEP_FILES)
 clang.bazelrc: bazel/setup_clang.sh
 	$(call install_clang)
 	bazel/setup_clang.sh /usr/lib/llvm-17
-	echo "build --config=clang" >> $@
+	echo "build --config=libc++" >> $@
 
 .PHONY: bazel-bin/cilium-envoy
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
