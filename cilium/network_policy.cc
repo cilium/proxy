@@ -1214,7 +1214,7 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
             resources.size(), version_info);
   update_latency_ms_ = std::make_unique<Stats::HistogramCompletableTimespanImpl>(
       stats_.update_latency_ms_, context_.timeSource());
-  stats_.updates_.inc();
+  stats_.updates_total_.inc();
 
   absl::flat_hash_set<std::string> keeps;
   absl::flat_hash_set<std::string> ct_maps_to_keep;
