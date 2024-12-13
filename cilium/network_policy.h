@@ -206,7 +206,8 @@ public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct,
                    std::chrono::milliseconds policy_update_warning_limit_ms);
   ~NetworkPolicyMap() {
-    ENVOY_LOG(debug, "Cilium L7 NetworkPolicyMap({}): NetworkPolicyMap is deleted NOW!", name_);
+    ENVOY_LOG(debug, "Cilium L7 NetworkPolicyMap({}): NetworkPolicyMap is deleted NOW!",
+              instance_id_);
   }
 
   // subscription_->start() calls onConfigUpdate(), which uses
@@ -262,14 +263,13 @@ private:
 
   bool isNewStream();
 
+  friend class CiliumNetworkPolicyTest;
+
   static uint64_t instance_id_;
 
   Server::Configuration::ServerFactoryContext& context_;
   ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map_;
-  const std::string local_ip_str_;
-  std::string name_;
   Stats::ScopeSharedPtr scope_;
-  PolicyStats stats_;
   Stats::TimespanPtr update_latency_ms_;
   std::chrono::milliseconds policy_update_warning_limit_ms_;
 
@@ -288,6 +288,9 @@ private:
 
   ProtobufTypes::MessagePtr dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher);
   Server::ConfigTracker::EntryOwnerPtr config_tracker_entry_;
+
+protected:
+  PolicyStats stats_;
 };
 
 } // namespace Cilium

@@ -174,10 +174,16 @@ protected:
     return TlsAllowed(false, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
   }
 
+  std::string updatesRejectedStatName() { return policy_map_->stats_.updates_rejected_.name(); }
+
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;
   std::shared_ptr<NetworkPolicyMap> policy_map_;
   NiceMock<Stats::TestUtil::TestStore> store_;
 };
+
+TEST_F(CiliumNetworkPolicyTest, UpdatesRejectedStatName) {
+  EXPECT_EQ("cilium.policy.updates_rejected", updatesRejectedStatName());
+}
 
 TEST_F(CiliumNetworkPolicyTest, EmptyPolicyUpdate) {
   EXPECT_TRUE(policy_map_->onConfigUpdate({}, "1").ok());
