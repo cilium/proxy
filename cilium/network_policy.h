@@ -183,7 +183,7 @@ private:
  */
 // clang-format off
 #define ALL_CILIUM_POLICY_STATS(COUNTER, HISTOGRAM)	\
-  COUNTER(updates)					\
+  COUNTER(updates_total)				\
   COUNTER(updates_rejected)				\
   COUNTER(updates_timed_out)				\
   HISTOGRAM(update_latency_ms, Milliseconds)		\
