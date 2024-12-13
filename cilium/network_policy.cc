@@ -1102,24 +1102,21 @@ private:
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
     : context_(context.serverFactoryContext()), tls_map_(context_.threadLocal()),
-      local_ip_str_(context_.localInfo().address()->ip()->addressAsString()),
-      name_(fmt::format("cilium.policymap.{}.{}.", local_ip_str_, ++instance_id_)),
-      scope_(context_.serverScope().createScope(name_)),
-      stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER_PREFIX(*scope_, "policy."),
-                                     POOL_HISTOGRAM_PREFIX(*scope_, "policy."))},
-      policy_update_warning_limit_ms_(100),
+      scope_(context_.serverScope().createScope("cilium.")), policy_update_warning_limit_ms_(100),
       init_target_(fmt::format("Cilium Network Policy subscription start"),
                    [this]() { subscription_->start({}); }),
       transport_factory_context_(
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
               context_, context.getTransportSocketFactoryContext().sslContextManager(), *scope_,
               context_.clusterManager(),
-              context_.messageValidationContext().dynamicValidationVisitor())) {
+              context_.messageValidationContext().dynamicValidationVisitor())),
+      stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER_PREFIX(*scope_, "policy."),
+                                     POOL_HISTOGRAM_PREFIX(*scope_, "policy."))} {
   // Use listener init manager for the first initialization
   transport_factory_context_->setInitManager(context.initManager());
   context.initManager().add(init_target_);
 
-  ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", name_);
+  ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", instance_id_);
   tls_map_.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
 
   if (context_.admin().has_value()) {
@@ -1213,7 +1210,7 @@ void ThreadLocalPolicyMap::Update(std::vector<std::shared_ptr<PolicyInstanceImpl
 absl::Status
 NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
                                  const std::string& version_info) {
-  ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", name_,
+  ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", instance_id_,
             resources.size(), version_info);
   update_latency_ms_ = std::make_unique<Stats::HistogramCompletableTimespanImpl>(
       stats_.update_latency_ms_, context_.timeSource());
