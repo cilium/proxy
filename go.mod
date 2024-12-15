@@ -6,7 +6,7 @@ require (
 	github.com/census-instrumentation/opencensus-proto v0.4.1
 	github.com/cilium/checkmate v1.0.3
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
-	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78
+	github.com/cncf/xds/go v0.0.0-20241213214725-57cfbe6fad57
 	github.com/envoyproxy/protoc-gen-validate v1.1.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
@@ -19,15 +19,15 @@ require (
 	golang.org/x/sys v0.28.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20241209162323-e6fa225c2576
-	google.golang.org/grpc v1.68.1
+	google.golang.org/grpc v1.69.0
 	google.golang.org/protobuf v1.35.2
 	k8s.io/klog/v2 v2.130.1
 )
 
 require (
-	cel.dev/expr v0.16.1 // indirect
+	cel.dev/expr v0.16.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/go-logr/logr v1.4.1 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
