@@ -1,7 +1,8 @@
 name: CI Build & Push
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
+#  pull_request_target:
+#    types: [opened, synchronize, reopened]
+  pull_request: {}
 
 permissions:
   # To be able to access the repository with `actions/checkout`
@@ -9,9 +10,9 @@ permissions:
   # Required to generate OIDC tokens for `sigstore/cosign-installer` authentication
   id-token: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
-  cancel-in-progress: true
+#concurrency:
+#  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
+#  cancel-in-progress: true
 
 jobs:
   build-and-push-prs:
