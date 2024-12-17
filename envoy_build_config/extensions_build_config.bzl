@@ -223,14 +223,14 @@ EXTENSIONS = {
     #
 
     # "envoy.filters.udp.dns_filter":                     "//source/extensions/filters/udp/dns_filter:config",
-    # "envoy.filters.udp_listener.udp_proxy":             "//source/extensions/filters/udp/udp_proxy:config",
+    "envoy.filters.udp_listener.udp_proxy":             "//source/extensions/filters/udp/udp_proxy:config",
 
     #
     # UDP Session filters
     #
 
-    # "envoy.filters.udp.session.http_capsule":           "//source/extensions/filters/udp/udp_proxy/session_filters/http_capsule:config",
-    # "envoy.filters.udp.session.dynamic_forward_proxy":  "//source/extensions/filters/udp/udp_proxy/session_filters/dynamic_forward_proxy:config",
+    "envoy.filters.udp.session.http_capsule":           "//source/extensions/filters/udp/udp_proxy/session_filters/http_capsule:config",
+    "envoy.filters.udp.session.dynamic_forward_proxy":  "//source/extensions/filters/udp/udp_proxy/session_filters/dynamic_forward_proxy:config",
 
     #
     # Resource monitors
