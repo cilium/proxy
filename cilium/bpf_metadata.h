@@ -1,5 +1,6 @@
 #pragma once
 
+#include "envoy/api/io_error.h"
 #include "envoy/json/json_object.h"
 #include "envoy/network/filter.h"
 #include "envoy/server/filter_config.h"
@@ -79,6 +80,24 @@ public:
 
   // Network::ListenerFilter
   size_t maxReadBytes() const override;
+
+private:
+  const ConfigSharedPtr config_;
+};
+
+/**
+ * Implementation of a UDP bpf metadata listener filter.
+ */
+class UdpInstance : public Network::UdpListenerReadFilter, Logger::Loggable<Logger::Id::filter> {
+public:
+  UdpInstance(const ConfigSharedPtr& config, Network::UdpReadFilterCallbacks& callbacks)
+      : UdpListenerReadFilter(callbacks), config_(config) {}
+
+  // Network::UdpListenerReadFilter
+  Network::FilterStatus onData(Network::UdpRecvData& data) override;
+
+  // Network::UdpListenerReadFilter
+  Network::FilterStatus onReceiveError(Api::IoError::IoErrorCode error_code) override;
 
 private:
   const ConfigSharedPtr config_;
