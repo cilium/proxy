@@ -5,6 +5,7 @@
 
 #include <string>
 
+#include "envoy/api/io_error.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/registry/registry.h"
 #include "envoy/singleton/manager.h"
@@ -35,15 +36,18 @@ public:
       const Protobuf::Message& proto_config,
       const Network::ListenerFilterMatcherSharedPtr& listener_filter_matcher,
       Configuration::ListenerFactoryContext& context) override {
+
     auto config = std::make_shared<Cilium::BpfMetadata::Config>(
         MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(
             proto_config, context.messageValidationVisitor()),
         context);
+
     // Set the socket mark option for the listen socket.
     // Can use identity 0 on the listen socket option, as the bpf datapath is only interested
     // in whether the proxy is ingress, egress, or if there is no proxy at all.
     std::shared_ptr<Envoy::Network::Socket::Options> options =
         std::make_shared<Envoy::Network::Socket::Options>();
+
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
     context.addListenSocketOptions(options);
@@ -68,6 +72,52 @@ public:
  */
 REGISTER_FACTORY(BpfMetadataConfigFactory,
                  NamedListenerFilterConfigFactory){FACTORY_VERSION(1, 1, 0, {{}})};
+
+/**
+ * Config registration for the UDP bpf metadata filter. @see
+ * NamedUdpListenerFilterConfigFactory.
+ */
+class UdpBpfMetadataConfigFactory : public NamedUdpListenerFilterConfigFactory {
+public:
+  // NamedUdpListenerFilterConfigFactory
+  Network::UdpListenerFilterFactoryCb
+  createFilterFactoryFromProto(const Protobuf::Message& proto_config,
+                               Configuration::ListenerFactoryContext& context) override {
+
+    auto config = std::make_shared<Cilium::BpfMetadata::Config>(
+        MessageUtil::downcastAndValidate<const ::cilium::BpfMetadata&>(
+            proto_config, context.messageValidationVisitor()),
+        context);
+
+    // Set the socket mark option for the listen socket.
+    // Can use identity 0 on the listen socket option, as the bpf datapath is only interested
+    // in whether the proxy is ingress, egress, or if there is no proxy at all.
+    std::shared_ptr<Envoy::Network::Socket::Options> options =
+        std::make_shared<Envoy::Network::Socket::Options>();
+
+    uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
+    options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+    context.addListenSocketOptions(options);
+
+    return [config](Network::UdpListenerFilterManager& udp_listener_filter_manager,
+                    Network::UdpReadFilterCallbacks& callbacks) mutable -> void {
+      udp_listener_filter_manager.addReadFilter(
+          std::make_unique<Cilium::BpfMetadata::UdpInstance>(config, callbacks));
+    };
+  }
+
+  ProtobufTypes::MessagePtr createEmptyConfigProto() override {
+    return std::make_unique<::cilium::BpfMetadata>();
+  }
+
+  std::string name() const override { return "cilium.bpf_metadata"; }
+};
+
+/**
+ * Static registration for the UDP bpf metadata filter. @see RegisterFactory.
+ */
+REGISTER_FACTORY(UdpBpfMetadataConfigFactory,
+                 NamedUdpListenerFilterConfigFactory){FACTORY_VERSION(1, 1, 0, {{}})};
 
 } // namespace Configuration
 } // namespace Server
@@ -118,6 +168,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
           Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address())),
       enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()),
       policy_update_warning_limit_ms_(std::chrono::milliseconds(100)) {
+
   const uint64_t limit = DurationUtil::durationToMilliseconds(config.policy_update_warning_limit());
   if (limit > 0) {
     policy_update_warning_limit_ms_ = std::chrono::milliseconds(limit);
@@ -516,6 +567,15 @@ Network::FilterStatus Instance::onData(Network::ListenerFilterBuffer&) {
 };
 
 size_t Instance::maxReadBytes() const { return 0; }
+
+Network::FilterStatus UdpInstance::onData([[maybe_unused]] Network::UdpRecvData& data) {
+  return Network::FilterStatus::Continue;
+}
+
+Network::FilterStatus
+UdpInstance::onReceiveError([[maybe_unused]] Api::IoError::IoErrorCode error_code) {
+  return Network::FilterStatus::Continue;
+}
 
 } // namespace BpfMetadata
 } // namespace Cilium
