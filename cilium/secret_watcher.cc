@@ -34,7 +34,13 @@ SecretWatcher::SecretWatcher(const NetworkPolicyMap& parent, const std::string& 
       secret_provider_(secretProvider(parent.transportFactoryContext(), sds_name)),
       update_secret_(readAndWatchSecret()) {}
 
-SecretWatcher::~SecretWatcher() { delete load(); }
+SecretWatcher::~SecretWatcher() {
+  if (!Thread::MainThread::isMainOrTestThread()) {
+    ENVOY_LOG(error, "SecretWatcher: Destructor executing in a worker thread, while "
+                     "only main thread should destruct xDS resources");
+  }
+  delete load();
+}
 
 Envoy::Common::CallbackHandlePtr SecretWatcher::readAndWatchSecret() {
   store();

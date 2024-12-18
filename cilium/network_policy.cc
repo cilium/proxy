@@ -606,6 +606,13 @@ public:
     }
   }
 
+  ~PortNetworkPolicyRules() {
+    if (!Thread::MainThread::isMainOrTestThread()) {
+      ENVOY_LOG(error, "PortNetworkPolicyRules: Destructor executing in a worker thread, while "
+                       "only main thread should destruct xDS resources");
+    }
+  }
+
   bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry, bool& denied) const {
     // Empty set matches any payload from anyone
