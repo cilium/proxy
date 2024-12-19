@@ -90,10 +90,6 @@ public:
     // identity is zero for the listener socket itself, set transparent and reuse options also for
     // the listener socket.
     if (source_address || identity_ == 0) {
-      // Allow reuse of the original source address. This may by needed for
-      // retries to not fail on "address already in use" when using a specific
-      // source address and port.
-
       {
         // Set ip transparent option based on the socket address family
         auto ip_socket_level = SOL_IP;
@@ -123,6 +119,9 @@ public:
         }
       }
 
+      // Allow reuse of the original source address. This may by needed for
+      // retries to not fail on "address already in use" when using a specific
+      // source address and port.
       {
         auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
         if (status.return_value_ < 0) {
