@@ -96,48 +96,42 @@ public:
       // retries to not fail on "address already in use" when using a specific
       // source address and port.
 
-      // Set ip transparent option based on the socket address family
-      if (*ipVersion == Network::Address::IpVersion::v4) {
-        auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IP,
-                                              IP_TRANSPARENT, &one, sizeof(one));
-        if (status.return_value_ < 0) {
-          if (status.errno_ == EPERM) {
-            // Do not assert out in this case so that we can run tests without
-            // CAP_NET_ADMIN.
-            ENVOY_LOG(critical,
-                      "Failed to set socket option IP_TRANSPARENT, capability "
-                      "CAP_NET_ADMIN needed: {}",
-                      Envoy::errorDetails(status.errno_));
-          } else {
-            ENVOY_LOG(critical, "Socket option failure. Failed to set IP_TRANSPARENT: {}",
-                      Envoy::errorDetails(status.errno_));
-            return false;
-          }
+      {
+        // Set ip transparent option based on the socket address family
+        auto ip_socket_level = SOL_IP;
+        auto ip_transparent_socket_option = IP_TRANSPARENT;
+        auto ip_transparent_socket_option_name = "IP_TRANSPARENT";
+        if (*ipVersion == Network::Address::IpVersion::v6) {
+          ip_socket_level = SOL_IPV6;
+          ip_transparent_socket_option = IPV6_TRANSPARENT;
+          ip_transparent_socket_option_name = "IPV6_TRANSPARENT";
         }
-      } else if (*ipVersion == Network::Address::IpVersion::v6) {
-        auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IPV6,
-                                              IPV6_TRANSPARENT, &one, sizeof(one));
+
+        auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), ip_socket_level,
+                                              ip_transparent_socket_option, &one, sizeof(one));
         if (status.return_value_ < 0) {
           if (status.errno_ == EPERM) {
             // Do not assert out in this case so that we can run tests without
             // CAP_NET_ADMIN.
             ENVOY_LOG(critical,
-                      "Failed to set socket option IPV6_TRANSPARENT, capability "
+                      "Failed to set socket option {}, capability "
                       "CAP_NET_ADMIN needed: {}",
-                      Envoy::errorDetails(status.errno_));
+                      ip_transparent_socket_option_name, Envoy::errorDetails(status.errno_));
           } else {
-            ENVOY_LOG(critical, "Socket option failure. Failed to set IPV6_TRANSPARENT: {}",
-                      Envoy::errorDetails(status.errno_));
+            ENVOY_LOG(critical, "Socket option failure. Failed to set {}: {}",
+                      ip_transparent_socket_option_name, Envoy::errorDetails(status.errno_));
             return false;
           }
         }
       }
 
-      auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-      if (status.return_value_ < 0) {
-        ENVOY_LOG(critical, "Failed to set socket option SO_REUSEADDR: {}",
-                  Envoy::errorDetails(status.errno_));
-        return false;
+      {
+        auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+        if (status.return_value_ < 0) {
+          ENVOY_LOG(critical, "Failed to set socket option SO_REUSEADDR: {}",
+                    Envoy::errorDetails(status.errno_));
+          return false;
+        }
       }
     }
 
