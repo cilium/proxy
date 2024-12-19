@@ -42,7 +42,8 @@ public:
   uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
   const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const override;
 
-  virtual Cilium::SocketOptionSharedPtr getMetadata(Network::ConnectionSocket& socket);
+  virtual Cilium::BpfMetadataSocketOptionSharedPtr
+  getBpfMetadataSocketOption(Network::ConnectionSocket& socket);
 
   uint32_t proxy_id_;
   bool is_ingress_;

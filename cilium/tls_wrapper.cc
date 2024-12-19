@@ -52,7 +52,7 @@ public:
     // Cilium socket option is only created if the (initial) policy for the local pod exists.
     // If the policy requires TLS then a TLS socket is used, but if the policy does not require
     // TLS a raw socket is used instead,
-    const auto option = Cilium::GetSocketOption(callbacks.connection().socketOptions());
+    const auto option = Cilium::GetBpfMetadataSocketOption(callbacks.connection().socketOptions());
     if (option) {
       const auto& policy = option->getPolicy();
       if (!policy) {
@@ -86,7 +86,7 @@ public:
       // get the requested server name from the connection, if any
       const auto& sni = option->sni_;
 
-      auto remote_id = option->ingress_ ? option->identity_ : destination_identity;
+      auto remote_id = option->ingress_ ? option->source_identity_ : destination_identity;
       auto port_policy = policy->findPortPolicy(option->ingress_, destination_port);
       const Envoy::Ssl::ContextConfig* config = nullptr;
       bool raw_socket_allowed = false;

@@ -103,10 +103,10 @@ Network::FilterStatus Instance::onNewConnection() {
 
   auto& conn = callbacks_->connection();
   const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-  const auto option = Cilium::GetSocketOption(socketOptions);
+  const auto option = Cilium::GetBpfMetadataSocketOption(socketOptions);
 
   if (!option) {
-    ENVOY_CONN_LOG(warn, "cilium.network: Cilium Socket Option not found", conn);
+    ENVOY_CONN_LOG(warn, "cilium.network: Cilium BPF metadata Socket Option not found", conn);
     return Network::FilterStatus::StopIteration;
   }
 
@@ -184,7 +184,7 @@ Network::FilterStatus Instance::onNewConnection() {
 
     auto port_policy = policy->findPortPolicy(option->ingress_, destination_port_);
 
-    remote_id_ = option->ingress_ ? option->identity_ : destination_identity;
+    remote_id_ = option->ingress_ ? option->source_identity_ : destination_identity;
     if (!port_policy.allowed(remote_id_, sni)) {
       // Connection not allowed by policy
       ENVOY_CONN_LOG(debug, "cilium.network: Policy DENY on id: {} port: {} sni: \"{}\"", conn,
@@ -202,7 +202,7 @@ Network::FilterStatus Instance::onNewConnection() {
       // Initialize Go parser if requested
       if (config_->proxylib_.get() != nullptr) {
         go_parser_ = config_->proxylib_->NewInstance(
-            conn, l7proto_, option->ingress_, option->identity_, destination_identity,
+            conn, l7proto_, option->ingress_, option->source_identity_, destination_identity,
             stream_info.downstreamAddressProvider().remoteAddress()->asString(),
             dst_address->asString(), policy_name);
         if (go_parser_.get() == nullptr) {
@@ -211,7 +211,7 @@ Network::FilterStatus Instance::onNewConnection() {
         }
       } else { // no Go parser, initialize logging for metadata based access control
         log_entry_.InitFromConnection(policy_name, option->proxy_id_, option->ingress_,
-                                      option->identity_,
+                                      option->source_identity_,
                                       stream_info.downstreamAddressProvider().remoteAddress(),
                                       destination_identity, dst_address, &config_->time_source_);
       }
@@ -268,10 +268,11 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
 
     // Policy may have changed since the connection was established, get fresh policy
     const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-    const auto option = Cilium::GetSocketOption(socketOptions);
+    const auto option = Cilium::GetBpfMetadataSocketOption(socketOptions);
     if (!option) {
       ENVOY_CONN_LOG(warn,
-                     "cilium.network: Cilium metadata not found for pod {}, defaulting to DENY",
+                     "cilium.network: Cilium BPF metadata Socket Optionnot found for pod {}, "
+                     "defaulting to DENY",
                      conn, option->pod_ip_);
       reason = "Cilium metadata lost";
       goto drop_close;

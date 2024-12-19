@@ -163,9 +163,9 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   }
 
   const Network::Socket::OptionsSharedPtr socketOptions = conn->socketOptions();
-  const auto option = Cilium::GetSocketOption(socketOptions);
+  const auto option = Cilium::GetBpfMetadataSocketOption(socketOptions);
   if (!option) {
-    sendLocalError("cilium.l7policy: Cilium Socket Option not found");
+    sendLocalError("cilium.l7policy: Cilium BPF metadata Socket Option not found");
     return Http::FilterHeadersStatus::StopIteration;
   }
 
@@ -207,7 +207,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   // Enforce Ingress policy only in the downstream filter
   if (!config_->is_upstream_) {
     log_entry_->InitFromRequest(
-        option->pod_ip_, option->proxy_id_, option->ingress_, option->identity_,
+        option->pod_ip_, option->proxy_id_, option->ingress_, option->source_identity_,
         callbacks_->streamInfo().downstreamAddressProvider().remoteAddress(), 0,
         callbacks_->streamInfo().downstreamAddressProvider().localAddress(),
         callbacks_->streamInfo(), headers);
@@ -231,11 +231,11 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
   if (!denied) {
     allowed_ = policy->allowed(option->ingress_,
-                               option->ingress_ ? option->identity_ : destination_identity,
+                               option->ingress_ ? option->source_identity_ : destination_identity,
                                destination_port, headers, *log_entry_);
   }
   ENVOY_LOG(debug, "cilium.l7policy: {} ({}->{}) {} policy lookup for endpoint {} for port {}: {}",
-            option->ingress_ ? "ingress" : "egress", option->identity_, destination_identity,
+            option->ingress_ ? "ingress" : "egress", option->source_identity_, destination_identity,
             config_->is_upstream_ ? "upstream" : "downstream", option->pod_ip_, destination_port,
             allowed_ ? "ALLOW" : "DENY");
 

@@ -151,12 +151,12 @@ Network::FilterStatus Instance::onNewConnection() {
       conn.connectionInfoProvider().localAddress();
   const Network::Address::Ip* dip = dst_address ? dst_address->ip() : nullptr;
   const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-  const auto option = Cilium::GetSocketOption(socketOptions);
+  const auto option = Cilium::GetBpfMetadataSocketOption(socketOptions);
   if (option) {
     proxy_id = option->proxy_id_;
     pod_ip = option->pod_ip_;
     is_ingress = option->ingress_;
-    identity = option->identity_;
+    identity = option->source_identity_;
     destination_identity = dip ? option->resolvePolicyId(dip) : 0;
   } else {
     // Default to ingress to destination address, but no security identities.
@@ -236,7 +236,7 @@ void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
   uint32_t destination_identity = 0;
   const auto& conn = callbacks_->connection();
   const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-  const auto option = Cilium::GetSocketOption(socketOptions);
+  const auto option = Cilium::GetBpfMetadataSocketOption(socketOptions);
   if (option) {
     // resolve the original destination from 'x-envoy-original-dst-host' header to be used in the
     // access log message

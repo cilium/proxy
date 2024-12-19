@@ -47,7 +47,16 @@ public:
       : identity_(identity), mark_(mark),
         original_source_address_(std::move(original_source_address)),
         ipv4_source_address_(std::move(ipv4_source_address)),
-        ipv6_source_address_(std::move(ipv6_source_address)) {}
+        ipv6_source_address_(std::move(ipv6_source_address)) {
+    ENVOY_LOG(debug,
+              "Cilium SocketMarkOption(): identity: {}, "
+              "source_addresses: {}/{}/{}, mark: {:x} (magic "
+              "mark: {:x}, cluster: {}, ID: {})",
+              identity_, original_source_address_ ? original_source_address_->asString() : "",
+              ipv4_source_address_ ? ipv4_source_address_->asString() : "",
+              ipv6_source_address_ ? ipv6_source_address_->asString() : "", mark_, mark & 0xff00,
+              mark & 0xff, mark >> 16);
+  }
 
   absl::optional<Network::Socket::Option::Details>
   getOptionDetails(const Network::Socket&,
@@ -226,29 +235,20 @@ public:
   Network::Address::InstanceConstSharedPtr ipv6_source_address_;
 };
 
-class SocketOption : public SocketMarkOption {
+class BpfMetadataSocketOption : public Network::Socket::Option,
+                                public Logger::Loggable<Logger::Id::filter> {
 public:
-  SocketOption(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
-               bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
-               Network::Address::InstanceConstSharedPtr original_source_address,
-               Network::Address::InstanceConstSharedPtr ipv4_source_address,
-               Network::Address::InstanceConstSharedPtr ipv6_source_address,
-               const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
-               absl::string_view sni)
-      : SocketMarkOption(mark, source_identity, original_source_address, ipv4_source_address,
-                         ipv6_source_address),
-        ingress_source_identity_(ingress_source_identity), ingress_(ingress), is_l7lb_(l7lb),
-        port_(port), pod_ip_(std::move(pod_ip)), proxy_id_(proxy_id), sni_(sni),
-        policy_resolver_(policy_resolver) {
+  BpfMetadataSocketOption(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
+                          bool l7lb, uint16_t port, std::string&& pod_ip,
+                          const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
+                          absl::string_view sni)
+      : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
+        ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
+        proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver) {
     ENVOY_LOG(debug,
-              "Cilium SocketOption(): source_identity: {}, "
-              "ingress: {}, port: {}, pod_ip: {}, source_addresses: {}/{}/{}, mark: {:x} (magic "
-              "mark: {:x}, cluster: {}, ID: {}), proxy_id: {}, sni: \"{}\"",
-              identity_, ingress_, port_, pod_ip_,
-              original_source_address_ ? original_source_address_->asString() : "",
-              ipv4_source_address_ ? ipv4_source_address_->asString() : "",
-              ipv6_source_address_ ? ipv6_source_address_->asString() : "", mark_, mark & 0xff00,
-              mark & 0xff, mark >> 16, proxy_id_, sni_);
+              "Cilium BpfMetadataSocketOption(): source_identity: {}, "
+              "ingress: {}, port: {}, pod_ip: {}, proxy_id: {}, sni: \"{}\"",
+              source_identity_, ingress_, port_, pod_ip_, proxy_id_, sni_);
   }
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
@@ -269,8 +269,25 @@ public:
   // basis of the upstream destination address.
   bool policyUseUpstreamDestinationAddress() const { return is_l7lb_; }
 
+  absl::optional<Network::Socket::Option::Details> getOptionDetails(
+      [[maybe_unused]] const Network::Socket&,
+      [[maybe_unused]] envoy::config::core::v3::SocketOption::SocketState) const override {
+    return absl::nullopt;
+  }
+
+  bool setOption(
+      [[maybe_unused]] Network::Socket& socket,
+      [[maybe_unused]] envoy::config::core::v3::SocketOption::SocketState state) const override {
+    return true;
+  }
+
+  void hashKey([[maybe_unused]] std::vector<uint8_t>& key) const override {}
+
+  bool isSupported() const override { return true; }
+
   // Additional ingress policy enforcement is performed if ingress_source_identity is non-zero
   uint32_t ingress_source_identity_;
+  uint32_t source_identity_;
   bool ingress_;
   bool is_l7lb_;
   uint16_t port_;
@@ -282,13 +299,13 @@ private:
   const std::weak_ptr<PolicyResolver> policy_resolver_;
 };
 
-using SocketOptionSharedPtr = std::shared_ptr<SocketOption>;
+using BpfMetadataSocketOptionSharedPtr = std::shared_ptr<BpfMetadataSocketOption>;
 
-static inline const Cilium::SocketOption*
-GetSocketOption(const Network::Socket::OptionsSharedPtr& options) {
+static inline const Cilium::BpfMetadataSocketOption*
+GetBpfMetadataSocketOption(const Network::Socket::OptionsSharedPtr& options) {
   if (options) {
     for (const auto& option : *options) {
-      auto opt = dynamic_cast<const Cilium::SocketOption*>(option.get());
+      auto opt = dynamic_cast<const Cilium::BpfMetadataSocketOption*>(option.get());
       if (opt) {
         return opt;
       }
