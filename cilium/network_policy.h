@@ -113,6 +113,9 @@ public:
     if (!Thread::MainThread::isMainOrTestThread()) {
       ENVOY_LOG_MISC(error, "PolicyInstance: Destructor executing in a worker thread, while "
                             "only main thread should destruct xDS resources");
+      Assert::EnvoyBugStackTrace st;
+      st.capture();
+      st.logStackTrace();
     }
   };
 

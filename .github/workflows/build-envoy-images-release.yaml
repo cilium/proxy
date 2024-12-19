@@ -183,6 +183,28 @@ jobs:
           rm -rf /tmp/buildx-cache/*
           docker buildx prune -f
 
+      - name: Multi-arch build & push main latest (debug)
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
+        id: docker_build_cd_debug
+        with:
+          provenance: false
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
+            DEBUG=true
+          cache-to: type=local,dest=/tmp/buildx-cache,mode=max
+          push: true
+          tags: |
+            quay.io/${{ github.repository_owner }}/cilium-envoy:debug-latest
+            quay.io/${{ github.repository_owner }}/cilium-envoy:debug-${{ github.sha }}
+            quay.io/${{ github.repository_owner }}/cilium-envoy:debug-${{ env.ENVOY_MINOR_RELEASE }}-${{ github.sha }}
+            quay.io/${{ github.repository_owner }}/cilium-envoy:debug-${{ env.ENVOY_PATCH_RELEASE }}-${{ github.sha }}
+            quay.io/${{ github.repository_owner }}/cilium-envoy:debug-${{ env.ENVOY_PATCH_RELEASE }}-${{ env.SOURCE_TIMESTAMP }}-${{ github.sha }}
+
       - name: Multi-arch build & push main latest
         uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
         id: docker_build_cd
