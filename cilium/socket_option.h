@@ -110,22 +110,6 @@ public:
 
     uint32_t one = 1;
 
-    // identity is zero for the listener socket itself, set transparent and reuse options also for
-    // the listener socket.
-    if (source_address || identity_ == 0) {
-      // Allow reuse of the original source address. This may by needed for
-      // retries to not fail on "address already in use" when using a specific
-      // source address and port.
-      {
-        auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-        if (status.return_value_ < 0) {
-          ENVOY_LOG(critical, "Failed to set socket option SO_REUSEADDR: {}",
-                    Envoy::errorDetails(status.errno_));
-          return false;
-        }
-      }
-    }
-
     if (identity_ != 0) {
       // Set SO_REUSEPORT socket option for forwarded client connections.
       // The same option on the listener socket is controlled via the Envoy Listener option
@@ -257,6 +241,48 @@ public:
       } else {
         ENVOY_LOG(critical, "Socket option failure. Failed to set {}: {}",
                   ip_transparent_socket_option_name, Envoy::errorDetails(status.errno_));
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  void hashKey([[maybe_unused]] std::vector<uint8_t>& key) const override {}
+
+  bool isSupported() const override { return true; }
+};
+
+class ReuseAddrSocketOption : public Network::Socket::Option,
+                              public Logger::Loggable<Logger::Id::filter> {
+public:
+  ReuseAddrSocketOption() { ENVOY_LOG(debug, "Cilium ReuseAddrSocketOption()"); }
+
+  absl::optional<Network::Socket::Option::Details>
+  getOptionDetails(const Network::Socket&,
+                   envoy::config::core::v3::SocketOption::SocketState) const override {
+    return absl::nullopt;
+  }
+
+  bool setOption(Network::Socket& socket,
+                 envoy::config::core::v3::SocketOption::SocketState state) const override {
+    // Only set the option once per socket
+    if (state != envoy::config::core::v3::SocketOption::STATE_PREBIND) {
+      ENVOY_LOG(trace, "Skipping setting socket ({}) option SO_REUSEADDR, state != STATE_PREBIND",
+                socket.ioHandle().fdDoNotUse());
+      return true;
+    }
+
+    uint32_t one = 1;
+
+    // Allow reuse of the original source address. This may by needed for
+    // retries to not fail on "address already in use" when using a specific
+    // source address and port.
+    {
+      auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+      if (status.return_value_ < 0) {
+        ENVOY_LOG(critical, "Failed to set socket option SO_REUSEADDR: {}",
+                  Envoy::errorDetails(status.errno_));
         return false;
       }
     }
