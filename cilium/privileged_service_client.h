@@ -28,7 +28,6 @@ public:
   friend class Envoy::Cilium::Bpf;
   friend class Envoy::Cilium::SocketMarkOption;
 
-protected:
   // Read-only bpf syscalls
   Envoy::Api::SysCallIntResult bpf_open(const char* path);
   Envoy::Api::SysCallIntResult bpf_lookup(int fd, const void* key, uint32_t key_size, void* value,
