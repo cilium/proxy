@@ -37,25 +37,15 @@ public:
   virtual const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const PURE;
 };
 
-class SocketMarkOption : public Network::Socket::Option,
-                         public Logger::Loggable<Logger::Id::filter> {
+class CiliumMarkSocketOption : public Network::Socket::Option,
+                               public Logger::Loggable<Logger::Id::filter> {
 public:
-  SocketMarkOption(uint32_t mark, uint32_t identity,
-                   Network::Address::InstanceConstSharedPtr original_source_address = nullptr,
-                   Network::Address::InstanceConstSharedPtr ipv4_source_address = nullptr,
-                   Network::Address::InstanceConstSharedPtr ipv6_source_address = nullptr)
-      : identity_(identity), mark_(mark),
-        original_source_address_(std::move(original_source_address)),
-        ipv4_source_address_(std::move(ipv4_source_address)),
-        ipv6_source_address_(std::move(ipv6_source_address)) {
+  CiliumMarkSocketOption(uint32_t mark, uint32_t identity) : identity_(identity), mark_(mark) {
     ENVOY_LOG(debug,
-              "Cilium SocketMarkOption(): identity: {}, "
-              "source_addresses: {}/{}/{}, mark: {:x} (magic "
+              "Cilium CiliumMarkSocketOption(): identity: {}, "
+              "mark: {:x} (magic "
               "mark: {:x}, cluster: {}, ID: {})",
-              identity_, original_source_address_ ? original_source_address_->asString() : "",
-              ipv4_source_address_ ? ipv4_source_address_->asString() : "",
-              ipv6_source_address_ ? ipv6_source_address_->asString() : "", mark_, mark & 0xff00,
-              mark & 0xff, mark >> 16);
+              identity_, mark_, mark & 0xff00, mark & 0xff, mark >> 16);
   }
 
   absl::optional<Network::Socket::Option::Details>
@@ -70,12 +60,14 @@ public:
     if (mark_ == 0) {
       return true;
     }
+
     // Only set the option once per socket
     if (state != envoy::config::core::v3::SocketOption::STATE_PREBIND) {
       ENVOY_LOG(trace, "Skipping setting socket ({}) option SO_MARK, state != STATE_PREBIND",
                 socket.ioHandle().fdDoNotUse());
       return true;
     }
+
     auto& cilium_calls = PrivilegedService::Singleton::get();
     auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_SOCKET, SO_MARK,
                                           &mark_, sizeof(mark_));
@@ -102,58 +94,23 @@ public:
     return true;
   }
 
-  template <typename T> void addressIntoVector(std::vector<uint8_t>& vec, const T& address) const {
-    const uint8_t* byte_array = reinterpret_cast<const uint8_t*>(&address);
-    vec.insert(vec.end(), byte_array, byte_array + sizeof(T));
-  }
-
   void hashKey(std::vector<uint8_t>& key) const override {
     // don't calculate hash key for mark 0
     if (mark_ == 0) {
       return;
     }
-    // Source address is more specific than policy ID. If using an original
-    // source address, we do not need to also add the source security ID to the
-    // hash key. Note that since the identity is 3 bytes it will not collide
-    // with neither an IPv4 nor IPv6 address.
-    if (original_source_address_) {
-      const auto& ip = original_source_address_->ip();
-      uint16_t port = ip->port();
-      if (ip->version() == Network::Address::IpVersion::v4) {
-        uint32_t raw_address = ip->ipv4()->address();
-        addressIntoVector(key, raw_address);
-      } else if (ip->version() == Network::Address::IpVersion::v6) {
-        absl::uint128 raw_address = ip->ipv6()->address();
-        addressIntoVector(key, raw_address);
-      }
-      // Add source port to the hash key if defined
-      if (port != 0) {
-        ENVOY_LOG(trace, "hashKey port: {:x}", port);
-        key.emplace_back(uint8_t(port >> 8));
-        key.emplace_back(uint8_t(port));
-      }
-      ENVOY_LOG(trace, "hashKey after Cilium: {}, source: {}", Hex::encode(key),
-                original_source_address_->asString());
-    } else {
-      // Add the source identity to the hash key. This will separate upstream
-      // connection pools per security ID.
-      key.emplace_back(uint8_t(identity_ >> 16));
-      key.emplace_back(uint8_t(identity_ >> 8));
-      key.emplace_back(uint8_t(identity_));
-    }
+
+    // Add the source identity to the hash key. This will separate upstream
+    // connection pools per security ID.
+    key.emplace_back(uint8_t(identity_ >> 16));
+    key.emplace_back(uint8_t(identity_ >> 8));
+    key.emplace_back(uint8_t(identity_));
   }
 
   bool isSupported() const override { return true; }
 
   uint32_t identity_;
   uint32_t mark_;
-  Network::Address::InstanceConstSharedPtr original_source_address_;
-  // Version specific source addresses are only used if original source address is not used.
-  // Selection is made based on the socket domain, which is selected based on the destination
-  // address. This makes sure we don't try to bind IPv4 or IPv6 source address to a socket
-  // connecting to IPv6 or IPv4 address, respectively.
-  Network::Address::InstanceConstSharedPtr ipv4_source_address_;
-  Network::Address::InstanceConstSharedPtr ipv6_source_address_;
 };
 
 class IpTransparentSocketOption : public Network::Socket::Option,

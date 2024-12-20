@@ -72,7 +72,7 @@ public:
         std::make_shared<Envoy::Network::Socket::Options>();
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
-    options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+    options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark, 0));
     context.addListenSocketOptions(options);
 
     return [listener_filter_matcher,
@@ -119,7 +119,7 @@ public:
         std::make_shared<Envoy::Network::Socket::Options>();
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
-    options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+    options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark, 0));
     context.addListenSocketOptions(options);
 
     return [config](Network::UdpListenerFilterManager& udp_listener_filter_manager,
