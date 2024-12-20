@@ -445,8 +445,6 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
     pod_ip = ingress_ip_str;
 
     // Original source address is never used for north/south LB
-    // This means that a local host IP is used if no IP is configured to be used instead of it
-    // ('ip' above is null).
     src_address = nullptr;
   } else if (!use_original_source_address_ || (npmap_ != nullptr && npmap_->exists(other_ip))) {
     // Otherwise only use the original source address if permitted and the destination is not
