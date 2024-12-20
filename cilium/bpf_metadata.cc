@@ -529,6 +529,17 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
     }
   }
 
+  // Set SO_REUSEPORT socket option for forwarded client connections on the client socket.
+  // The same option on the listener socket is controlled via the Envoy Listener option
+  // enable_reuse_port.
+  ENVOY_LOG(trace, "Set socket ({}) option SO_REUSEPORT", socket.ioHandle().fdDoNotUse());
+  uint32_t one = 1;
+  auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
+  if (status.return_value_ < 0) {
+    ENVOY_LOG(critical, "Failed to set socket option SO_REUSEPORT: {}",
+              Envoy::errorDetails(status.errno_));
+  }
+
   // Set socket options for linger and keepalive (5 minutes).
   struct ::linger lin {
     true, 10
@@ -536,11 +547,12 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   int keepalive = true;
   int secs = 5 * 60; // Five minutes
 
-  auto status = socket.setSocketOption(SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
+  status = socket.setSocketOption(SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
   if (status.return_value_ < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_LINGER: {}",
               Envoy::errorDetails(status.errno_));
   }
+
   status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
   if (status.return_value_ < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}",

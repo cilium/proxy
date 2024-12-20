@@ -141,19 +141,6 @@ public:
       }
     }
 
-    if (identity_ != 0) {
-      // Set SO_REUSEPORT socket option for forwarded client connections.
-      // The same option on the listener socket is controlled via the Envoy Listener option
-      // enable_reuse_port.
-      ENVOY_LOG(trace, "Set socket ({}) option SO_REUSEPORT", socket.ioHandle().fdDoNotUse());
-      status = socket.setSocketOption(SOL_SOCKET, SO_REUSEPORT, &one, sizeof(one));
-      if (status.return_value_ < 0) {
-        ENVOY_LOG(critical, "Failed to set socket option SO_REUSEPORT: {}",
-                  Envoy::errorDetails(status.errno_));
-        return false;
-      }
-    }
-
     ENVOY_LOG(trace,
               "Set socket ({}) option SO_MARK to {:x} (magic mark: {:x}, id: "
               "{}, cluster: {}), src: {}",
