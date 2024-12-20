@@ -314,15 +314,15 @@ const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) 
   if (npmap_ != nullptr)
     policy = npmap_->GetPolicyInstance(pod_ip);
 
-  if (policy == nullptr) {
-    // Allow all traffic for egress without a policy when 'is_l7lb_' is true,
-    // or if configured without bpf.
-    // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
-    // Ingress (which is implemented as an egress listener!).
-    if (npmap_ == nullptr || (!enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_)) {
-      return NetworkPolicyMap::AllowAllEgressPolicy;
-    }
+  // Allow all traffic for egress without a policy when 'is_l7lb_' is true,
+  // or if configured without bpf (npmap_ == nullptr).
+  // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
+  // Ingress (which is implemented as an egress listener!).
+  if (policy == nullptr &&
+      (npmap_ == nullptr || (!enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_))) {
+    return NetworkPolicyMap::AllowAllEgressPolicy;
   }
+
   return policy;
 }
 
