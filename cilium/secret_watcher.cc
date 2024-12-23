@@ -38,6 +38,9 @@ SecretWatcher::~SecretWatcher() {
   if (!Thread::MainThread::isMainOrTestThread()) {
     ENVOY_LOG(error, "SecretWatcher: Destructor executing in a worker thread, while "
                      "only main thread should destruct xDS resources");
+    Assert::EnvoyBugStackTrace st;
+    st.capture();
+    st.logStackTrace();
   }
   delete load();
 }

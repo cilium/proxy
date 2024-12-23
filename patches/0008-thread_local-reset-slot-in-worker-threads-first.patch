@@ -1,0 +1,79 @@
+From 1a0f7e26bc8b2905d87c64f7fea9df42e874c28a Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Mon, 23 Dec 2024 22:43:15 +0100
+Subject: [PATCH 8/8] thread_local: reset slot in worker threads first
+
+Thread local slots refer to their data via shared pointers. Reset the
+shared pointer first in the worker threads, and last in the main thread
+so that the referred object is destructed in the main thread instead of
+some random worker thread. This prevents xDS stream synchronization bugs
+if the slot happens to refer to an SDS secret.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+
+diff --git a/source/common/thread_local/thread_local_impl.cc b/source/common/thread_local/thread_local_impl.cc
+index bd417164b1..34d1c0f1b2 100644
+--- a/source/common/thread_local/thread_local_impl.cc
++++ b/source/common/thread_local/thread_local_impl.cc
+@@ -177,7 +177,8 @@ void InstanceImpl::removeSlot(uint32_t slot) {
+              free_slot_indexes_.end(),
+          fmt::format("slot index {} already in free slot set!", slot));
+   free_slot_indexes_.push_back(slot);
+-  runOnAllThreads([slot]() -> void {
++
++  auto cb = [slot]() -> void {
+     // This runs on each thread and clears the slot, making it available for a new allocations.
+     // This is safe even if a new allocation comes in, because everything happens with post() and
+     // will be sequenced after this removal. It is also safe if there are callbacks pending on
+@@ -185,7 +186,12 @@ void InstanceImpl::removeSlot(uint32_t slot) {
+     if (slot < thread_local_data_.data_.size()) {
+       thread_local_data_.data_[slot] = nullptr;
+     }
+-  });
++  };
++  // 'cb' is called in the main thread after it has been called on all worker threads.
++  // This makes sure the last shared pointer reference is released in the main thread,
++  // so that the thread local data is destructed in the main thread instead of some random
++  // worker thread.
++  runOnAllWorkerThreads(cb, cb);
+ }
+ 
+ void InstanceImpl::runOnAllThreads(std::function<void()> cb) {
+@@ -220,6 +226,22 @@ void InstanceImpl::runOnAllThreads(std::function<void()> cb,
+   }
+ }
+ 
++void InstanceImpl::runOnAllWorkerThreads(std::function<void()> cb,
++                                         std::function<void()> worker_threads_complete_cb) {
++  ASSERT_IS_MAIN_OR_TEST_THREAD();
++  ASSERT(!shutdown_);
++
++  std::shared_ptr<std::function<void()>> cb_guard(
++      new std::function<void()>(cb), [this, worker_threads_complete_cb](std::function<void()>* cb) {
++        main_thread_dispatcher_->post(worker_threads_complete_cb);
++        delete cb;
++      });
++
++  for (Event::Dispatcher& dispatcher : registered_threads_) {
++    dispatcher.post([cb_guard]() -> void { (*cb_guard)(); });
++  }
++}
++
+ void InstanceImpl::setThreadLocal(uint32_t index, ThreadLocalObjectSharedPtr object) {
+   if (thread_local_data_.data_.size() <= index) {
+     thread_local_data_.data_.resize(index + 1);
+diff --git a/source/common/thread_local/thread_local_impl.h b/source/common/thread_local/thread_local_impl.h
+index 90753101b6..108cf85152 100644
+--- a/source/common/thread_local/thread_local_impl.h
++++ b/source/common/thread_local/thread_local_impl.h
+@@ -75,6 +75,7 @@ private:
+   void removeSlot(uint32_t slot);
+   void runOnAllThreads(std::function<void()> cb);
+   void runOnAllThreads(std::function<void()> cb, std::function<void()> main_callback);
++  void runOnAllWorkerThreads(std::function<void()> cb, std::function<void()> main_callback);
+   static void setThreadLocal(uint32_t index, ThreadLocalObjectSharedPtr object);
+ 
+   static thread_local ThreadLocalData thread_local_data_;
+-- 
+2.34.1
+
