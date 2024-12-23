@@ -875,6 +875,250 @@ egress:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
 }
 
+TEST_F(CiliumNetworkPolicyTest, HttpOverlappingPortRanges) {
+  std::string version;
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "0"
+)EOF"));
+  EXPECT_EQ(version, "0");
+  EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
+  // No policy for the pod
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+
+  // 1st update
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':method'
+            exact_match: 'GET'
+)EOF"));
+  EXPECT_EQ(version, "1");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":method"
+            value: "GET"
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
+  // Allowed remote ID, port, & method OR path:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Wrong path:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+
+  // 2nd update with overlapping port range and a single port
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 70
+    end_port: 90
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':method'
+            exact_match: 'GET'
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  expected = R"EOF(ingress:
+  rules:
+    [70-79]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":method"
+            value: "GET"
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+    [81-90]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
+  // Allowed remote ID, port, & method OR path:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 70, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  // wrong port for GET
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Wrong path:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+
+  // 3rd update with overlapping port ranges
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 70
+    end_port: 90
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+  - port: 80
+    end_port: 8080
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':method'
+            exact_match: 'GET'
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  expected = R"EOF(ingress:
+  rules:
+    [70-79]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+    [80-90]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":method"
+            value: "GET"
+    [91-8080]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":method"
+            value: "GET"
+  wildcard_rules: []
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
+  // Allowed remote ID, port, & method OR path:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 70, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  // wrong port for GET
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Wrong path:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+}
+
 TEST_F(CiliumNetworkPolicyTest, TcpPolicyUpdate) {
   std::string version;
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "0"
