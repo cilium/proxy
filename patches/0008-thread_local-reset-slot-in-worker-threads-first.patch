@@ -1,0 +1,88 @@
+From dd533597a147b86f0864f47f9fab1ad1d54d89f0 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Mon, 23 Dec 2024 22:43:15 +0100
+Subject: [PATCH 8/8] thread_local: reset slot in worker threads first
+
+Thread local slots refer to their data via shared pointers. Reset the
+shared pointer first in the worker threads, and last in the main thread
+so that the referred object is destructed in the main thread instead of
+some random worker thread. This prevents xDS stream synchronization bugs
+if the slot happens to refer to an SDS secret.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+
+diff --git a/source/common/thread_local/thread_local_impl.cc b/source/common/thread_local/thread_local_impl.cc
+index bd417164b1..c9e72459ba 100644
+--- a/source/common/thread_local/thread_local_impl.cc
++++ b/source/common/thread_local/thread_local_impl.cc
+@@ -52,6 +52,7 @@ InstanceImpl::SlotImpl::~SlotImpl() {
+   // be cleaned up when the runtime feature
+   // "envoy.restart_features.allow_slot_destroy_on_worker_threads" is deprecated.
+   if (!parent_.allow_slot_destroy_on_worker_threads_) {
++    ENVOY_LOG_MISC(debug, "~SlotImpl: Legacy calling removeSlot in main thread");
+     parent_.removeSlot(index_);
+     return;
+   }
+@@ -59,6 +60,7 @@ InstanceImpl::SlotImpl::~SlotImpl() {
+   // Do nothing if the parent is already shutdown. Return early here to avoid accessing the main
+   // thread dispatcher because it may have been destroyed.
+   if (isShutdown()) {
++    ENVOY_LOG_MISC(debug, "~SlotImpl: Returning due to isShutdown()");
+     return;
+   }
+ 
+@@ -68,6 +70,7 @@ InstanceImpl::SlotImpl::~SlotImpl() {
+   if (!parent_.allow_slot_destroy_on_worker_threads_ || main_thread_dispatcher == nullptr ||
+       main_thread_dispatcher->isThreadSafe()) {
+     // If the slot is being destroyed on the main thread, we can remove it immediately.
++    ENVOY_LOG_MISC(debug, "~SlotImpl: Calling removeSlot in main thread");
+     parent_.removeSlot(index_);
+   } else {
+     // If the slot is being destroyed on a worker thread, we need to post the removal to the
+@@ -78,6 +81,7 @@ InstanceImpl::SlotImpl::~SlotImpl() {
+     // 2. The removal is not executed if the main dispatcher has already exited. This is fine
+     //    because the removal has no side effect and will be ignored. The shutdown process will
+     //    clean up all the slots anyway.
++    ENVOY_LOG_MISC(debug, "~SlotImpl: Posting removeSlot to main thread");
+     main_thread_dispatcher->post([i = index_, &tls = parent_] { tls.removeSlot(i); });
+   }
+ }
+@@ -169,6 +173,7 @@ void InstanceImpl::removeSlot(uint32_t slot) {
+   // to do removal, because no allocations happen during shutdown and shutdownThread() will clean
+   // things up on the other thread.
+   if (shutdown_) {
++    ENVOY_LOG_MISC(debug, "removeSlot: Returning due to shutdown_");
+     return;
+   }
+ 
+@@ -177,12 +182,27 @@ void InstanceImpl::removeSlot(uint32_t slot) {
+              free_slot_indexes_.end(),
+          fmt::format("slot index {} already in free slot set!", slot));
+   free_slot_indexes_.push_back(slot);
++  ENVOY_LOG_MISC(debug, "removeSlot: Posting slot reset to all threads");
+   runOnAllThreads([slot]() -> void {
++    // Main thread done after the worker threads so that shared pointer destruction
++    // happens in the main thread.
++    if (Thread::MainThread::isMainThread())
++      return;
++
+     // This runs on each thread and clears the slot, making it available for a new allocations.
+     // This is safe even if a new allocation comes in, because everything happens with post() and
+     // will be sequenced after this removal. It is also safe if there are callbacks pending on
+     // other threads because they will run first.
+     if (slot < thread_local_data_.data_.size()) {
++      ENVOY_LOG_MISC(debug, "removeSlot: resetting slot in a worker thread");
++      thread_local_data_.data_[slot] = nullptr;
++    }
++  },
++  // remove slot in the main thread after all the worker threads are done so that shared pointer
++  // destructors are called from the main thread.
++  [slot]() -> void {
++    if (slot < thread_local_data_.data_.size()) {
++      ENVOY_LOG_MISC(debug, "removeSlot: resetting slot in the main thread");
+       thread_local_data_.data_[slot] = nullptr;
+     }
+   });
+-- 
+2.34.1
+
