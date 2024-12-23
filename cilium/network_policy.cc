@@ -608,8 +608,8 @@ public:
 
   ~PortNetworkPolicyRules() {
     if (!Thread::MainThread::isMainOrTestThread()) {
-      ENVOY_LOG(error, "PortNetworkPolicyRules: Destructor executing in a worker thread, while "
-                       "only main thread should destruct xDS resources");
+      IS_ENVOY_BUG("PortNetworkPolicyRules: Destructor executing in a worker thread, while "
+                   "only main thread should destruct xDS resources");
     }
   }
 
