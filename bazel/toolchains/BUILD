@@ -37,6 +37,7 @@ cc_toolchain_config(
         "-fstack-protector",
         "-Wall",
         "-Wunused-but-set-parameter",
+        "-Wthread-safety-analysis",
         "-Wno-free-nonheap-object",
         "-fno-omit-frame-pointer",
         # Needed by Envoy dependencies to build:
@@ -135,6 +136,7 @@ cc_toolchain_config(
         "-fstack-protector",
         "-Wall",
         "-Wunused-but-set-parameter",
+        "-Wthread-safety-analysis",
         "-Wno-free-nonheap-object",
         "-fno-omit-frame-pointer",
         # Needed by Envoy dependencies to build:
