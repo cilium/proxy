@@ -20,13 +20,13 @@
 #include "source/common/common/lock_guard.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/thread.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/numbers.h"
 #include "absl/strings/string_view.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/uds_client.h"
-#include "google/protobuf/struct.pb.h"
 
 namespace Envoy {
 namespace Cilium {

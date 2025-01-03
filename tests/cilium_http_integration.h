@@ -11,12 +11,13 @@
 #include "envoy/http/header_map.h"
 #include "envoy/network/address.h"
 
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+
 #include "test/integration/http_integration.h"
 #include "test/test_common/utility.h"
 
 #include "absl/types/optional.h"
 #include "cilium/api/accesslog.pb.h"
-#include "google/protobuf/repeated_ptr_field.h"
 #include "tests/accesslog_server.h"
 
 namespace Envoy {
