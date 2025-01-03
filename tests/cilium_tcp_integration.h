@@ -1,6 +1,12 @@
 #pragma once
 
-#include "test/integration/integration.h"
+#include <gtest/gtest.h>
+
+#include <string>
+
+#include "envoy/network/address.h"
+
+#include "test/integration/base_integration_test.h"
 
 #include "tests/accesslog_server.h"
 

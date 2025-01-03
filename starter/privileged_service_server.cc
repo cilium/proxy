@@ -5,14 +5,19 @@
 #include "starter/privileged_service_server.h"
 
 #include <errno.h>
-#include <linux/bpf.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <syscall.h>
 #include <unistd.h>
-
 #include <algorithm>
+#include <climits>
+#include <cstdint>
+#include <stdio.h>
+
+#include "starter/privileged_service_protocol.h"
+
+#include <linux/bpf.h>
 
 namespace Envoy {
 namespace Cilium {
@@ -124,7 +129,7 @@ void ProtocolServer::serve() {
     // Form the response in place
     msg.response.hdr_.msg_type_ = TYPE_RESPONSE;
     if (fd_out != -1) {
-      // Pass a poitive but invalid fd in return_value_, to be replaced with the passed
+      // Pass a positive but invalid fd in return_value_, to be replaced with the passed
       // fd by the receiver.
       msg.response.return_value_ = INT_MAX;
       msg.response.errno_ = 0;

@@ -1,13 +1,25 @@
 #include "ipcache.h"
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
+
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <string>
 
 #include "envoy/common/platform.h"
+#include "envoy/network/address.h"
+#include "envoy/server/factory_context.h"
 #include "envoy/singleton/manager.h"
 
+#include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 
+#include "absl/numeric/int128.h"
+#include "cilium/bpf.h"
 #include "linux/bpf.h"
+#include "linux/type_mapper.h"
 
 namespace Envoy {
 namespace Cilium {

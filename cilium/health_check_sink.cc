@@ -1,8 +1,23 @@
 #include "cilium/health_check_sink.h"
 
-#include "envoy/registry/registry.h"
+#include <map>
+#include <memory>
+#include <string>
 
+#include "envoy/common/time.h"
+#include "envoy/data/core/v3/health_check_event.pb.h"
+#include "envoy/registry/registry.h"
+#include "envoy/server/health_checker_config.h"
+#include "envoy/upstream/health_check_event_sink.h"
+
+#include "source/common/common/lock_guard.h"
+#include "source/common/common/logger.h"
+#include "source/common/common/thread.h"
 #include "source/common/protobuf/utility.h"
+
+#include "cilium/api/health_check_sink.pb.h"
+#include "cilium/uds_client.h"
+#include "google/protobuf/any.pb.h"
 
 namespace Envoy {
 namespace Cilium {

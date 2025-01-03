@@ -1,25 +1,49 @@
 #include "cilium/bpf_metadata.h"
 
+#include <asm-generic/socket.h>
+#include <fmt/format.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <sys/socket.h>
 
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "envoy/api/io_error.h"
+#include "envoy/common/exception.h"
+#include "envoy/network/address.h"
+#include "envoy/network/filter.h"
 #include "envoy/network/listen_socket.h"
+#include "envoy/network/listener_filter_buffer.h"
 #include "envoy/registry/registry.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/server/filter_config.h"
 #include "envoy/singleton/manager.h"
+#include "envoy/stream_info/filter_state.h"
 
-#include "source/common/common/assert.h"
-#include "source/common/common/fmt.h"
+#include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
-#include "source/common/network/socket_option_factory.h"
 #include "source/common/network/upstream_socket_options_filter_state.h"
+#include "source/common/network/utility.h"
+#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/utility.h"
 
-#include "cilium/api/bpf_metadata.pb.validate.h"
+#include "absl/strings/string_view.h"
+#include "cilium/api/bpf_metadata.pb.h"
+#include "cilium/api/bpf_metadata.pb.validate.h" // IWYU pragma: keep
+#include "cilium/conntrack.h"
+#include "cilium/host_map.h"
+#include "cilium/ipcache.h"
+#include "cilium/network_policy.h"
+#include "cilium/policy_id.h"
 #include "cilium/socket_option.h"
-#include "network_policy.h"
+#include "google/protobuf/message.h"
 
 namespace Envoy {
 namespace Server {
@@ -534,7 +558,7 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
 
   // Set socket options for linger and keepalive (5 minutes).
   struct ::linger lin {
-    true, 10
+    true, 10,
   };
   int keepalive = true;
   int secs = 5 * 60; // Five minutes

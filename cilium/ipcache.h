@@ -1,12 +1,14 @@
 #pragma once
 
+#include <cstdint>
+#include <memory>
+#include <string>
+
 #include "envoy/network/address.h"
 #include "envoy/server/factory_context.h"
 #include "envoy/singleton/instance.h"
 
-#include "source/common/common/logger.h"
-
-#include "bpf.h"
+#include "cilium/bpf.h"
 
 namespace Envoy {
 namespace Cilium {
