@@ -15,12 +15,12 @@
 #include "envoy/stats/stats_macros.h" // IWYU pragma: keep
 
 #include "source/common/common/logger.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/websocket.pb.h"
-#include "google/protobuf/duration.pb.h"
 
 namespace Envoy {
 namespace Cilium {

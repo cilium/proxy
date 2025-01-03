@@ -21,6 +21,7 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/base64.h"
 #include "source/common/http/request_id_extension_impl.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/ascii.h"
@@ -29,7 +30,6 @@
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/websocket.pb.h"
 #include "cilium/websocket_protocol.h"
-#include "google/protobuf/duration.pb.h"
 
 namespace Envoy {
 namespace Cilium {

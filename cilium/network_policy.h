@@ -40,7 +40,7 @@
 #include "source/common/init/target_impl.h"
 #include "source/common/init/watcher_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 #include "source/server/transport_socket_config_impl.h"
 
@@ -51,8 +51,6 @@
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/npds.pb.validate.h" // IWYU pragma: keep
 #include "cilium/conntrack.h"
-#include "google/protobuf/any.pb.h"
-#include "google/protobuf/repeated_ptr_field.h"
 
 namespace Envoy {
 namespace Cilium {

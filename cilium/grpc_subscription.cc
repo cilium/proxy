@@ -24,6 +24,7 @@
 #include "source/common/common/backoff_strategy.h"
 #include "source/common/config/utility.h"
 #include "source/common/grpc/common.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/extensions/config_subscription/grpc/grpc_mux_context.h"
 #include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
 
@@ -32,8 +33,6 @@
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "google/protobuf/descriptor.h"
-#include "google/protobuf/repeated_ptr_field.h"
 
 namespace Envoy {
 namespace Cilium {

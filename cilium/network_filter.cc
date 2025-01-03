@@ -22,7 +22,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/network/upstream_server_name.h"
 #include "source/common/network/upstream_subject_alt_names.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 
 #include "absl/status/statusor.h"
@@ -32,7 +32,6 @@
 #include "cilium/api/network_filter.pb.validate.h" // IWYU pragma: keep
 #include "cilium/proxylib.h"
 #include "cilium/socket_option.h"
-#include "google/protobuf/message.h"
 #include "proxylib/types.h"
 
 namespace Envoy {

@@ -8,6 +8,7 @@
 
 #include "source/common/common/base_logger.h"
 #include "source/common/common/logger.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 
 #include "test/mocks/server/admin.h"
 #include "test/mocks/server/health_checker_factory_context.h"
@@ -15,8 +16,6 @@
 
 #include "cilium/api/health_check_sink.pb.h"
 #include "cilium/api/health_check_sink.pb.validate.h" // IWYU pragma: keep
-#include "google/protobuf/any.pb.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "gtest/gtest.h"
 #include "tests/health_check_sink_server.h"
 
