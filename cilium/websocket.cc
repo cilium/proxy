@@ -2,28 +2,34 @@
 
 #include <http_parser.h>
 
+#include <cstdint>
+#include <memory>
 #include <string>
 
+#include "envoy/buffer/buffer.h"
+#include "envoy/http/header_map.h"
+#include "envoy/network/address.h"
+#include "envoy/network/filter.h"
 #include "envoy/registry/registry.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/server/filter_config.h"
+#include "envoy/stream_info/filter_state.h"
 
-#include "source/common/buffer/buffer_impl.h"
-#include "source/common/common/assert.h"
-#include "source/common/common/base64.h"
-#include "source/common/common/enum_to_int.h"
-#include "source/common/common/hex.h"
-#include "source/common/crypto/crypto_impl.h"
-#include "source/common/crypto/utility.h"
-#include "source/common/http/header_map_impl.h"
-#include "source/common/http/header_utility.h"
-#include "source/common/http/utility.h"
-#include "source/common/network/filter_manager_impl.h"
+#include "source/common/common/logger.h"
+#include "source/common/http/headers.h"
 #include "source/common/network/utility.h"
+#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/utility.h"
 #include "source/common/stream_info/bool_accessor_impl.h"
 #include "source/common/tcp_proxy/tcp_proxy.h"
 
-#include "cilium/api/websocket.pb.validate.h"
+#include "absl/status/statusor.h"
+#include "cilium/api/websocket.pb.h"
+#include "cilium/api/websocket.pb.validate.h" // IWYU pragma: keep
 #include "cilium/socket_option.h"
-#include "cilium/websocket_protocol.h"
+#include "cilium/websocket_codec.h"
+#include "cilium/websocket_config.h"
+#include "google/protobuf/message.h"
 
 namespace Envoy {
 namespace Cilium {

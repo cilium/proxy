@@ -1,28 +1,35 @@
 #include "cilium/websocket_config.h"
 
 #include <http_parser.h>
+#include <openssl/digest.h>
+#include <openssl/sha.h>
 
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <vector>
 
+#include "envoy/buffer/buffer.h"
+#include "envoy/common/exception.h"
+#include "envoy/extensions/filters/network/http_connection_manager/v3/http_connection_manager.pb.h"
 #include "envoy/extensions/request_id/uuid/v3/uuid.pb.h"
-#include "envoy/registry/registry.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/stats/stats_macros.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/assert.h"
 #include "source/common/common/base64.h"
-#include "source/common/common/enum_to_int.h"
-#include "source/common/common/hex.h"
-#include "source/common/crypto/crypto_impl.h"
-#include "source/common/crypto/utility.h"
-#include "source/common/http/header_map_impl.h"
-#include "source/common/http/header_utility.h"
 #include "source/common/http/request_id_extension_impl.h"
-#include "source/common/http/utility.h"
-#include "source/common/network/filter_manager_impl.h"
+#include "source/common/protobuf/utility.h"
 
-#include "cilium/api/websocket.pb.validate.h"
-#include "cilium/socket_option.h"
+#include "absl/strings/ascii.h"
+#include "absl/strings/string_view.h"
+#include "cilium/accesslog.h"
+#include "cilium/api/accesslog.pb.h"
+#include "cilium/api/websocket.pb.h"
 #include "cilium/websocket_protocol.h"
+#include "google/protobuf/duration.pb.h"
 
 namespace Envoy {
 namespace Cilium {

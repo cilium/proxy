@@ -1,15 +1,39 @@
 #include "cilium/grpc_subscription.h"
 
-#include "envoy/annotations/resource.pb.h"
-#include "envoy/config/core/v3/config_source.pb.h"
-#include "envoy/config/subscription.h"
+#include <fmt/format.h>
 
-#include "source/common/config/type_to_endpoint.h"
+#include <chrono>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "envoy/annotations/resource.pb.h"
+#include "envoy/common/exception.h"
+#include "envoy/common/random_generator.h"
+#include "envoy/config/core/v3/config_source.pb.h"
+#include "envoy/config/custom_config_validators.h"
+#include "envoy/config/subscription.h"
+#include "envoy/config/subscription_factory.h"
+#include "envoy/event/dispatcher.h"
+#include "envoy/local_info/local_info.h"
+#include "envoy/stats/scope.h"
+#include "envoy/upstream/cluster_manager.h"
+
+#include "source/common/common/assert.h"
+#include "source/common/common/backoff_strategy.h"
 #include "source/common/config/utility.h"
 #include "source/common/grpc/common.h"
-#include "source/common/protobuf/protobuf.h"
 #include "source/extensions/config_subscription/grpc/grpc_mux_context.h"
-#include "source/extensions/config_subscription/grpc/grpc_mux_impl.h"
+#include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
+
+#include "absl/container/flat_hash_map.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/match.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
+#include "google/protobuf/descriptor.h"
+#include "google/protobuf/repeated_ptr_field.h"
 
 namespace Envoy {
 namespace Cilium {

@@ -1,9 +1,19 @@
 #include "tests/accesslog_server.h"
 
-#include <errno.h>
 #include <unistd.h>
 
+#include <chrono>
+#include <functional>
 #include <string>
+
+#include "source/common/common/logger.h"
+
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
+#include "absl/types/optional.h"
+#include "cilium/api/accesslog.pb.h"
+#include "tests/uds_server.h"
 
 namespace Envoy {
 

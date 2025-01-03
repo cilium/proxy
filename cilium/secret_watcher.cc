@@ -1,8 +1,30 @@
 #include "cilium/secret_watcher.h"
 
-#include "source/common/config/datasource.h"
+#include <fmt/format.h>
 
+#include <atomic>
+#include <string>
+#include <utility>
+
+#include "envoy/api/api.h"
+#include "envoy/common/callback.h"
+#include "envoy/common/exception.h"
+#include "envoy/config/core/v3/config_source.pb.h"
+#include "envoy/extensions/transport_sockets/tls/v3/tls.pb.h"
+#include "envoy/secret/secret_provider.h"
+#include "envoy/server/transport_socket_config.h"
+
+#include "source/common/common/logger.h"
+#include "source/common/common/thread.h"
+#include "source/common/config/datasource.h"
+#include "source/common/tls/context_config_impl.h"
+#include "source/common/tls/server_context_config_impl.h"
+
+#include "absl/status/status.h"
+#include "absl/synchronization/mutex.h"
+#include "cilium/api/npds.pb.h"
 #include "cilium/grpc_subscription.h"
+#include "cilium/network_policy.h"
 
 namespace Envoy {
 namespace Cilium {

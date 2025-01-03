@@ -1,13 +1,32 @@
 #include "accesslog.h"
 
-#include <errno.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <chrono>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <string>
+
+#include "envoy/common/time.h"
+#include "envoy/http/header_map.h"
+#include "envoy/http/protocol.h"
+#include "envoy/network/address.h"
+#include "envoy/stream_info/stream_info.h"
+
 #include "source/common/common/lock_guard.h"
-#include "source/common/common/utility.h"
+#include "source/common/common/logger.h"
+#include "source/common/common/thread.h"
+#include "source/common/protobuf/utility.h"
+
+#include "absl/strings/numbers.h"
+#include "absl/strings/string_view.h"
+#include "cilium/api/accesslog.pb.h"
+#include "cilium/uds_client.h"
+#include "google/protobuf/struct.pb.h"
 
 namespace Envoy {
 namespace Cilium {

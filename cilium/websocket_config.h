@@ -1,17 +1,26 @@
 #pragma once
 
+#include <chrono>
+#include <cstdint>
+#include <memory>
 #include <string>
+#include <vector>
 
+#include "envoy/buffer/buffer.h"
 #include "envoy/common/random_generator.h"
+#include "envoy/common/time.h"
 #include "envoy/event/dispatcher.h"
 #include "envoy/http/request_id_extension.h"
-#include "envoy/server/filter_config.h"
-#include "envoy/stats/stats_macros.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/stats/stats_macros.h" // IWYU pragma: keep
 
 #include "source/common/common/logger.h"
 
+#include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
+#include "cilium/api/accesslog.pb.h"
 #include "cilium/api/websocket.pb.h"
+#include "google/protobuf/duration.pb.h"
 
 namespace Envoy {
 namespace Cilium {

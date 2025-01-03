@@ -1,15 +1,23 @@
 #pragma once
 
+#include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
 
+#include "envoy/common/time.h"
 #include "envoy/http/header_map.h"
-#include "envoy/network/connection.h"
-#include "envoy/router/router.h"
+#include "envoy/network/address.h"
+#include "envoy/stream_info/filter_state.h"
 #include "envoy/stream_info/stream_info.h"
 
+#include "source/common/common/thread.h"
+
+#include "absl/base/thread_annotations.h"
+#include "absl/strings/string_view.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/uds_client.h"
+#include "google/protobuf/struct.pb.h"
 
 namespace Envoy {
 namespace Cilium {

@@ -2,17 +2,38 @@
 
 #include <dlfcn.h>
 
-#include "envoy/network/listen_socket.h"
-#include "envoy/registry/registry.h"
-#include "envoy/server/filter_config.h"
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
 
-#include "source/common/common/assert.h"
-#include "source/common/common/fmt.h"
+#include "envoy/buffer/buffer.h"
+#include "envoy/network/address.h"
+#include "envoy/network/connection.h"
+#include "envoy/network/filter.h"
+#include "envoy/registry/registry.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/server/filter_config.h"
+#include "envoy/stream_info/filter_state.h"
+#include "envoy/stream_info/stream_info.h"
+#include "envoy/upstream/host_description.h"
+
+#include "source/common/buffer/buffer_impl.h"
+#include "source/common/common/logger.h"
 #include "source/common/network/upstream_server_name.h"
 #include "source/common/network/upstream_subject_alt_names.h"
+#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/utility.h"
 
-#include "cilium/api/network_filter.pb.validate.h"
+#include "absl/status/statusor.h"
+#include "cilium/accesslog.h"
+#include "cilium/api/accesslog.pb.h"
+#include "cilium/api/network_filter.pb.h"
+#include "cilium/api/network_filter.pb.validate.h" // IWYU pragma: keep
+#include "cilium/proxylib.h"
 #include "cilium/socket_option.h"
+#include "google/protobuf/message.h"
+#include "proxylib/types.h"
 
 namespace Envoy {
 namespace Server {

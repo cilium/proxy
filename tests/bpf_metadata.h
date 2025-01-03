@@ -2,6 +2,8 @@
 
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "envoy/network/address.h"
 #include "envoy/network/listen_socket.h"
@@ -10,6 +12,7 @@
 #include "cilium/bpf_metadata.h"
 #include "cilium/host_map.h"
 #include "cilium/network_policy.h"
+#include "cilium/socket_option.h"
 #include "tests/bpf_metadata.pb.h"
 
 namespace Envoy {

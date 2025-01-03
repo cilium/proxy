@@ -1,10 +1,22 @@
 #pragma once
 
+#include <map>
+#include <memory>
+#include <string>
+
+#include "envoy/common/time.h"
+#include "envoy/data/core/v3/health_check_event.pb.h"
+#include "envoy/server/health_checker_config.h"
 #include "envoy/upstream/health_check_event_sink.h"
 
+#include "source/common/common/thread.h"
+#include "source/common/protobuf/protobuf.h"
+
+#include "absl/base/thread_annotations.h"
 #include "cilium/api/health_check_sink.pb.h"
-#include "cilium/api/health_check_sink.pb.validate.h"
+#include "cilium/api/health_check_sink.pb.validate.h" // IWYU pragma: keep
 #include "cilium/uds_client.h"
+#include "google/protobuf/any.pb.h"
 
 namespace Envoy {
 namespace Cilium {

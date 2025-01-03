@@ -1,8 +1,22 @@
 #include "tests/cilium_http_integration.h"
 
+#include <fmt/base.h>
+#include <fmt/format.h>
+#include <spdlog/common.h>
+
+#include <memory>
+#include <string>
+
 #include "envoy/network/address.h"
 
+#include "source/common/common/base_logger.h"
 #include "source/common/common/logger.h"
+#include "source/common/http/codec_client.h"
+#include "source/common/network/address_impl.h"
+
+#include "test/integration/http_integration.h"
+#include "test/test_common/environment.h"
+#include "test/test_common/network_utility.h"
 
 #include "tests/bpf_metadata.h"
 

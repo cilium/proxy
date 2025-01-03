@@ -1,25 +1,62 @@
 #include "cilium/network_policy.h"
 
-#include <algorithm>
-#include <string>
+#include <fmt/format.h>
+#include <openssl/mem.h>
 
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "envoy/common/exception.h"
+#include "envoy/common/matchers.h"
+#include "envoy/common/optref.h"
+#include "envoy/config/core/v3/address.pb.h"
+#include "envoy/config/core/v3/base.pb.h"
+#include "envoy/config/subscription.h"
+#include "envoy/event/dispatcher.h"
+#include "envoy/http/header_map.h"
+#include "envoy/init/manager.h"
+#include "envoy/network/address.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/ssl/context.h"
+#include "envoy/ssl/context_config.h"
+#include "envoy/stats/stats_macros.h"
 #include "envoy/type/matcher/v3/metadata.pb.h"
 
+#include "source/common/common/assert.h"
+#include "source/common/common/logger.h"
 #include "source/common/common/matchers.h"
-#include "source/common/config/utility.h"
+#include "source/common/common/thread.h"
+#include "source/common/http/header_utility.h"
 #include "source/common/init/manager_impl.h"
+#include "source/common/init/target_impl.h"
 #include "source/common/init/watcher_impl.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/utility.h"
 #include "source/common/stats/timespan_impl.h"
+#include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
+#include "source/server/transport_socket_config_impl.h"
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/container/node_hash_map.h"
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+#include "cilium/accesslog.h"
+#include "cilium/api/npds.pb.h"
+#include "cilium/conntrack.h"
 #include "cilium/grpc_subscription.h"
 #include "cilium/ipcache.h"
 #include "cilium/secret_watcher.h"
-#include "openssl/ssl.h"
+#include "google/protobuf/repeated_ptr_field.h"
+#include "google/protobuf/util/message_differencer.h"
 
 namespace Envoy {
 namespace Cilium {
