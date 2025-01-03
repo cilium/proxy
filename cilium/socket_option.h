@@ -8,14 +8,12 @@
 #include "source/common/common/utility.h"
 
 #include "cilium/conntrack.h"
+#include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 #include "cilium/privileged_service_client.h"
 
 namespace Envoy {
 namespace Cilium {
-
-class PolicyInstance;
-using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
 
 class PolicyResolver {
 public:
