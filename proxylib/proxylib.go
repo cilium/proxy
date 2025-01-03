@@ -7,7 +7,7 @@
 package main
 
 /*
-#include "proxylib/types.h"
+#include "types.h"
 */
 import "C"
 
