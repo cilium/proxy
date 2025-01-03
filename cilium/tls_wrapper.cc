@@ -21,7 +21,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/network/raw_buffer_socket.h"
 #include "source/common/network/transport_socket_options_impl.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/tls/ssl_socket.h"
 
 #include "absl/status/statusor.h"
