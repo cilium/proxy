@@ -1,16 +1,21 @@
 #pragma once
 
+#include <cstdint>
+#include <memory>
+#include <string>
+
+#include "envoy/buffer/buffer.h"
+#include "envoy/common/time.h"
 #include "envoy/json/json_object.h"
-#include "envoy/network/connection.h"
 #include "envoy/network/filter.h"
-#include "envoy/server/filter_config.h"
+#include "envoy/server/factory_context.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
 
 #include "cilium/accesslog.h"
+#include "cilium/api/accesslog.pb.h"
 #include "cilium/api/network_filter.pb.h"
-#include "cilium/conntrack.h"
 #include "cilium/network_policy.h"
 #include "cilium/proxylib.h"
 

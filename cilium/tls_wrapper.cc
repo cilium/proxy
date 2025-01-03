@@ -1,12 +1,31 @@
 #include "cilium/tls_wrapper.h"
 
-#include "envoy/extensions/transport_sockets/tls/v3/cert.pb.validate.h"
+#include <chrono>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "envoy/buffer/buffer.h"
+#include "envoy/network/address.h"
+#include "envoy/network/post_io_action.h"
+#include "envoy/network/transport_socket.h"
+#include "envoy/registry/registry.h"
+#include "envoy/server/transport_socket_config.h"
+#include "envoy/ssl/connection.h"
+#include "envoy/ssl/context.h"
+#include "envoy/ssl/context_config.h"
+
+#include "source/common/common/empty_string.h"
+#include "source/common/common/logger.h"
 #include "source/common/network/raw_buffer_socket.h"
-#include "source/common/protobuf/utility.h"
-#include "source/common/tls/context_config_impl.h"
+#include "source/common/network/transport_socket_options_impl.h"
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/tls/ssl_socket.h"
 
+#include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "cilium/api/tls_wrapper.pb.h"
 #include "cilium/network_policy.h"
 #include "cilium/socket_option.h"

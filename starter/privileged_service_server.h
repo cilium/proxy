@@ -4,7 +4,7 @@
 #error "Linux platform file is part of non-Linux build."
 #endif
 
-#include <limits.h>
+#include <linux/limits.h>
 
 #include "starter/privileged_service_protocol.h"
 
@@ -29,7 +29,7 @@ private:
     BpfLookupRequest bpf_lookup_req;
     SetSockOptRequest setsockopt_req;
 
-    // resposes use the same buffer, so they inherit the message sequence number from the request
+    // responses use the same buffer, so they inherit the message sequence number from the request
     Response response;
 
     // make space for the largest possible request
