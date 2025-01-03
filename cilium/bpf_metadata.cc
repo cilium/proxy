@@ -314,15 +314,15 @@ const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) 
   if (npmap_ != nullptr)
     policy = npmap_->GetPolicyInstance(pod_ip);
 
-  if (policy == nullptr) {
-    // Allow all traffic for egress without a policy when 'is_l7lb_' is true,
-    // or if configured without bpf.
-    // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
-    // Ingress (which is implemented as an egress listener!).
-    if (npmap_ == nullptr || (!enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_)) {
-      return NetworkPolicyMap::AllowAllEgressPolicy;
-    }
+  // Allow all traffic for egress without a policy when 'is_l7lb_' is true,
+  // or if configured without bpf (npmap_ == nullptr).
+  // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
+  // Ingress (which is implemented as an egress listener!).
+  if (policy == nullptr &&
+      (npmap_ == nullptr || (!enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_))) {
+    return NetworkPolicyMap::AllowAllEgressPolicy;
   }
+
   return policy;
 }
 
@@ -406,27 +406,26 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
     // North/south L7 LB, assume the source security identity of the configured source addresses,
     // if any and policy for this identity exists.
 
-    // Pick the local source address of the same family as the incoming connection
-    const Network::Address::Ip* ip = selectIPVersion(sip->version(), source_addresses);
+    // Pick the local ingress source address of the same family as the incoming connection
+    const Network::Address::Ip* ingress_ip = selectIPVersion(sip->version(), source_addresses);
 
-    if (!ip) {
-      // IP family of the connection has no configured local source address
-      ENVOY_LOG(warn,
-                "cilium.bpf_metadata (north/south L7 LB): No local IP source address configured "
-                "for the family of {}",
-                pod_ip);
+    if (!ingress_ip) {
+      // IP family of the connection has no configured local ingress source address
+      ENVOY_LOG(
+          warn,
+          "cilium.bpf_metadata (north/south L7 LB): No local Ingress IP source address configured "
+          "for the family of {}",
+          sip->addressAsString());
       return nullptr;
     }
 
-    pod_ip = ip->addressAsString();
-
-    auto new_source_id = resolvePolicyId(ip);
-    if (new_source_id == Cilium::ID::WORLD) {
+    auto new_source_identity = resolvePolicyId(ingress_ip);
+    if (new_source_identity == Cilium::ID::WORLD) {
       // No security ID available for the configured source IP
       ENVOY_LOG(warn,
-                "cilium.bpf_metadata (north/south L7 LB): Unknown local IP source address "
+                "cilium.bpf_metadata (north/south L7 LB): Unknown local Ingress IP source address "
                 "configured: {}",
-                pod_ip);
+                ingress_ip->addressAsString());
       return nullptr;
     }
 
@@ -434,14 +433,16 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
     if (enforce_policy_on_l7lb_)
       ingress_source_identity = source_identity;
 
-    source_identity = new_source_id;
+    source_identity = new_source_identity;
 
     // AllowAllEgressPolicy will be returned if no explicit Ingress policy exists
-    policy = getPolicy(pod_ip);
+    policy = getPolicy(ingress_ip->addressAsString());
+
+    // Set Ingress source IP as pod_ip (In case of egress (how N/S L7 LB is implemented), the pod_ip
+    // is the source IP)
+    pod_ip = ingress_ip->addressAsString();
 
     // Original source address is never used for north/south LB
-    // This means that a local host IP is used if no IP is configured to be used instead of it
-    // ('ip' above is null).
     src_address = nullptr;
   } else if (!use_original_source_address_ || (npmap_ != nullptr && npmap_->exists(other_ip))) {
     // Otherwise only use the original source address if permitted and the destination is not
