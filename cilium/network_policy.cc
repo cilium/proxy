@@ -38,7 +38,7 @@
 #include "source/common/init/target_impl.h"
 #include "source/common/init/watcher_impl.h"
 #include "source/common/network/utility.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 #include "source/common/stats/timespan_impl.h"
 #include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
@@ -55,8 +55,6 @@
 #include "cilium/grpc_subscription.h"
 #include "cilium/ipcache.h"
 #include "cilium/secret_watcher.h"
-#include "google/protobuf/repeated_ptr_field.h"
-#include "google/protobuf/util/message_differencer.h"
 
 namespace Envoy {
 namespace Cilium {

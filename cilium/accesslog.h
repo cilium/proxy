@@ -12,12 +12,12 @@
 #include "envoy/stream_info/stream_info.h"
 
 #include "source/common/common/thread.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/uds_client.h"
-#include "google/protobuf/struct.pb.h"
 
 namespace Envoy {
 namespace Cilium {

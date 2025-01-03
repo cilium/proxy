@@ -27,7 +27,7 @@
 #include "source/common/common/macros.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 
 #include "absl/container/flat_hash_map.h"
@@ -36,8 +36,6 @@
 #include "cilium/api/nphds.pb.h"
 #include "cilium/api/nphds.pb.validate.h" // IWYU pragma: keep
 #include "cilium/policy_id.h"
-#include "google/protobuf/any.pb.h"
-#include "google/protobuf/repeated_ptr_field.h"
 
 // std::hash specialization for Abseil uint128, needed for unordered_map key.
 namespace std {
