@@ -2,6 +2,7 @@
 \.*
 !\.bazelrc
 !\.bazelversion
+!\.clangd
 !\.clang-format
 !\.github
 !\.gitignore

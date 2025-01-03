@@ -1,0 +1,13 @@
+# https://clangd.llvm.org/config
+Index:
+  StandardLibrary: Yes
+Diagnostics:
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+# CompileFlags:
+#   CompilationDatabase: ./compile_commands.json
+#   # Unfortunately, above config isn't working as expected.
+#   # Therefore it's recommended to use clangd argument
+#   # `--compile-commands-dir=<working_dir>` to improve the
+#   # clangd support for the external Envoy bazel-dependencies.
+#   # See https://github.com/clangd/clangd/discussions/907
