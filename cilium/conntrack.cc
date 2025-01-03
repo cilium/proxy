@@ -7,6 +7,7 @@
 
 #include "envoy/common/platform.h"
 
+#include "source/common/common/thread.h"
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
 
@@ -149,7 +150,7 @@ CtMap::openMap6(const std::string& map_name) {
 }
 
 void CtMap::closeMaps(const std::shared_ptr<absl::flat_hash_set<std::string>>& to_be_closed) {
-  std::lock_guard<std::mutex> guard(maps_mutex_);
+  std::lock_guard<Thread::MutexBasicLockable> guard(maps_mutex_);
 
   for (const auto& name : *to_be_closed) {
     auto ct4 = ct_maps4_.find(name);
@@ -213,7 +214,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
 
   if (dip->version() == Network::Address::IpVersion::v4) {
     // Lock for the duration of the map lookup and conntrack lookup
-    std::lock_guard<std::mutex> guard(maps_mutex_);
+    std::lock_guard<Thread::MutexBasicLockable> guard(maps_mutex_);
     auto it = ct_maps4_.find(map_name);
     if (it == ct_maps4_.end()) {
       it = openMap4(map_name);
@@ -231,7 +232,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
     }
   } else {
     // Lock for the duration of the map lookup and conntrack lookup
-    std::lock_guard<std::mutex> guard(maps_mutex_);
+    std::lock_guard<Thread::MutexBasicLockable> guard(maps_mutex_);
     auto it = ct_maps6_.find(map_name);
     if (it == ct_maps6_.end()) {
       it = openMap6(map_name);
