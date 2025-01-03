@@ -13,9 +13,9 @@
 
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 
 #include "absl/container/fixed_array.h"
-#include "google/protobuf/map.h"
 #include "proxylib/types.h"
 
 namespace Envoy {

@@ -10,13 +10,12 @@
 #include "envoy/upstream/health_check_event_sink.h"
 
 #include "source/common/common/thread.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 
 #include "absl/base/thread_annotations.h"
 #include "cilium/api/health_check_sink.pb.h"
 #include "cilium/api/health_check_sink.pb.validate.h" // IWYU pragma: keep
 #include "cilium/uds_client.h"
-#include "google/protobuf/any.pb.h"
 
 namespace Envoy {
 namespace Cilium {

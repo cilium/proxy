@@ -19,7 +19,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/config/utility.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 #include "source/extensions/config_subscription/filesystem/filesystem_subscription_impl.h"
 

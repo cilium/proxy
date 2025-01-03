@@ -31,7 +31,7 @@
 #include "source/common/network/address_impl.h"
 #include "source/common/network/upstream_socket_options_filter_state.h"
 #include "source/common/network/utility.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/string_view.h"
@@ -43,7 +43,6 @@
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 #include "cilium/socket_option.h"
-#include "google/protobuf/message.h"
 
 namespace Envoy {
 namespace Server {

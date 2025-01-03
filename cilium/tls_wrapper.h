@@ -8,10 +8,9 @@
 #include "envoy/server/transport_socket_config.h"
 #include "envoy/stats/stats_macros.h" // IWYU pragma: keep
 
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 
 #include "absl/status/statusor.h"
-#include "google/protobuf/message.h"
 
 namespace Envoy {
 namespace Cilium {
