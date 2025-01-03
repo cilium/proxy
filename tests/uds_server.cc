@@ -5,12 +5,15 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <functional>
+#include <memory>
 #include <string>
 
 #include "envoy/common/exception.h"
 
-#include "source/common/common/lock_guard.h"
+#include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
+#include "source/common/network/address_impl.h"
 
 #include "test/test_common/thread_factory_for_test.h"
 

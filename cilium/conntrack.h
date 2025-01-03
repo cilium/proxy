@@ -1,7 +1,10 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "envoy/network/address.h"
@@ -12,7 +15,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "bpf.h"
+#include "cilium/bpf.h"
 
 namespace std {
 template <> class hash<const string> {

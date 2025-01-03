@@ -1,11 +1,30 @@
 #include "cilium/host_map.h"
 
+#include <arpa/inet.h>
+#include <fmt/format.h>
+#include <sys/socket.h>
+
+#include <cstdint>
+#include <cstring>
+#include <memory>
 #include <string>
-#include <unordered_set>
+#include <utility>
+#include <vector>
 
-#include "source/common/config/utility.h"
-#include "source/common/protobuf/protobuf.h"
+#include "envoy/common/exception.h"
+#include "envoy/config/subscription.h"
+#include "envoy/event/dispatcher.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/thread_local/thread_local.h"
+#include "envoy/thread_local/thread_local_object.h"
 
+#include "source/common/common/logger.h"
+#include "source/common/common/macros.h"
+
+#include "absl/numeric/int128.h"
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+#include "cilium/api/nphds.pb.h"
 #include "cilium/grpc_subscription.h"
 
 namespace Envoy {

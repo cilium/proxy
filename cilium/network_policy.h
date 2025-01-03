@@ -1,27 +1,58 @@
 #pragma once
 
+#include <fmt/format.h>
+
+#include <chrono>
+#include <cstdint>
+#include <functional>
+#include <list>
+#include <map>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "envoy/common/exception.h"
+#include "envoy/common/matchers.h"
+#include "envoy/common/pure.h"
+#include "envoy/config/core/v3/base.pb.h"
+#include "envoy/config/grpc_mux.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
-#include "envoy/server/filter_config.h"
+#include "envoy/network/address.h"
+#include "envoy/protobuf/message_validator.h"
+#include "envoy/server/config_tracker.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/server/transport_socket_config.h"
 #include "envoy/singleton/instance.h"
-#include "envoy/stats/stats_macros.h"
+#include "envoy/ssl/context.h"
+#include "envoy/ssl/context_config.h"
+#include "envoy/stats/scope.h"
 #include "envoy/stats/timespan.h"
 #include "envoy/thread_local/thread_local.h"
+#include "envoy/thread_local/thread_local_object.h"
 
+#include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
-#include "source/common/config/opaque_resource_decoder_impl.h"
-#include "source/common/http/header_utility.h"
+#include "source/common/common/macros.h"
+#include "source/common/common/thread.h"
 #include "source/common/init/manager_impl.h"
 #include "source/common/init/target_impl.h"
 #include "source/common/init/watcher_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "source/common/tls/server_context_config_impl.h"
+#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/utility.h"
 #include "source/server/transport_socket_config_impl.h"
 
+#include "absl/container/btree_map.h"
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
-#include "cilium/api/npds.pb.validate.h"
+#include "cilium/api/npds.pb.validate.h" // IWYU pragma: keep
 #include "cilium/conntrack.h"
+#include "google/protobuf/any.pb.h"
+#include "google/protobuf/repeated_ptr_field.h"
 
 namespace Envoy {
 namespace Cilium {

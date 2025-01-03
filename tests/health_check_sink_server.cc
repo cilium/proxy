@@ -1,12 +1,23 @@
 #include "tests/health_check_sink_server.h"
 
-#include <errno.h>
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <chrono>
+#include <functional>
 #include <string>
+
+#include "envoy/data/core/v3/health_check_event.pb.h"
+
+#include "source/common/common/logger.h"
+
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
+#include "absl/types/optional.h"
+#include "tests/uds_server.h"
 
 namespace Envoy {
 

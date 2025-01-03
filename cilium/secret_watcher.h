@@ -1,12 +1,25 @@
 #pragma once
 
+#include <atomic>
+#include <memory>
 #include <string>
+#include <vector>
 
+#include "envoy/common/callback.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/secret/secret_provider.h"
+#include "envoy/ssl/context.h"
+#include "envoy/ssl/context_config.h"
+#include "envoy/ssl/context_manager.h"
+#include "envoy/stats/scope.h"
 
+#include "source/common/common/logger.h"
 #include "source/common/init/target_impl.h"
-#include "source/common/tls/server_context_config_impl.h"
 
+#include "absl/base/thread_annotations.h"
+#include "absl/status/status.h"
+#include "absl/synchronization/mutex.h"
+#include "cilium/api/npds.pb.h"
 #include "cilium/network_policy.h"
 
 namespace Envoy {

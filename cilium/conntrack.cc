@@ -1,17 +1,28 @@
 #include "conntrack.h"
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <string.h>
 
 #include <cstdint>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <utility>
 
 #include "envoy/common/platform.h"
+#include "envoy/network/address.h"
 
+#include "source/common/common/logger.h"
 #include "source/common/common/thread.h"
 #include "source/common/common/utility.h"
-#include "source/common/network/address_impl.h"
 
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
+#include "absl/numeric/int128.h"
+#include "cilium/bpf.h"
 #include "linux/bpf.h"
+#include "linux/type_mapper.h"
 
 namespace Envoy {
 namespace Cilium {

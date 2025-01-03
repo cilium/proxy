@@ -1,7 +1,22 @@
 #pragma once
 
-#include "test/integration/http_integration.h"
+#include <gtest/gtest.h>
 
+#include <chrono>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "envoy/common/pure.h"
+#include "envoy/http/header_map.h"
+#include "envoy/network/address.h"
+
+#include "test/integration/http_integration.h"
+#include "test/test_common/utility.h"
+
+#include "absl/types/optional.h"
+#include "cilium/api/accesslog.pb.h"
+#include "google/protobuf/repeated_ptr_field.h"
 #include "tests/accesslog_server.h"
 
 namespace Envoy {

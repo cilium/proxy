@@ -7,12 +7,23 @@
 #include <errno.h>
 #include <sys/syscall.h>
 #include <sys/unistd.h>
+#include <asm-generic/socket.h>
+#include <bits/types/struct_iovec.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <linux/capability.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 namespace Envoy {
 namespace Cilium {
 namespace PrivilegedService {
 
-// Capabiilty names used in DumpCapabilites responses.
+// Capabiilty names used in DumpCapabilities responses.
 static const char* cap_names[64] = {
     "CAP_CHOWN",              //  0
     "CAP_DAC_OVERRIDE",       //  1
@@ -82,9 +93,7 @@ static const char* cap_names[64] = {
 
 // Get a 64-bit set of capabilities of the given kind
 uint64_t get_capabilities(cap_flag_t kind) {
-  struct __user_cap_header_struct hdr {
-    _LINUX_CAPABILITY_VERSION_3, 0
-  };
+  struct __user_cap_header_struct hdr{_LINUX_CAPABILITY_VERSION_3, 0};
   struct __user_cap_data_struct data[2];
   memset(&data, 0, sizeof(data));
   int rc = ::syscall(SYS_capget, &hdr, &data, sizeof(data));
@@ -148,7 +157,7 @@ namespace {
 
 static inline struct msghdr init_iov(struct iovec iov[2], const void* header, ssize_t headerlen,
                                      const void* data, ssize_t datalen) {
-  struct msghdr msg {};
+  struct msghdr msg{};
   msg.msg_iov = iov;
   msg.msg_iovlen = 1;
   iov[0].iov_base = const_cast<void*>(header);

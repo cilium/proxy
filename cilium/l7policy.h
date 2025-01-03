@@ -1,14 +1,23 @@
 #pragma once
 
+#include <memory>
 #include <string>
 
-#include "envoy/server/filter_config.h"
-#include "envoy/stats/stats_macros.h"
+#include "envoy/buffer/buffer.h"
+#include "envoy/common/optref.h"
+#include "envoy/common/time.h"
+#include "envoy/http/filter.h"
+#include "envoy/http/header_map.h"
+#include "envoy/http/metadata_interface.h"
+#include "envoy/stats/scope.h"
+#include "envoy/stats/stats_macros.h" // IWYU pragma: keep
 
 #include "source/common/common/logger.h"
 
+#include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "cilium/accesslog.h"
+#include "cilium/api/accesslog.pb.h"
 #include "cilium/api/l7policy.pb.h"
 
 namespace Envoy {
