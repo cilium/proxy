@@ -18,7 +18,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/http/headers.h"
 #include "source/common/network/utility.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 #include "source/common/stream_info/bool_accessor_impl.h"
 #include "source/common/tcp_proxy/tcp_proxy.h"
@@ -29,7 +29,6 @@
 #include "cilium/socket_option.h"
 #include "cilium/websocket_codec.h"
 #include "cilium/websocket_config.h"
-#include "google/protobuf/message.h"
 
 namespace Envoy {
 namespace Cilium {
