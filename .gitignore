@@ -1,5 +1,11 @@
-.DS_Store
-.idea/
+# Dot files, disallow by default, and enable explicitly
+\.*
+!\.bazelrc
+!\.bazelversion
+!\.clang-format
+!\.github
+!\.gitignore
+
 *.plist
 
 *cscope.files
@@ -33,12 +39,6 @@
 
 # generated for docker builds via make
 /SOURCE_VERSION
-/.dockerignore
-
-# generated for Clion
-/.clwb
-
-/.vagrant
 
 /proxylib/libcilium.so*
 /proxylib/_obj*
