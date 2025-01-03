@@ -59,9 +59,11 @@ void UDSClient::Log(const std::string& msg) {
   }
 
   // rate-limit to 1/second to avoid spamming the logs
+  fd_mutex_.lock();
   if (logging_limiter_->consume(1, false)) {
     ENVOY_LOG(warn, "Logging to {} failed: {}", asStringView(), Envoy::errorDetails(errno_));
   }
+  fd_mutex_.unlock();
 }
 
 bool UDSClient::try_connect() {
