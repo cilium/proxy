@@ -9,9 +9,15 @@ fi
 # renovate: datasource=datasource depName=bazelbuild/bazelisk
 BAZELISK_VERSION=v1.20.0
 
+installed_bazelisk_version=""
+
+if [[ $(command -v bazel) ]]; then
+    installed_bazelisk_version=$(bazel version | grep 'Bazelisk' | cut -d ' ' -f 3)
+fi
+
 echo "Checking if Bazelisk ${BAZELISK_VERSION} needs to be installed..."
-if [[ $(command -v bazel) && "$(bazel version | grep 'Bazelisk' | cut -d ' ' -f 3)" = "${BAZELISK_VERSION}" ]]; then
-    echo "Bazelisk ${BAZELISK_VERSION} already installed, skipping."
+if [[ "${installed_bazelisk_version}" = "${BAZELISK_VERSION}" || "${installed_bazelisk_version}" = "development" ]]; then
+    echo "Bazelisk ${BAZELISK_VERSION} (or development) already installed, skipping."
 else
     BAZEL=$(command -v bazel)
     if [ -n "${BAZEL}" ] ; then
