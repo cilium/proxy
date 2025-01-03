@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -8,10 +10,11 @@
 #include "envoy/singleton/instance.h"
 
 #include "source/common/common/logger.h"
+#include "source/common/common/thread.h"
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "bpf.h"
+#include "cilium/bpf.h"
 
 namespace std {
 template <> class hash<const string> {
@@ -70,7 +73,7 @@ private:
 
   // All known conntrack maps. Populated with the "global" maps at startup,
   // further maps are opened and inserted on demand.
-  std::mutex maps_mutex_;
+  Thread::MutexBasicLockable maps_mutex_;
   absl::flat_hash_map<const std::string, std::unique_ptr<CtMaps4>> ct_maps4_;
   absl::flat_hash_map<const std::string, std::unique_ptr<CtMaps6>> ct_maps6_;
   std::string bpf_root_;

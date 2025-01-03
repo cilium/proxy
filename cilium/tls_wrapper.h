@@ -1,9 +1,16 @@
 #pragma once
 
+#include <string>
+#include <vector>
+
+#include "envoy/network/transport_socket.h"
 #include "envoy/registry/registry.h"
 #include "envoy/server/transport_socket_config.h"
-#include "envoy/stats/scope.h"
-#include "envoy/stats/stats_macros.h"
+#include "envoy/stats/stats_macros.h" // IWYU pragma: keep
+
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+
+#include "absl/status/statusor.h"
 
 namespace Envoy {
 namespace Cilium {

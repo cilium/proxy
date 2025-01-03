@@ -1,13 +1,18 @@
 #pragma once
 
-#include "envoy/config/grpc_mux.h"
+#include <chrono>
+#include <memory>
+#include <string>
+
+#include "envoy/common/random_generator.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
-#include "envoy/config/xds_resources_delegate.h"
 #include "envoy/event/dispatcher.h"
-#include "envoy/grpc/async_client.h"
 #include "envoy/local_info/local_info.h"
+#include "envoy/stats/scope.h"
 #include "envoy/upstream/cluster_manager.h"
 
+#include "source/extensions/config_subscription/grpc/grpc_mux_context.h"
 #include "source/extensions/config_subscription/grpc/grpc_mux_impl.h"
 #include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
 

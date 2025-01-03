@@ -1,17 +1,16 @@
 #pragma once
 
-#include <string>
+#include "envoy/buffer/buffer.h"
+#include "envoy/event/schedulable_cb.h"
+#include "envoy/http/header_map.h"
+#include "envoy/network/address.h"
+#include "envoy/network/filter.h"
+#include "envoy/stats/stats_macros.h" // IWYU pragma: keep
 
-#include "envoy/common/random_generator.h"
-#include "envoy/event/dispatcher.h"
-#include "envoy/event/timer.h"
-#include "envoy/server/filter_config.h"
-#include "envoy/stats/stats_macros.h"
-
-#include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
 
 #include "cilium/accesslog.h"
+#include "cilium/api/accesslog.pb.h"
 #include "cilium/websocket_codec.h"
 #include "cilium/websocket_config.h"
 

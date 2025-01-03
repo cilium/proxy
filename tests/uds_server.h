@@ -1,10 +1,13 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
+#include <memory>
 #include <string>
 
+#include "envoy/thread/thread.h"
+
 #include "source/common/common/logger.h"
-#include "source/common/common/thread.h"
 #include "source/common/network/address_impl.h"
 
 namespace Envoy {

@@ -1,7 +1,14 @@
 #include "cilium/bpf.h"
 
 #include <errno.h>
+#include <unistd.h>
 
+#include <cstdint>
+#include <fstream>
+#include <sstream>
+#include <string>
+
+#include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 
 #include "cilium/privileged_service_client.h"

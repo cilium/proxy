@@ -1,12 +1,12 @@
 #pragma once
 
-#include <atomic>
 #include <chrono>
 #include <string>
 #include <vector>
 
 #include "test/test_common/utility.h"
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "cilium/api/accesslog.pb.h"

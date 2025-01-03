@@ -1,14 +1,16 @@
-#include <cstdint>
+#include <memory>
 
 #include "envoy/http/protocol.h"
 
 #include "source/common/network/address_impl.h"
 
 #include "test/mocks/network/connection.h"
-#include "test/mocks/stream_info/mocks.h"
+#include "test/mocks/upstream/cluster_info.h"
+#include "test/test_common/simulated_time_system.h"
 #include "test/test_common/utility.h"
 
 #include "cilium/accesslog.h"
+#include "cilium/api/accesslog.pb.h"
 #include "gtest/gtest.h"
 
 namespace Envoy {
