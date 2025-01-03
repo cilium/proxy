@@ -71,6 +71,7 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "//cilium:conntrack_lib",
+        "//cilium:network_policy_lib",
         "@envoy//envoy/network:listen_socket_interface",
         "@envoy//source/common/common:logger_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",

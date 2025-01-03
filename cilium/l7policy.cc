@@ -13,7 +13,6 @@
 #include "source/extensions/filters/http/common/factory_base.h"
 
 #include "cilium/api/l7policy.pb.validate.h"
-#include "cilium/network_policy.h"
 #include "cilium/socket_option.h"
 
 namespace Envoy {
