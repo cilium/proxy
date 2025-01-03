@@ -44,3 +44,6 @@
 /proxylib/_obj*
 
 /BUILD_DEP_HASHES
+
+# clangd compilation database
+/compile_commands.json
