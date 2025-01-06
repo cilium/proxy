@@ -89,7 +89,7 @@ jobs:
           build-args: |
             BUILDER_BASE=quay.io/cilium/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
-            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+            BAZEL_BUILD_OPTS="--remote_upload_local_results=false --extra_toolchains='//bazel/toolchains:all'"
           cache-from: type=local,src=/tmp/buildx-cache
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: true
