@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - main
-  pull_request_target:
+  pull_request:
     types:
       - opened
       - reopened
@@ -79,8 +79,8 @@ jobs:
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
         with:
           version: ${{ env.KIND_VERSION }}
-          config: '.github/kind-config.yaml'
-          cluster_name: 'kind'
+          config: ".github/kind-config.yaml"
+          cluster_name: "kind"
 
       - name: Patch Cilium Agent Dockerfile
         shell: bash
@@ -166,7 +166,6 @@ jobs:
         if: failure()
         shell: bash
         run: cilium sysdump --output-filename cilium-integration-test-sysdump
-
 
       - name: Upload Cilium system dump
         if: failure()
