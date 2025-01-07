@@ -22,6 +22,8 @@
 /cilium-envoy-starter
 /Dockerfile.builder-refresh
 
+/*\.dockerignore
+
 # Emacs backup files
 *~
 
