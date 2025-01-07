@@ -1,4 +1,3 @@
-#include <bits/basic_string.h>
 #include <fmt/base.h>
 #include <fmt/format.h>
 #include <gtest/gtest-param-test.h>
@@ -290,7 +289,7 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   // Masked frames
   ASSERT_EQ(buf.length(), 0);
-  auto msg = "heello there\r\n"s;
+  auto msg = std::string{"heello there\r\n"};
   unsigned char mask[4] = {0x12, 0x34, 0x56, 0x78};
   auto masked = msg;
   for (size_t i = 0; i < msg.length(); i++) {
@@ -318,7 +317,7 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   // 2nd masked frame
   ASSERT_EQ(buf.length(), 0);
-  auto msg2 = "hello there\r\n"s;
+  auto msg2 = std::string{"hello there\r\n"};
   unsigned char mask2[4] = {0x90, 0xab, 0xcd, 0xef};
   auto masked2 = msg2;
   for (size_t i = 0; i < msg2.length(); i++) {

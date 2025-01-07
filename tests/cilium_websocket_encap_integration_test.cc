@@ -1,4 +1,3 @@
-#include <bits/basic_string.h>
 #include <fmt/base.h>
 #include <fmt/format.h>
 #include <gtest/gtest-param-test.h>
@@ -392,7 +391,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_EQ(received_data.substr(frame_offset, 16 * 1024), data.substr(16 * 1024, 16 * 1024));
 
   // writing data in one large chunk
-  ASSERT_TRUE(fake_upstream_connection->write("\x82\x7e\x80\x00"s));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x7e\x80\x00"}));
   ASSERT_TRUE(fake_upstream_connection->write(data));
   tcp_client->waitForData(data);
   tcp_client->close();
@@ -448,7 +447,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
 
   // writing data in one large chunk
 
-  ASSERT_TRUE(fake_upstream_connection->write("\x82\x7f\x03\x20\0\0"s));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x7f\x03\x20\0\0"}));
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
 
   test_server_->waitForCounterGe("cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
