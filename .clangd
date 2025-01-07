@@ -8,6 +8,7 @@ Diagnostics:
     IgnoreHeader:
       - "linux/in\\.h"
       - "linux/in6\\.h"
+      - "bits/basic_string\\.h"
 # CompileFlags:
 #   CompilationDatabase: ./compile_commands.json
 #   # Unfortunately, above config isn't working as expected.
