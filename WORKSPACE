@@ -1,7 +1,5 @@
 workspace(name = "cilium")
 
-register_toolchains("//bazel/toolchains:all")
-
 ENVOY_PROJECT = "envoyproxy"
 
 ENVOY_REPO = "envoy"
