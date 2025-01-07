@@ -24,7 +24,6 @@
 #include "absl/numeric/int128.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "cilium/conntrack.h"
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 #include "cilium/privileged_service_client.h"
