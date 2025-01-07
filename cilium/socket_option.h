@@ -1,8 +1,6 @@
 #pragma once
 
 #include <asm-generic/socket.h>
-#include <linux/in.h>
-#include <linux/in6.h>
 #include <netinet/in.h>
 
 #include <cerrno>
