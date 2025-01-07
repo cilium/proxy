@@ -77,6 +77,9 @@ define add_clang_apt_source
 endef
 
 ifdef PKG_BUILD
+  $(info Registering C++ toolchains via BAZEL_BUILD_OPTS)
+  BAZEL_BUILD_OPTS += --extra_toolchains=//bazel/toolchains:all
+
   all: cilium-envoy-starter cilium-envoy
 
   .PHONY: install-bazelisk
@@ -87,6 +90,8 @@ ifdef PKG_BUILD
 	echo "Clang assumed to be installed in the builder image"
   endef
 else
+  $(info Skip registering C++ toolchains via BAZEL_BUILD_OPTS. Local C++ toolchain needs to be available!)
+
   all: precheck cilium-envoy-starter cilium-envoy
 
   include Makefile.docker
