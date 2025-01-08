@@ -472,7 +472,7 @@ void Codec::startPingTimer() {
           StringUtil::itoa(count_buffer, StringUtil::MIN_ITOA_OUT_LEN, ++ping_count_);
       if (ping(count_buffer, count_len)) {
         ENVOY_CONN_LOG(trace, "Injected websocket PING {}", connection_, ping_count_);
-        // Randomize ping inverval with jitter when idle
+        // Randomize ping interval with jitter when idle
         if (ping_timer_ != nullptr) {
           uint64_t interval_ms = config->ping_interval_.count();
           const uint64_t jitter_percent_mod = ping_interval_jitter_percent_ * interval_ms / 100;
