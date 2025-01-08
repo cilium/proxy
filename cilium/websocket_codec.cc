@@ -1,9 +1,12 @@
 #include "cilium/websocket_codec.h"
 
+#include <endian.h>
 #include <fmt/format.h>
 #include <http_parser.h>
 #include <sys/types.h>
 
+#include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>

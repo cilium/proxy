@@ -16,7 +16,6 @@
 #include "cilium/accesslog.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/network_filter.pb.h"
-#include "cilium/network_policy.h"
 #include "cilium/proxylib.h"
 
 namespace Envoy {
