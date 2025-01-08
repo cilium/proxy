@@ -28,7 +28,7 @@
 #include "absl/strings/string_view.h"
 #include "cilium/api/tls_wrapper.pb.h"
 #include "cilium/network_policy.h"
-#include "cilium/socket_option.h"
+#include "cilium/socket_option_bpf_metadata.h"
 
 namespace Envoy {
 namespace Cilium {

@@ -42,7 +42,8 @@
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
-#include "cilium/socket_option.h"
+#include "cilium/socket_option_bpf_metadata.h"
+#include "cilium/socket_option_cilium_mark.h"
 
 namespace Envoy {
 namespace Server {
