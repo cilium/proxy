@@ -42,8 +42,9 @@
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
-#include "cilium/socket_option_bpf_metadata.h"
 #include "cilium/socket_option_cilium_mark.h"
+#include "socket_option_ip_transparent.h"
+#include "socket_option_reuse_addr.h"
 
 namespace Envoy {
 namespace Server {
@@ -74,6 +75,8 @@ public:
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark, 0));
+    options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
+    options->push_back(std::make_shared<Cilium::ReuseAddrSocketOption>());
     context.addListenSocketOptions(options);
 
     return [listener_filter_matcher,
@@ -121,6 +124,8 @@ public:
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark, 0));
+    options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
+    options->push_back(std::make_shared<Cilium::ReuseAddrSocketOption>());
     context.addListenSocketOptions(options);
 
     return [config](Network::UdpListenerFilterManager& udp_listener_filter_manager,
@@ -350,8 +355,8 @@ const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) 
   return policy;
 }
 
-Cilium::BpfMetadataSocketOptionSharedPtr
-Config::getBpfMetadataSocketOption(Network::ConnectionSocket& socket) {
+Cilium::BpfMetadata::SocketInformationSharedPtr
+Config::extractSocketInformation(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr src_address =
       socket.connectionInfoProvider().remoteAddress();
   const auto sip = src_address->ip();
@@ -507,34 +512,44 @@ Config::getBpfMetadataSocketOption(Network::ConnectionSocket& socket) {
     ENVOY_LOG(info, "cilium.bpf_metadata: setRequestedApplicationProtocols(..., {})", l7proto);
   }
 
-  // // Pass the metadata to an Envoy socket option we can retrieve later in other
-  // // Cilium filters.
-  // uint32_t mark = 0;
-  //
-  // if (is_l7lb_ && use_original_source_address_ /* E/W L7LB */) {
-  //   // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
-  //   // processed by the the source endpoint's policy enforcement in the datapath.
-  //   mark = 0x0900 | policy->getEndpointID() << 16;
-  // } else {
-  //   // Mark with source identity
-  //   uint32_t cluster_id = (source_identity >> 16) & 0xFF;
-  //   uint32_t identity_id = (source_identity & 0xFFFF) << 16;
-  //   mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
-  // }
-  return std::make_shared<Cilium::BpfMetadataSocketOption>(
+  // Pass the metadata to an Envoy socket option we can retrieve later in other
+  // Cilium filters.
+  uint32_t mark = 0;
+
+  if (is_l7lb_ && use_original_source_address_ /* E/W L7LB */) {
+    // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
+    // processed by the the source endpoint's policy enforcement in the datapath.
+    mark = 0x0900 | policy->getEndpointID() << 16;
+  } else {
+    // Mark with source identity
+    uint32_t cluster_id = (source_identity >> 16) & 0xFF;
+    uint32_t identity_id = (source_identity & 0xFFFF) << 16;
+    mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
+  }
+  return std::make_shared<Cilium::BpfMetadata::SocketInformation>(
       ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
-      std::move(pod_ip), weak_from_this(), proxy_id_, sni);
+      std::move(pod_ip), weak_from_this(), proxy_id_, sni, mark, src_address,
+      source_addresses.ipv4_, source_addresses.ipv6_);
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   Network::ConnectionSocket& socket = cb.socket();
+
   // Cilium socket option is not set if this fails, which causes 500 response from our l7policy
   // filter. Our integration tests depend on this.
-  auto bpf_metadata_socket_option = config_->getBpfMetadataSocketOption(socket);
-  if (bpf_metadata_socket_option) {
+  auto socket_information = config_->extractSocketInformation(socket);
+
+  if (socket_information) {
+    socket.addOption(socket_information->buildSourceAddressSocketOption());
+    socket.addOption(socket_information->buildIPTransparentSocketOption());
+    socket.addOption(socket_information->buildReuseAddrSocketOption());
+    socket.addOption(socket_information->buildReusePortSocketOption());
+    socket.addOption(socket_information->buildCiliumMarkSocketOption());
+
+    auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
     socket.addOption(bpf_metadata_socket_option);
 
-    // Make Cilium policy available to upstream filters when L7 LB
+    // Make Cilium BPF metadata (including policy) available to upstream filters when L7 LB
     if (config_->is_l7lb_) {
       StreamInfo::FilterState& filter_state = cb.filterState();
       auto has_options = filter_state.hasData<Network::UpstreamSocketOptionsFilterState>(
@@ -557,9 +572,8 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   }
 
   // Set socket options for linger and keepalive (5 minutes).
-  struct ::linger lin{
-      true,
-      10,
+  struct ::linger lin {
+    true, 10,
   };
   int keepalive = true;
   int secs = 5 * 60; // Five minutes
