@@ -19,8 +19,6 @@
 #include "gtest/gtest.h"
 #include "tests/health_check_sink_server.h"
 
-using testing::SaveArg;
-
 namespace Envoy {
 namespace Cilium {
 
