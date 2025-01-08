@@ -4,6 +4,28 @@
 
 #include "cilium/privileged_service_client.h"
 
+#include <asm-generic/socket.h>
+#include <linux/capability.h>
+#include <linux/limits.h>
+#include <pthread.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <cerrno>
+#include <climits>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <string>
+
+#include "envoy/api/os_sys_calls_common.h"
+
+#include "source/common/common/assert.h"
+#include "source/common/common/logger.h"
+
+#include "starter/privileged_service_protocol.h"
+
 namespace Envoy {
 namespace Cilium {
 namespace PrivilegedService {
