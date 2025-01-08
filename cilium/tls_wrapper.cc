@@ -49,7 +49,7 @@ public:
   void setTransportSocketCallbacks(Network::TransportSocketCallbacks& callbacks) override {
     // Get the Cilium socket option from the callbacks in order to get the TLS
     // configuration
-    // Cilium socket option is only created if the (intial) policy for the local pod exists.
+    // Cilium socket option is only created if the (initial) policy for the local pod exists.
     // If the policy requires TLS then a TLS socket is used, but if the policy does not require
     // TLS a raw socket is used instead,
     const auto option = Cilium::GetSocketOption(callbacks.connection().socketOptions());
