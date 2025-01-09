@@ -31,7 +31,6 @@
 #include "cilium/host_map.h"
 #include "cilium/network_policy.h"
 #include "cilium/secret_watcher.h"
-#include "cilium/socket_option.h"
 #include "fmt/printf.h"
 #include "tests/bpf_metadata.pb.h"
 #include "tests/bpf_metadata.pb.validate.h" // IWYU pragma: keep
@@ -157,7 +156,8 @@ TestConfig::~TestConfig() {
   npmap.reset();
 }
 
-Cilium::SocketOptionSharedPtr TestConfig::getMetadata(Network::ConnectionSocket& socket) {
+Cilium::BpfMetadata::SocketInformationSharedPtr
+TestConfig::extractSocketInformation(Network::ConnectionSocket& socket) {
   // fake setting the local address. It remains the same as required by the test
   // infra, but it will be marked as restored as required by the original_dst
   // cluster.
@@ -206,9 +206,9 @@ Cilium::SocketOptionSharedPtr TestConfig::getMetadata(Network::ConnectionSocket&
     ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
   }
 
-  return std::make_shared<Cilium::SocketOption>(0, 0, source_identity, is_ingress_, is_l7lb_, port,
-                                                std::move(pod_ip), nullptr, nullptr, nullptr,
-                                                shared_from_this(), 0, "");
+  return std::make_shared<Cilium::BpfMetadata::SocketInformation>(
+      0, source_identity, is_ingress_, is_l7lb_, port, std::move(pod_ip), shared_from_this(), 0, "",
+      0, nullptr, nullptr, nullptr);
 }
 
 } // namespace BpfMetadata

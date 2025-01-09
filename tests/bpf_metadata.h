@@ -12,7 +12,6 @@
 #include "cilium/bpf_metadata.h"
 #include "cilium/host_map.h"
 #include "cilium/network_policy.h"
-#include "cilium/socket_option.h"
 #include "tests/bpf_metadata.pb.h"
 
 namespace Envoy {
@@ -38,7 +37,10 @@ public:
              Server::Configuration::ListenerFactoryContext& context);
   ~TestConfig();
 
-  Cilium::SocketOptionSharedPtr getMetadata(Network::ConnectionSocket& socket) override;
+  Cilium::BpfMetadata::SocketInformationSharedPtr
+  extractSocketInformation(Network::ConnectionSocket& socket) override;
+
+  bool addPrivilegedSocketOptions() override { return false; };
 };
 
 } // namespace BpfMetadata

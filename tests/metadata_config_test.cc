@@ -35,7 +35,7 @@
 #include "absl/strings/string_view.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/bpf_metadata.h"
-#include "cilium/socket_option.h"
+#include "cilium/socket_option_bpf_metadata.h"
 #include "gtest/gtest.h"
 #include "tests/bpf_metadata.h"
 
@@ -278,25 +278,38 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_information = config_->extractSocketInformation(socket_);
+  EXPECT_NE(nullptr, socket_information);
 
-  const auto option = Cilium::GetSocketOption(socket_.options());
-  EXPECT_NE(nullptr, option);
+  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
+  EXPECT_NE(nullptr, bpf_metadata_socket_option);
+  socket_.addOption(bpf_metadata_socket_option);
 
-  EXPECT_EQ(8, option->identity_);
-  EXPECT_EQ(false, option->ingress_);
-  EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
-  EXPECT_EQ(80, option->port_);
-  EXPECT_EQ("10.1.1.42", option->pod_ip_);
-  EXPECT_EQ(0, option->ingress_source_identity_);
+  const auto bpf_metadata_socket_option_retrieved =
+      Cilium::GetBpfMetadataSocketOption(socket_.options());
+  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
+
+  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.42", bpf_metadata_socket_option_retrieved->pod_ip_);
+  EXPECT_EQ(0, bpf_metadata_socket_option_retrieved->ingress_source_identity_);
+
+  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option_built);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
+
+  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option_built);
+
+  EXPECT_EQ(8, cilium_mark_socket_option_built->identity_);
 
   // Check that Ingress security ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+  EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option_built->mark_ >> 16) == 8);
 }
 
 TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
@@ -310,29 +323,41 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   config.set_enforce_policy_on_l7lb(true);
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_information = config_->extractSocketInformation(socket_);
+  EXPECT_NE(nullptr, socket_information);
 
-  const auto option = Cilium::GetSocketOption(socket_.options());
-  EXPECT_NE(nullptr, option);
+  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
+  EXPECT_NE(nullptr, bpf_metadata_socket_option);
+  socket_.addOption(bpf_metadata_socket_option);
 
-  EXPECT_EQ(8, option->identity_);
-  EXPECT_EQ(false, option->ingress_);
-  EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
-  EXPECT_EQ(80, option->port_);
-  EXPECT_EQ("10.1.1.42", option->pod_ip_);
-  EXPECT_EQ(12345678, option->ingress_source_identity_);
+  const auto bpf_metadata_socket_option_retrieved =
+      Cilium::GetBpfMetadataSocketOption(socket_.options());
+  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
 
-  // Check that Ingress security ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.42", bpf_metadata_socket_option_retrieved->pod_ip_);
+  EXPECT_EQ(12345678, bpf_metadata_socket_option_retrieved->ingress_source_identity_);
 
   // Expect policy accepts security ID 12345678 on ingress on port 80
-  auto port_policy = option->getPolicy()->findPortPolicy(true, 80);
+  auto port_policy = bpf_metadata_socket_option_retrieved->getPolicy()->findPortPolicy(true, 80);
   EXPECT_TRUE(port_policy.allowed(12345678, ""));
+
+  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option_built);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
+
+  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option_built);
+
+  EXPECT_EQ(8, cilium_mark_socket_option_built->identity_);
+  // Check that Ingress security ID is used in the socket mark
+  EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option_built->mark_ >> 16) == 8);
 }
 
 TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
@@ -346,29 +371,41 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   config.set_enforce_policy_on_l7lb(true);
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_information = config_->extractSocketInformation(socket_);
+  EXPECT_NE(nullptr, socket_information);
 
-  const auto option = Cilium::GetSocketOption(socket_.options());
-  EXPECT_NE(nullptr, option);
+  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
+  EXPECT_NE(nullptr, bpf_metadata_socket_option);
+  socket_.addOption(bpf_metadata_socket_option);
 
-  EXPECT_EQ(8, option->identity_);
-  EXPECT_EQ(false, option->ingress_);
-  EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
-  EXPECT_EQ(80, option->port_);
-  EXPECT_EQ("10.1.1.42", option->pod_ip_);
-  EXPECT_EQ(2, option->ingress_source_identity_);
+  const auto bpf_metadata_socket_option_retrieved =
+      Cilium::GetBpfMetadataSocketOption(socket_.options());
+  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
 
-  // Check that Ingress security ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.42", bpf_metadata_socket_option_retrieved->pod_ip_);
+  EXPECT_EQ(2, bpf_metadata_socket_option_retrieved->ingress_source_identity_);
 
   // Expect policy does not accept security ID 2 on ingress on port 80
-  auto port_policy = option->getPolicy()->findPortPolicy(true, 80);
+  auto port_policy = bpf_metadata_socket_option_retrieved->getPolicy()->findPortPolicy(true, 80);
   EXPECT_FALSE(port_policy.allowed(2, ""));
+
+  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option_built);
+
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
+  EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
+
+  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option_built);
+
+  EXPECT_EQ(8, cilium_mark_socket_option_built->identity_);
+  // Check that Ingress security ID is used in the socket mark
+  EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option_built->mark_ >> 16) == 8);
 }
 
 // Use external remote address, but config says to use original source address
@@ -383,11 +420,12 @@ TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_EQ(nullptr, socket_option);
+  auto socket_information = config_->extractSocketInformation(socket_);
+  EXPECT_EQ(nullptr, socket_information);
 
-  const auto option = Cilium::GetSocketOption(socket_.options());
-  EXPECT_EQ(nullptr, option);
+  const auto bpf_metadata_socket_option_retrieved =
+      Cilium::GetBpfMetadataSocketOption(socket_.options());
+  EXPECT_EQ(nullptr, bpf_metadata_socket_option_retrieved);
 }
 
 TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
@@ -399,24 +437,38 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_information = config_->extractSocketInformation(socket_);
+  EXPECT_NE(nullptr, socket_information);
 
-  const auto option = Cilium::GetSocketOption(socket_.options());
-  EXPECT_NE(nullptr, option);
+  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
+  EXPECT_NE(nullptr, bpf_metadata_socket_option);
+  socket_.addOption(bpf_metadata_socket_option);
 
-  EXPECT_EQ(111, option->identity_);
-  EXPECT_EQ(false, option->ingress_);
-  EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.1:41234", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::1:1:1]:41234", option->ipv6_source_address_->asString());
-  EXPECT_EQ(80, option->port_);
-  EXPECT_EQ("10.1.1.1", option->pod_ip_);
+  const auto bpf_metadata_socket_option_retrieved =
+      Cilium::GetBpfMetadataSocketOption(socket_.options());
+  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
 
+  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.1", bpf_metadata_socket_option_retrieved->pod_ip_);
+
+  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option_built);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
+  EXPECT_EQ("10.1.1.1:41234",
+            source_addresses_socket_option_built->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::1:1:1]:41234",
+            source_addresses_socket_option_built->ipv6_source_address_->asString());
+
+  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option_built);
+
+  EXPECT_EQ(111, cilium_mark_socket_option_built->identity_);
   // Check that Endpoint's ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0900 && (option->mark_ >> 16) == 2048);
+  EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0900 &&
+              (cilium_mark_socket_option_built->mark_ >> 16) == 2048);
 }
 
 // When original source is not configured to be used, east/west traffic takes the north/south path
@@ -428,25 +480,37 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_information = config_->extractSocketInformation(socket_);
+  EXPECT_NE(nullptr, socket_information);
 
-  const auto option = Cilium::GetSocketOption(socket_.options());
-  EXPECT_NE(nullptr, option);
+  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
+  EXPECT_NE(nullptr, bpf_metadata_socket_option);
+  socket_.addOption(bpf_metadata_socket_option);
 
-  EXPECT_EQ(8, option->identity_);
-  EXPECT_EQ(false, option->ingress_);
-  EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
-  EXPECT_EQ(80, option->port_);
-  EXPECT_EQ("10.1.1.42", option->pod_ip_);
-  EXPECT_EQ(0, option->ingress_source_identity_);
+  const auto bpf_metadata_socket_option_retrieved =
+      Cilium::GetBpfMetadataSocketOption(socket_.options());
+  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
 
+  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.42", bpf_metadata_socket_option_retrieved->pod_ip_);
+  EXPECT_EQ(0, bpf_metadata_socket_option_retrieved->ingress_source_identity_);
+
+  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option_built);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
+
+  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option_built);
+
+  EXPECT_EQ(8, cilium_mark_socket_option_built->identity_);
   // Check that Ingress ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+  EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option_built->mark_ >> 16) == 8);
 }
 
 } // namespace
