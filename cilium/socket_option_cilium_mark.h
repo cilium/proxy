@@ -22,12 +22,10 @@ namespace Cilium {
 class CiliumMarkSocketOption : public Network::Socket::Option,
                                public Logger::Loggable<Logger::Id::filter> {
 public:
-  CiliumMarkSocketOption(uint32_t mark, uint32_t identity) : identity_(identity), mark_(mark) {
+  CiliumMarkSocketOption(uint32_t mark) : mark_(mark) {
     ENVOY_LOG(debug,
-              "Cilium CiliumMarkSocketOption(): identity: {}, "
-              "mark: {:x} (magic "
-              "mark: {:x}, cluster: {}, ID: {})",
-              identity_, mark_, mark & 0xff00, mark & 0xff, mark >> 16);
+              "Cilium CiliumMarkSocketOption(): mark: {:x} (magic mark: {:x}, cluster: {}, ID: {})",
+              mark_, mark & 0xff00, mark & 0xff, mark >> 16);
   }
 
   absl::optional<Network::Socket::Option::Details>
@@ -71,17 +69,10 @@ public:
     return true;
   }
 
-  void hashKey(std::vector<uint8_t>& key) const override {
-    // Add the source identity to the hash key. This will separate upstream
-    // connection pools per security ID.
-    key.emplace_back(uint8_t(identity_ >> 16));
-    key.emplace_back(uint8_t(identity_ >> 8));
-    key.emplace_back(uint8_t(identity_));
-  }
+  void hashKey([[maybe_unused]] std::vector<uint8_t>& key) const override {}
 
   bool isSupported() const override { return true; }
 
-  uint32_t identity_;
   uint32_t mark_;
 };
 

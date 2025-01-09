@@ -26,14 +26,17 @@ class SourceAddressSocketOption : public Network::Socket::Option,
                                   public Logger::Loggable<Logger::Id::filter> {
 public:
   SourceAddressSocketOption(
+      uint32_t source_identity,
       Network::Address::InstanceConstSharedPtr original_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv4_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv6_source_address = nullptr)
-      : original_source_address_(std::move(original_source_address)),
+      : source_identity_(source_identity),
+        original_source_address_(std::move(original_source_address)),
         ipv4_source_address_(std::move(ipv4_source_address)),
         ipv6_source_address_(std::move(ipv6_source_address)) {
-    ENVOY_LOG(debug, "Cilium SourceAddressSocketOption(): source_addresses: {}/{}/{}",
-              original_source_address_ ? original_source_address_->asString() : "",
+    ENVOY_LOG(debug,
+              "Cilium SourceAddressSocketOption(): source_identity: {}, source_addresses: {}/{}/{}",
+              source_identity, original_source_address_ ? original_source_address_->asString() : "",
               ipv4_source_address_ ? ipv4_source_address_->asString() : "",
               ipv6_source_address_ ? ipv6_source_address_->asString() : "");
   }
@@ -107,12 +110,23 @@ public:
         key.emplace_back(uint8_t(port >> 8));
         key.emplace_back(uint8_t(port));
       }
-      ENVOY_LOG(trace, "hashKey after Cilium: {}, source: {}", Hex::encode(key),
-                original_source_address_->asString());
+      ENVOY_LOG(trace,
+                "hashKey after with original source address: {}, original_source_address: {}",
+                Hex::encode(key), original_source_address_->asString());
+    } else {
+      // Add the source identity to the hash key. This will separate upstream
+      // connection pools per security ID.
+      key.emplace_back(uint8_t(source_identity_ >> 16));
+      key.emplace_back(uint8_t(source_identity_ >> 8));
+      key.emplace_back(uint8_t(source_identity_));
+      ENVOY_LOG(trace, "hashKey with source identity: {}, source_identity: {}", Hex::encode(key),
+                source_identity_);
     }
   }
 
   bool isSupported() const override { return true; }
+
+  uint32_t source_identity_;
 
   Network::Address::InstanceConstSharedPtr original_source_address_;
   // Version specific source addresses are only used if original source address is not used.

@@ -298,14 +298,13 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
+  EXPECT_EQ(8, source_addresses_socket_option_built->source_identity_);
   EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
   EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
 
   auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
-
-  EXPECT_EQ(8, cilium_mark_socket_option_built->identity_);
 
   // Check that Ingress security ID is used in the socket mark
   EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0B00 &&
@@ -347,6 +346,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
+  EXPECT_EQ(8, source_addresses_socket_option_built->source_identity_);
   EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
   EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
@@ -354,7 +354,6 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
 
-  EXPECT_EQ(8, cilium_mark_socket_option_built->identity_);
   // Check that Ingress security ID is used in the socket mark
   EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0B00 &&
               (cilium_mark_socket_option_built->mark_ >> 16) == 8);
@@ -395,6 +394,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
+  EXPECT_EQ(8, source_addresses_socket_option_built->source_identity_);
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
   EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
   EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
@@ -402,7 +402,6 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
 
-  EXPECT_EQ(8, cilium_mark_socket_option_built->identity_);
   // Check that Ingress security ID is used in the socket mark
   EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0B00 &&
               (cilium_mark_socket_option_built->mark_ >> 16) == 8);
@@ -456,6 +455,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
+  EXPECT_EQ(111, source_addresses_socket_option_built->source_identity_);
   EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
   EXPECT_EQ("10.1.1.1:41234",
             source_addresses_socket_option_built->ipv4_source_address_->asString());
@@ -465,7 +465,6 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
 
-  EXPECT_EQ(111, cilium_mark_socket_option_built->identity_);
   // Check that Endpoint's ID is used in the socket mark
   EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0900 &&
               (cilium_mark_socket_option_built->mark_ >> 16) == 2048);
@@ -500,6 +499,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
+  EXPECT_EQ(8, source_addresses_socket_option_built->source_identity_);
   EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
   EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
@@ -507,7 +507,6 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
 
-  EXPECT_EQ(8, cilium_mark_socket_option_built->identity_);
   // Check that Ingress ID is used in the socket mark
   EXPECT_TRUE((cilium_mark_socket_option_built->mark_ & 0xffff) == 0x0B00 &&
               (cilium_mark_socket_option_built->mark_ >> 16) == 8);

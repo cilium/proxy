@@ -54,12 +54,12 @@ struct SocketInformation {
   };
 
   std::shared_ptr<Envoy::Cilium::CiliumMarkSocketOption> buildCiliumMarkSocketOption() {
-    return std::make_shared<Envoy::Cilium::CiliumMarkSocketOption>(mark_, source_identity_);
+    return std::make_shared<Envoy::Cilium::CiliumMarkSocketOption>(mark_);
   };
 
   std::shared_ptr<Envoy::Cilium::SourceAddressSocketOption> buildSourceAddressSocketOption() {
     return std::make_shared<Envoy::Cilium::SourceAddressSocketOption>(
-        original_source_address_, source_address_ipv4_, source_address_ipv6_);
+        source_identity_, original_source_address_, source_address_ipv4_, source_address_ipv6_);
   };
 
   std::shared_ptr<Envoy::Cilium::IpTransparentSocketOption> buildIPTransparentSocketOption() {
