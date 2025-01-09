@@ -23,9 +23,6 @@
 #include "cilium/network_policy.h"
 #include "cilium/socket_option_bpf_metadata.h"
 #include "socket_option_cilium_mark.h"
-#include "socket_option_ip_transparent.h"
-#include "socket_option_reuse_addr.h"
-#include "socket_option_reuse_port.h"
 #include "socket_option_source_address.h"
 
 namespace Envoy {
@@ -60,18 +57,6 @@ struct SocketInformation {
   std::shared_ptr<Envoy::Cilium::SourceAddressSocketOption> buildSourceAddressSocketOption() {
     return std::make_shared<Envoy::Cilium::SourceAddressSocketOption>(
         source_identity_, original_source_address_, source_address_ipv4_, source_address_ipv6_);
-  };
-
-  std::shared_ptr<Envoy::Cilium::IpTransparentSocketOption> buildIPTransparentSocketOption() {
-    return std::make_shared<Envoy::Cilium::IpTransparentSocketOption>();
-  };
-
-  std::shared_ptr<Envoy::Cilium::ReuseAddrSocketOption> buildReuseAddrSocketOption() {
-    return std::make_shared<Envoy::Cilium::ReuseAddrSocketOption>();
-  };
-
-  std::shared_ptr<Envoy::Cilium::ReusePortSocketOption> buildReusePortSocketOption() {
-    return std::make_shared<Envoy::Cilium::ReusePortSocketOption>();
   };
 
   // Additional ingress policy enforcement is performed if ingress_source_identity is non-zero
@@ -114,6 +99,7 @@ public:
   virtual Cilium::BpfMetadata::SocketInformationSharedPtr
   extractSocketInformation(Network::ConnectionSocket& socket);
 
+  // overridden by test config (tests fail due to missing capabilities)
   virtual bool addPrivilegedSocketOptions() { return true; };
 
   uint32_t proxy_id_;

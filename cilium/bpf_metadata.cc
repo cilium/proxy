@@ -43,6 +43,7 @@
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 #include "cilium/socket_option_cilium_mark.h"
+#include "cilium/socket_option_reuse_port.h"
 #include "socket_option_ip_transparent.h"
 #include "socket_option_reuse_addr.h"
 
@@ -77,6 +78,7 @@ public:
     options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark));
     options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
     options->push_back(std::make_shared<Cilium::ReuseAddrSocketOption>());
+    // reuseport for the listener socket is set via Envoy config
     context.addListenSocketOptions(options);
 
     return [listener_filter_matcher,
@@ -126,6 +128,7 @@ public:
     options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark));
     options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
     options->push_back(std::make_shared<Cilium::ReuseAddrSocketOption>());
+    // reuseport for the listener socket is set via Envoy config
     context.addListenSocketOptions(options);
 
     return [config](Network::UdpListenerFilterManager& udp_listener_filter_manager,
@@ -541,12 +544,8 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
 
   if (socket_information) {
     socket.addOption(socket_information->buildSourceAddressSocketOption());
-    socket.addOption(socket_information->buildReuseAddrSocketOption());
-    socket.addOption(socket_information->buildReusePortSocketOption());
 
-    // test config makes use of this (they fail due to missing capabilities)
     if (config_->addPrivilegedSocketOptions()) {
-      socket.addOption(socket_information->buildIPTransparentSocketOption());
       socket.addOption(socket_information->buildCiliumMarkSocketOption());
     }
 
@@ -574,6 +573,13 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
           ->addOption(std::move(options));
     }
   }
+
+  if (config_->addPrivilegedSocketOptions()) {
+    socket.addOption(std::make_shared<Envoy::Cilium::IpTransparentSocketOption>());
+  }
+
+  socket.addOption(std::make_shared<Envoy::Cilium::ReuseAddrSocketOption>());
+  socket.addOption(std::make_shared<Envoy::Cilium::ReusePortSocketOption>());
 
   // Set socket options for linger and keepalive (5 minutes).
   struct ::linger lin {
