@@ -73,9 +73,18 @@ public:
     return absl::nullopt;
   }
 
-  bool setOption(
-      [[maybe_unused]] Network::Socket& socket,
-      [[maybe_unused]] envoy::config::core::v3::SocketOption::SocketState state) const override {
+  bool setOption(Network::Socket& socket,
+                 envoy::config::core::v3::SocketOption::SocketState state) const override {
+
+    // Only set the option once per socket
+    if (state != envoy::config::core::v3::SocketOption::STATE_PREBIND) {
+      ENVOY_LOG(trace, "Skipping setting socket ({}) option BPF_METADATA ",
+                socket.ioHandle().fdDoNotUse());
+      return true;
+    }
+
+    ENVOY_LOG(trace, "Set socket ({}) option BPF_METADATA)", socket.ioHandle().fdDoNotUse());
+
     return true;
   }
 

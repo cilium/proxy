@@ -75,6 +75,9 @@ public:
       }
     }
 
+    ENVOY_LOG(trace, "Successfully set socket option {} on socket: {}",
+              ip_transparent_socket_option_name, socket.ioHandle().fdDoNotUse());
+
     return true;
   }
 

@@ -68,9 +68,15 @@ public:
       }
     }
 
-    if (source_address) {
-      socket.connectionInfoProvider().setLocalAddress(std::move(source_address));
+    if (!source_address) {
+      ENVOY_LOG(trace, "Skipping restore of local address on socket: {} - no source address",
+                socket.ioHandle().fdDoNotUse());
+      return true;
     }
+
+    socket.connectionInfoProvider().setLocalAddress(std::move(source_address));
+    ENVOY_LOG(trace, "Successfully restored local address on socket: {}",
+              socket.ioHandle().fdDoNotUse());
 
     return true;
   }

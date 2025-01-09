@@ -52,6 +52,9 @@ public:
       }
     }
 
+    ENVOY_LOG(trace, "Successfully set socket option SO_REUSEADDR on socket: {}",
+              socket.ioHandle().fdDoNotUse());
+
     return true;
   }
 
