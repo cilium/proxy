@@ -114,6 +114,8 @@ public:
   virtual Cilium::BpfMetadata::SocketInformationSharedPtr
   extractSocketInformation(Network::ConnectionSocket& socket);
 
+  virtual bool addPrivilegedSocketOptions() { return true; };
+
   uint32_t proxy_id_;
   bool is_ingress_;
   bool use_original_source_address_;

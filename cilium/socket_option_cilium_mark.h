@@ -38,8 +38,10 @@ public:
 
   bool setOption(Network::Socket& socket,
                  envoy::config::core::v3::SocketOption::SocketState state) const override {
-    // don't set option for mark 0 -> tests rely on this (they fail due to missing capabilities)
+    // don't set option for mark 0
     if (mark_ == 0) {
+      ENVOY_LOG(trace, "Skipping setting socket ({}) option SO_MARK, mark == 0",
+                socket.ioHandle().fdDoNotUse());
       return true;
     }
 

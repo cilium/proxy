@@ -541,10 +541,14 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
 
   if (socket_information) {
     socket.addOption(socket_information->buildSourceAddressSocketOption());
-    socket.addOption(socket_information->buildIPTransparentSocketOption());
     socket.addOption(socket_information->buildReuseAddrSocketOption());
     socket.addOption(socket_information->buildReusePortSocketOption());
-    socket.addOption(socket_information->buildCiliumMarkSocketOption());
+
+    // test config makes use of this (they fail due to missing capabilities)
+    if (config_->addPrivilegedSocketOptions()) {
+      socket.addOption(socket_information->buildIPTransparentSocketOption());
+      socket.addOption(socket_information->buildCiliumMarkSocketOption());
+    }
 
     auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
     socket.addOption(bpf_metadata_socket_option);
