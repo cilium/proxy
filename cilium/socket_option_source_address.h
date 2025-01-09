@@ -22,6 +22,11 @@
 namespace Envoy {
 namespace Cilium {
 
+// Socket Option that restores the local address of the socket with the relevant
+// source address which is either the original source address or a configured
+// source address (used for Ingress - N/S load balancing).
+// In addition its hashKey implementation is also responsible to introduct Envoy
+// to separate upstream connection pools per source address or source security ID.
 class SourceAddressSocketOption : public Network::Socket::Option,
                                   public Logger::Loggable<Logger::Id::filter> {
 public:

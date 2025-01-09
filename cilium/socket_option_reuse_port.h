@@ -18,6 +18,7 @@
 namespace Envoy {
 namespace Cilium {
 
+// Socket Option that programmatically sets the socket option SO_REUSEPORT on the socket.
 class ReusePortSocketOption : public Network::Socket::Option,
                               public Logger::Loggable<Logger::Id::filter> {
 public:

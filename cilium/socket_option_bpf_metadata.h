@@ -33,6 +33,8 @@ public:
   virtual const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const PURE;
 };
 
+// Socket Option that holds relevant connection & policy information that can be retrieved
+// by the Cilium network- and HTTP policy filters by using GetBpfMetadataSocketOption.
 class BpfMetadataSocketOption : public Network::Socket::Option,
                                 public Logger::Loggable<Logger::Id::filter> {
 public:

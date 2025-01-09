@@ -20,6 +20,9 @@
 namespace Envoy {
 namespace Cilium {
 
+// Socket Option that sets the socket option IP_TRANSPARENT (IPV6_TRANSPARENT) on the socket.
+// It uses the Cilium Privileged Service to call out to the starter process to do the actual
+// privileged syscall - as the Envoy process itself doesn't have the required capabilities.
 class IpTransparentSocketOption : public Network::Socket::Option,
                                   public Logger::Loggable<Logger::Id::filter> {
 public:

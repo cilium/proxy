@@ -19,6 +19,10 @@
 namespace Envoy {
 namespace Cilium {
 
+// Socket Option that sets the socket option SO_MARK on the socket.
+// The mark contains the Cilium magic mark, cluster and security identity.
+// It uses the Cilium Privileged Service to call out to the starter process to do the actual
+// privileged syscall - as the Envoy process itself doesn't have the required capabilities.
 class CiliumMarkSocketOption : public Network::Socket::Option,
                                public Logger::Loggable<Logger::Id::filter> {
 public:
