@@ -38,13 +38,6 @@ public:
 
   bool setOption(Network::Socket& socket,
                  envoy::config::core::v3::SocketOption::SocketState state) const override {
-    // don't set option for mark 0
-    if (mark_ == 0) {
-      ENVOY_LOG(trace, "Skipping setting socket ({}) option SO_MARK, mark == 0",
-                socket.ioHandle().fdDoNotUse());
-      return true;
-    }
-
     // Only set the option once per socket
     if (state != envoy::config::core::v3::SocketOption::STATE_PREBIND) {
       ENVOY_LOG(trace, "Skipping setting socket ({}) option SO_MARK, state != STATE_PREBIND",
@@ -79,11 +72,6 @@ public:
   }
 
   void hashKey(std::vector<uint8_t>& key) const override {
-    // don't calculate hash key for mark 0
-    if (mark_ == 0) {
-      return;
-    }
-
     // Add the source identity to the hash key. This will separate upstream
     // connection pools per security ID.
     key.emplace_back(uint8_t(identity_ >> 16));
