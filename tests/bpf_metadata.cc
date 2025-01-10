@@ -156,8 +156,8 @@ TestConfig::~TestConfig() {
   npmap.reset();
 }
 
-Cilium::BpfMetadata::SocketInformationSharedPtr
-TestConfig::extractSocketInformation(Network::ConnectionSocket& socket) {
+Cilium::BpfMetadata::SocketMetadataSharedPtr
+TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
   // fake setting the local address. It remains the same as required by the test
   // infra, but it will be marked as restored as required by the original_dst
   // cluster.
@@ -206,7 +206,7 @@ TestConfig::extractSocketInformation(Network::ConnectionSocket& socket) {
     ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
   }
 
-  return std::make_shared<Cilium::BpfMetadata::SocketInformation>(
+  return std::make_shared<Cilium::BpfMetadata::SocketMetadata>(
       0, source_identity, is_ingress_, is_l7lb_, port, std::move(pod_ip), shared_from_this(), 0, "",
       0, nullptr, nullptr, nullptr);
 }

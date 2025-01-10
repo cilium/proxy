@@ -358,8 +358,8 @@ const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) 
   return policy;
 }
 
-Cilium::BpfMetadata::SocketInformationSharedPtr
-Config::extractSocketInformation(Network::ConnectionSocket& socket) {
+Cilium::BpfMetadata::SocketMetadataSharedPtr
+Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr src_address =
       socket.connectionInfoProvider().remoteAddress();
   const auto sip = src_address->ip();
@@ -529,7 +529,7 @@ Config::extractSocketInformation(Network::ConnectionSocket& socket) {
     uint32_t identity_id = (source_identity & 0xFFFF) << 16;
     mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
   }
-  return std::make_shared<Cilium::BpfMetadata::SocketInformation>(
+  return std::make_shared<Cilium::BpfMetadata::SocketMetadata>(
       ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), weak_from_this(), proxy_id_, sni, mark, src_address,
       source_addresses.ipv4_, source_addresses.ipv6_);
@@ -540,16 +540,16 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
 
   // Cilium socket option is not set if this fails, which causes 500 response from our l7policy
   // filter. Our integration tests depend on this.
-  auto socket_information = config_->extractSocketInformation(socket);
+  auto socket_metadata = config_->extractSocketMetadata(socket);
 
-  if (socket_information) {
-    socket.addOption(socket_information->buildSourceAddressSocketOption());
+  if (socket_metadata) {
+    socket.addOption(socket_metadata->buildSourceAddressSocketOption());
 
     if (config_->addPrivilegedSocketOptions()) {
-      socket.addOption(socket_information->buildCiliumMarkSocketOption());
+      socket.addOption(socket_metadata->buildCiliumMarkSocketOption());
     }
 
-    auto cilium_policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+    auto cilium_policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
     socket.addOption(cilium_policy_socket_option);
 
     // Make Cilium BPF metadata (including policy) available to upstream filters when L7 LB

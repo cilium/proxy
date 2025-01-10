@@ -29,14 +29,14 @@ namespace Envoy {
 namespace Cilium {
 namespace BpfMetadata {
 
-struct SocketInformation {
-  SocketInformation(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
-                    bool l7lb, uint16_t port, std::string&& pod_ip,
-                    const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
-                    absl::string_view sni, uint32_t mark,
-                    Network::Address::InstanceConstSharedPtr original_source_address,
-                    Network::Address::InstanceConstSharedPtr source_address_ipv4,
-                    Network::Address::InstanceConstSharedPtr source_address_ipv6)
+struct SocketMetadata {
+  SocketMetadata(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
+                 bool l7lb, uint16_t port, std::string&& pod_ip,
+                 const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
+                 absl::string_view sni, uint32_t mark,
+                 Network::Address::InstanceConstSharedPtr original_source_address,
+                 Network::Address::InstanceConstSharedPtr source_address_ipv4,
+                 Network::Address::InstanceConstSharedPtr source_address_ipv6)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
         proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver), mark_(mark),
@@ -77,7 +77,7 @@ struct SocketInformation {
   Network::Address::InstanceConstSharedPtr source_address_ipv6_;
 };
 
-using SocketInformationSharedPtr = std::shared_ptr<SocketInformation>;
+using SocketMetadataSharedPtr = std::shared_ptr<SocketMetadata>;
 
 /**
  * Global configuration for Bpf Metadata listener filter. This
@@ -96,8 +96,8 @@ public:
   uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
   const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const override;
 
-  virtual Cilium::BpfMetadata::SocketInformationSharedPtr
-  extractSocketInformation(Network::ConnectionSocket& socket);
+  virtual Cilium::BpfMetadata::SocketMetadataSharedPtr
+  extractSocketMetadata(Network::ConnectionSocket& socket);
 
   // overridden by test config (tests fail due to missing capabilities)
   virtual bool addPrivilegedSocketOptions() { return true; };

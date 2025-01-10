@@ -37,8 +37,8 @@ public:
              Server::Configuration::ListenerFactoryContext& context);
   ~TestConfig();
 
-  Cilium::BpfMetadata::SocketInformationSharedPtr
-  extractSocketInformation(Network::ConnectionSocket& socket) override;
+  Cilium::BpfMetadata::SocketMetadataSharedPtr
+  extractSocketMetadata(Network::ConnectionSocket& socket) override;
 
   bool addPrivilegedSocketOptions() override { return false; };
 };

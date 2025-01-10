@@ -278,10 +278,10 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_information = config_->extractSocketInformation(socket_);
-  EXPECT_NE(nullptr, socket_information);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_NE(nullptr, socket_metadata);
 
-  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
   socket_.addOption(policy_socket_option);
 
@@ -295,7 +295,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   EXPECT_EQ("10.1.1.42", policy_socket_option_retrieved->pod_ip_);
   EXPECT_EQ(0, policy_socket_option_retrieved->ingress_source_identity_);
 
-  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option_built = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
   EXPECT_EQ(8, source_addresses_socket_option_built->source_identity_);
@@ -303,7 +303,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
   EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
 
-  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  auto cilium_mark_socket_option_built = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
 
   // Check that Ingress security ID is used in the socket mark
@@ -322,10 +322,10 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   config.set_enforce_policy_on_l7lb(true);
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_information = config_->extractSocketInformation(socket_);
-  EXPECT_NE(nullptr, socket_information);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_NE(nullptr, socket_metadata);
 
-  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
   socket_.addOption(policy_socket_option);
 
@@ -343,7 +343,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   auto port_policy = policy_socket_option_retrieved->getPolicy()->findPortPolicy(true, 80);
   EXPECT_TRUE(port_policy.allowed(12345678, ""));
 
-  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option_built = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
   EXPECT_EQ(8, source_addresses_socket_option_built->source_identity_);
@@ -351,7 +351,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
   EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
 
-  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  auto cilium_mark_socket_option_built = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
 
   // Check that Ingress security ID is used in the socket mark
@@ -370,10 +370,10 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   config.set_enforce_policy_on_l7lb(true);
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_information = config_->extractSocketInformation(socket_);
-  EXPECT_NE(nullptr, socket_information);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_NE(nullptr, socket_metadata);
 
-  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
   socket_.addOption(policy_socket_option);
 
@@ -391,7 +391,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   auto port_policy = policy_socket_option_retrieved->getPolicy()->findPortPolicy(true, 80);
   EXPECT_FALSE(port_policy.allowed(2, ""));
 
-  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option_built = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
   EXPECT_EQ(8, source_addresses_socket_option_built->source_identity_);
@@ -399,7 +399,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   EXPECT_EQ(nullptr, source_addresses_socket_option_built->original_source_address_);
   EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
 
-  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  auto cilium_mark_socket_option_built = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
 
   // Check that Ingress security ID is used in the socket mark
@@ -419,8 +419,8 @@ TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_information = config_->extractSocketInformation(socket_);
-  EXPECT_EQ(nullptr, socket_information);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_EQ(nullptr, socket_metadata);
 
   const auto policy_socket_option_retrieved =
       Cilium::GetCiliumPolicySocketOption(socket_.options());
@@ -436,10 +436,10 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_information = config_->extractSocketInformation(socket_);
-  EXPECT_NE(nullptr, socket_information);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_NE(nullptr, socket_metadata);
 
-  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
   socket_.addOption(policy_socket_option);
 
@@ -452,7 +452,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_EQ(80, policy_socket_option_retrieved->port_);
   EXPECT_EQ("10.1.1.1", policy_socket_option_retrieved->pod_ip_);
 
-  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option_built = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
   EXPECT_EQ(111, source_addresses_socket_option_built->source_identity_);
@@ -462,7 +462,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_EQ("[face::1:1:1]:41234",
             source_addresses_socket_option_built->ipv6_source_address_->asString());
 
-  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  auto cilium_mark_socket_option_built = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
 
   // Check that Endpoint's ID is used in the socket mark
@@ -479,10 +479,10 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_information = config_->extractSocketInformation(socket_);
-  EXPECT_NE(nullptr, socket_information);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_NE(nullptr, socket_metadata);
 
-  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
   socket_.addOption(policy_socket_option);
 
@@ -496,7 +496,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   EXPECT_EQ("10.1.1.42", policy_socket_option_retrieved->pod_ip_);
   EXPECT_EQ(0, policy_socket_option_retrieved->ingress_source_identity_);
 
-  auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option_built = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
 
   EXPECT_EQ(8, source_addresses_socket_option_built->source_identity_);
@@ -504,7 +504,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option_built->ipv4_source_address_->asString());
   EXPECT_EQ("[face::42]:0", source_addresses_socket_option_built->ipv6_source_address_->asString());
 
-  auto cilium_mark_socket_option_built = socket_information->buildCiliumMarkSocketOption();
+  auto cilium_mark_socket_option_built = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option_built);
 
   // Check that Ingress ID is used in the socket mark
