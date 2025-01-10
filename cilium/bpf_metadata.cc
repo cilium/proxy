@@ -594,21 +594,16 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   Network::Socket::appendOptions(socket_options,
                                  Network::SocketOptionFactory::buildReusePortOptions());
 
+  // TODO: Not 10 as before
+  Network::Socket::appendOptions(socket_options,
+                                 Network::SocketOptionFactory::buildZeroSoLingerOptions());
+
   socket.addOptions(socket_options);
 
-  // Set socket options for linger and keepalive (5 minutes).
-  struct ::linger lin {
-    true, 10,
-  };
   int keepalive = true;
   int secs = 5 * 60; // Five minutes
 
-  auto status = socket.setSocketOption(SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
-  if (status.return_value_ < 0) {
-    ENVOY_LOG(critical, "Socket option failure. Failed to set SO_LINGER: {}",
-              Envoy::errorDetails(status.errno_));
-  }
-  status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
+  auto status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
   if (status.return_value_ < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}",
               Envoy::errorDetails(status.errno_));
