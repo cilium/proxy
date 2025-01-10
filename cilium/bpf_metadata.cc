@@ -16,10 +16,12 @@
 
 #include "envoy/api/io_error.h"
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/socket_option.pb.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/network/listener_filter_buffer.h"
+#include "envoy/network/socket.h"
 #include "envoy/registry/registry.h"
 #include "envoy/server/factory_context.h"
 #include "envoy/server/filter_config.h"
@@ -30,6 +32,7 @@
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/network/socket_option_factory.h"
+#include "source/common/network/socket_option_impl.h"
 #include "source/common/network/upstream_socket_options_filter_state.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
@@ -45,7 +48,6 @@
 #include "cilium/policy_id.h"
 #include "cilium/socket_option_cilium_mark.h"
 #include "socket_option_ip_transparent.h"
-#include "socket_option_reuse_addr.h"
 
 namespace Envoy {
 namespace Server {
@@ -77,7 +79,9 @@ public:
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark));
     options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
-    options->push_back(std::make_shared<Cilium::ReuseAddrSocketOption>());
+    options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
+        envoy::config::core::v3::SocketOption::STATE_PREBIND,
+        Envoy::Network::SocketOptionName(SOL_SOCKET, SO_REUSEADDR, "SO_REUSEADDR"), 1));
     // reuseport for the listener socket is set via Envoy config
     context.addListenSocketOptions(options);
 
@@ -127,7 +131,9 @@ public:
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark));
     options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
-    options->push_back(std::make_shared<Cilium::ReuseAddrSocketOption>());
+    options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
+        envoy::config::core::v3::SocketOption::STATE_PREBIND,
+        Envoy::Network::SocketOptionName(SOL_SOCKET, SO_REUSEADDR, "SO_REUSEADDR"), 1));
     // reuseport for the listener socket is set via Envoy config
     context.addListenSocketOptions(options);
 
@@ -581,7 +587,9 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
     socket_options->push_back(std::make_shared<Envoy::Cilium::IpTransparentSocketOption>());
   }
 
-  socket_options->push_back(std::make_shared<Envoy::Cilium::ReuseAddrSocketOption>());
+  socket_options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
+      envoy::config::core::v3::SocketOption::STATE_PREBIND,
+      Envoy::Network::SocketOptionName(SOL_SOCKET, SO_REUSEADDR, "SO_REUSEADDR"), 1));
 
   Network::Socket::appendOptions(socket_options,
                                  Network::SocketOptionFactory::buildReusePortOptions());
