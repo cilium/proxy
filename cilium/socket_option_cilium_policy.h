@@ -34,19 +34,19 @@ public:
 };
 
 // Socket Option that holds relevant connection & policy information that can be retrieved
-// by the Cilium network- and HTTP policy filters by using GetBpfMetadataSocketOption.
-class BpfMetadataSocketOption : public Network::Socket::Option,
-                                public Logger::Loggable<Logger::Id::filter> {
+// by the Cilium network- and HTTP policy filters by using GetCiliumPolicySocketOption.
+class CiliumPolicySocketOption : public Network::Socket::Option,
+                                 public Logger::Loggable<Logger::Id::filter> {
 public:
-  BpfMetadataSocketOption(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
-                          bool l7lb, uint16_t port, std::string&& pod_ip,
-                          const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
-                          absl::string_view sni)
+  CiliumPolicySocketOption(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
+                           bool l7lb, uint16_t port, std::string&& pod_ip,
+                           const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
+                           absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
         proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver) {
     ENVOY_LOG(debug,
-              "Cilium BpfMetadataSocketOption(): source_identity: {}, "
+              "Cilium CiliumPolicySocketOption(): source_identity: {}, "
               "ingress: {}, port: {}, pod_ip: {}, proxy_id: {}, sni: \"{}\"",
               source_identity_, ingress_, port_, pod_ip_, proxy_id_, sni_);
   }
@@ -108,13 +108,13 @@ private:
   const std::weak_ptr<PolicyResolver> policy_resolver_;
 };
 
-using BpfMetadataSocketOptionSharedPtr = std::shared_ptr<BpfMetadataSocketOption>;
+using CiliumPolicySocketOptionSharedPtr = std::shared_ptr<CiliumPolicySocketOption>;
 
-static inline const Cilium::BpfMetadataSocketOption*
-GetBpfMetadataSocketOption(const Network::Socket::OptionsSharedPtr& options) {
+static inline const Cilium::CiliumPolicySocketOption*
+GetCiliumPolicySocketOption(const Network::Socket::OptionsSharedPtr& options) {
   if (options) {
     for (const auto& option : *options) {
-      auto opt = dynamic_cast<const Cilium::BpfMetadataSocketOption*>(option.get());
+      auto opt = dynamic_cast<const Cilium::CiliumPolicySocketOption*>(option.get());
       if (opt) {
         return opt;
       }

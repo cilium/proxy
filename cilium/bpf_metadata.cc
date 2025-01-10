@@ -549,8 +549,8 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
       socket.addOption(socket_information->buildCiliumMarkSocketOption());
     }
 
-    auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
-    socket.addOption(bpf_metadata_socket_option);
+    auto cilium_policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+    socket.addOption(cilium_policy_socket_option);
 
     // Make Cilium BPF metadata (including policy) available to upstream filters when L7 LB
     if (config_->is_l7lb_) {
@@ -565,7 +565,7 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
       }
 
       auto options = std::make_shared<Network::Socket::Options>();
-      options->push_back(std::move(bpf_metadata_socket_option));
+      options->push_back(std::move(cilium_policy_socket_option));
 
       filter_state
           .getDataMutable<Network::UpstreamSocketOptionsFilterState>(

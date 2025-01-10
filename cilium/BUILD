@@ -66,8 +66,8 @@ envoy_cc_library(
     name = "socket_option_lib",
     hdrs = [
         "policy_id.h",
-        "socket_option_bpf_metadata.h",
         "socket_option_cilium_mark.h",
+        "socket_option_cilium_policy.h",
         "socket_option_ip_transparent.h",
         "socket_option_reuse_addr.h",
         "socket_option_reuse_port.h",

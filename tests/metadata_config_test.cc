@@ -35,7 +35,7 @@
 #include "absl/strings/string_view.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/bpf_metadata.h"
-#include "cilium/socket_option_bpf_metadata.h"
+#include "cilium/socket_option_cilium_policy.h"
 #include "gtest/gtest.h"
 #include "tests/bpf_metadata.h"
 
@@ -281,19 +281,19 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   auto socket_information = config_->extractSocketInformation(socket_);
   EXPECT_NE(nullptr, socket_information);
 
-  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
-  EXPECT_NE(nullptr, bpf_metadata_socket_option);
-  socket_.addOption(bpf_metadata_socket_option);
+  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  EXPECT_NE(nullptr, policy_socket_option);
+  socket_.addOption(policy_socket_option);
 
-  const auto bpf_metadata_socket_option_retrieved =
-      Cilium::GetBpfMetadataSocketOption(socket_.options());
-  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
+  const auto policy_socket_option_retrieved =
+      Cilium::GetCiliumPolicySocketOption(socket_.options());
+  EXPECT_NE(nullptr, policy_socket_option_retrieved);
 
-  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
-  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
-  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
-  EXPECT_EQ("10.1.1.42", bpf_metadata_socket_option_retrieved->pod_ip_);
-  EXPECT_EQ(0, bpf_metadata_socket_option_retrieved->ingress_source_identity_);
+  EXPECT_EQ(false, policy_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, policy_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, policy_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.42", policy_socket_option_retrieved->pod_ip_);
+  EXPECT_EQ(0, policy_socket_option_retrieved->ingress_source_identity_);
 
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
@@ -325,22 +325,22 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   auto socket_information = config_->extractSocketInformation(socket_);
   EXPECT_NE(nullptr, socket_information);
 
-  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
-  EXPECT_NE(nullptr, bpf_metadata_socket_option);
-  socket_.addOption(bpf_metadata_socket_option);
+  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  EXPECT_NE(nullptr, policy_socket_option);
+  socket_.addOption(policy_socket_option);
 
-  const auto bpf_metadata_socket_option_retrieved =
-      Cilium::GetBpfMetadataSocketOption(socket_.options());
-  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
+  const auto policy_socket_option_retrieved =
+      Cilium::GetCiliumPolicySocketOption(socket_.options());
+  EXPECT_NE(nullptr, policy_socket_option_retrieved);
 
-  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
-  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
-  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
-  EXPECT_EQ("10.1.1.42", bpf_metadata_socket_option_retrieved->pod_ip_);
-  EXPECT_EQ(12345678, bpf_metadata_socket_option_retrieved->ingress_source_identity_);
+  EXPECT_EQ(false, policy_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, policy_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, policy_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.42", policy_socket_option_retrieved->pod_ip_);
+  EXPECT_EQ(12345678, policy_socket_option_retrieved->ingress_source_identity_);
 
   // Expect policy accepts security ID 12345678 on ingress on port 80
-  auto port_policy = bpf_metadata_socket_option_retrieved->getPolicy()->findPortPolicy(true, 80);
+  auto port_policy = policy_socket_option_retrieved->getPolicy()->findPortPolicy(true, 80);
   EXPECT_TRUE(port_policy.allowed(12345678, ""));
 
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
@@ -373,22 +373,22 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   auto socket_information = config_->extractSocketInformation(socket_);
   EXPECT_NE(nullptr, socket_information);
 
-  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
-  EXPECT_NE(nullptr, bpf_metadata_socket_option);
-  socket_.addOption(bpf_metadata_socket_option);
+  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  EXPECT_NE(nullptr, policy_socket_option);
+  socket_.addOption(policy_socket_option);
 
-  const auto bpf_metadata_socket_option_retrieved =
-      Cilium::GetBpfMetadataSocketOption(socket_.options());
-  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
+  const auto policy_socket_option_retrieved =
+      Cilium::GetCiliumPolicySocketOption(socket_.options());
+  EXPECT_NE(nullptr, policy_socket_option_retrieved);
 
-  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
-  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
-  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
-  EXPECT_EQ("10.1.1.42", bpf_metadata_socket_option_retrieved->pod_ip_);
-  EXPECT_EQ(2, bpf_metadata_socket_option_retrieved->ingress_source_identity_);
+  EXPECT_EQ(false, policy_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, policy_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, policy_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.42", policy_socket_option_retrieved->pod_ip_);
+  EXPECT_EQ(2, policy_socket_option_retrieved->ingress_source_identity_);
 
   // Expect policy does not accept security ID 2 on ingress on port 80
-  auto port_policy = bpf_metadata_socket_option_retrieved->getPolicy()->findPortPolicy(true, 80);
+  auto port_policy = policy_socket_option_retrieved->getPolicy()->findPortPolicy(true, 80);
   EXPECT_FALSE(port_policy.allowed(2, ""));
 
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
@@ -422,9 +422,9 @@ TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
   auto socket_information = config_->extractSocketInformation(socket_);
   EXPECT_EQ(nullptr, socket_information);
 
-  const auto bpf_metadata_socket_option_retrieved =
-      Cilium::GetBpfMetadataSocketOption(socket_.options());
-  EXPECT_EQ(nullptr, bpf_metadata_socket_option_retrieved);
+  const auto policy_socket_option_retrieved =
+      Cilium::GetCiliumPolicySocketOption(socket_.options());
+  EXPECT_EQ(nullptr, policy_socket_option_retrieved);
 }
 
 TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
@@ -439,18 +439,18 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   auto socket_information = config_->extractSocketInformation(socket_);
   EXPECT_NE(nullptr, socket_information);
 
-  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
-  EXPECT_NE(nullptr, bpf_metadata_socket_option);
-  socket_.addOption(bpf_metadata_socket_option);
+  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  EXPECT_NE(nullptr, policy_socket_option);
+  socket_.addOption(policy_socket_option);
 
-  const auto bpf_metadata_socket_option_retrieved =
-      Cilium::GetBpfMetadataSocketOption(socket_.options());
-  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
+  const auto policy_socket_option_retrieved =
+      Cilium::GetCiliumPolicySocketOption(socket_.options());
+  EXPECT_NE(nullptr, policy_socket_option_retrieved);
 
-  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
-  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
-  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
-  EXPECT_EQ("10.1.1.1", bpf_metadata_socket_option_retrieved->pod_ip_);
+  EXPECT_EQ(false, policy_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, policy_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, policy_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.1", policy_socket_option_retrieved->pod_ip_);
 
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
@@ -482,19 +482,19 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   auto socket_information = config_->extractSocketInformation(socket_);
   EXPECT_NE(nullptr, socket_information);
 
-  auto bpf_metadata_socket_option = socket_information->buildBpfMetadataSocketOption();
-  EXPECT_NE(nullptr, bpf_metadata_socket_option);
-  socket_.addOption(bpf_metadata_socket_option);
+  auto policy_socket_option = socket_information->buildCiliumPolicySocketOption();
+  EXPECT_NE(nullptr, policy_socket_option);
+  socket_.addOption(policy_socket_option);
 
-  const auto bpf_metadata_socket_option_retrieved =
-      Cilium::GetBpfMetadataSocketOption(socket_.options());
-  EXPECT_NE(nullptr, bpf_metadata_socket_option_retrieved);
+  const auto policy_socket_option_retrieved =
+      Cilium::GetCiliumPolicySocketOption(socket_.options());
+  EXPECT_NE(nullptr, policy_socket_option_retrieved);
 
-  EXPECT_EQ(false, bpf_metadata_socket_option_retrieved->ingress_);
-  EXPECT_EQ(true, bpf_metadata_socket_option_retrieved->is_l7lb_);
-  EXPECT_EQ(80, bpf_metadata_socket_option_retrieved->port_);
-  EXPECT_EQ("10.1.1.42", bpf_metadata_socket_option_retrieved->pod_ip_);
-  EXPECT_EQ(0, bpf_metadata_socket_option_retrieved->ingress_source_identity_);
+  EXPECT_EQ(false, policy_socket_option_retrieved->ingress_);
+  EXPECT_EQ(true, policy_socket_option_retrieved->is_l7lb_);
+  EXPECT_EQ(80, policy_socket_option_retrieved->port_);
+  EXPECT_EQ("10.1.1.42", policy_socket_option_retrieved->pod_ip_);
+  EXPECT_EQ(0, policy_socket_option_retrieved->ingress_source_identity_);
 
   auto source_addresses_socket_option_built = socket_information->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option_built);
