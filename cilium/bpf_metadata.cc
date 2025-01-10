@@ -29,6 +29,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
+#include "source/common/network/socket_option_factory.h"
 #include "source/common/network/upstream_socket_options_filter_state.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
@@ -43,7 +44,6 @@
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 #include "cilium/socket_option_cilium_mark.h"
-#include "cilium/socket_option_reuse_port.h"
 #include "socket_option_ip_transparent.h"
 #include "socket_option_reuse_addr.h"
 
@@ -538,19 +538,22 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   Network::ConnectionSocket& socket = cb.socket();
 
+  Network::Socket::OptionsSharedPtr socket_options =
+      std::make_shared<std::vector<Network::Socket::OptionConstSharedPtr>>();
+
   // Cilium socket option is not set if this fails, which causes 500 response from our l7policy
   // filter. Our integration tests depend on this.
   auto socket_metadata = config_->extractSocketMetadata(socket);
 
   if (socket_metadata) {
-    socket.addOption(socket_metadata->buildSourceAddressSocketOption());
+    socket_options->push_back(socket_metadata->buildSourceAddressSocketOption());
 
     if (config_->addPrivilegedSocketOptions()) {
-      socket.addOption(socket_metadata->buildCiliumMarkSocketOption());
+      socket_options->push_back(socket_metadata->buildCiliumMarkSocketOption());
     }
 
     auto cilium_policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
-    socket.addOption(cilium_policy_socket_option);
+    socket_options->push_back(cilium_policy_socket_option);
 
     // Make Cilium BPF metadata (including policy) available to upstream filters when L7 LB
     if (config_->is_l7lb_) {
@@ -575,11 +578,15 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   }
 
   if (config_->addPrivilegedSocketOptions()) {
-    socket.addOption(std::make_shared<Envoy::Cilium::IpTransparentSocketOption>());
+    socket_options->push_back(std::make_shared<Envoy::Cilium::IpTransparentSocketOption>());
   }
 
-  socket.addOption(std::make_shared<Envoy::Cilium::ReuseAddrSocketOption>());
-  socket.addOption(std::make_shared<Envoy::Cilium::ReusePortSocketOption>());
+  socket_options->push_back(std::make_shared<Envoy::Cilium::ReuseAddrSocketOption>());
+
+  Network::Socket::appendOptions(socket_options,
+                                 Network::SocketOptionFactory::buildReusePortOptions());
+
+  socket.addOptions(socket_options);
 
   // Set socket options for linger and keepalive (5 minutes).
   struct ::linger lin {
