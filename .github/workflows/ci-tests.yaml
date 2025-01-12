@@ -81,7 +81,7 @@ jobs:
         fi
 
     - name: PR Multi-arch build & push of Builder image (dev)
-      uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
+      uses: docker/build-push-action@b32b51a8eda65d6793cd0494a773d4f6bcef32dc # v6.11.0
       if: steps.cilium-builder-tests-tag-in-repositories.outputs.exists == 'false'
       id: docker_build_builder_tests_ci
       with:
@@ -93,7 +93,7 @@ jobs:
         tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BUILDER_DOCKER_HASH }}
 
     - name: Run integration tests on amd64
-      uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
+      uses: docker/build-push-action@b32b51a8eda65d6793cd0494a773d4f6bcef32dc # v6.11.0
       id: docker_tests_ci
       with:
         provenance: false
