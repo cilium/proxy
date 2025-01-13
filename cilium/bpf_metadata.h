@@ -92,7 +92,7 @@ public:
 
   // PolicyResolver
   uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
-  const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const override;
+  const PolicyInstance& getPolicy(const std::string&) const override;
 
   virtual absl::optional<SocketMetadata> extractSocketMetadata(Network::ConnectionSocket& socket);
 
@@ -114,9 +114,8 @@ public:
   std::shared_ptr<const Cilium::PolicyHostMap> hosts_{};
 
 private:
-  uint32_t resolveSourceIdentity(const PolicyInstanceConstSharedPtr policy,
-                                 const Network::Address::Ip* sip, const Network::Address::Ip* dip,
-                                 bool ingress, bool isL7LB);
+  uint32_t resolveSourceIdentity(const PolicyInstance& policy, const Network::Address::Ip* sip,
+                                 const Network::Address::Ip* dip, bool ingress, bool isL7LB);
 
   IPAddressPair getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sourceAddress,
                                      const IPAddressPair& addresses);

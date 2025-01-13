@@ -273,18 +273,16 @@ uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
   return id;
 }
 
-uint32_t Config::resolveSourceIdentity(const PolicyInstanceConstSharedPtr policy,
+uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
                                        const Network::Address::Ip* sip,
                                        const Network::Address::Ip* dip, bool ingress, bool isL7LB) {
   uint32_t source_identity = 0;
 
   // Resolve the source security ID from conntrack map, or from ip cache
   if (ct_maps_ != nullptr) {
-    if (policy) {
-      const std::string& ct_name = policy->conntrackName();
-      if (ct_name.length() > 0) {
-        source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, ingress);
-      }
+    const std::string& ct_name = policy.conntrackName();
+    if (ct_name.length() > 0) {
+      source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, ingress);
     } else if (isL7LB) {
       // non-local source should be in the global conntrack
       source_identity = ct_maps_->lookupSrcIdentity("global", sip, dip, ingress);
@@ -345,21 +343,17 @@ const Network::Address::Ip* Config::selectIPVersion(const Network::Address::IpVe
   return nullptr;
 }
 
-const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) const {
-  PolicyInstanceConstSharedPtr policy{nullptr};
-  if (npmap_ != nullptr)
-    policy = npmap_->GetPolicyInstance(pod_ip);
-
+const PolicyInstance& Config::getPolicy(const std::string& pod_ip) const {
   // Allow all traffic for egress without a policy when 'is_l7lb_' is true,
   // or if configured without bpf (npmap_ == nullptr).
-  // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by k8s
+  // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by Cilium
   // Ingress (which is implemented as an egress listener!).
-  if (policy == nullptr &&
-      (npmap_ == nullptr || (!enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_))) {
-    return NetworkPolicyMap::AllowAllEgressPolicy;
-  }
+  bool allow_egress = !enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_;
+  if (npmap_ == nullptr)
+    return allow_egress ? NetworkPolicyMap::GetAllowAllEgressPolicy()
+                        : NetworkPolicyMap::GetDenyAllPolicy();
 
-  return policy;
+  return npmap_->GetPolicyInstance(pod_ip, allow_egress);
 }
 
 absl::optional<Cilium::BpfMetadata::SocketMetadata>
@@ -395,10 +389,11 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
   // Load the policy for the Pod that sends or receives traffic.
   // Might change later on for North/South L7LB traffic.
-  auto policy = getPolicy(pod_ip);
+  // Use a pointer as we may need to change the policy in the case of "North/South L7 LB" below.
+  const auto* policy = &getPolicy(pod_ip);
 
   // Resolve the source security ID from conntrack map, or from ip cache
-  uint32_t source_identity = resolveSourceIdentity(policy, sip, dip, is_ingress_, is_l7lb_);
+  uint32_t source_identity = resolveSourceIdentity(*policy, sip, dip, is_ingress_, is_l7lb_);
 
   // Resolve the destination security ID for egress traffic
   uint32_t destination_identity = is_ingress_ ? 0 : resolvePolicyId(dip);
@@ -421,7 +416,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   if (is_l7lb_ && use_original_source_address_ /* East/West L7LB */) {
     // In case of east/west, L7 LB is only used for egress, so the local
     // endpoint is the source, and the other node is the destination.
-    if (policy == nullptr || policy->getEndpointID() == 0) {
+    if (policy->getEndpointID() == 0) {
       // Local pod not found. Original source address can only be used for local pods.
       ENVOY_LOG(warn,
                 "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
@@ -475,7 +470,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     source_identity = new_source_identity;
 
     // AllowAllEgressPolicy will be returned if no explicit Ingress policy exists
-    policy = getPolicy(ingress_ip_str);
+    policy = &getPolicy(ingress_ip_str);
 
     // Set Ingress source IP as pod_ip (In case of egress (how N/S L7 LB is implemented), the pod_ip
     // is the source IP)
@@ -491,13 +486,6 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     //
     // Original source address is not used
     src_address = nullptr;
-  }
-
-  // policy must exist at this point
-  if (policy == nullptr) {
-    ENVOY_LOG(warn, "cilium.bpf_metadata ({}): No policy found for {} sni: \"{}\"",
-              is_ingress_ ? "ingress" : "egress", pod_ip, sni);
-    return absl::nullopt;
   }
 
   // Add metadata for policy based listener filter chain matching.

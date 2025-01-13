@@ -1194,23 +1194,6 @@ void NetworkPolicyMap::startSubscription() {
                             std::make_shared<NetworkPolicyDecoder>());
 }
 
-static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{nullptr};
-
-const std::shared_ptr<const PolicyInstanceImpl>&
-NetworkPolicyMap::GetPolicyInstanceImpl(const std::string& endpoint_ip) const {
-  const auto* map = load();
-  auto it = map->find(endpoint_ip);
-  if (it == map->end()) {
-    return null_instance_impl;
-  }
-  return it->second;
-}
-
-const PolicyInstanceConstSharedPtr
-NetworkPolicyMap::GetPolicyInstance(const std::string& endpoint_ip) const {
-  return GetPolicyInstanceImpl(endpoint_ip);
-}
-
 bool NetworkPolicyMap::isNewStream() {
   auto sub = dynamic_cast<Config::GrpcSubscriptionImpl*>(subscription_.get());
   if (!sub) {
@@ -1440,8 +1423,80 @@ const std::string AllowAllEgressPolicyInstanceImpl::empty_string = "";
 const IPAddressPair AllowAllEgressPolicyInstanceImpl::empty_ips{};
 const RulesList AllowAllEgressPolicyInstanceImpl::empty_rules_{};
 
-PolicyInstanceConstSharedPtr NetworkPolicyMap::AllowAllEgressPolicy =
-    std::make_shared<AllowAllEgressPolicyInstanceImpl>();
+AllowAllEgressPolicyInstanceImpl NetworkPolicyMap::AllowAllEgressPolicy;
+
+PolicyInstance& NetworkPolicyMap::GetAllowAllEgressPolicy() { return AllowAllEgressPolicy; }
+
+// Deny-all policy
+class DenyAllPolicyInstanceImpl : public PolicyInstance {
+public:
+  DenyAllPolicyInstanceImpl() {}
+
+  bool allowed(bool, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
+               Cilium::AccessLog::Entry&) const override {
+    return false;
+  }
+
+  bool allowed(bool, uint32_t, absl::string_view, uint16_t) const override { return false; }
+
+  const PortPolicy findPortPolicy(bool, uint16_t) const override {
+    return PortPolicy(empty_map_, empty_rules, 0);
+  }
+
+  bool useProxylib(bool, uint32_t, uint16_t, std::string&) const override { return false; }
+
+  const std::string& conntrackName() const override { return empty_string; }
+
+  uint32_t getEndpointID() const override { return 0; }
+
+  const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
+
+  std::string String() const override { return "DenyAllPolicyInstanceImpl"; }
+
+  void tlsWrapperMissingPolicyInc() const override {}
+
+private:
+  PolicyMap empty_map_;
+  static const std::string empty_string;
+  static const IPAddressPair empty_ips;
+  static const RulesList empty_rules;
+};
+const std::string DenyAllPolicyInstanceImpl::empty_string = "";
+const IPAddressPair DenyAllPolicyInstanceImpl::empty_ips{};
+const RulesList DenyAllPolicyInstanceImpl::empty_rules{};
+
+DenyAllPolicyInstanceImpl NetworkPolicyMap::DenyAllPolicy;
+
+PolicyInstance& NetworkPolicyMap::GetDenyAllPolicy() { return DenyAllPolicy; }
+
+const PolicyInstance*
+NetworkPolicyMap::GetPolicyInstanceImpl(const std::string& endpoint_ip) const {
+  const auto* map = load();
+  auto it = map->find(endpoint_ip);
+  if (it != map->end()) {
+    return it->second.get();
+  }
+  return nullptr;
+}
+
+// GetPolicyInstance return a const reference to a policy in the policy map for the given
+// 'endpoint_ip'. If there is no policy for the given IP, a default policy is returned,
+// controlled by the 'default_allow_egress' argument as follows:
+//
+// 'false' - a deny all policy is returned,
+// 'true' -  a deny all ingress / allow all egress is returned.
+//
+// Returning a default deny policy makes the caller report a "policy deny" rather than "internal
+// server error" if no policy is found. This mirrors what bpf datapath does if no policy entry is
+// found in the bpf policy map. The default deny for ingress with default allow for egress is needed
+// for Cilium Ingress when there is no egress policy enforcement for the Ingress traffic.
+const PolicyInstance& NetworkPolicyMap::GetPolicyInstance(const std::string& endpoint_ip,
+                                                          bool default_allow_egress) const {
+  const auto* policy = GetPolicyInstanceImpl(endpoint_ip);
+  return policy != nullptr      ? *policy
+         : default_allow_egress ? *static_cast<PolicyInstance*>(&AllowAllEgressPolicy)
+                                : *static_cast<PolicyInstance*>(&DenyAllPolicy);
+}
 
 } // namespace Cilium
 } // namespace Envoy
