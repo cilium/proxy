@@ -82,6 +82,7 @@ typedef absl::btree_map<PortRange, RulesList, PortRangeCompare> PolicyMap;
 class PortPolicy : public Logger::Loggable<Logger::Id::config> {
 protected:
   friend class PortNetworkPolicy;
+  friend class DenyAllPolicyInstanceImpl;
   friend class AllowAllEgressPolicyInstanceImpl;
   PortPolicy(const PolicyMap& map, const RulesList& wildcard_rules, uint16_t port);
 
@@ -213,6 +214,9 @@ struct PolicyStats {
 
 using RawPolicyMap = absl::flat_hash_map<std::string, std::shared_ptr<const PolicyInstanceImpl>>;
 
+class DenyAllPolicyInstanceImpl;
+class AllowAllEgressPolicyInstanceImpl;
+
 class NetworkPolicyMap : public Singleton::Instance,
                          public Envoy::Config::SubscriptionCallbacks,
                          public std::enable_shared_from_this<NetworkPolicyMap>,
@@ -233,10 +237,13 @@ public:
     subscription_ = std::move(subscription);
   }
 
-  const PolicyInstanceConstSharedPtr
-  GetPolicyInstance(const std::string& endpoint_policy_name) const;
+  const PolicyInstance& GetPolicyInstance(const std::string& endpoint_policy_name,
+                                          bool allow_egress) const;
 
-  static PolicyInstanceConstSharedPtr AllowAllEgressPolicy;
+  static DenyAllPolicyInstanceImpl DenyAllPolicy;
+  static PolicyInstance& GetDenyAllPolicy();
+  static AllowAllEgressPolicyInstanceImpl AllowAllEgressPolicy;
+  static PolicyInstance& GetAllowAllEgressPolicy();
 
   bool exists(const std::string& endpoint_policy_name) const {
     return GetPolicyInstanceImpl(endpoint_policy_name) != nullptr;
@@ -305,8 +312,7 @@ private:
     return map_ptr_.exchange(map, std::memory_order_release);
   }
 
-  const std::shared_ptr<const PolicyInstanceImpl>&
-  GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
+  const PolicyInstance* GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
 
   void removeInitManager();
 

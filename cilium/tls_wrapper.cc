@@ -97,11 +97,7 @@ public:
 
     if (policy_socket_option) {
       const auto& policy = policy_socket_option->getPolicy();
-      if (!policy) {
-        ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: No policy found for pod {}",
-                       policy_socket_option->pod_ip_);
-        return;
-      }
+
       // Resolve the destination security ID and port
       uint32_t destination_identity = 0;
       uint32_t destination_port = policy_socket_option->port_;
@@ -131,7 +127,7 @@ public:
 
       auto remote_id = policy_socket_option->ingress_ ? policy_socket_option->source_identity_
                                                       : destination_identity;
-      auto port_policy = policy->findPortPolicy(policy_socket_option->ingress_, destination_port);
+      auto port_policy = policy.findPortPolicy(policy_socket_option->ingress_, destination_port);
       const Envoy::Ssl::ContextConfig* config = nullptr;
       bool raw_socket_allowed = false;
       Envoy::Ssl::ContextSharedPtr ctx =
@@ -158,7 +154,7 @@ public:
         // Set the callbacks
         socket_->setTransportSocketCallbacks(*callbacks_);
       } else {
-        policy->tlsWrapperMissingPolicyInc();
+        policy.tlsWrapperMissingPolicyInc();
 
         std::string ipStr("<none>");
         if (policy_socket_option->ingress_) {

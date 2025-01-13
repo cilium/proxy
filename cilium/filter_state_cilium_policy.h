@@ -34,7 +34,7 @@ public:
   virtual ~PolicyResolver() = default;
 
   virtual uint32_t resolvePolicyId(const Network::Address::Ip*) const PURE;
-  virtual const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const PURE;
+  virtual const PolicyInstance& getPolicy(const std::string&) const PURE;
 };
 
 // FilterState that holds relevant connection & policy information that can be retrieved
@@ -62,11 +62,11 @@ public:
     return Cilium::ID::WORLD; // default to WORLD policy ID if resolver is no longer available
   }
 
-  const PolicyInstanceConstSharedPtr getPolicy() const {
+  const PolicyInstance& getPolicy() const {
     const auto resolver = policy_resolver_.lock();
     if (resolver)
       return resolver->getPolicy(pod_ip_);
-    return nullptr;
+    return NetworkPolicyMap::GetDenyAllPolicy();
   }
 
   // policyUseUpstreamDestinationAddress returns 'true' if policy enforcement should be done on the
