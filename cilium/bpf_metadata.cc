@@ -39,6 +39,7 @@
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/api/bpf_metadata.pb.validate.h" // IWYU pragma: keep
 #include "cilium/conntrack.h"
@@ -598,28 +599,15 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   Network::Socket::appendOptions(socket_options,
                                  Network::SocketOptionFactory::buildZeroSoLingerOptions());
 
+  Network::Socket::appendOptions(
+      socket_options,
+      Network::SocketOptionFactory::buildTcpKeepaliveOptions(Envoy::Network::TcpKeepaliveConfig{
+          .keepalive_probes_ = absl::nullopt,
+          .keepalive_time_ = 5 * 60,
+          .keepalive_interval_ = 5 * 60,
+      }));
+
   socket.addOptions(socket_options);
-
-  int keepalive = true;
-  int secs = 5 * 60; // Five minutes
-
-  auto status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
-  if (status.return_value_ < 0) {
-    ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}",
-              Envoy::errorDetails(status.errno_));
-  } else {
-    status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPINTVL, &secs, sizeof(secs));
-    if (status.return_value_ < 0) {
-      ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPINTVL: {}",
-                Envoy::errorDetails(status.errno_));
-    } else {
-      status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPIDLE, &secs, sizeof(secs));
-      if (status.return_value_ < 0) {
-        ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPIDLE: {}",
-                  Envoy::errorDetails(status.errno_));
-      }
-    }
-  }
 
   return Network::FilterStatus::Continue;
 }
