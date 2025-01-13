@@ -1142,7 +1142,11 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
       policy_stats_scope_(context_.serverScope().createScope("cilium.policy.")),
       policy_update_warning_limit_ms_(100),
       init_target_(fmt::format("Cilium Network Policy subscription start"),
-                   [this]() { subscription_->start({}); }),
+                   [this]() {
+                     subscription_->start({});
+                     // Allow listener init to continue before network policy updates are received
+                     init_target_.ready();
+                   }),
       transport_factory_context_(
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
               context_, context.getTransportSocketFactoryContext().sslContextManager(),
@@ -1150,8 +1154,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
               context_.messageValidationContext().dynamicValidationVisitor())),
       stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER(*policy_stats_scope_),
                                      POOL_HISTOGRAM(*policy_stats_scope_))} {
-  // Use listener init manager for the first initialization
-  transport_factory_context_->setInitManager(context.initManager());
+  // Use listener init manager for subscription initialization
   context.initManager().add(init_target_);
 
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", instance_id_);
@@ -1254,9 +1257,6 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
       stats_.update_latency_ms_, context_.timeSource());
   stats_.updates_total_.inc();
 
-  absl::flat_hash_set<std::string> keeps;
-  absl::flat_hash_set<std::string> ct_maps_to_keep;
-
   std::string version_name = fmt::format("NetworkPolicyMap manager for version {}", version_info);
 
   // Init manager for this version update.
@@ -1265,9 +1265,10 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
   version_init_manager_ = std::make_shared<Init::ManagerImpl>(version_name);
 
   // Set the init manager to use via the transport factory context
-  // Use the local init manager after the first initialization
-  if (version_init_target_)
-    transport_factory_context_->setInitManager(*version_init_manager_);
+  transport_factory_context_->setInitManager(*version_init_manager_);
+
+  absl::flat_hash_set<std::string> keeps;
+  absl::flat_hash_set<std::string> ct_maps_to_keep;
 
   // Collect a shared vector of policies to be added
   auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
@@ -1302,9 +1303,6 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
     ENVOY_LOG(warn, "NetworkPolicy update for version {} failed: {}", version_info, e.what());
     stats_.updates_rejected_.inc();
 
-    // Allow main (Listener) init to continue after exceptions
-    init_target_.ready();
-
     throw; // re-throw
   }
 
@@ -1327,15 +1325,6 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
     }
   }
 
-  // Allow main (Listener) init to continue before workers are started.
-  init_target_.ready();
-
-  // Create a local init target to track network policy updates on worker threads.
-  // This is added to the local init manager below in order to wait for all worker
-  // threads to have applied policy updates before NPDS ACK is sent.
-  // First setting of this also causes future updates to use the local init manager.
-  version_init_target_ = std::make_shared<Init::TargetImpl>(version_name, []() {});
-
   // Reopen IPcache for every new stream. Cilium agent re-creates IP cache on restart,
   // and that is also when the old stream terminates and a new one is created.
   // New security identities (e.g., for FQDN policies) only get inserted to the new IP cache,
@@ -1356,10 +1345,17 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
     ENVOY_LOG(trace, "Skipping empty or duplicate policy update.");
   } else {
     // pause the subscription until the worker threads are done. No throws after this!
-    // local init target is marked ready when all workers have updated.
-    version_init_manager_->add(*version_init_target_);
     ENVOY_LOG(trace, "Pausing NPDS subscription");
     pause();
+
+    // Create a local init target to track network policy updates on worker threads.
+    // This is added to the local init manager below in order to wait for all worker
+    // threads to have applied policy updates before NPDS ACK is sent.
+    // First setting of this also causes future updates to use the local init manager.
+    version_init_target_ = std::make_shared<Init::TargetImpl>(version_name, []() {});
+
+    // local init target is marked ready when all workers have updated.
+    version_init_manager_->add(*version_init_target_);
 
     // 'this' may be already deleted when the worker threads get to execute the
     // updates. Manage this by taking a shared_ptr on 'this' for the duration of
