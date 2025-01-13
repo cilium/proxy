@@ -1221,18 +1221,12 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
       stats_.update_latency_ms_, context_.timeSource());
   stats_.updates_total_.inc();
 
-  std::string version_name = fmt::format("NetworkPolicyMap manager for version {}", version_info);
-
-  // Init manager for this version update.
-  // For the first initialization the listener's init manager is used.
-  // Setting the member here releases any previous manager as well.
-  version_init_manager_ = std::make_shared<Init::ManagerImpl>(version_name);
-
-  // Set the init manager to use via the transport factory context
-  transport_factory_context_->setInitManager(*version_init_manager_);
+  std::string version_name = fmt::format("NetworkPolicyMap version {}", version_info);
 
   absl::flat_hash_set<std::string> keeps;
   absl::flat_hash_set<std::string> ct_maps_to_keep;
+
+  updateInitManager(version_name);
 
   // Collect a shared vector of policies to be added
   auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
@@ -1267,8 +1261,12 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
     ENVOY_LOG(warn, "NetworkPolicy update for version {} failed: {}", version_info, e.what());
     stats_.updates_rejected_.inc();
 
+    removeInitManager();
+
     throw; // re-throw
   }
+
+  removeInitManager();
 
   // Collect a shared vector of policy names to be removed
   auto to_be_deleted = std::make_shared<std::vector<std::string>>();
@@ -1304,97 +1302,141 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
     }
   }
 
-  // Skip pausing if nothing to be done
-  if (to_be_added->size() == 0 && to_be_deleted->size() == 0 && cts_to_be_closed->size() == 0) {
-    ENVOY_LOG(trace, "Skipping empty or duplicate policy update.");
-  } else {
-    // pause the subscription until the worker threads are done. No throws after this!
-    ENVOY_LOG(trace, "Pausing NPDS subscription");
-    pause();
-
-    // Create a local init target to track network policy updates on worker threads.
-    // This is added to the local init manager below in order to wait for all worker
-    // threads to have applied policy updates before NPDS ACK is sent.
-    // First setting of this also causes future updates to use the local init manager.
-    version_init_target_ = std::make_shared<Init::TargetImpl>(version_name, []() {});
-
-    // local init target is marked ready when all workers have updated.
-    version_init_manager_->add(*version_init_target_);
-
-    // 'this' may be already deleted when the worker threads get to execute the
-    // updates. Manage this by taking a shared_ptr on 'this' for the duration of
-    // the posted lambda.
-    std::shared_ptr<NetworkPolicyMap> shared_this = shared_from_this();
-
-    // Resume subscription via an Init::Watcher when fully initialized
-    // This Watcher needs to be a member so that it exists after this function returns.
-    // It needs to be dynamically allocated so that we can initialize a new watcher for each
-    // network policy version.
-    // Since this is a member it must not hold a reference to the map to avoid a circular
-    // reference; so use a weak pointer instead.
-    // Setting the member here releases any previous watcher as well.
-    std::weak_ptr<NetworkPolicyMap> weak_this = shared_this;
-    version_init_watcher_ = std::make_shared<Init::WatcherImpl>(version_name, [weak_this]() {
-      if (std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock()) {
-        // resume subscription when fully initialized
-        ENVOY_LOG(trace, "Resuming NPDS subscription");
-        shared_this->resume();
-      } else {
-        ENVOY_LOG(debug, "NetworkPolicyMap expired on watcher completion!");
-      }
-    });
-
-    // Execute changes on all threads.
-    tls_map_.runOnAllThreads(
-        [to_be_added, to_be_deleted, version_info](OptRef<ThreadLocalPolicyMap> npmap) {
-          // Main thread done after the worker threads
-          if (Thread::MainThread::isMainThread())
-            return;
-
-          if (!npmap.has_value()) {
-            ENVOY_LOG(debug,
-                      "Cilium L7 NetworkPolicyMap::onConfigUpdate(): npmap has no value "
-                      "for version {}",
-                      version_info);
-            return;
-          }
-          npmap->Update(*to_be_added, *to_be_deleted, version_info);
+  // Execute non-empty update on all threads
+  if (to_be_added->size() != 0 || to_be_deleted->size() != 0 || cts_to_be_closed->size() != 0) {
+    executeUpdate(
+        version_name,
+        [to_be_added, to_be_deleted, version_info](ThreadLocalPolicyMap& npmap) {
+          npmap.Update(*to_be_added, *to_be_deleted, version_info);
         },
-        // All threads have executed updates, delete old cts and mark the local init target ready.
-        [shared_this, to_be_added, to_be_deleted, version_info, cts_to_be_closed]() {
-          // Update on the main thread last, so that deletes happen on the same thread as allocs
-          auto npmap = shared_this->tls_map_.get();
-          npmap->Update(*to_be_added, *to_be_deleted, version_info);
-
+        [cts_to_be_closed](NetworkPolicyMapSharedPtr shared_this) {
           if (shared_this->ctmap_ && cts_to_be_closed->size() > 0) {
             shared_this->ctmap_->closeMaps(cts_to_be_closed);
           }
-          shared_this->version_init_target_->ready();
-
-          shared_this->update_latency_ms_->complete();
-          auto duration = shared_this->update_latency_ms_->elapsed();
-          shared_this->update_latency_ms_.reset();
-
-          if (duration > shared_this->policy_update_warning_limit_ms_) {
-            shared_this->stats_.updates_timed_out_.inc();
-            ENVOY_LOG(warn,
-                      "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Worker threads took longer "
-                      "than {}ms to update network policy for version {} ({}ms)",
-                      shared_this->policy_update_warning_limit_ms_.count(), version_info,
-                      duration.count());
-          }
         });
-    // Initialize SDS secrets, the watcher callback above will be called after all threads have
-    // updated policies and secrets have been fetched, or timeout (15 seconds) hits.
-    version_init_manager_->initialize(*version_init_watcher_);
+  } else {
+    ENVOY_LOG(trace, "Skipping empty or duplicate policy update.");
   }
 
+  return absl::OkStatus();
+}
+
+// updateInitManager must be called for each policy update before parsing the policy
+void NetworkPolicyMap::updateInitManager(const std::string& version_name) {
+  // Init manager for this version update.
+  // For the first initialization the listener's init manager is used.
+  // Setting the member here releases any previous manager as well.
+  version_init_manager_ = std::make_shared<Init::ManagerImpl>(version_name);
+
+  // Set the init manager to use via the transport factory context
+  // Must be set before the new network policy is parsed, as the parsed
+  // SDS secrets will use this!
+  transport_factory_context_->setInitManager(*version_init_manager_);
+}
+
+// removeInitManager must be called at the end of each each policy update
+void NetworkPolicyMap::removeInitManager() {
   // Remove the local init manager from the transport factory context
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnull-dereference"
   transport_factory_context_->setInitManager(*static_cast<Init::Manager*>(nullptr));
 #pragma clang diagnostic pop
-  return absl::OkStatus();
+}
+
+// executeUpdate is called for each policy update that has been successfully parsed
+// to execute the update on each worker thread. After the worker threads have updated
+// the update is also executed in the main thread and the cleanFn is called in the main thread.
+void NetworkPolicyMap::executeUpdate(const std::string& version_name,
+                                     std::function<void(ThreadLocalPolicyMap&)> updateFn,
+                                     std::function<void(NetworkPolicyMapSharedPtr)> cleanFn) {
+  // pause the subscription until the worker threads are done. No throws after this!
+  ENVOY_LOG(trace, "Pausing NPDS subscription");
+  pause();
+
+  // Create an init target to track network policy updates on worker threads.
+  // This is added to the version init manager below in order to wait for all worker
+  // threads to have applied policy updates before NPDS ACK is sent.
+  version_init_target_ = std::make_shared<Init::TargetImpl>(version_name, []() {});
+
+  // version init target is marked ready when all workers have updated.
+  version_init_manager_->add(*version_init_target_);
+
+  // 'this' may be already deleted when the worker threads get to execute the
+  // updates. Manage this by taking a shared_ptr on 'this' for the duration of
+  // the posted lambda.
+  std::shared_ptr<NetworkPolicyMap> shared_this = shared_from_this();
+
+  // Resume subscription via an Init::Watcher when fully initialized.
+  // This Watcher needs to be a member so that it exists after this function returns.
+  // It needs to be dynamically allocated so that we can initialize a new watcher for each
+  // network policy version.
+  // Since this is a member it must not hold a reference to the map to avoid a circular
+  // reference; so use a weak pointer instead.
+  // Setting the member here releases any previous watcher as well.
+  std::weak_ptr<NetworkPolicyMap> weak_this = shared_this;
+  version_init_watcher_ = std::make_shared<Init::WatcherImpl>(version_name, [weak_this]() {
+    if (std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock()) {
+      // resume subscription when fully initialized
+      ENVOY_LOG(trace, "Resuming NPDS subscription");
+      shared_this->resume();
+    } else {
+      ENVOY_LOG(debug, "NetworkPolicyMap expired on watcher completion!");
+    }
+  });
+
+  // Execute update on all threads.
+  tls_map_.runOnAllThreads(
+      [version_name, updateFn](OptRef<ThreadLocalPolicyMap> npmap) {
+        // Main thread done after the worker threads
+        if (Thread::MainThread::isMainThread())
+          return;
+
+        if (!npmap.has_value()) {
+          ENVOY_LOG(
+              debug,
+              "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Worker thread has no value for {}",
+              version_name);
+          return;
+        }
+        updateFn(npmap.value());
+      },
+      // Worker threads have executed updates, update & clean up on the main thread and
+      // mark the version init target ready.
+      [shared_this, version_name, updateFn, cleanFn]() {
+        // Update on the main thread last, so that deletes happen on the same thread as allocs
+        auto npmap = shared_this->tls_map_.get();
+        if (!npmap.has_value()) {
+          ENVOY_LOG(debug,
+                    "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Main thread has no value for {}",
+                    version_name);
+        } else {
+          updateFn(npmap.value());
+        }
+
+        // Clean-up in the main thread
+        cleanFn(shared_this);
+
+        // Mark the init target as ready
+        shared_this->version_init_target_->ready();
+
+        // Compute update latency and log a warning if it took too long
+        shared_this->update_latency_ms_->complete();
+        auto duration = shared_this->update_latency_ms_->elapsed();
+        shared_this->update_latency_ms_.reset();
+
+        if (duration > shared_this->policy_update_warning_limit_ms_) {
+          shared_this->stats_.updates_timed_out_.inc();
+          ENVOY_LOG(warn,
+                    "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Worker threads took longer "
+                    "than {}ms to update {} ({}ms)",
+                    shared_this->policy_update_warning_limit_ms_.count(), version_name,
+                    duration.count());
+        }
+      });
+
+  // Initialize SDS secrets, the watcher callback above will be called after all threads have
+  // updated policies and secrets have been fetched, or timeout (15 seconds) hits.
+  version_init_manager_->initialize(*version_init_watcher_);
 }
 
 void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,

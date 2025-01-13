@@ -258,6 +258,12 @@ private:
   const std::shared_ptr<const PolicyInstanceImpl>&
   GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
 
+  void updateInitManager(const std::string& version_name);
+  void removeInitManager();
+  void executeUpdate(const std::string& version_name,
+                     std::function<void(ThreadLocalPolicyMap&)> updateFn,
+                     std::function<void(std::shared_ptr<const NetworkPolicyMap>)> cleanFn);
+
   void pause();
   void resume();
 
@@ -293,6 +299,7 @@ private:
 protected:
   PolicyStats stats_;
 };
+using NetworkPolicyMapSharedPtr = std::shared_ptr<const NetworkPolicyMap>;
 
 } // namespace Cilium
 } // namespace Envoy
