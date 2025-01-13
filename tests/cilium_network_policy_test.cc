@@ -87,10 +87,8 @@ protected:
   }
 
   testing::AssertionResult Validate(const std::string& pod_ip, const std::string& expected) {
-    auto& policy = policy_map_->GetPolicyInstance(pod_ip);
-    if (policy == nullptr)
-      return testing::AssertionFailure() << "Policy not found for " << pod_ip;
-    auto str = policy->String();
+    const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
+    auto str = policy.String();
     if (str != expected) {
       return testing::AssertionFailure() << "Policy:\n"
                                          << str << "Does not match expected:\n"
@@ -101,11 +99,9 @@ protected:
 
   testing::AssertionResult Allowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
                                    uint16_t port, Http::TestRequestHeaderMapImpl&& headers) {
-    auto policy = policy_map_->GetPolicyInstance(pod_ip);
-    if (policy == nullptr)
-      return testing::AssertionFailure() << "Policy not found for " << pod_ip;
+    const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
     Cilium::AccessLog::Entry log_entry;
-    return policy->allowed(ingress, remote_id, port, headers, log_entry)
+    return policy.allowed(ingress, remote_id, port, headers, log_entry)
                ? testing::AssertionSuccess()
                : testing::AssertionFailure();
   }
@@ -123,11 +119,9 @@ protected:
   testing::AssertionResult TlsAllowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
                                       uint16_t port, absl::string_view sni,
                                       bool& tls_socket_required, bool& raw_socket_allowed) {
-    auto policy = policy_map_->GetPolicyInstance(pod_ip);
-    if (policy == nullptr)
-      return testing::AssertionFailure() << "Policy not found for " << pod_ip;
+    const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
 
-    auto port_policy = policy->findPortPolicy(ingress, port);
+    auto port_policy = policy.findPortPolicy(ingress, port);
     const Envoy::Ssl::ContextConfig* config = nullptr;
 
     // TLS context lookup does not check SNI
@@ -138,7 +132,7 @@ protected:
                  : port_policy.getServerTlsContext(remote_id, sni, &config, raw_socket_allowed);
 
     // separate policy lookup for validation
-    bool allowed = policy->allowed(ingress, remote_id, sni, port);
+    bool allowed = policy.allowed(ingress, remote_id, sni, port);
 
     // if connection is allowed without TLS socket then TLS context is not required
     if (raw_socket_allowed) {

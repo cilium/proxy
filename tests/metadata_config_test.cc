@@ -330,7 +330,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   EXPECT_EQ(12345678, policy_fs->ingress_source_identity_);
 
   // Expect policy accepts security ID 12345678 on ingress on port 80
-  auto port_policy = policy_fs->getPolicy()->findPortPolicy(true, 80);
+  auto port_policy = policy_fs->getPolicy().findPortPolicy(true, 80);
   EXPECT_TRUE(port_policy.allowed(12345678, ""));
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
@@ -373,7 +373,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   EXPECT_EQ(2, policy_fs->ingress_source_identity_);
 
   // Expect policy does not accept security ID 2 on ingress on port 80
-  auto port_policy = policy_fs->getPolicy()->findPortPolicy(true, 80);
+  auto port_policy = policy_fs->getPolicy().findPortPolicy(true, 80);
   EXPECT_FALSE(port_policy.allowed(2, ""));
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();

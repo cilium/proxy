@@ -159,10 +159,6 @@ Network::FilterStatus Instance::onNewConnection() {
       return false;
     }
     const auto& policy = policy_fs->getPolicy();
-    if (!policy) {
-      ENVOY_LOG_MISC(warn, "cilium.network: No policy found for pod {}", policy_fs->pod_ip_);
-      return false;
-    }
     if (!policy_fs->ingress_) {
       const auto dip = dst_address->ip();
       if (!dip) {
@@ -174,7 +170,7 @@ Network::FilterStatus Instance::onNewConnection() {
       destination_identity = policy_fs->resolvePolicyId(dip);
 
       if (policy_fs->ingress_source_identity_ != 0) {
-        auto ingress_port_policy = policy->findPortPolicy(true, destination_port_);
+        auto ingress_port_policy = policy.findPortPolicy(true, destination_port_);
         if (!ingress_port_policy.allowed(policy_fs->ingress_source_identity_, sni)) {
           ENVOY_CONN_LOG(
               debug,
@@ -185,7 +181,7 @@ Network::FilterStatus Instance::onNewConnection() {
       }
     }
 
-    auto port_policy = policy->findPortPolicy(policy_fs->ingress_, destination_port_);
+    auto port_policy = policy.findPortPolicy(policy_fs->ingress_, destination_port_);
 
     remote_id_ = policy_fs->ingress_ ? policy_fs->source_identity_ : destination_identity;
     if (!port_policy.allowed(remote_id_, sni)) {
@@ -283,13 +279,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
       goto drop_close;
     }
     const auto& policy = policy_fs->getPolicy();
-    if (!policy) {
-      ENVOY_CONN_LOG(warn, "cilium.network: No policy found for pod {}, defaulting to DENY", conn,
-                     policy_fs->pod_ip_);
-      reason = "Cilium policy not found";
-      goto drop_close;
-    }
-    auto port_policy = policy->findPortPolicy(policy_fs->ingress_, destination_port_);
+    auto port_policy = policy.findPortPolicy(policy_fs->ingress_, destination_port_);
     if (!port_policy.allowed(remote_id_, metadata)) {
       config_->Log(log_entry_, ::cilium::EntryType::Denied);
       reason = "metadata policy drop";
