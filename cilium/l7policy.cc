@@ -195,10 +195,6 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
   // Policy may have changed since the connection was established, get fresh policy
   const auto& policy = policy_fs->getPolicy();
-  if (!policy) {
-    sendLocalError(fmt::format("cilium.l7policy: No policy found for pod {}", policy_fs->pod_ip_));
-    return Http::FilterHeadersStatus::StopIteration;
-  }
 
   if (log_entry_ == nullptr) {
     sendLocalError("cilium.l7policy: No log entry");
@@ -215,8 +211,8 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
         callbacks_->streamInfo(), headers);
 
     if (policy_fs->ingress_source_identity_ != 0) {
-      allowed_ = policy->allowed(true, policy_fs->ingress_source_identity_, policy_fs->port_,
-                                 headers, *log_entry_);
+      allowed_ = policy.allowed(true, policy_fs->ingress_source_identity_, policy_fs->port_,
+                                headers, *log_entry_);
       ENVOY_LOG(debug,
                 "cilium.l7policy: Ingress from {} policy lookup for endpoint {} for port {}: {}",
                 policy_fs->ingress_source_identity_, policy_fs->pod_ip_, policy_fs->port_,
@@ -233,9 +229,9 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
   if (!denied) {
     allowed_ =
-        policy->allowed(policy_fs->ingress_,
-                        policy_fs->ingress_ ? policy_fs->source_identity_ : destination_identity,
-                        destination_port, headers, *log_entry_);
+        policy.allowed(policy_fs->ingress_,
+                       policy_fs->ingress_ ? policy_fs->source_identity_ : destination_identity,
+                       destination_port, headers, *log_entry_);
   }
   ENVOY_LOG(debug, "cilium.l7policy: {} ({}->{}) {} policy lookup for endpoint {} for port {}: {}",
             policy_fs->ingress_ ? "ingress" : "egress", policy_fs->source_identity_,

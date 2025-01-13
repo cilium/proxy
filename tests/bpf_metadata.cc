@@ -186,21 +186,14 @@ TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
     pod_ip = ip->addressAsString();
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
-  auto policy = getPolicy(pod_ip);
-  if (policy == nullptr) {
-    ENVOY_LOG_MISC(warn, "tests.bpf_metadata ({}): No policy found for {}",
-                   is_ingress_ ? "ingress" : "egress", pod_ip);
-    return absl::nullopt;
-  }
-
+  const auto& policy = getPolicy(pod_ip);
   auto port = original_dst_address->ip()->port();
 
   // Set metadata for policy based listener filter chain matching
   // Note: tls_inspector may overwrite this value, if it executes after us!
   std::string l7proto;
-  if (policy &&
-      policy->useProxylib(is_ingress_, port, is_ingress_ ? source_identity : destination_identity,
-                          l7proto)) {
+  if (policy.useProxylib(is_ingress_, port, is_ingress_ ? source_identity : destination_identity,
+                         l7proto)) {
     std::vector<absl::string_view> protocols;
     protocols.emplace_back(l7proto);
     socket.setRequestedApplicationProtocols(protocols);
