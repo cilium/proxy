@@ -11,7 +11,7 @@ namespace {
 
 // SDS config used in production
 envoy::config::core::v3::ConfigSource getCiliumSDSConfig(const std::string&) {
-  /* returned config_source has initial_fetch_timeout left at default 15 seconds. */
+  /* returned config_source has initial_fetch_timeout of 50 milliseconds. */
   return Cilium::cilium_xds_api_config;
 }
 
