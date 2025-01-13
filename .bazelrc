@@ -20,8 +20,8 @@ build:release -c opt
 # No debug info for release builds
 build:release --define no_debug_info=1
 build:release --linkopt=-Wl,--strip-all
-build:release --features=-per_object_debug_info
-build:release --fission=dbg
+build --features=-per_object_debug_info
+build --fission=dbg
 
 # Manual link stamping, forces link to include current git SHA even if binary is otherwise
 # upto-date
