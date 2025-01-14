@@ -145,6 +145,8 @@ public:
           socket_ = std::move(status_or_socket.value());
           // Set the callbacks
           socket_->setTransportSocketCallbacks(*callbacks_);
+          // explicitly configure ssl connection with the latest configuration from the SSL socket.
+          callbacks_->connection().connectionInfoSetter().setSslConnection(socket_->ssl());
         } else {
           ENVOY_LOG_MISC(error, "Unable to create ssl socket {}",
                          status_or_socket.status().message());
