@@ -150,8 +150,7 @@ Network::FilterStatus Instance::onNewConnection() {
   const Network::Address::InstanceConstSharedPtr& dst_address =
       conn.connectionInfoProvider().localAddress();
   const Network::Address::Ip* dip = dst_address ? dst_address->ip() : nullptr;
-  const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socketOptions);
+  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(conn.streamInfo());
   if (policy_socket_option) {
     proxy_id = policy_socket_option->proxy_id_;
     pod_ip = policy_socket_option->pod_ip_;
@@ -235,8 +234,7 @@ void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
   Network::Address::InstanceConstSharedPtr orig_dst_address{nullptr};
   uint32_t destination_identity = 0;
   const auto& conn = callbacks_->connection();
-  const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socketOptions);
+  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(conn.streamInfo());
   if (policy_socket_option) {
     // resolve the original destination from 'x-envoy-original-dst-host' header to be used in the
     // access log message

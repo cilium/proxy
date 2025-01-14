@@ -64,6 +64,9 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "socket_option_lib",
+    srcs = [
+        "socket_option_cilium_policy.cc",
+    ],
     hdrs = [
         "policy_id.h",
         "socket_option_cilium_mark.h",
