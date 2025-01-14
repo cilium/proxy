@@ -75,6 +75,8 @@ public:
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+    // SO_REUSEPORT for the listener socket is set via Envoy config
+
     context.addListenSocketOptions(options);
 
     return [listener_filter_matcher,
@@ -122,6 +124,8 @@ public:
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+    // SO_REUSEPORT for the listener socket is set via Envoy config
+
     context.addListenSocketOptions(options);
 
     return [config](Network::UdpListenerFilterManager& udp_listener_filter_manager,
@@ -565,6 +569,10 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
           ->addOption(std::move(options));
     }
   }
+
+  // reuse port for forwarded client connections (SO_REUSEPORT)
+  Network::Socket::appendOptions(socket_options,
+                                 Network::SocketOptionFactory::buildReusePortOptions());
 
   // keep alive (SO_KEEPALIVE, TCP_KEEPINTVL, TCP_KEEPIDLE)
   Network::Socket::appendOptions(
