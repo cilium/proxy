@@ -30,8 +30,8 @@
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/network_filter.pb.h"
 #include "cilium/api/network_filter.pb.validate.h" // IWYU pragma: keep
+#include "cilium/filter_state_cilium_policy.h"
 #include "cilium/proxylib.h"
-#include "cilium/socket_option_cilium_policy.h"
 #include "proxylib/types.h"
 
 namespace Envoy {

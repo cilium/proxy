@@ -35,7 +35,7 @@
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/l7policy.pb.h"
 #include "cilium/api/l7policy.pb.validate.h" // IWYU pragma: keep
-#include "cilium/socket_option_cilium_policy.h"
+#include "cilium/filter_state_cilium_policy.h"
 
 namespace Envoy {
 namespace Cilium {
