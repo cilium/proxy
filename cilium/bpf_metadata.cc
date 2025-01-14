@@ -47,6 +47,7 @@
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 #include "cilium/socket_option.h"
+#include "cilium/socket_option_ip_transparent.h"
 
 namespace Envoy {
 namespace Server {
@@ -77,6 +78,8 @@ public:
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+
+    options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
 
     options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
         envoy::config::core::v3::SocketOption::STATE_PREBIND,
@@ -131,6 +134,8 @@ public:
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+
+    options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
 
     options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
         envoy::config::core::v3::SocketOption::STATE_PREBIND,
@@ -580,6 +585,10 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
               Network::UpstreamSocketOptionsFilterState::key())
           ->addOption(std::move(options));
     }
+  }
+
+  if (config_->addPrivilegedSocketOptions()) {
+    socket_options->push_back(std::make_shared<Envoy::Cilium::IpTransparentSocketOption>());
   }
 
   // allow reuse of the original source address by setting SO_REUSEADDR.
