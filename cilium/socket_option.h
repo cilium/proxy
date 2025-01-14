@@ -149,13 +149,6 @@ public:
           }
         }
       }
-
-      auto status = socket.setSocketOption(SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-      if (status.return_value_ < 0) {
-        ENVOY_LOG(critical, "Failed to set socket option SO_REUSEADDR: {}",
-                  Envoy::errorDetails(status.errno_));
-        return false;
-      }
     }
 
     ENVOY_LOG(trace,

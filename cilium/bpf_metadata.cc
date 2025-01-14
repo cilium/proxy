@@ -75,6 +75,11 @@ public:
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+
+    options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
+        envoy::config::core::v3::SocketOption::STATE_PREBIND,
+        Envoy::Network::SocketOptionName(SOL_SOCKET, SO_REUSEADDR, "SO_REUSEADDR"), 1));
+
     // SO_REUSEPORT for the listener socket is set via Envoy config
 
     context.addListenSocketOptions(options);
@@ -124,6 +129,11 @@ public:
 
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+
+    options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
+        envoy::config::core::v3::SocketOption::STATE_PREBIND,
+        Envoy::Network::SocketOptionName(SOL_SOCKET, SO_REUSEADDR, "SO_REUSEADDR"), 1));
+
     // SO_REUSEPORT for the listener socket is set via Envoy config
 
     context.addListenSocketOptions(options);
@@ -569,6 +579,13 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
           ->addOption(std::move(options));
     }
   }
+
+  // allow reuse of the original source address by setting SO_REUSEADDR.
+  // This may by needed for retries to not fail on "address already in use"
+  // when using a specifis source address and port.
+  socket_options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
+      envoy::config::core::v3::SocketOption::STATE_PREBIND,
+      Envoy::Network::SocketOptionName(SOL_SOCKET, SO_REUSEADDR, "SO_REUSEADDR"), 1));
 
   // reuse port for forwarded client connections (SO_REUSEPORT)
   Network::Socket::appendOptions(socket_options,
