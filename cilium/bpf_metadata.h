@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "envoy/api/io_error.h"
 #include "envoy/network/address.h"
@@ -14,6 +15,8 @@
 
 #include "source/common/common/logger.h"
 
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/conntrack.h"
 #include "cilium/host_map.h"
@@ -24,6 +27,45 @@
 namespace Envoy {
 namespace Cilium {
 namespace BpfMetadata {
+
+struct SocketMetadata {
+  SocketMetadata(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
+                 bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
+                 Network::Address::InstanceConstSharedPtr original_source_address,
+                 Network::Address::InstanceConstSharedPtr source_address_ipv4,
+                 Network::Address::InstanceConstSharedPtr source_address_ipv6,
+                 const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
+                 absl::string_view sni)
+      : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
+        ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
+        proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver), mark_(mark),
+        original_source_address_(std::move(original_source_address)),
+        source_address_ipv4_(std::move(source_address_ipv4)),
+        source_address_ipv6_(std::move(source_address_ipv6)) {}
+
+  std::shared_ptr<Envoy::Cilium::SocketOption> buildBpfMetadataSocketOption() {
+    return std::make_shared<Envoy::Cilium::SocketOption>(
+        mark_, ingress_source_identity_, source_identity_, ingress_, is_l7lb_, port_,
+        std::move(pod_ip_), original_source_address_, source_address_ipv4_, source_address_ipv6_,
+        policy_resolver_, proxy_id_, sni_);
+  };
+
+  uint32_t ingress_source_identity_;
+  uint32_t source_identity_;
+  bool ingress_;
+  bool is_l7lb_;
+  uint16_t port_;
+  std::string pod_ip_;
+  uint32_t proxy_id_;
+  std::string sni_;
+  std::weak_ptr<PolicyResolver> policy_resolver_;
+
+  uint32_t mark_;
+
+  Network::Address::InstanceConstSharedPtr original_source_address_;
+  Network::Address::InstanceConstSharedPtr source_address_ipv4_;
+  Network::Address::InstanceConstSharedPtr source_address_ipv6_;
+};
 
 /**
  * Global configuration for Bpf Metadata listener filter. This
@@ -42,7 +84,7 @@ public:
   uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
   const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const override;
 
-  virtual Cilium::SocketOptionSharedPtr getMetadata(Network::ConnectionSocket& socket);
+  virtual absl::optional<SocketMetadata> extractSocketMetadata(Network::ConnectionSocket& socket);
 
   uint32_t proxy_id_;
   bool is_ingress_;

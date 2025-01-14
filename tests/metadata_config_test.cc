@@ -278,9 +278,9 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+  socket_.addOption(socket_metadata->buildBpfMetadataSocketOption());
 
   const auto option = Cilium::GetSocketOption(socket_.options());
   EXPECT_NE(nullptr, option);
@@ -310,9 +310,9 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   config.set_enforce_policy_on_l7lb(true);
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+  socket_.addOption(socket_metadata->buildBpfMetadataSocketOption());
 
   const auto option = Cilium::GetSocketOption(socket_.options());
   EXPECT_NE(nullptr, option);
@@ -346,9 +346,9 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   config.set_enforce_policy_on_l7lb(true);
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+  socket_.addOption(socket_metadata->buildBpfMetadataSocketOption());
 
   const auto option = Cilium::GetSocketOption(socket_.options());
   EXPECT_NE(nullptr, option);
@@ -383,8 +383,8 @@ TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_EQ(nullptr, socket_option);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_FALSE(socket_metadata);
 
   const auto option = Cilium::GetSocketOption(socket_.options());
   EXPECT_EQ(nullptr, option);
@@ -399,9 +399,9 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+  socket_.addOption(socket_metadata->buildBpfMetadataSocketOption());
 
   const auto option = Cilium::GetSocketOption(socket_.options());
   EXPECT_NE(nullptr, option);
@@ -428,9 +428,9 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
 
   EXPECT_NO_THROW(initialize(config));
 
-  auto socket_option = config_->getMetadata(socket_);
-  EXPECT_NE(nullptr, socket_option);
-  socket_.addOption(socket_option);
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+  socket_.addOption(socket_metadata->buildBpfMetadataSocketOption());
 
   const auto option = Cilium::GetSocketOption(socket_.options());
   EXPECT_NE(nullptr, option);
