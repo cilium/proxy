@@ -92,8 +92,8 @@ public:
 
     ENVOY_CONN_LOG(trace, "retrieving policy filter state", conn);
     auto policy_socket_option =
-        conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicySocketOption>(
-            Cilium::CiliumPolicySocketOption::key());
+        conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicyFilterState>(
+            Cilium::CiliumPolicyFilterState::key());
 
     if (policy_socket_option) {
       const auto& policy = policy_socket_option->getPolicy();
