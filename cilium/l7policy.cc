@@ -162,7 +162,10 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     return Http::FilterHeadersStatus::StopIteration;
   }
 
-  const auto policy_fs = Cilium::GetCiliumPolicyFilterState(conn->streamInfo());
+  const auto policy_fs =
+      conn->streamInfo().filterState().getDataReadOnly<Cilium::CiliumPolicyFilterState>(
+          Cilium::CiliumPolicyFilterState::key());
+
   if (!policy_fs) {
     sendLocalError("cilium.l7policy: Cilium policy filter state not found");
     return Http::FilterHeadersStatus::StopIteration;
