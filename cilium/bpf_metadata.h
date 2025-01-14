@@ -24,6 +24,7 @@
 #include "cilium/network_policy.h"
 #include "cilium/socket_option.h"
 #include "cilium/socket_option_cilium_mark.h"
+#include "cilium/socket_option_source_address.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -47,12 +48,16 @@ struct SocketMetadata {
   std::shared_ptr<Envoy::Cilium::SocketOption> buildBpfMetadataSocketOption() {
     return std::make_shared<Envoy::Cilium::SocketOption>(
         ingress_source_identity_, source_identity_, ingress_, is_l7lb_, port_, std::move(pod_ip_),
-        original_source_address_, source_address_ipv4_, source_address_ipv6_, policy_resolver_,
-        proxy_id_, sni_);
+        policy_resolver_, proxy_id_, sni_);
   };
 
   std::shared_ptr<Envoy::Cilium::CiliumMarkSocketOption> buildCiliumMarkSocketOption() {
     return std::make_shared<Envoy::Cilium::CiliumMarkSocketOption>(mark_);
+  };
+
+  std::shared_ptr<Envoy::Cilium::SourceAddressSocketOption> buildSourceAddressSocketOption() {
+    return std::make_shared<Envoy::Cilium::SourceAddressSocketOption>(
+        source_identity_, original_source_address_, source_address_ipv4_, source_address_ipv6_);
   };
 
   uint32_t ingress_source_identity_;
