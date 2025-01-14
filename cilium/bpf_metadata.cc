@@ -349,7 +349,8 @@ const PolicyInstanceConstSharedPtr Config::getPolicy(const std::string& pod_ip) 
   return policy;
 }
 
-Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& socket) {
+absl::optional<Cilium::BpfMetadata::SocketMetadata>
+Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr src_address =
       socket.connectionInfoProvider().remoteAddress();
   const auto sip = src_address->ip();
@@ -360,7 +361,7 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
   if (!sip || !dip) {
     ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}", src_address->asString(),
                    dst_address->asString());
-    return nullptr;
+    return absl::nullopt;
   }
 
   // We do this first as this likely restores the destination address and
@@ -413,7 +414,7 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
                 "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
                 "source address: {}",
                 pod_ip);
-      return nullptr;
+      return absl::nullopt;
     }
 
     // Use original source address with L7 LB for local endpoint sources if requested, as policy
@@ -439,7 +440,7 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
           "cilium.bpf_metadata (north/south L7 LB): No local Ingress IP source address configured "
           "for the family of {}",
           sip->addressAsString());
-      return nullptr;
+      return absl::nullopt;
     }
 
     auto& ingress_ip_str = ingress_ip->addressAsString();
@@ -451,7 +452,7 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
                 "cilium.bpf_metadata (north/south L7 LB): Unknown local Ingress IP source address "
                 "configured: {}",
                 ingress_ip_str);
-      return nullptr;
+      return absl::nullopt;
     }
 
     // Enforce ingress policy on the incoming Ingress traffic?
@@ -483,7 +484,7 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
   if (policy == nullptr) {
     ENVOY_LOG(warn, "cilium.bpf_metadata ({}): No policy found for {} sni: \"{}\"",
               is_ingress_ ? "ingress" : "egress", pod_ip, sni);
-    return nullptr;
+    return absl::nullopt;
   }
 
   // Add metadata for policy based listener filter chain matching.
@@ -519,19 +520,20 @@ Cilium::SocketOptionSharedPtr Config::getMetadata(Network::ConnectionSocket& soc
     uint32_t identity_id = (source_identity & 0xFFFF) << 16;
     mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
   }
-  return std::make_shared<Cilium::SocketOption>(
+  return absl::optional(Cilium::BpfMetadata::SocketMetadata(
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
-      std::move(source_addresses.ipv6_), weak_from_this(), proxy_id_, sni);
+      std::move(source_addresses.ipv6_), weak_from_this(), proxy_id_, sni));
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   Network::ConnectionSocket& socket = cb.socket();
   // Cilium socket option is not set if this fails, which causes 500 response from our l7policy
   // filter. Our integration tests depend on this.
-  auto option = config_->getMetadata(socket);
-  if (option) {
-    socket.addOption(option);
+  auto socket_metadata = config_->extractSocketMetadata(socket);
+  if (socket_metadata) {
+    auto bpf_metadata_socket_option = socket_metadata->buildBpfMetadataSocketOption();
+    socket.addOption(bpf_metadata_socket_option);
 
     // Make Cilium policy available to upstream filters when L7 LB
     if (config_->is_l7lb_) {
@@ -546,7 +548,7 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
       }
 
       auto options = std::make_shared<Network::Socket::Options>();
-      options->push_back(std::move(option));
+      options->push_back(std::move(bpf_metadata_socket_option));
 
       filter_state
           .getDataMutable<Network::UpstreamSocketOptionsFilterState>(
