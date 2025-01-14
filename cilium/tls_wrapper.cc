@@ -49,7 +49,40 @@ public:
   // Network::TransportSocket
   void setTransportSocketCallbacks(Network::TransportSocketCallbacks& callbacks) override {
     callbacks_ = &callbacks;
+  }
 
+  std::string protocol() const override { return socket_ ? socket_->protocol() : EMPTY_STRING; }
+
+  absl::string_view failureReason() const override {
+    return socket_ ? socket_->failureReason() : NotReadyReason;
+  }
+
+  bool canFlushClose() override { return socket_ ? socket_->canFlushClose() : true; }
+
+  // Override if need to intercept client socket connect() call.
+  // Api::SysCallIntResult connect(Network::ConnectionSocket& socket) override
+
+  void closeSocket(Network::ConnectionEvent type) override {
+    if (socket_) {
+      socket_->closeSocket(type);
+    }
+  }
+
+  Network::IoResult doRead(Buffer::Instance& buffer) override {
+    if (socket_) {
+      return socket_->doRead(buffer);
+    }
+    return {Network::PostIoAction::Close, 0, false};
+  }
+
+  Network::IoResult doWrite(Buffer::Instance& buffer, bool end_stream) override {
+    if (socket_) {
+      return socket_->doWrite(buffer, end_stream);
+    }
+    return {Network::PostIoAction::Close, 0, false};
+  }
+
+  void onConnected() override {
     // Get the Cilium policy filter state from the callbacks in order to get the TLS
     // configuration.
     // Cilium socket option is only created if the (initial) policy for the local pod exists.
@@ -153,40 +186,7 @@ public:
       ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Can not correlate connection with Cilium Network "
                            "Policy (Cilium socket option not found)");
     }
-  }
 
-  std::string protocol() const override { return socket_ ? socket_->protocol() : EMPTY_STRING; }
-
-  absl::string_view failureReason() const override {
-    return socket_ ? socket_->failureReason() : NotReadyReason;
-  }
-
-  bool canFlushClose() override { return socket_ ? socket_->canFlushClose() : true; }
-
-  // Override if need to intercept client socket connect() call.
-  // Api::SysCallIntResult connect(Network::ConnectionSocket& socket) override
-
-  void closeSocket(Network::ConnectionEvent type) override {
-    if (socket_) {
-      socket_->closeSocket(type);
-    }
-  }
-
-  Network::IoResult doRead(Buffer::Instance& buffer) override {
-    if (socket_) {
-      return socket_->doRead(buffer);
-    }
-    return {Network::PostIoAction::Close, 0, false};
-  }
-
-  Network::IoResult doWrite(Buffer::Instance& buffer, bool end_stream) override {
-    if (socket_) {
-      return socket_->doWrite(buffer, end_stream);
-    }
-    return {Network::PostIoAction::Close, 0, false};
-  }
-
-  void onConnected() override {
     if (socket_) {
       socket_->onConnected();
     }
