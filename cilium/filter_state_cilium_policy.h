@@ -16,7 +16,6 @@
 #include "envoy/common/pure.h"
 #include "envoy/network/address.h"
 #include "envoy/stream_info/filter_state.h"
-#include "envoy/stream_info/stream_info.h"
 
 #include "source/common/common/logger.h"
 
@@ -39,7 +38,7 @@ public:
 };
 
 // FilterState that holds relevant connection & policy information that can be retrieved
-// by the Cilium network- and HTTP policy filters by using GetCiliumPolicyFilterState.
+// by the Cilium network- and HTTP policy filters via filter state.
 class CiliumPolicyFilterState : public StreamInfo::FilterState::Object,
                                 public Logger::Loggable<Logger::Id::filter> {
 public:
@@ -89,14 +88,5 @@ public:
 private:
   const std::weak_ptr<PolicyResolver> policy_resolver_;
 };
-
-using CiliumPolicyFilterStateSharedPtr = std::shared_ptr<CiliumPolicyFilterState>;
-
-static inline const Cilium::CiliumPolicyFilterState*
-GetCiliumPolicyFilterState(const StreamInfo::StreamInfo& streamInfo) {
-  return streamInfo.filterState().getDataReadOnly<Cilium::CiliumPolicyFilterState>(
-      Cilium::CiliumPolicyFilterState::key());
-}
-
 } // namespace Cilium
 } // namespace Envoy
