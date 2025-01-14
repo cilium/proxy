@@ -1248,115 +1248,6 @@ void ThreadLocalPolicyMap::Update(std::vector<std::shared_ptr<PolicyInstanceImpl
   }
 }
 
-absl::Status
-NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
-                                 const std::string& version_info) {
-  ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", instance_id_,
-            resources.size(), version_info);
-  update_latency_ms_ = std::make_unique<Stats::HistogramCompletableTimespanImpl>(
-      stats_.update_latency_ms_, context_.timeSource());
-  stats_.updates_total_.inc();
-
-  // Reopen IPcache for every new stream. Cilium agent re-creates IP cache on restart,
-  // and that is also when the old stream terminates and a new one is created.
-  // New security identities (e.g., for FQDN policies) only get inserted to the new IP cache,
-  // so open it before the workers get a chance to enforce policy on the new IDs.
-  if (isNewStream()) {
-    ENVOY_LOG(info, "New NetworkPolicy stream");
-
-    // Get ipcache singleton only if it was successfully created previously
-    IPCacheSharedPtr ipcache = IPCache::GetIPCache(context_);
-    if (ipcache != nullptr) {
-      ENVOY_LOG(info, "Reopening ipcache on new stream");
-      ipcache->Open();
-    }
-  }
-
-  std::string version_name = fmt::format("NetworkPolicyMap version {}", version_info);
-
-  absl::flat_hash_set<std::string> keeps;
-  absl::flat_hash_set<std::string> ct_maps_to_keep;
-
-  updateInitManager(version_name);
-
-  // Collect a shared vector of policies to be added
-  auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
-  try {
-    for (const auto& resource : resources) {
-      const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
-      ENVOY_LOG(debug,
-                "Received Network Policy for endpoint {} in onConfigUpdate() "
-                "version {}",
-                config.endpoint_id(), version_info);
-      if (config.endpoint_ips().size() == 0) {
-        throw EnvoyException("Network Policy has no endpoint ips");
-      }
-      for (const auto& endpoint_ip : config.endpoint_ips()) {
-        keeps.insert(endpoint_ip);
-      }
-      ct_maps_to_keep.insert(config.conntrack_map_name());
-
-      // First find the old config to figure out if an update is needed.
-      const uint64_t new_hash = MessageUtil::hash(config);
-      const auto& old_policy = GetPolicyInstanceImpl(config.endpoint_ips()[0]);
-      if (old_policy && old_policy->hash_ == new_hash &&
-          Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_, config)) {
-        ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
-        continue;
-      }
-
-      // May throw
-      to_be_added->emplace_back(std::make_shared<PolicyInstanceImpl>(*this, new_hash, config));
-    }
-  } catch (const EnvoyException& e) {
-    ENVOY_LOG(warn, "NetworkPolicy update for version {} failed: {}", version_info, e.what());
-    stats_.updates_rejected_.inc();
-
-    removeInitManager();
-
-    throw; // re-throw
-  }
-
-  removeInitManager();
-
-  // Collect a shared vector of policy names to be removed
-  auto to_be_deleted = std::make_shared<std::vector<std::string>>();
-  // Collect a shared vector of conntrack maps to close
-  auto cts_to_be_closed = std::make_shared<absl::flat_hash_set<std::string>>();
-  const auto& policies = tls_map_->policies_;
-  for (auto& pair : policies) {
-    if (keeps.find(pair.first) == keeps.end()) {
-      to_be_deleted->emplace_back(pair.first);
-    }
-    // insert conntrack map names we don't want to keep and that have not been
-    // already inserted.
-    auto& ct_map_name = pair.second->conntrack_map_name_;
-    if (ct_maps_to_keep.find(ct_map_name) == ct_maps_to_keep.end() &&
-        cts_to_be_closed->find(ct_map_name) == cts_to_be_closed->end()) {
-      ENVOY_LOG(debug, "Closing conntrack map {}", ct_map_name);
-      cts_to_be_closed->insert(ct_map_name);
-    }
-  }
-
-  // Execute non-empty update on all threads
-  if (to_be_added->size() != 0 || to_be_deleted->size() != 0 || cts_to_be_closed->size() != 0) {
-    executeUpdate(
-        version_name,
-        [to_be_added, to_be_deleted, version_info](ThreadLocalPolicyMap& npmap) {
-          npmap.Update(*to_be_added, *to_be_deleted, version_info);
-        },
-        [cts_to_be_closed](NetworkPolicyMapSharedPtr shared_this) {
-          if (shared_this->ctmap_ && cts_to_be_closed->size() > 0) {
-            shared_this->ctmap_->closeMaps(cts_to_be_closed);
-          }
-        });
-  } else {
-    ENVOY_LOG(trace, "Skipping empty or duplicate policy update.");
-  }
-
-  return absl::OkStatus();
-}
-
 // updateInitManager must be called for each policy update before parsing the policy
 void NetworkPolicyMap::updateInitManager(const std::string& version_name) {
   // Init manager for this version update.
@@ -1473,6 +1364,115 @@ void NetworkPolicyMap::executeUpdate(const std::string& version_name,
   // Initialize SDS secrets, the watcher callback above will be called after all threads have
   // updated policies and secrets have been fetched, or timeout (15 seconds) hits.
   version_init_manager_->initialize(*version_init_watcher_);
+}
+
+absl::Status
+NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
+                                 const std::string& version_info) {
+  ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", instance_id_,
+            resources.size(), version_info);
+  update_latency_ms_ = std::make_unique<Stats::HistogramCompletableTimespanImpl>(
+      stats_.update_latency_ms_, context_.timeSource());
+  stats_.updates_total_.inc();
+
+  // Reopen IPcache for every new stream. Cilium agent re-creates IP cache on restart,
+  // and that is also when the old stream terminates and a new one is created.
+  // New security identities (e.g., for FQDN policies) only get inserted to the new IP cache,
+  // so open it before the workers get a chance to enforce policy on the new IDs.
+  if (isNewStream()) {
+    ENVOY_LOG(info, "New NetworkPolicy stream");
+
+    // Get ipcache singleton only if it was successfully created previously
+    IPCacheSharedPtr ipcache = IPCache::GetIPCache(context_);
+    if (ipcache != nullptr) {
+      ENVOY_LOG(info, "Reopening ipcache on new stream");
+      ipcache->Open();
+    }
+  }
+
+  std::string version_name = fmt::format("NetworkPolicyMap version {}", version_info);
+
+  absl::flat_hash_set<std::string> keeps;
+  absl::flat_hash_set<std::string> ct_maps_to_keep;
+
+  updateInitManager(version_name);
+
+  // Collect a shared vector of policies to be added
+  auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
+  try {
+    for (const auto& resource : resources) {
+      const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
+      ENVOY_LOG(debug,
+                "Received Network Policy for endpoint {} in onConfigUpdate() "
+                "version {}",
+                config.endpoint_id(), version_info);
+      if (config.endpoint_ips().size() == 0) {
+        throw EnvoyException("Network Policy has no endpoint ips");
+      }
+      for (const auto& endpoint_ip : config.endpoint_ips()) {
+        keeps.insert(endpoint_ip);
+      }
+      ct_maps_to_keep.insert(config.conntrack_map_name());
+
+      // First find the old config to figure out if an update is needed.
+      const uint64_t new_hash = MessageUtil::hash(config);
+      const auto& old_policy = GetPolicyInstanceImpl(config.endpoint_ips()[0]);
+      if (old_policy && old_policy->hash_ == new_hash &&
+          Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_, config)) {
+        ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
+        continue;
+      }
+
+      // May throw
+      to_be_added->emplace_back(std::make_shared<PolicyInstanceImpl>(*this, new_hash, config));
+    }
+  } catch (const EnvoyException& e) {
+    ENVOY_LOG(warn, "NetworkPolicy update for version {} failed: {}", version_info, e.what());
+    stats_.updates_rejected_.inc();
+
+    removeInitManager();
+
+    throw; // re-throw
+  }
+
+  removeInitManager();
+
+  // Collect a shared vector of policy names to be removed
+  auto to_be_deleted = std::make_shared<std::vector<std::string>>();
+  // Collect a shared vector of conntrack maps to close
+  auto cts_to_be_closed = std::make_shared<absl::flat_hash_set<std::string>>();
+  const auto& policies = tls_map_->policies_;
+  for (auto& pair : policies) {
+    if (keeps.find(pair.first) == keeps.end()) {
+      to_be_deleted->emplace_back(pair.first);
+    }
+    // insert conntrack map names we don't want to keep and that have not been
+    // already inserted.
+    auto& ct_map_name = pair.second->conntrack_map_name_;
+    if (ct_maps_to_keep.find(ct_map_name) == ct_maps_to_keep.end() &&
+        cts_to_be_closed->find(ct_map_name) == cts_to_be_closed->end()) {
+      ENVOY_LOG(debug, "Closing conntrack map {}", ct_map_name);
+      cts_to_be_closed->insert(ct_map_name);
+    }
+  }
+
+  // Execute non-empty update on all threads
+  if (to_be_added->size() != 0 || to_be_deleted->size() != 0 || cts_to_be_closed->size() != 0) {
+    executeUpdate(
+        version_name,
+        [to_be_added, to_be_deleted, version_info](ThreadLocalPolicyMap& npmap) {
+          npmap.Update(*to_be_added, *to_be_deleted, version_info);
+        },
+        [cts_to_be_closed](NetworkPolicyMapSharedPtr shared_this) {
+          if (shared_this->ctmap_ && cts_to_be_closed->size() > 0) {
+            shared_this->ctmap_->closeMaps(cts_to_be_closed);
+          }
+        });
+  } else {
+    ENVOY_LOG(trace, "Skipping empty or duplicate policy update.");
+  }
+
+  return absl::OkStatus();
 }
 
 void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
