@@ -11,7 +11,7 @@
 namespace Envoy {
 namespace Cilium {
 
-const std::string& Envoy::Cilium::CiliumPolicySocketOption::key() {
+const std::string& Envoy::Cilium::CiliumPolicyFilterState::key() {
   CONSTRUCT_ON_FIRST_USE(std::string, "cilium.policy");
 }
 
