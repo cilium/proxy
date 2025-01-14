@@ -104,53 +104,6 @@ public:
       }
     }
 
-    uint32_t one = 1;
-
-    // identity is zero for the listener socket itself, set transparent and reuse options also for
-    // the listener socket.
-    if (source_address || identity_ == 0) {
-      // Allow reuse of the original source address. This may by needed for
-      // retries to not fail on "address already in use" when using a specific
-      // source address and port.
-
-      // Set ip transparent option based on the socket address family
-      if (*ipVersion == Network::Address::IpVersion::v4) {
-        auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IP,
-                                              IP_TRANSPARENT, &one, sizeof(one));
-        if (status.return_value_ < 0) {
-          if (status.errno_ == EPERM) {
-            // Do not assert out in this case so that we can run tests without
-            // CAP_NET_ADMIN.
-            ENVOY_LOG(critical,
-                      "Failed to set socket option IP_TRANSPARENT, capability "
-                      "CAP_NET_ADMIN needed: {}",
-                      Envoy::errorDetails(status.errno_));
-          } else {
-            ENVOY_LOG(critical, "Socket option failure. Failed to set IP_TRANSPARENT: {}",
-                      Envoy::errorDetails(status.errno_));
-            return false;
-          }
-        }
-      } else if (*ipVersion == Network::Address::IpVersion::v6) {
-        auto status = cilium_calls.setsockopt(socket.ioHandle().fdDoNotUse(), SOL_IPV6,
-                                              IPV6_TRANSPARENT, &one, sizeof(one));
-        if (status.return_value_ < 0) {
-          if (status.errno_ == EPERM) {
-            // Do not assert out in this case so that we can run tests without
-            // CAP_NET_ADMIN.
-            ENVOY_LOG(critical,
-                      "Failed to set socket option IPV6_TRANSPARENT, capability "
-                      "CAP_NET_ADMIN needed: {}",
-                      Envoy::errorDetails(status.errno_));
-          } else {
-            ENVOY_LOG(critical, "Socket option failure. Failed to set IPV6_TRANSPARENT: {}",
-                      Envoy::errorDetails(status.errno_));
-            return false;
-          }
-        }
-      }
-    }
-
     ENVOY_LOG(trace,
               "Set socket ({}) option SO_MARK to {:x} (magic mark: {:x}, id: "
               "{}, cluster: {}), src: {}",
