@@ -28,15 +28,15 @@ public:
   friend class Envoy::Cilium::Bpf;
   friend class Envoy::Cilium::SocketMarkOption;
 
+  // Set a socket option
+  Envoy::Api::SysCallIntResult setsockopt(int sockfd, int level, int optname, const void* optval,
+                                          socklen_t optlen);
+
 protected:
   // Read-only bpf syscalls
   Envoy::Api::SysCallIntResult bpf_open(const char* path);
   Envoy::Api::SysCallIntResult bpf_lookup(int fd, const void* key, uint32_t key_size, void* value,
                                           uint32_t value_size);
-
-  // Set a socket option
-  Envoy::Api::SysCallIntResult setsockopt(int sockfd, int level, int optname, const void* optval,
-                                          socklen_t optlen);
 
 private:
   bool check_privileged_service();
