@@ -29,12 +29,14 @@
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
+#include "source/common/network/socket_option_factory.h"
 #include "source/common/network/upstream_socket_options_filter_state.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/api/bpf_metadata.pb.validate.h" // IWYU pragma: keep
 #include "cilium/conntrack.h"
@@ -527,13 +529,20 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
+  ENVOY_LOG(trace, "adding socket options");
+
   Network::ConnectionSocket& socket = cb.socket();
+
+  Network::Socket::OptionsSharedPtr socket_options =
+      std::make_shared<std::vector<Network::Socket::OptionConstSharedPtr>>();
+
   // Cilium socket option is not set if this fails, which causes 500 response from our l7policy
   // filter. Our integration tests depend on this.
   auto socket_metadata = config_->extractSocketMetadata(socket);
   if (socket_metadata) {
+
     auto bpf_metadata_socket_option = socket_metadata->buildBpfMetadataSocketOption();
-    socket.addOption(bpf_metadata_socket_option);
+    socket_options->push_back(bpf_metadata_socket_option);
 
     // Make Cilium policy available to upstream filters when L7 LB
     if (config_->is_l7lb_) {
@@ -561,31 +570,23 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   struct ::linger lin {
     true, 10,
   };
-  int keepalive = true;
-  int secs = 5 * 60; // Five minutes
 
   auto status = socket.setSocketOption(SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
   if (status.return_value_ < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_LINGER: {}",
               Envoy::errorDetails(status.errno_));
   }
-  status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
-  if (status.return_value_ < 0) {
-    ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}",
-              Envoy::errorDetails(status.errno_));
-  } else {
-    status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPINTVL, &secs, sizeof(secs));
-    if (status.return_value_ < 0) {
-      ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPINTVL: {}",
-                Envoy::errorDetails(status.errno_));
-    } else {
-      status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPIDLE, &secs, sizeof(secs));
-      if (status.return_value_ < 0) {
-        ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPIDLE: {}",
-                  Envoy::errorDetails(status.errno_));
-      }
-    }
-  }
+
+  // keep alive (SO_KEEPALIVE, TCP_KEEPINTVL, TCP_KEEPIDLE)
+  Network::Socket::appendOptions(
+      socket_options,
+      Network::SocketOptionFactory::buildTcpKeepaliveOptions(Envoy::Network::TcpKeepaliveConfig{
+          .keepalive_probes_ = absl::nullopt, // not setting TCP_KEEPCNT
+          .keepalive_time_ = 5 * 60,          // 5 min
+          .keepalive_interval_ = 5 * 60,      // 5 min
+      }));
+
+  socket.addOptions(socket_options);
 
   return Network::FilterStatus::Continue;
 }
