@@ -69,6 +69,7 @@ envoy_cc_library(
         "socket_option.h",
         "socket_option_cilium_mark.h",
         "socket_option_ip_transparent.h",
+        "socket_option_source_address.h",
     ],
     repository = "@envoy",
     deps = [

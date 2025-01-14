@@ -288,12 +288,16 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   EXPECT_EQ(8, option->identity_);
   EXPECT_EQ(false, option->ingress_);
   EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_EQ(0, option->ingress_source_identity_);
+
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option->ipv6_source_address_->asString());
 
   auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option);
@@ -324,12 +328,16 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   EXPECT_EQ(8, option->identity_);
   EXPECT_EQ(false, option->ingress_);
   EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_EQ(12345678, option->ingress_source_identity_);
+
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option->ipv6_source_address_->asString());
 
   auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option);
@@ -364,12 +372,16 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   EXPECT_EQ(8, option->identity_);
   EXPECT_EQ(false, option->ingress_);
   EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_EQ(2, option->ingress_source_identity_);
+
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option->ipv6_source_address_->asString());
 
   auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option);
@@ -421,11 +433,16 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_EQ(111, option->identity_);
   EXPECT_EQ(false, option->ingress_);
   EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.1:41234", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::1:1:1]:41234", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.1", option->pod_ip_);
+
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
+  EXPECT_EQ("10.1.1.1:41234", source_addresses_socket_option->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::1:1:1]:41234",
+            source_addresses_socket_option->ipv6_source_address_->asString());
 
   auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option);
@@ -454,12 +471,16 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   EXPECT_EQ(8, option->identity_);
   EXPECT_EQ(false, option->ingress_);
   EXPECT_EQ(true, option->is_l7lb_);
-  EXPECT_EQ(nullptr, option->original_source_address_);
-  EXPECT_EQ("10.1.1.42:0", option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::42]:0", option->ipv6_source_address_->asString());
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_EQ(0, option->ingress_source_identity_);
+
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option->ipv6_source_address_->asString());
 
   auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option);
