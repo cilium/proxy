@@ -86,6 +86,10 @@ public:
 
   virtual absl::optional<SocketMetadata> extractSocketMetadata(Network::ConnectionSocket& socket);
 
+  // Possibility to prevent socket options that require
+  // NET_ADMIN privileges from being applied. Used by tests.
+  virtual bool addPrivilegedSocketOptions() { return true; };
+
   uint32_t proxy_id_;
   bool is_ingress_;
   bool use_original_source_address_;

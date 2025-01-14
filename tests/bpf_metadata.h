@@ -40,6 +40,10 @@ public:
 
   absl::optional<Cilium::BpfMetadata::SocketMetadata>
   extractSocketMetadata(Network::ConnectionSocket& socket) override;
+
+  // Prevent socket options that require NET_ADMIN privileges from being applied during test
+  // execution.
+  bool addPrivilegedSocketOptions() override { return false; };
 };
 
 } // namespace BpfMetadata
