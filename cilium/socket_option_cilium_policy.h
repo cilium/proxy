@@ -31,20 +31,20 @@ public:
   virtual const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const PURE;
 };
 
-// Socket Option that holds relevant connection & policy information that can be retrieved
-// by the Cilium network- and HTTP policy filters by using GetCiliumPolicySocketOption.
-class CiliumPolicySocketOption : public StreamInfo::FilterState::Object,
-                                 public Logger::Loggable<Logger::Id::filter> {
+// FilterState that holds relevant connection & policy information that can be retrieved
+// by the Cilium network- and HTTP policy filters by using GetCiliumPolicyFilterState.
+class CiliumPolicyFilterState : public StreamInfo::FilterState::Object,
+                                public Logger::Loggable<Logger::Id::filter> {
 public:
-  CiliumPolicySocketOption(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
-                           bool l7lb, uint16_t port, std::string&& pod_ip,
-                           const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
-                           absl::string_view sni)
+  CiliumPolicyFilterState(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
+                          bool l7lb, uint16_t port, std::string&& pod_ip,
+                          const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
+                          absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
         proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver) {
     ENVOY_LOG(debug,
-              "Cilium CiliumPolicySocketOption(): source_identity: {}, "
+              "Cilium CiliumPolicyFilterState(): source_identity: {}, "
               "ingress: {}, port: {}, pod_ip: {}, proxy_id: {}, sni: \"{}\"",
               source_identity_, ingress_, port_, pod_ip_, proxy_id_, sni_);
   }
@@ -83,12 +83,12 @@ private:
   const std::weak_ptr<PolicyResolver> policy_resolver_;
 };
 
-using CiliumPolicySocketOptionSharedPtr = std::shared_ptr<CiliumPolicySocketOption>;
+using CiliumPolicyFilterStateSharedPtr = std::shared_ptr<CiliumPolicyFilterState>;
 
-static inline const Cilium::CiliumPolicySocketOption*
-GetCiliumPolicySocketOption(const StreamInfo::StreamInfo& streamInfo) {
-  return streamInfo.filterState().getDataReadOnly<Cilium::CiliumPolicySocketOption>(
-      Cilium::CiliumPolicySocketOption::key());
+static inline const Cilium::CiliumPolicyFilterState*
+GetCiliumPolicyFilterState(const StreamInfo::StreamInfo& streamInfo) {
+  return streamInfo.filterState().getDataReadOnly<Cilium::CiliumPolicyFilterState>(
+      Cilium::CiliumPolicyFilterState::key());
 }
 
 } // namespace Cilium

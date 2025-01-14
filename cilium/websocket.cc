@@ -150,13 +150,13 @@ Network::FilterStatus Instance::onNewConnection() {
   const Network::Address::InstanceConstSharedPtr& dst_address =
       conn.connectionInfoProvider().localAddress();
   const Network::Address::Ip* dip = dst_address ? dst_address->ip() : nullptr;
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(conn.streamInfo());
-  if (policy_socket_option) {
-    proxy_id = policy_socket_option->proxy_id_;
-    pod_ip = policy_socket_option->pod_ip_;
-    is_ingress = policy_socket_option->ingress_;
-    identity = policy_socket_option->source_identity_;
-    destination_identity = dip ? policy_socket_option->resolvePolicyId(dip) : 0;
+  const auto policy_fs = Cilium::GetCiliumPolicyFilterState(conn.streamInfo());
+  if (policy_fs) {
+    proxy_id = policy_fs->proxy_id_;
+    pod_ip = policy_fs->pod_ip_;
+    is_ingress = policy_fs->ingress_;
+    identity = policy_fs->source_identity_;
+    destination_identity = dip ? policy_fs->resolvePolicyId(dip) : 0;
   } else {
     // Default to ingress to destination address, but no security identities.
     proxy_id = 0;
@@ -234,8 +234,8 @@ void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
   Network::Address::InstanceConstSharedPtr orig_dst_address{nullptr};
   uint32_t destination_identity = 0;
   const auto& conn = callbacks_->connection();
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(conn.streamInfo());
-  if (policy_socket_option) {
+  const auto policy_fs = Cilium::GetCiliumPolicyFilterState(conn.streamInfo());
+  if (policy_fs) {
     // resolve the original destination from 'x-envoy-original-dst-host' header to be used in the
     // access log message
     auto override_header = headers.getInline(original_dst_host_handle.handle());
@@ -245,7 +245,7 @@ void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
           Network::Utility::parseInternetAddressAndPortNoThrow(request_override_host, false);
       const Network::Address::Ip* dip = orig_dst_address ? orig_dst_address->ip() : nullptr;
       if (dip) {
-        destination_identity = policy_socket_option->resolvePolicyId(dip);
+        destination_identity = policy_fs->resolvePolicyId(dip);
       }
     }
   }

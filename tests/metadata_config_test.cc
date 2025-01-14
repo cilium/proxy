@@ -280,15 +280,15 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
 
-  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
-  EXPECT_NE(nullptr, policy_socket_option);
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(8, policy_socket_option->source_identity_);
-  EXPECT_EQ(false, policy_socket_option->ingress_);
-  EXPECT_EQ(true, policy_socket_option->is_l7lb_);
-  EXPECT_EQ(80, policy_socket_option->port_);
-  EXPECT_EQ("10.1.1.42", policy_socket_option->pod_ip_);
-  EXPECT_EQ(0, policy_socket_option->ingress_source_identity_);
+  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(false, policy_fs->ingress_);
+  EXPECT_EQ(true, policy_fs->is_l7lb_);
+  EXPECT_EQ(80, policy_fs->port_);
+  EXPECT_EQ("10.1.1.42", policy_fs->pod_ip_);
+  EXPECT_EQ(0, policy_fs->ingress_source_identity_);
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option);
@@ -319,15 +319,19 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
 
-  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
-  EXPECT_NE(nullptr, policy_socket_option);
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(8, policy_socket_option->source_identity_);
-  EXPECT_EQ(false, policy_socket_option->ingress_);
-  EXPECT_EQ(true, policy_socket_option->is_l7lb_);
-  EXPECT_EQ(80, policy_socket_option->port_);
-  EXPECT_EQ("10.1.1.42", policy_socket_option->pod_ip_);
-  EXPECT_EQ(12345678, policy_socket_option->ingress_source_identity_);
+  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(false, policy_fs->ingress_);
+  EXPECT_EQ(true, policy_fs->is_l7lb_);
+  EXPECT_EQ(80, policy_fs->port_);
+  EXPECT_EQ("10.1.1.42", policy_fs->pod_ip_);
+  EXPECT_EQ(12345678, policy_fs->ingress_source_identity_);
+
+  // Expect policy accepts security ID 12345678 on ingress on port 80
+  auto port_policy = policy_fs->getPolicy()->findPortPolicy(true, 80);
+  EXPECT_TRUE(port_policy.allowed(12345678, ""));
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option);
@@ -342,10 +346,6 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   // Check that Ingress security ID is used in the socket mark
   EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
               (cilium_mark_socket_option->mark_ >> 16) == 8);
-
-  // Expect policy accepts security ID 12345678 on ingress on port 80
-  auto port_policy = policy_socket_option->getPolicy()->findPortPolicy(true, 80);
-  EXPECT_TRUE(port_policy.allowed(12345678, ""));
 }
 
 TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
@@ -362,15 +362,19 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
 
-  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
-  EXPECT_NE(nullptr, policy_socket_option);
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(8, policy_socket_option->source_identity_);
-  EXPECT_EQ(false, policy_socket_option->ingress_);
-  EXPECT_EQ(true, policy_socket_option->is_l7lb_);
-  EXPECT_EQ(80, policy_socket_option->port_);
-  EXPECT_EQ("10.1.1.42", policy_socket_option->pod_ip_);
-  EXPECT_EQ(2, policy_socket_option->ingress_source_identity_);
+  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(false, policy_fs->ingress_);
+  EXPECT_EQ(true, policy_fs->is_l7lb_);
+  EXPECT_EQ(80, policy_fs->port_);
+  EXPECT_EQ("10.1.1.42", policy_fs->pod_ip_);
+  EXPECT_EQ(2, policy_fs->ingress_source_identity_);
+
+  // Expect policy does not accept security ID 2 on ingress on port 80
+  auto port_policy = policy_fs->getPolicy()->findPortPolicy(true, 80);
+  EXPECT_FALSE(port_policy.allowed(2, ""));
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option);
@@ -385,10 +389,6 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   // Check that Ingress security ID is used in the socket mark
   EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
               (cilium_mark_socket_option->mark_ >> 16) == 8);
-
-  // Expect policy does not accept security ID 2 on ingress on port 80
-  auto port_policy = policy_socket_option->getPolicy()->findPortPolicy(true, 80);
-  EXPECT_FALSE(port_policy.allowed(2, ""));
 }
 
 // Use external remote address, but config says to use original source address
@@ -405,9 +405,6 @@ TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
 
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_FALSE(socket_metadata);
-
-  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
-  EXPECT_EQ(nullptr, policy_socket_option);
 }
 
 TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
@@ -422,14 +419,14 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
 
-  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
-  EXPECT_NE(nullptr, policy_socket_option);
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(111, policy_socket_option->source_identity_);
-  EXPECT_EQ(false, policy_socket_option->ingress_);
-  EXPECT_EQ(true, policy_socket_option->is_l7lb_);
-  EXPECT_EQ(80, policy_socket_option->port_);
-  EXPECT_EQ("10.1.1.1", policy_socket_option->pod_ip_);
+  EXPECT_EQ(111, policy_fs->source_identity_);
+  EXPECT_EQ(false, policy_fs->ingress_);
+  EXPECT_EQ(true, policy_fs->is_l7lb_);
+  EXPECT_EQ(80, policy_fs->port_);
+  EXPECT_EQ("10.1.1.1", policy_fs->pod_ip_);
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option);
@@ -459,15 +456,15 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
 
-  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
-  EXPECT_NE(nullptr, policy_socket_option);
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(8, policy_socket_option->source_identity_);
-  EXPECT_EQ(false, policy_socket_option->ingress_);
-  EXPECT_EQ(true, policy_socket_option->is_l7lb_);
-  EXPECT_EQ(80, policy_socket_option->port_);
-  EXPECT_EQ("10.1.1.42", policy_socket_option->pod_ip_);
-  EXPECT_EQ(0, policy_socket_option->ingress_source_identity_);
+  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(false, policy_fs->ingress_);
+  EXPECT_EQ(true, policy_fs->is_l7lb_);
+  EXPECT_EQ(80, policy_fs->port_);
+  EXPECT_EQ("10.1.1.42", policy_fs->pod_ip_);
+  EXPECT_EQ(0, policy_fs->ingress_source_identity_);
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option);

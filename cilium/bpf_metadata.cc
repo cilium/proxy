@@ -566,10 +566,11 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
     if (config_->addPrivilegedSocketOptions()) {
       socket_options->push_back(socket_metadata->buildCiliumMarkSocketOption());
     }
-    // Make Cilium Policy data available to filters via filter state and to
-    // upstream connection (Cilium SSL Wrapper).
+
+    // Make Cilium Policy data available to filters and upstream connection (Cilium TLS Wrapper) as
+    // filter state.
     cb.filterState().setData(
-        Cilium::CiliumPolicySocketOption::key(), socket_metadata->buildCiliumPolicySocketOption(),
+        Cilium::CiliumPolicyFilterState::key(), socket_metadata->buildCiliumPolicyFilterState(),
         StreamInfo::FilterState::StateType::ReadOnly, StreamInfo::FilterState::LifeSpan::Connection,
         StreamInfo::StreamSharingMayImpactPooling::SharedWithUpstreamConnection);
   }
