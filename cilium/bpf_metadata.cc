@@ -16,10 +16,12 @@
 
 #include "envoy/api/io_error.h"
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/socket_option.pb.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/network/listen_socket.h"
 #include "envoy/network/listener_filter_buffer.h"
+#include "envoy/network/socket.h"
 #include "envoy/registry/registry.h"
 #include "envoy/server/factory_context.h"
 #include "envoy/server/filter_config.h"
@@ -27,9 +29,9 @@
 #include "envoy/stream_info/filter_state.h"
 
 #include "source/common/common/logger.h"
-#include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/network/socket_option_factory.h"
+#include "source/common/network/socket_option_impl.h"
 #include "source/common/network/upstream_socket_options_filter_state.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
@@ -566,16 +568,14 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
     }
   }
 
-  // Set socket options for linger and keepalive (5 minutes).
-  struct ::linger lin {
-    true, 10,
-  };
-
-  auto status = socket.setSocketOption(SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
-  if (status.return_value_ < 0) {
-    ENVOY_LOG(critical, "Socket option failure. Failed to set SO_LINGER: {}",
-              Envoy::errorDetails(status.errno_));
-  }
+  // linger (SO_LINGER)
+  struct linger linger;
+  linger.l_onoff = 1;
+  linger.l_linger = 10;
+  absl::string_view linger_bstr{reinterpret_cast<const char*>(&linger), sizeof(struct linger)};
+  socket_options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
+      envoy::config::core::v3::SocketOption::STATE_LISTENING,
+      ENVOY_MAKE_SOCKET_OPTION_NAME(SOL_SOCKET, SO_LINGER), linger_bstr));
 
   // keep alive (SO_KEEPALIVE, TCP_KEEPINTVL, TCP_KEEPIDLE)
   Network::Socket::appendOptions(
