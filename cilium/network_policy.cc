@@ -1256,6 +1256,21 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
       stats_.update_latency_ms_, context_.timeSource());
   stats_.updates_total_.inc();
 
+  // Reopen IPcache for every new stream. Cilium agent re-creates IP cache on restart,
+  // and that is also when the old stream terminates and a new one is created.
+  // New security identities (e.g., for FQDN policies) only get inserted to the new IP cache,
+  // so open it before the workers get a chance to enforce policy on the new IDs.
+  if (isNewStream()) {
+    ENVOY_LOG(info, "New NetworkPolicy stream");
+
+    // Get ipcache singleton only if it was successfully created previously
+    IPCacheSharedPtr ipcache = IPCache::GetIPCache(context_);
+    if (ipcache != nullptr) {
+      ENVOY_LOG(info, "Reopening ipcache on new stream");
+      ipcache->Open();
+    }
+  }
+
   std::string version_name = fmt::format("NetworkPolicyMap version {}", version_info);
 
   absl::flat_hash_set<std::string> keeps;
@@ -1319,21 +1334,6 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
         cts_to_be_closed->find(ct_map_name) == cts_to_be_closed->end()) {
       ENVOY_LOG(debug, "Closing conntrack map {}", ct_map_name);
       cts_to_be_closed->insert(ct_map_name);
-    }
-  }
-
-  // Reopen IPcache for every new stream. Cilium agent re-creates IP cache on restart,
-  // and that is also when the old stream terminates and a new one is created.
-  // New security identities (e.g., for FQDN policies) only get inserted to the new IP cache,
-  // so open it before the workers get a chance to enforce policy on the new IDs.
-  if (isNewStream()) {
-    ENVOY_LOG(info, "New NetworkPolicy stream");
-
-    // Get ipcache singleton only if it was successfully created previously
-    IPCacheSharedPtr ipcache = IPCache::GetIPCache(context_);
-    if (ipcache != nullptr) {
-      ENVOY_LOG(info, "Reopening ipcache on new stream");
-      ipcache->Open();
     }
   }
 
