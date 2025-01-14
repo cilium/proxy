@@ -26,7 +26,7 @@
 #include "absl/status/statusor.h"
 #include "cilium/api/websocket.pb.h"
 #include "cilium/api/websocket.pb.validate.h" // IWYU pragma: keep
-#include "cilium/socket_option_cilium_policy.h"
+#include "cilium/filter_state_cilium_policy.h"
 #include "cilium/websocket_codec.h"
 #include "cilium/websocket_config.h"
 

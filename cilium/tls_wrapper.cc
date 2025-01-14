@@ -27,9 +27,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "cilium/api/tls_wrapper.pb.h"
+#include "cilium/filter_state_cilium_policy.h"
 #include "cilium/network_policy.h"
-#include "cilium/socket_option_cilium_policy.h"
-#include "socket_option_cilium_policy.h"
+#include "filter_state_cilium_policy.h"
 
 namespace Envoy {
 namespace Cilium {
