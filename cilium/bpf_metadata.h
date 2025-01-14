@@ -112,7 +112,6 @@ public:
   Cilium::CtMapSharedPtr ct_maps_{};
   Cilium::IPCacheSharedPtr ipcache_{};
   std::shared_ptr<const Cilium::PolicyHostMap> hosts_{};
-  std::chrono::milliseconds policy_update_warning_limit_ms_;
 
 private:
   uint32_t resolveSourceIdentity(const PolicyInstanceConstSharedPtr policy,

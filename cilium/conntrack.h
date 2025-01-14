@@ -63,7 +63,7 @@ public:
     CtMap6 ctmap6_tcp_;
     CtMap6 ctmap6_any_;
   };
-  void closeMaps(const std::shared_ptr<absl::flat_hash_set<std::string>>& to_be_closed);
+  void closeMaps(const absl::flat_hash_set<std::string>& to_be_closed);
 
 private:
   absl::flat_hash_map<const std::string, std::unique_ptr<CtMaps4>>::iterator
