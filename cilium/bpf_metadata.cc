@@ -45,6 +45,7 @@
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 #include "cilium/socket_option.h"
+#include "cilium/socket_option_cilium_mark.h"
 #include "cilium/socket_option_ip_transparent.h"
 
 namespace Envoy {
@@ -74,8 +75,10 @@ public:
     std::shared_ptr<Envoy::Network::Socket::Options> options =
         std::make_shared<Envoy::Network::Socket::Options>();
 
+    options->push_back(std::make_shared<Cilium::SocketMarkOption>(0));
+
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
-    options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+    options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark));
 
     options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
 
@@ -130,8 +133,10 @@ public:
     std::shared_ptr<Envoy::Network::Socket::Options> options =
         std::make_shared<Envoy::Network::Socket::Options>();
 
+    options->push_back(std::make_shared<Cilium::SocketMarkOption>(0));
+
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
-    options->push_back(std::make_shared<Cilium::SocketMarkOption>(mark, 0));
+    options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark));
 
     options->push_back(std::make_shared<Cilium::IpTransparentSocketOption>());
 
@@ -562,6 +567,10 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
 
     auto bpf_metadata_socket_option = socket_metadata->buildBpfMetadataSocketOption();
     socket_options->push_back(bpf_metadata_socket_option);
+
+    if (config_->addPrivilegedSocketOptions()) {
+      socket_options->push_back(socket_metadata->buildCiliumMarkSocketOption());
+    }
 
     // Make Cilium policy available to upstream filters when L7 LB
     if (config_->is_l7lb_) {
