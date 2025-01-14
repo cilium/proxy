@@ -570,6 +570,8 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
     auto bpf_metadata_socket_option = socket_metadata->buildBpfMetadataSocketOption();
     socket_options->push_back(bpf_metadata_socket_option);
 
+    socket_options->push_back(socket_metadata->buildSourceAddressSocketOption());
+
     if (config_->addPrivilegedSocketOptions()) {
       socket_options->push_back(socket_metadata->buildCiliumMarkSocketOption());
     }
