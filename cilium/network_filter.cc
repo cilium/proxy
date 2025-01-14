@@ -102,15 +102,15 @@ Network::FilterStatus Instance::onNewConnection() {
   }
 
   auto& conn = callbacks_->connection();
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(conn.streamInfo());
+  const auto policy_fs = Cilium::GetCiliumPolicyFilterState(conn.streamInfo());
 
-  if (!policy_socket_option) {
-    ENVOY_CONN_LOG(warn, "cilium.network: Cilium Policy Socket Option not found", conn);
+  if (!policy_fs) {
+    ENVOY_CONN_LOG(warn, "cilium.network: Cilium policy filter state not found", conn);
     return Network::FilterStatus::StopIteration;
   }
 
   // Default to incoming destination port, may be changed for L7 LB
-  destination_port_ = policy_socket_option->port_;
+  destination_port_ = policy_fs->port_;
 
   // Pass SNI before the upstream callback so that it is available when upstream connection is
   // initialized.
@@ -138,7 +138,7 @@ Network::FilterStatus Instance::onNewConnection() {
     }
   }
 
-  callbacks_->addUpstreamCallback([this, policy_socket_option,
+  callbacks_->addUpstreamCallback([this, policy_fs,
                                    sni](Upstream::HostDescriptionConstSharedPtr host,
                                         StreamInfo::StreamInfo& stream_info) -> bool {
     ENVOY_LOG(trace, "cilium.network: in upstream callback");
@@ -148,20 +148,19 @@ Network::FilterStatus Instance::onNewConnection() {
     uint32_t destination_identity = 0;
 
     Network::Address::InstanceConstSharedPtr dst_address =
-        policy_socket_option->policyUseUpstreamDestinationAddress()
+        policy_fs->policyUseUpstreamDestinationAddress()
             ? host->address()
             : stream_info.downstreamAddressProvider().localAddress();
     if (nullptr == dst_address) {
       ENVOY_LOG(warn, "cilium.network (egress): No destination address ");
       return false;
     }
-    const auto& policy = policy_socket_option->getPolicy();
+    const auto& policy = policy_fs->getPolicy();
     if (!policy) {
-      ENVOY_LOG_MISC(warn, "cilium.network: No policy found for pod {}",
-                     policy_socket_option->pod_ip_);
+      ENVOY_LOG_MISC(warn, "cilium.network: No policy found for pod {}", policy_fs->pod_ip_);
       return false;
     }
-    if (!policy_socket_option->ingress_) {
+    if (!policy_fs->ingress_) {
       const auto dip = dst_address->ip();
       if (!dip) {
         ENVOY_LOG_MISC(warn, "cilium.network: Non-IP destination address: {}",
@@ -169,24 +168,23 @@ Network::FilterStatus Instance::onNewConnection() {
         return false;
       }
       destination_port_ = dip->port();
-      destination_identity = policy_socket_option->resolvePolicyId(dip);
+      destination_identity = policy_fs->resolvePolicyId(dip);
 
-      if (policy_socket_option->ingress_source_identity_ != 0) {
+      if (policy_fs->ingress_source_identity_ != 0) {
         auto ingress_port_policy = policy->findPortPolicy(true, destination_port_);
-        if (!ingress_port_policy.allowed(policy_socket_option->ingress_source_identity_, sni)) {
+        if (!ingress_port_policy.allowed(policy_fs->ingress_source_identity_, sni)) {
           ENVOY_CONN_LOG(
               debug,
               "cilium.network: ingress policy DROP for source identity: {} port: {} sni: \"{}\"",
-              conn, policy_socket_option->ingress_source_identity_, destination_port_, sni);
+              conn, policy_fs->ingress_source_identity_, destination_port_, sni);
           return false;
         }
       }
     }
 
-    auto port_policy = policy->findPortPolicy(policy_socket_option->ingress_, destination_port_);
+    auto port_policy = policy->findPortPolicy(policy_fs->ingress_, destination_port_);
 
-    remote_id_ = policy_socket_option->ingress_ ? policy_socket_option->source_identity_
-                                                : destination_identity;
+    remote_id_ = policy_fs->ingress_ ? policy_fs->source_identity_ : destination_identity;
     if (!port_policy.allowed(remote_id_, sni)) {
       // Connection not allowed by policy
       ENVOY_CONN_LOG(debug, "cilium.network: Policy DENY on id: {} port: {} sni: \"{}\"", conn,
@@ -198,14 +196,13 @@ Network::FilterStatus Instance::onNewConnection() {
                      remote_id_, destination_port_, sni);
     }
 
-    const std::string& policy_name = policy_socket_option->pod_ip_;
+    const std::string& policy_name = policy_fs->pod_ip_;
     // populate l7proto_ if available
     if (port_policy.useProxylib(remote_id_, l7proto_)) {
       // Initialize Go parser if requested
       if (config_->proxylib_.get() != nullptr) {
         go_parser_ = config_->proxylib_->NewInstance(
-            conn, l7proto_, policy_socket_option->ingress_, policy_socket_option->source_identity_,
-            destination_identity,
+            conn, l7proto_, policy_fs->ingress_, policy_fs->source_identity_, destination_identity,
             stream_info.downstreamAddressProvider().remoteAddress()->asString(),
             dst_address->asString(), policy_name);
         if (go_parser_.get() == nullptr) {
@@ -213,9 +210,8 @@ Network::FilterStatus Instance::onNewConnection() {
           return false;
         }
       } else { // no Go parser, initialize logging for metadata based access control
-        log_entry_.InitFromConnection(policy_name, policy_socket_option->proxy_id_,
-                                      policy_socket_option->ingress_,
-                                      policy_socket_option->source_identity_,
+        log_entry_.InitFromConnection(policy_name, policy_fs->proxy_id_, policy_fs->ingress_,
+                                      policy_fs->source_identity_,
                                       stream_info.downstreamAddressProvider().remoteAddress(),
                                       destination_identity, dst_address, &config_->time_source_);
       }
@@ -270,23 +266,23 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     bool changed = log_entry_.UpdateFromMetadata(l7proto_, metadata.filter_metadata().at(l7proto_));
 
     // Policy may have changed since the connection was established, get fresh policy
-    const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(conn.streamInfo());
-    if (!policy_socket_option) {
-      ENVOY_CONN_LOG(
-          warn,
-          "cilium.network: Cilium Policy Socket Option not found for pod {}, defaulting to DENY",
-          conn, policy_socket_option->pod_ip_);
+    const auto policy_fs = Cilium::GetCiliumPolicyFilterState(conn.streamInfo());
+    if (!policy_fs) {
+      ENVOY_CONN_LOG(warn,
+                     "cilium.network: Cilium policy filter state not found for pod {}, "
+                     "defaulting to DENY",
+                     conn, policy_fs->pod_ip_);
       reason = "Cilium metadata lost";
       goto drop_close;
     }
-    const auto& policy = policy_socket_option->getPolicy();
+    const auto& policy = policy_fs->getPolicy();
     if (!policy) {
       ENVOY_CONN_LOG(warn, "cilium.network: No policy found for pod {}, defaulting to DENY", conn,
-                     policy_socket_option->pod_ip_);
+                     policy_fs->pod_ip_);
       reason = "Cilium policy not found";
       goto drop_close;
     }
-    auto port_policy = policy->findPortPolicy(policy_socket_option->ingress_, destination_port_);
+    auto port_policy = policy->findPortPolicy(policy_fs->ingress_, destination_port_);
     if (!port_policy.allowed(remote_id_, metadata)) {
       config_->Log(log_entry_, ::cilium::EntryType::Denied);
       reason = "metadata policy drop";
