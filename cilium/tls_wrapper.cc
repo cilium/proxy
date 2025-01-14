@@ -28,7 +28,7 @@
 #include "absl/strings/string_view.h"
 #include "cilium/api/tls_wrapper.pb.h"
 #include "cilium/network_policy.h"
-#include "cilium/socket_option.h"
+#include "cilium/socket_option_cilium_policy.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -52,20 +52,22 @@ public:
     // Cilium socket option is only created if the (initial) policy for the local pod exists.
     // If the policy requires TLS then a TLS socket is used, but if the policy does not require
     // TLS a raw socket is used instead,
-    const auto option = Cilium::GetSocketOption(callbacks.connection().socketOptions());
-    if (option) {
-      const auto& policy = option->getPolicy();
+    const auto policy_socket_option =
+        Cilium::GetCiliumPolicySocketOption(callbacks.connection().socketOptions());
+    if (policy_socket_option) {
+      const auto& policy = policy_socket_option->getPolicy();
       if (!policy) {
-        ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: No policy found for pod {}", option->pod_ip_);
+        ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: No policy found for pod {}",
+                       policy_socket_option->pod_ip_);
         return;
       }
       // Resolve the destination security ID and port
       uint32_t destination_identity = 0;
-      uint32_t destination_port = option->port_;
+      uint32_t destination_port = policy_socket_option->port_;
       const Network::Address::Ip* dip = nullptr;
       bool is_client = state_ == Extensions::TransportSockets::Tls::InitialState::Client;
 
-      if (!option->ingress_) {
+      if (!policy_socket_option->ingress_) {
         Network::Address::InstanceConstSharedPtr dst_address =
             is_client ? callbacks.connection().connectionInfoProvider().remoteAddress()
                       : callbacks.connection().connectionInfoProvider().localAddress();
@@ -73,7 +75,7 @@ public:
           dip = dst_address->ip();
           if (dip) {
             destination_port = dip->port();
-            destination_identity = option->resolvePolicyId(dip);
+            destination_identity = policy_socket_option->resolvePolicyId(dip);
           } else {
             ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Non-IP destination address: {}",
                            dst_address->asString());
@@ -84,10 +86,11 @@ public:
       }
 
       // get the requested server name from the connection, if any
-      const auto& sni = option->sni_;
+      const auto& sni = policy_socket_option->sni_;
 
-      auto remote_id = option->ingress_ ? option->identity_ : destination_identity;
-      auto port_policy = policy->findPortPolicy(option->ingress_, destination_port);
+      auto remote_id = policy_socket_option->ingress_ ? policy_socket_option->source_identity_
+                                                      : destination_identity;
+      auto port_policy = policy->findPortPolicy(policy_socket_option->ingress_, destination_port);
       const Envoy::Ssl::ContextConfig* config = nullptr;
       bool raw_socket_allowed = false;
       Envoy::Ssl::ContextSharedPtr ctx =
@@ -115,7 +118,7 @@ public:
         policy->tlsWrapperMissingPolicyInc();
 
         std::string ipStr("<none>");
-        if (option->ingress_) {
+        if (policy_socket_option->ingress_) {
           Network::Address::InstanceConstSharedPtr src_address =
               is_client ? callbacks.connection().connectionInfoProvider().localAddress()
                         : callbacks.connection().connectionInfoProvider().remoteAddress();
@@ -134,8 +137,9 @@ public:
             warn,
             "cilium.tls_wrapper: Could not get {} TLS context for pod {} on {} IP {} (id {}) port "
             "{} sni \"{}\" and raw socket is not allowed",
-            is_client ? "client" : "server", option->pod_ip_,
-            option->ingress_ ? "source" : "destination", ipStr, remote_id, destination_port, sni);
+            is_client ? "client" : "server", policy_socket_option->pod_ip_,
+            policy_socket_option->ingress_ ? "source" : "destination", ipStr, remote_id,
+            destination_port, sni);
       }
     } else {
       ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Can not correlate connection with Cilium Network "

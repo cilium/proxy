@@ -46,7 +46,6 @@
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
-#include "cilium/socket_option.h"
 #include "cilium/socket_option_cilium_mark.h"
 #include "cilium/socket_option_ip_transparent.h"
 
@@ -71,14 +70,12 @@ public:
             proto_config, context.messageValidationVisitor()),
         context);
 
-    // Set the socket mark option for the listen socket.
-    // Can use identity 0 on the listen socket option, as the bpf datapath is only interested
-    // in whether the proxy is ingress, egress, or if there is no proxy at all.
+    // Set the SO_MARK (Cilium Mark), IP_TRANSPARENT & SO_REUSEADDR for the listen socket.
     std::shared_ptr<Envoy::Network::Socket::Options> options =
         std::make_shared<Envoy::Network::Socket::Options>();
 
-    options->push_back(std::make_shared<Cilium::SocketMarkOption>(0));
-
+    // For the listener socket, the BPF datapath is only interested
+    // in whether the proxy is ingress, egress, or if there is no proxy at all.
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark));
 
@@ -129,14 +126,12 @@ public:
             proto_config, context.messageValidationVisitor()),
         context);
 
-    // Set the socket mark option for the listen socket.
-    // Can use identity 0 on the listen socket option, as the bpf datapath is only interested
-    // in whether the proxy is ingress, egress, or if there is no proxy at all.
+    // Set the SO_MARK (Cilium Mark), IP_TRANSPARENT & SO_REUSEADDR for the listen socket.
     std::shared_ptr<Envoy::Network::Socket::Options> options =
         std::make_shared<Envoy::Network::Socket::Options>();
 
-    options->push_back(std::make_shared<Cilium::SocketMarkOption>(0));
-
+    // For the listener socket, the BPF datapath is only interested
+    // in whether the proxy is ingress, egress, or if there is no proxy at all.
     uint32_t mark = (config->is_ingress_) ? 0x0A00 : 0x0B00;
     options->push_back(std::make_shared<Cilium::CiliumMarkSocketOption>(mark));
 
@@ -567,8 +562,8 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   auto socket_metadata = config_->extractSocketMetadata(socket);
   if (socket_metadata) {
 
-    auto bpf_metadata_socket_option = socket_metadata->buildBpfMetadataSocketOption();
-    socket_options->push_back(bpf_metadata_socket_option);
+    auto cilium_policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
+    socket_options->push_back(cilium_policy_socket_option);
 
     socket_options->push_back(socket_metadata->buildSourceAddressSocketOption());
 
@@ -589,7 +584,7 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
       }
 
       auto options = std::make_shared<Network::Socket::Options>();
-      options->push_back(std::move(bpf_metadata_socket_option));
+      options->push_back(std::move(cilium_policy_socket_option));
 
       filter_state
           .getDataMutable<Network::UpstreamSocketOptionsFilterState>(
