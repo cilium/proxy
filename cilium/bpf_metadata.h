@@ -23,6 +23,7 @@
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
 #include "cilium/socket_option.h"
+#include "cilium/socket_option_cilium_mark.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -45,9 +46,13 @@ struct SocketMetadata {
 
   std::shared_ptr<Envoy::Cilium::SocketOption> buildBpfMetadataSocketOption() {
     return std::make_shared<Envoy::Cilium::SocketOption>(
-        mark_, ingress_source_identity_, source_identity_, ingress_, is_l7lb_, port_,
-        std::move(pod_ip_), original_source_address_, source_address_ipv4_, source_address_ipv6_,
-        policy_resolver_, proxy_id_, sni_);
+        ingress_source_identity_, source_identity_, ingress_, is_l7lb_, port_, std::move(pod_ip_),
+        original_source_address_, source_address_ipv4_, source_address_ipv6_, policy_resolver_,
+        proxy_id_, sni_);
+  };
+
+  std::shared_ptr<Envoy::Cilium::CiliumMarkSocketOption> buildCiliumMarkSocketOption() {
+    return std::make_shared<Envoy::Cilium::CiliumMarkSocketOption>(mark_);
   };
 
   uint32_t ingress_source_identity_;

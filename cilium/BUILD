@@ -67,6 +67,7 @@ envoy_cc_library(
     hdrs = [
         "policy_id.h",
         "socket_option.h",
+        "socket_option_cilium_mark.h",
         "socket_option_ip_transparent.h",
     ],
     repository = "@envoy",
