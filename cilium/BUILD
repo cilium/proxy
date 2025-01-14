@@ -14,8 +14,8 @@ envoy_cc_library(
     hdrs = ["tls_wrapper.h"],
     repository = "@envoy",
     deps = [
+        "//cilium:filter_state_lib",
         "//cilium:network_policy_lib",
-        "//cilium:socket_option_lib",
         "//cilium/api:tls_wrapper_cc_proto",
         "@envoy//envoy/network:transport_socket_interface",
         "@envoy//envoy/registry",
@@ -64,12 +64,7 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "socket_option_lib",
-    srcs = [
-        "filter_state_cilium_policy.cc",
-    ],
     hdrs = [
-        "filter_state_cilium_policy.h",
-        "policy_id.h",
         "socket_option_cilium_mark.h",
         "socket_option_ip_transparent.h",
         "socket_option_source_address.h",
@@ -77,8 +72,25 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "//cilium:conntrack_lib",
-        "//cilium:network_policy_lib",
         "@envoy//envoy/network:listen_socket_interface",
+        "@envoy//source/common/common:logger_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_library(
+    name = "filter_state_lib",
+    srcs = [
+        "filter_state_cilium_policy.cc",
+    ],
+    hdrs = [
+        "filter_state_cilium_policy.h",
+        "policy_id.h",
+    ],
+    repository = "@envoy",
+    deps = [
+        "//cilium:conntrack_lib",
+        "//cilium:network_policy_lib",
         "@envoy//source/common/common:logger_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],
@@ -113,8 +125,8 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "//cilium:accesslog_lib",
+        "//cilium:filter_state_lib",
         "//cilium:network_policy_lib",
-        "//cilium:socket_option_lib",
         "//cilium/api:l7policy_cc_proto",
         "@envoy//envoy/config:subscription_interface",
         "@envoy//source/common/http:utility_lib",
@@ -141,7 +153,7 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "//cilium:accesslog_lib",
-        "//cilium:socket_option_lib",
+        "//cilium:filter_state_lib",
         "//cilium/api:websocket_cc_proto",
         "@envoy//envoy/common/crypto:crypto_interface",
         "@envoy//source/common/common:base64_lib",
@@ -282,9 +294,9 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "//cilium:conntrack_lib",
+        "//cilium:filter_state_lib",
         "//cilium:network_policy_lib",
         "//cilium:proxylib_lib",
-        "//cilium:socket_option_lib",
         "//cilium/api:network_filter_cc_proto",
         "@envoy//envoy/buffer:buffer_interface",
         "@envoy//envoy/network:connection_interface",
@@ -313,6 +325,7 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "//cilium:conntrack_lib",
+        "//cilium:filter_state_lib",
         "//cilium:grpc_subscription_lib",
         "//cilium:ipcache_lib",
         "//cilium:network_policy_lib",
