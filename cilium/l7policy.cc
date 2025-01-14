@@ -31,9 +31,11 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
-#include "cilium/api/l7policy.pb.validate.h"
-#include "cilium/network_policy.h"
-#include "cilium/socket_option.h"
+#include "cilium/accesslog.h"
+#include "cilium/api/accesslog.pb.h"
+#include "cilium/api/l7policy.pb.h"
+#include "cilium/api/l7policy.pb.validate.h" // IWYU pragma: keep
+#include "cilium/socket_option_cilium_policy.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -161,9 +163,9 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   }
 
   const Network::Socket::OptionsSharedPtr socketOptions = conn->socketOptions();
-  const auto option = Cilium::GetSocketOption(socketOptions);
-  if (!option) {
-    sendLocalError("cilium.l7policy: Cilium Socket Option not found");
+  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socketOptions);
+  if (!policy_socket_option) {
+    sendLocalError("cilium.l7policy: Cilium Policy Socket Option not found");
     return Http::FilterHeadersStatus::StopIteration;
   }
 
@@ -187,12 +189,13 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   }
 
   uint32_t destination_port = dip->port();
-  uint32_t destination_identity = option->resolvePolicyId(dip);
+  uint32_t destination_identity = policy_socket_option->resolvePolicyId(dip);
 
   // Policy may have changed since the connection was established, get fresh policy
-  const auto& policy = option->getPolicy();
+  const auto& policy = policy_socket_option->getPolicy();
   if (!policy) {
-    sendLocalError(fmt::format("cilium.l7policy: No policy found for pod {}", option->pod_ip_));
+    sendLocalError(
+        fmt::format("cilium.l7policy: No policy found for pod {}", policy_socket_option->pod_ip_));
     return Http::FilterHeadersStatus::StopIteration;
   }
 
@@ -205,37 +208,41 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   // Enforce Ingress policy only in the downstream filter
   if (!config_->is_upstream_) {
     log_entry_->InitFromRequest(
-        option->pod_ip_, option->proxy_id_, option->ingress_, option->identity_,
+        policy_socket_option->pod_ip_, policy_socket_option->proxy_id_,
+        policy_socket_option->ingress_, policy_socket_option->source_identity_,
         callbacks_->streamInfo().downstreamAddressProvider().remoteAddress(), 0,
         callbacks_->streamInfo().downstreamAddressProvider().localAddress(),
         callbacks_->streamInfo(), headers);
 
-    if (option->ingress_source_identity_ != 0) {
-      allowed_ = policy->allowed(true, option->ingress_source_identity_, option->port_, headers,
-                                 *log_entry_);
+    if (policy_socket_option->ingress_source_identity_ != 0) {
+      allowed_ = policy->allowed(true, policy_socket_option->ingress_source_identity_,
+                                 policy_socket_option->port_, headers, *log_entry_);
       ENVOY_LOG(debug,
                 "cilium.l7policy: Ingress from {} policy lookup for endpoint {} for port {}: {}",
-                option->ingress_source_identity_, option->pod_ip_, option->port_,
-                allowed_ ? "ALLOW" : "DENY");
+                policy_socket_option->ingress_source_identity_, policy_socket_option->pod_ip_,
+                policy_socket_option->port_, allowed_ ? "ALLOW" : "DENY");
       denied = !allowed_;
     }
 
     // Downstream filter leaves L7 LB enforcement and access logging to the upstream
     // filter
-    if (!denied && option->is_l7lb_) {
+    if (!denied && policy_socket_option->is_l7lb_) {
       return Http::FilterHeadersStatus::Continue;
     }
   }
 
   if (!denied) {
-    allowed_ = policy->allowed(option->ingress_,
-                               option->ingress_ ? option->identity_ : destination_identity,
-                               destination_port, headers, *log_entry_);
+    allowed_ =
+        policy->allowed(policy_socket_option->ingress_,
+                        policy_socket_option->ingress_ ? policy_socket_option->source_identity_
+                                                       : destination_identity,
+                        destination_port, headers, *log_entry_);
   }
   ENVOY_LOG(debug, "cilium.l7policy: {} ({}->{}) {} policy lookup for endpoint {} for port {}: {}",
-            option->ingress_ ? "ingress" : "egress", option->identity_, destination_identity,
-            config_->is_upstream_ ? "upstream" : "downstream", option->pod_ip_, destination_port,
-            allowed_ ? "ALLOW" : "DENY");
+            policy_socket_option->ingress_ ? "ingress" : "egress",
+            policy_socket_option->source_identity_, destination_identity,
+            config_->is_upstream_ ? "upstream" : "downstream", policy_socket_option->pod_ip_,
+            destination_port, allowed_ ? "ALLOW" : "DENY");
 
   // Update the log entry with the chosen destination address and current headers, as remaining
   // filters, upstream, and/or policy may have altered headers.
