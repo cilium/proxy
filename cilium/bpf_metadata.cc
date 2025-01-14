@@ -32,7 +32,6 @@
 #include "source/common/network/address_impl.h"
 #include "source/common/network/socket_option_factory.h"
 #include "source/common/network/socket_option_impl.h"
-#include "source/common/network/upstream_socket_options_filter_state.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
@@ -47,6 +46,7 @@
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 #include "cilium/socket_option_cilium_mark.h"
+#include "cilium/socket_option_cilium_policy.h"
 #include "cilium/socket_option_ip_transparent.h"
 
 namespace Envoy {
@@ -550,8 +550,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
-  ENVOY_LOG(trace, "adding socket options");
-
+  ENVOY_LOG(trace, "onAccept");
   Network::ConnectionSocket& socket = cb.socket();
 
   Network::Socket::OptionsSharedPtr socket_options =
@@ -562,35 +561,17 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   auto socket_metadata = config_->extractSocketMetadata(socket);
   if (socket_metadata) {
 
-    auto cilium_policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
-    socket_options->push_back(cilium_policy_socket_option);
-
     socket_options->push_back(socket_metadata->buildSourceAddressSocketOption());
 
     if (config_->addPrivilegedSocketOptions()) {
       socket_options->push_back(socket_metadata->buildCiliumMarkSocketOption());
     }
-
-    // Make Cilium policy available to upstream filters when L7 LB
-    if (config_->is_l7lb_) {
-      StreamInfo::FilterState& filter_state = cb.filterState();
-      auto has_options = filter_state.hasData<Network::UpstreamSocketOptionsFilterState>(
-          Network::UpstreamSocketOptionsFilterState::key());
-      if (!has_options) {
-        filter_state.setData(Network::UpstreamSocketOptionsFilterState::key(),
-                             std::make_unique<Network::UpstreamSocketOptionsFilterState>(),
-                             StreamInfo::FilterState::StateType::Mutable,
-                             StreamInfo::FilterState::LifeSpan::Connection);
-      }
-
-      auto options = std::make_shared<Network::Socket::Options>();
-      options->push_back(std::move(cilium_policy_socket_option));
-
-      filter_state
-          .getDataMutable<Network::UpstreamSocketOptionsFilterState>(
-              Network::UpstreamSocketOptionsFilterState::key())
-          ->addOption(std::move(options));
-    }
+    // Make Cilium Policy data available to filters via filter state and to
+    // upstream connection (Cilium SSL Wrapper).
+    cb.filterState().setData(
+        Cilium::CiliumPolicySocketOption::key(), socket_metadata->buildCiliumPolicySocketOption(),
+        StreamInfo::FilterState::StateType::ReadOnly, StreamInfo::FilterState::LifeSpan::Connection,
+        StreamInfo::StreamSharingMayImpactPooling::SharedWithUpstreamConnection);
   }
 
   if (config_->addPrivilegedSocketOptions()) {

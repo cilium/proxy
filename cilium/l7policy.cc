@@ -162,8 +162,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     return Http::FilterHeadersStatus::StopIteration;
   }
 
-  const Network::Socket::OptionsSharedPtr socketOptions = conn->socketOptions();
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socketOptions);
+  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(conn->streamInfo());
   if (!policy_socket_option) {
     sendLocalError("cilium.l7policy: Cilium Policy Socket Option not found");
     return Http::FilterHeadersStatus::StopIteration;

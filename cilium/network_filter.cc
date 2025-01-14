@@ -102,8 +102,7 @@ Network::FilterStatus Instance::onNewConnection() {
   }
 
   auto& conn = callbacks_->connection();
-  const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socketOptions);
+  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(conn.streamInfo());
 
   if (!policy_socket_option) {
     ENVOY_CONN_LOG(warn, "cilium.network: Cilium Policy Socket Option not found", conn);
@@ -272,8 +271,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     bool changed = log_entry_.UpdateFromMetadata(l7proto_, metadata.filter_metadata().at(l7proto_));
 
     // Policy may have changed since the connection was established, get fresh policy
-    const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-    const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socketOptions);
+    const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(conn.streamInfo());
     if (!policy_socket_option) {
       ENVOY_CONN_LOG(
           warn,

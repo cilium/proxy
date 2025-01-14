@@ -35,7 +35,6 @@
 #include "absl/strings/string_view.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/bpf_metadata.h"
-#include "cilium/socket_option_cilium_policy.h"
 #include "gtest/gtest.h"
 #include "tests/bpf_metadata.h"
 
@@ -280,9 +279,8 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
 
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
-  socket_.addOption(socket_metadata->buildCiliumPolicySocketOption());
 
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socket_.options());
+  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
 
   EXPECT_EQ(8, policy_socket_option->source_identity_);
@@ -320,9 +318,8 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
 
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
-  socket_.addOption(socket_metadata->buildCiliumPolicySocketOption());
 
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socket_.options());
+  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
 
   EXPECT_EQ(8, policy_socket_option->source_identity_);
@@ -364,9 +361,8 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
 
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
-  socket_.addOption(socket_metadata->buildCiliumPolicySocketOption());
 
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socket_.options());
+  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
 
   EXPECT_EQ(8, policy_socket_option->source_identity_);
@@ -410,7 +406,7 @@ TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_FALSE(socket_metadata);
 
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socket_.options());
+  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_EQ(nullptr, policy_socket_option);
 }
 
@@ -425,9 +421,8 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
 
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
-  socket_.addOption(socket_metadata->buildCiliumPolicySocketOption());
 
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socket_.options());
+  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
 
   EXPECT_EQ(111, policy_socket_option->source_identity_);
@@ -463,9 +458,8 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
 
   auto socket_metadata = config_->extractSocketMetadata(socket_);
   EXPECT_TRUE(socket_metadata);
-  socket_.addOption(socket_metadata->buildCiliumPolicySocketOption());
 
-  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socket_.options());
+  const auto policy_socket_option = socket_metadata->buildCiliumPolicySocketOption();
   EXPECT_NE(nullptr, policy_socket_option);
 
   EXPECT_EQ(8, policy_socket_option->source_identity_);
