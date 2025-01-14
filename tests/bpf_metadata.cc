@@ -26,12 +26,12 @@
 #include "test/test_common/environment.h"
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/bpf_metadata.h"
 #include "cilium/host_map.h"
 #include "cilium/network_policy.h"
 #include "cilium/secret_watcher.h"
-#include "cilium/socket_option.h"
 #include "fmt/printf.h"
 #include "tests/bpf_metadata.pb.h"
 #include "tests/bpf_metadata.pb.validate.h" // IWYU pragma: keep
@@ -157,7 +157,8 @@ TestConfig::~TestConfig() {
   npmap.reset();
 }
 
-Cilium::SocketOptionSharedPtr TestConfig::getMetadata(Network::ConnectionSocket& socket) {
+absl::optional<Cilium::BpfMetadata::SocketMetadata>
+TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
   // fake setting the local address. It remains the same as required by the test
   // infra, but it will be marked as restored as required by the original_dst
   // cluster.
@@ -189,7 +190,7 @@ Cilium::SocketOptionSharedPtr TestConfig::getMetadata(Network::ConnectionSocket&
   if (policy == nullptr) {
     ENVOY_LOG_MISC(warn, "tests.bpf_metadata ({}): No policy found for {}",
                    is_ingress_ ? "ingress" : "egress", pod_ip);
-    return nullptr;
+    return absl::nullopt;
   }
 
   auto port = original_dst_address->ip()->port();
@@ -206,9 +207,9 @@ Cilium::SocketOptionSharedPtr TestConfig::getMetadata(Network::ConnectionSocket&
     ENVOY_LOG_MISC(info, "setRequestedApplicationProtocols({})", l7proto);
   }
 
-  return std::make_shared<Cilium::SocketOption>(0, 0, source_identity, is_ingress_, is_l7lb_, port,
-                                                std::move(pod_ip), nullptr, nullptr, nullptr,
-                                                shared_from_this(), 0, "");
+  return absl::optional(Cilium::BpfMetadata::SocketMetadata(
+      0, 0, source_identity, is_ingress_, is_l7lb_, port, std::move(pod_ip), nullptr, nullptr,
+      nullptr, shared_from_this(), 0, ""));
 }
 
 } // namespace BpfMetadata
