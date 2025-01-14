@@ -1,4 +1,4 @@
-From 1a0f7e26bc8b2905d87c64f7fea9df42e874c28a Mon Sep 17 00:00:00 2001
+From b13c64877b55c1a645d3b6b1d18a566930ef519c Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 23 Dec 2024 22:43:15 +0100
 Subject: [PATCH 8/8] thread_local: reset slot in worker threads first
@@ -10,9 +10,33 @@ some random worker thread. This prevents xDS stream synchronization bugs
 if the slot happens to refer to an SDS secret.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ envoy/thread_local/thread_local.h             |  7 +++++
+ .../common/thread_local/thread_local_impl.cc  | 26 +++++++++++++++++--
+ .../common/thread_local/thread_local_impl.h   |  1 +
+ test/mocks/thread_local/mocks.h               |  4 +++
+ 4 files changed, 36 insertions(+), 2 deletions(-)
 
+diff --git a/envoy/thread_local/thread_local.h b/envoy/thread_local/thread_local.h
+index 13ff7496ff..da982ccea5 100644
+--- a/envoy/thread_local/thread_local.h
++++ b/envoy/thread_local/thread_local.h
+@@ -248,6 +248,13 @@ public:
+    * @return true if global threading has been shutdown or false if not.
+    */
+   virtual bool isShutdown() const PURE;
++
++  /**
++   * Run 'worker_cb' in all worker threads, and 'main_cb' in the main thread after all worker
++   * threads have executed.
++   */
++  virtual void runOnAllWorkerThreads(std::function<void()> worker_cb, std::function<void()> main_cb) const PURE;
++
+ };
+ 
+ } // namespace ThreadLocal
 diff --git a/source/common/thread_local/thread_local_impl.cc b/source/common/thread_local/thread_local_impl.cc
-index bd417164b1..34d1c0f1b2 100644
+index bd417164b1..ba3e98ab8c 100644
 --- a/source/common/thread_local/thread_local_impl.cc
 +++ b/source/common/thread_local/thread_local_impl.cc
 @@ -177,7 +177,8 @@ void InstanceImpl::removeSlot(uint32_t slot) {
@@ -44,7 +68,7 @@ index bd417164b1..34d1c0f1b2 100644
  }
  
 +void InstanceImpl::runOnAllWorkerThreads(std::function<void()> cb,
-+                                         std::function<void()> worker_threads_complete_cb) {
++                                         std::function<void()> worker_threads_complete_cb) const {
 +  ASSERT_IS_MAIN_OR_TEST_THREAD();
 +  ASSERT(!shutdown_);
 +
@@ -63,17 +87,32 @@ index bd417164b1..34d1c0f1b2 100644
    if (thread_local_data_.data_.size() <= index) {
      thread_local_data_.data_.resize(index + 1);
 diff --git a/source/common/thread_local/thread_local_impl.h b/source/common/thread_local/thread_local_impl.h
-index 90753101b6..108cf85152 100644
+index 90753101b6..bb87b9b502 100644
 --- a/source/common/thread_local/thread_local_impl.h
 +++ b/source/common/thread_local/thread_local_impl.h
-@@ -75,6 +75,7 @@ private:
-   void removeSlot(uint32_t slot);
-   void runOnAllThreads(std::function<void()> cb);
-   void runOnAllThreads(std::function<void()> cb, std::function<void()> main_callback);
-+  void runOnAllWorkerThreads(std::function<void()> cb, std::function<void()> main_callback);
-   static void setThreadLocal(uint32_t index, ThreadLocalObjectSharedPtr object);
+@@ -29,6 +29,7 @@ public:
+   void shutdownThread() override;
+   Event::Dispatcher& dispatcher() override;
+   bool isShutdown() const override { return shutdown_; }
++  void runOnAllWorkerThreads(std::function<void()> worker_cb, std::function<void()> main_cb) const override;
  
-   static thread_local ThreadLocalData thread_local_data_;
+ private:
+   // On destruction returns the slot index to the deferred delete queue (detaches it). This allows
+diff --git a/test/mocks/thread_local/mocks.h b/test/mocks/thread_local/mocks.h
+index 09dff23777..88d7cea1a9 100644
+--- a/test/mocks/thread_local/mocks.h
++++ b/test/mocks/thread_local/mocks.h
+@@ -27,6 +27,10 @@ public:
+   MOCK_METHOD(void, shutdownThread, ());
+   MOCK_METHOD(Event::Dispatcher&, dispatcher, ());
+   bool isShutdown() const override { return shutdown_; }
++  void runOnAllWorkerThreads(std::function<void()> worker_cb, std::function<void()> main_cb) const override {
++    worker_cb();
++    main_cb();
++  }
+ 
+   SlotPtr allocateSlotMock() { return SlotPtr{new SlotImpl(*this, current_slot_++)}; }
+   void runOnAllThreads1(std::function<void()> cb) { cb(); }
 -- 
-2.34.1
+2.47.1
 

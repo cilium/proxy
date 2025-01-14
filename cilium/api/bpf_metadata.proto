@@ -49,5 +49,6 @@ message BpfMetadata {
 
   // policy_update_warning_limit is the time in milliseconds after which a warning is logged if
   // network policy update took longer
+  // Deprecated, has no effect.
   google.protobuf.Duration policy_update_warning_limit = 9;
 }

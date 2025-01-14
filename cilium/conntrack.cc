@@ -159,10 +159,10 @@ CtMap::openMap6(const std::string& map_name) {
   return pair.first;
 }
 
-void CtMap::closeMaps(const std::shared_ptr<absl::flat_hash_set<std::string>>& to_be_closed) {
+void CtMap::closeMaps(const absl::flat_hash_set<std::string>& to_be_closed) {
   std::lock_guard<Thread::MutexBasicLockable> guard(maps_mutex_);
 
-  for (const auto& name : *to_be_closed) {
+  for (const auto& name : to_be_closed) {
     auto ct4 = ct_maps4_.find(name);
     if (ct4 != ct_maps4_.end()) {
       ct_maps4_.erase(ct4);
