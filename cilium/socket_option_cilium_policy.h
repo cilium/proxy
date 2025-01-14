@@ -33,44 +33,22 @@ public:
   virtual const PolicyInstanceConstSharedPtr getPolicy(const std::string&) const PURE;
 };
 
-class SocketMarkOption : public Network::Socket::Option,
-                         public Logger::Loggable<Logger::Id::filter> {
+// Socket Option that holds relevant connection & policy information that can be retrieved
+// by the Cilium network- and HTTP policy filters by using GetCiliumPolicySocketOption.
+class CiliumPolicySocketOption : public Network::Socket::Option,
+                                 public Logger::Loggable<Logger::Id::filter> {
 public:
-  SocketMarkOption(uint32_t identity) : identity_(identity) {}
-
-  absl::optional<Network::Socket::Option::Details>
-  getOptionDetails(const Network::Socket&,
-                   envoy::config::core::v3::SocketOption::SocketState) const override {
-    return absl::nullopt;
-  }
-
-  bool setOption(
-      [[maybe_unused]] Network::Socket& socket,
-      [[maybe_unused]] envoy::config::core::v3::SocketOption::SocketState state) const override {
-
-    return true;
-  }
-
-  void hashKey([[maybe_unused]] std::vector<uint8_t>& key) const override {}
-
-  bool isSupported() const override { return true; }
-
-  uint32_t identity_;
-};
-
-class SocketOption : public SocketMarkOption {
-public:
-  SocketOption(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress, bool l7lb,
-               uint16_t port, std::string&& pod_ip,
-               const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
-               absl::string_view sni)
-      : SocketMarkOption(source_identity), ingress_source_identity_(ingress_source_identity),
+  CiliumPolicySocketOption(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
+                           bool l7lb, uint16_t port, std::string&& pod_ip,
+                           const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
+                           absl::string_view sni)
+      : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
         proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver) {
     ENVOY_LOG(debug,
-              "Cilium SocketOption(): source_identity: {}, "
+              "Cilium CiliumPolicySocketOption(): source_identity: {}, "
               "ingress: {}, port: {}, pod_ip: {}, proxy_id: {}, sni: \"{}\"",
-              identity_, ingress_, port_, pod_ip_, proxy_id_, sni_);
+              source_identity_, ingress_, port_, pod_ip_, proxy_id_, sni_);
   }
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
@@ -91,8 +69,34 @@ public:
   // basis of the upstream destination address.
   bool policyUseUpstreamDestinationAddress() const { return is_l7lb_; }
 
+  absl::optional<Network::Socket::Option::Details> getOptionDetails(
+      [[maybe_unused]] const Network::Socket&,
+      [[maybe_unused]] envoy::config::core::v3::SocketOption::SocketState) const override {
+    return absl::nullopt;
+  }
+
+  bool setOption(Network::Socket& socket,
+                 envoy::config::core::v3::SocketOption::SocketState state) const override {
+
+    // Only set the option once per socket
+    if (state != envoy::config::core::v3::SocketOption::STATE_PREBIND) {
+      ENVOY_LOG(trace, "Skipping setting socket ({}) option BPF_METADATA ",
+                socket.ioHandle().fdDoNotUse());
+      return true;
+    }
+
+    ENVOY_LOG(trace, "Set socket ({}) option BPF_METADATA)", socket.ioHandle().fdDoNotUse());
+
+    return true;
+  }
+
+  void hashKey([[maybe_unused]] std::vector<uint8_t>& key) const override {}
+
+  bool isSupported() const override { return true; }
+
   // Additional ingress policy enforcement is performed if ingress_source_identity is non-zero
   uint32_t ingress_source_identity_;
+  uint32_t source_identity_;
   bool ingress_;
   bool is_l7lb_;
   uint16_t port_;
@@ -104,13 +108,13 @@ private:
   const std::weak_ptr<PolicyResolver> policy_resolver_;
 };
 
-using SocketOptionSharedPtr = std::shared_ptr<SocketOption>;
+using CiliumPolicySocketOptionSharedPtr = std::shared_ptr<CiliumPolicySocketOption>;
 
-static inline const Cilium::SocketOption*
-GetSocketOption(const Network::Socket::OptionsSharedPtr& options) {
+static inline const Cilium::CiliumPolicySocketOption*
+GetCiliumPolicySocketOption(const Network::Socket::OptionsSharedPtr& options) {
   if (options) {
     for (const auto& option : *options) {
-      auto opt = dynamic_cast<const Cilium::SocketOption*>(option.get());
+      auto opt = dynamic_cast<const Cilium::CiliumPolicySocketOption*>(option.get());
       if (opt) {
         return opt;
       }

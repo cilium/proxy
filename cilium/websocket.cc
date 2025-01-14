@@ -26,7 +26,7 @@
 #include "absl/status/statusor.h"
 #include "cilium/api/websocket.pb.h"
 #include "cilium/api/websocket.pb.validate.h" // IWYU pragma: keep
-#include "cilium/socket_option.h"
+#include "cilium/socket_option_cilium_policy.h"
 #include "cilium/websocket_codec.h"
 #include "cilium/websocket_config.h"
 
@@ -151,13 +151,13 @@ Network::FilterStatus Instance::onNewConnection() {
       conn.connectionInfoProvider().localAddress();
   const Network::Address::Ip* dip = dst_address ? dst_address->ip() : nullptr;
   const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-  const auto option = Cilium::GetSocketOption(socketOptions);
-  if (option) {
-    proxy_id = option->proxy_id_;
-    pod_ip = option->pod_ip_;
-    is_ingress = option->ingress_;
-    identity = option->identity_;
-    destination_identity = dip ? option->resolvePolicyId(dip) : 0;
+  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socketOptions);
+  if (policy_socket_option) {
+    proxy_id = policy_socket_option->proxy_id_;
+    pod_ip = policy_socket_option->pod_ip_;
+    is_ingress = policy_socket_option->ingress_;
+    identity = policy_socket_option->source_identity_;
+    destination_identity = dip ? policy_socket_option->resolvePolicyId(dip) : 0;
   } else {
     // Default to ingress to destination address, but no security identities.
     proxy_id = 0;
@@ -236,8 +236,8 @@ void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
   uint32_t destination_identity = 0;
   const auto& conn = callbacks_->connection();
   const Network::Socket::OptionsSharedPtr socketOptions = conn.socketOptions();
-  const auto option = Cilium::GetSocketOption(socketOptions);
-  if (option) {
+  const auto policy_socket_option = Cilium::GetCiliumPolicySocketOption(socketOptions);
+  if (policy_socket_option) {
     // resolve the original destination from 'x-envoy-original-dst-host' header to be used in the
     // access log message
     auto override_header = headers.getInline(original_dst_host_handle.handle());
@@ -247,7 +247,7 @@ void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
           Network::Utility::parseInternetAddressAndPortNoThrow(request_override_host, false);
       const Network::Address::Ip* dip = orig_dst_address ? orig_dst_address->ip() : nullptr;
       if (dip) {
-        destination_identity = option->resolvePolicyId(dip);
+        destination_identity = policy_socket_option->resolvePolicyId(dip);
       }
     }
   }
