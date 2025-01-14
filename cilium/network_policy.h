@@ -2,11 +2,10 @@
 
 #include <fmt/format.h>
 
-#include <chrono>
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <list>
-#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -16,7 +15,6 @@
 #include "envoy/common/matchers.h"
 #include "envoy/common/pure.h"
 #include "envoy/config/core/v3/base.pb.h"
-#include "envoy/config/grpc_mux.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
 #include "envoy/network/address.h"
@@ -28,23 +26,21 @@
 #include "envoy/ssl/context.h"
 #include "envoy/ssl/context_config.h"
 #include "envoy/stats/scope.h"
-#include "envoy/stats/timespan.h"
-#include "envoy/thread_local/thread_local.h"
-#include "envoy/thread_local/thread_local_object.h"
+#include "envoy/stats/stats_macros.h"
 
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
 #include "source/common/common/thread.h"
-#include "source/common/init/manager_impl.h"
 #include "source/common/init/target_impl.h"
-#include "source/common/init/watcher_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 #include "source/server/transport_socket_config_impl.h"
 
 #include "absl/container/btree_map.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
@@ -174,15 +170,6 @@ using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
 
 class PolicyInstanceImpl;
 
-class ThreadLocalPolicyMap : public ThreadLocal::ThreadLocalObject,
-                             public Logger::Loggable<Logger::Id::config> {
-public:
-  std::map<std::string, std::shared_ptr<const PolicyInstanceImpl>> policies_;
-
-  void Update(std::vector<std::shared_ptr<PolicyInstanceImpl>>& added,
-              std::vector<std::string>& deleted, const std::string& version_info);
-};
-
 class NetworkPolicyDecoder : public Envoy::Config::OpaqueResourceDecoder {
 public:
   NetworkPolicyDecoder() : validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {}
@@ -214,8 +201,6 @@ private:
 #define ALL_CILIUM_POLICY_STATS(COUNTER, HISTOGRAM)	\
   COUNTER(updates_total)				\
   COUNTER(updates_rejected)				\
-  COUNTER(updates_timed_out)				\
-  HISTOGRAM(update_latency_ms, Milliseconds)		\
   COUNTER(tls_wrapper_missing_policy)
 // clang-format on
 
@@ -226,18 +211,16 @@ struct PolicyStats {
   ALL_CILIUM_POLICY_STATS(GENERATE_COUNTER_STRUCT, GENERATE_HISTOGRAM_STRUCT)
 };
 
+using RawPolicyMap = absl::flat_hash_map<std::string, std::shared_ptr<const PolicyInstanceImpl>>;
+
 class NetworkPolicyMap : public Singleton::Instance,
                          public Envoy::Config::SubscriptionCallbacks,
                          public std::enable_shared_from_this<NetworkPolicyMap>,
                          public Logger::Loggable<Logger::Id::config> {
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context);
-  NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct,
-                   std::chrono::milliseconds policy_update_warning_limit_ms);
-  ~NetworkPolicyMap() {
-    ENVOY_LOG(debug, "Cilium L7 NetworkPolicyMap({}): NetworkPolicyMap is deleted NOW!",
-              instance_id_);
-  }
+  NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct);
+  ~NetworkPolicyMap();
 
   // subscription_->start() calls onConfigUpdate(), which uses
   // shared_from_this(), which cannot be called before a shared
@@ -256,7 +239,7 @@ public:
   static PolicyInstanceConstSharedPtr AllowAllEgressPolicy;
 
   bool exists(const std::string& endpoint_policy_name) const {
-    return GetPolicyInstanceImpl(endpoint_policy_name).get() != nullptr;
+    return GetPolicyInstanceImpl(endpoint_policy_name) != nullptr;
   }
 
   // run the given function after all the threads have scheduled
@@ -284,17 +267,48 @@ public:
   void tlsWrapperMissingPolicyInc() const { stats_.tls_wrapper_missing_policy_.inc(); }
 
 private:
+  // Helpers for atomic swap of the policy map pointer.
+  //
+  // store() is only used for the initialization of the map during construction.
+  // exchange() is used to atomically swap in a new map, the old map pointer is returned.
+  // Once a map is stored or swapped in to the atomic pointer by the main thread, it may be "loaded"
+  // from the atomic pointer by any thread. This is why the load returns a const pointer.
+  //
+  // For the loaded pointer to be safe to use, we must use acquire/release memory ordering:
+  // - when a pointer stored or swapped in, 'std::memory_order_release' informs the compiler to make
+  //   sure it is not reordering any write operations into the map to happen after the pointer is
+  //   written, and emits CPU instructions to also make the CPU out-of-order-execution logic to not
+  //   reorder any write operations to happen after the pointer itself is written. This guarantees
+  //   that the map is not modified after the point when the worker threads can observe the new
+  //   pointer value, i.e., the map is actaully immutable (const) from that point forward.
+  // - when the pointer is read (by a worker thread) 'std::memory_order_acquire' in the load
+  //   operation informs the compiler to emit CPU instructions to make the CPU
+  //   out-of-order-execution logic to not reorder any reads from the new map to happen before the
+  //   pointer itself is read, so that no values from the map are read before the map was "released"
+  //   by the store or exchange operation.
+  //
+  // Typically it is easier to think about the release part of the acquire/release semantics, as at
+  // the point of the store or exchange operation the compiler and the CPU know the location of the
+  // map in memory before and after the pointer is stored, so that without
+  // 'std::memory_order_release' there is an understandable risk of such write after release
+  // happening. On the acquire side it seems less likely that the compiler or the CPU could know the
+  // new map pointer value in advance and even try to reorder any read operations to happen before
+  // the pointer is actually read. But consider the typical case where the pointer value is actually
+  // not changing between consecutice load operations. The compiler or the CPU could speculate that
+  // to be the case and read some values from the old memory location. 'std::memory_order_acquire'
+  // tells the compiler (which then "tells" the CPU) that this can not be done, and all reads must
+  // actually happen after the pointer value is loaded, be it a new one or the same as before.
+  //
+  const RawPolicyMap* load() const { return map_ptr_.load(std::memory_order_acquire); }
+  void store(const RawPolicyMap* map) { map_ptr_.store(map, std::memory_order_release); }
+  const RawPolicyMap* exchange(const RawPolicyMap* map) {
+    return map_ptr_.exchange(map, std::memory_order_release);
+  }
+
   const std::shared_ptr<const PolicyInstanceImpl>&
   GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
 
-  void updateInitManager(const std::string& version_name);
   void removeInitManager();
-  void executeUpdate(const std::string& version_name,
-                     std::function<void(ThreadLocalPolicyMap&)> updateFn,
-                     std::function<void(std::shared_ptr<const NetworkPolicyMap>)> cleanFn);
-
-  void pause();
-  void resume();
 
   bool isNewStream();
 
@@ -303,24 +317,19 @@ private:
   static uint64_t instance_id_;
 
   Server::Configuration::ServerFactoryContext& context_;
-  ThreadLocal::TypedSlot<ThreadLocalPolicyMap> tls_map_;
+  std::atomic<const RawPolicyMap*> map_ptr_;
   Stats::ScopeSharedPtr npds_stats_scope_;
   Stats::ScopeSharedPtr policy_stats_scope_;
-  Stats::TimespanPtr update_latency_ms_;
-  std::chrono::milliseconds policy_update_warning_limit_ms_;
 
   // init target which starts gRPC subscription
   Init::TargetImpl init_target_;
-  std::shared_ptr<Init::ManagerImpl> version_init_manager_;
-  std::shared_ptr<Init::TargetImpl> version_init_target_;
-  std::shared_ptr<Init::WatcherImpl> version_init_watcher_;
   std::shared_ptr<Server::Configuration::TransportSocketFactoryContextImpl>
       transport_factory_context_;
 
   Cilium::CtMapSharedPtr ctmap_;
+  absl::flat_hash_set<std::string> ctmaps_to_be_closed_;
 
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
-  Envoy::Config::ScopedResume resume_;
 
   ProtobufTypes::MessagePtr dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher);
   Server::ConfigTracker::EntryOwnerPtr config_tracker_entry_;
