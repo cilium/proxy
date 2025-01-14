@@ -188,13 +188,10 @@ createHostMap(Server::Configuration::ListenerFactoryContext& context) {
 }
 
 std::shared_ptr<const Cilium::NetworkPolicyMap>
-createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct,
-                std::chrono::milliseconds policy_update_warning_limit_ms) {
+createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-      [&context, &ct, &policy_update_warning_limit_ms] {
-        auto map =
-            std::make_shared<Cilium::NetworkPolicyMap>(context, ct, policy_update_warning_limit_ms);
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, &ct] {
+        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context, ct);
         map->startSubscription();
         return map;
       });
@@ -211,14 +208,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
           Network::Utility::parseInternetAddressNoThrow(config.ipv4_source_address())),
       ipv6_source_address_(
           Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address())),
-      enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()),
-      policy_update_warning_limit_ms_(std::chrono::milliseconds(100)) {
-
-  const uint64_t limit = DurationUtil::durationToMilliseconds(config.policy_update_warning_limit());
-  if (limit > 0) {
-    policy_update_warning_limit_ms_ = std::chrono::milliseconds(limit);
-  }
-
+      enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()) {
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -260,7 +250,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
     // Get the shared policy provider, or create it if not already created.
     // Note that the API config source is assumed to be the same for all filter
     // instances!
-    npmap_ = createPolicyMap(context, ct_maps_, policy_update_warning_limit_ms_);
+    npmap_ = createPolicyMap(context, ct_maps_);
   }
 }
 

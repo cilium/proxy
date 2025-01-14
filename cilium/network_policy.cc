@@ -4,10 +4,8 @@
 #include <openssl/mem.h>
 
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <functional>
-#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -19,7 +17,6 @@
 #include "envoy/config/core/v3/address.pb.h"
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/subscription.h"
-#include "envoy/event/dispatcher.h"
 #include "envoy/http/header_map.h"
 #include "envoy/init/manager.h"
 #include "envoy/network/address.h"
@@ -27,6 +24,7 @@
 #include "envoy/ssl/context.h"
 #include "envoy/ssl/context_config.h"
 #include "envoy/stats/stats_macros.h"
+#include "envoy/thread_local/thread_local.h"
 #include "envoy/type/matcher/v3/metadata.pb.h"
 
 #include "source/common/common/assert.h"
@@ -40,13 +38,11 @@
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
-#include "source/common/stats/timespan_impl.h"
 #include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
 #include "source/server/transport_socket_config_impl.h"
 
 #include "absl/container/btree_set.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/container/node_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
@@ -1136,10 +1132,9 @@ private:
 // Common base constructor
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
-    : context_(context.serverFactoryContext()), tls_map_(context_.threadLocal()),
+    : context_(context.serverFactoryContext()), map_ptr_(nullptr),
       npds_stats_scope_(context_.serverScope().createScope("cilium.npds.")),
       policy_stats_scope_(context_.serverScope().createScope("cilium.policy.")),
-      policy_update_warning_limit_ms_(100),
       init_target_(fmt::format("Cilium Network Policy subscription start"),
                    [this]() {
                      subscription_->start({});
@@ -1156,8 +1151,9 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   // Use listener init manager for subscription initialization
   context.initManager().add(init_target_);
 
+  // Allocate an initial policy map so that the map pointer is never a nullptr
+  store(new RawPolicyMap());
   ENVOY_LOG(trace, "NetworkPolicyMap({}) created.", instance_id_);
-  tls_map_.set([&](Event::Dispatcher&) { return std::make_shared<ThreadLocalPolicyMap>(); });
 
   if (context_.admin().has_value()) {
     ENVOY_LOG(debug, "Registering NetworkPolicies to config tracker");
@@ -1171,11 +1167,19 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
 
 // This is used in production
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context,
-                                   Cilium::CtMapSharedPtr& ct,
-                                   std::chrono::milliseconds policy_update_warning_limit_ms)
+                                   Cilium::CtMapSharedPtr& ct)
     : NetworkPolicyMap(context) {
   ctmap_ = ct;
-  policy_update_warning_limit_ms_ = policy_update_warning_limit_ms;
+}
+
+NetworkPolicyMap::~NetworkPolicyMap() {
+  ENVOY_LOG(debug, "Cilium L7 NetworkPolicyMap({}): NetworkPolicyMap is deleted NOW!",
+            instance_id_);
+  // Policy map destruction happens when the last listener with the Cilium bpf_metadata listener
+  // filter has drained out and is finally removed. At this point the listener socket can no
+  // longer receive new traffic and we can simply delete the policy map without synchronizing with
+  // the worker threads.
+  delete load();
 }
 
 // Both subscribe() call and subscription_->start() use
@@ -1193,8 +1197,9 @@ static const std::shared_ptr<const PolicyInstanceImpl> null_instance_impl{nullpt
 
 const std::shared_ptr<const PolicyInstanceImpl>&
 NetworkPolicyMap::GetPolicyInstanceImpl(const std::string& endpoint_ip) const {
-  auto it = tls_map_->policies_.find(endpoint_ip);
-  if (it == tls_map_->policies_.end()) {
+  const auto* map = load();
+  auto it = map->find(endpoint_ip);
+  if (it == map->end()) {
     return null_instance_impl;
   }
   return it->second;
@@ -1204,15 +1209,6 @@ const PolicyInstanceConstSharedPtr
 NetworkPolicyMap::GetPolicyInstance(const std::string& endpoint_ip) const {
   return GetPolicyInstanceImpl(endpoint_ip);
 }
-
-void NetworkPolicyMap::pause() {
-  auto sub = dynamic_cast<Config::GrpcSubscriptionImpl*>(subscription_.get());
-  if (sub) {
-    resume_ = sub->pause();
-  }
-}
-
-void NetworkPolicyMap::resume() { resume_.reset(); }
 
 bool NetworkPolicyMap::isNewStream() {
   auto sub = dynamic_cast<Config::GrpcSubscriptionImpl*>(subscription_.get());
@@ -1228,38 +1224,6 @@ bool NetworkPolicyMap::isNewStream() {
   return mux->isNewStream();
 }
 
-void ThreadLocalPolicyMap::Update(std::vector<std::shared_ptr<PolicyInstanceImpl>>& added,
-                                  std::vector<std::string>& deleted,
-                                  const std::string& version_info) {
-  ENVOY_LOG(trace,
-            "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Starting "
-            "updates on the {} thread for version {}",
-            Thread::MainThread::isMainThread() ? "main" : "worker", version_info);
-  for (const auto& policy_name : deleted) {
-    ENVOY_LOG(trace, "Cilium deleting removed network policy for endpoint {}", policy_name);
-    policies_.erase(policy_name);
-  }
-  for (const auto& new_policy : added) {
-    for (const auto& endpoint_ip : new_policy->policy_proto_.endpoint_ips()) {
-      ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", endpoint_ip);
-      policies_[endpoint_ip] = new_policy;
-    }
-  }
-}
-
-// updateInitManager must be called for each policy update before parsing the policy
-void NetworkPolicyMap::updateInitManager(const std::string& version_name) {
-  // Init manager for this version update.
-  // For the first initialization the listener's init manager is used.
-  // Setting the member here releases any previous manager as well.
-  version_init_manager_ = std::make_shared<Init::ManagerImpl>(version_name);
-
-  // Set the init manager to use via the transport factory context
-  // Must be set before the new network policy is parsed, as the parsed
-  // SDS secrets will use this!
-  transport_factory_context_->setInitManager(*version_init_manager_);
-}
-
 // removeInitManager must be called at the end of each each policy update
 void NetworkPolicyMap::removeInitManager() {
   // Remove the local init manager from the transport factory context
@@ -1269,109 +1233,15 @@ void NetworkPolicyMap::removeInitManager() {
 #pragma clang diagnostic pop
 }
 
-// executeUpdate is called for each policy update that has been successfully parsed
-// to execute the update on each worker thread. After the worker threads have updated
-// the update is also executed in the main thread and the cleanFn is called in the main thread.
-void NetworkPolicyMap::executeUpdate(const std::string& version_name,
-                                     std::function<void(ThreadLocalPolicyMap&)> updateFn,
-                                     std::function<void(NetworkPolicyMapSharedPtr)> cleanFn) {
-  // pause the subscription until the worker threads are done. No throws after this!
-  ENVOY_LOG(trace, "Pausing NPDS subscription");
-  pause();
-
-  // Create an init target to track network policy updates on worker threads.
-  // This is added to the version init manager below in order to wait for all worker
-  // threads to have applied policy updates before NPDS ACK is sent.
-  version_init_target_ = std::make_shared<Init::TargetImpl>(version_name, []() {});
-
-  // version init target is marked ready when all workers have updated.
-  version_init_manager_->add(*version_init_target_);
-
-  // 'this' may be already deleted when the worker threads get to execute the
-  // updates. Manage this by taking a shared_ptr on 'this' for the duration of
-  // the posted lambda.
-  std::shared_ptr<NetworkPolicyMap> shared_this = shared_from_this();
-
-  // Resume subscription via an Init::Watcher when fully initialized.
-  // This Watcher needs to be a member so that it exists after this function returns.
-  // It needs to be dynamically allocated so that we can initialize a new watcher for each
-  // network policy version.
-  // Since this is a member it must not hold a reference to the map to avoid a circular
-  // reference; so use a weak pointer instead.
-  // Setting the member here releases any previous watcher as well.
-  std::weak_ptr<NetworkPolicyMap> weak_this = shared_this;
-  version_init_watcher_ = std::make_shared<Init::WatcherImpl>(version_name, [weak_this]() {
-    if (std::shared_ptr<NetworkPolicyMap> shared_this = weak_this.lock()) {
-      // resume subscription when fully initialized
-      ENVOY_LOG(trace, "Resuming NPDS subscription");
-      shared_this->resume();
-    } else {
-      ENVOY_LOG(debug, "NetworkPolicyMap expired on watcher completion!");
-    }
-  });
-
-  // Execute update on all threads.
-  tls_map_.runOnAllThreads(
-      [version_name, updateFn](OptRef<ThreadLocalPolicyMap> npmap) {
-        // Main thread done after the worker threads
-        if (Thread::MainThread::isMainThread())
-          return;
-
-        if (!npmap.has_value()) {
-          ENVOY_LOG(
-              debug,
-              "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Worker thread has no value for {}",
-              version_name);
-          return;
-        }
-        updateFn(npmap.value());
-      },
-      // Worker threads have executed updates, update & clean up on the main thread and
-      // mark the version init target ready.
-      [shared_this, version_name, updateFn, cleanFn]() {
-        // Update on the main thread last, so that deletes happen on the same thread as allocs
-        auto npmap = shared_this->tls_map_.get();
-        if (!npmap.has_value()) {
-          ENVOY_LOG(debug,
-                    "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Main thread has no value for {}",
-                    version_name);
-        } else {
-          updateFn(npmap.value());
-        }
-
-        // Clean-up in the main thread
-        cleanFn(shared_this);
-
-        // Mark the init target as ready
-        shared_this->version_init_target_->ready();
-
-        // Compute update latency and log a warning if it took too long
-        shared_this->update_latency_ms_->complete();
-        auto duration = shared_this->update_latency_ms_->elapsed();
-        shared_this->update_latency_ms_.reset();
-
-        if (duration > shared_this->policy_update_warning_limit_ms_) {
-          shared_this->stats_.updates_timed_out_.inc();
-          ENVOY_LOG(warn,
-                    "Cilium L7 NetworkPolicyMap::onConfigUpdate(): Worker threads took longer "
-                    "than {}ms to update {} ({}ms)",
-                    shared_this->policy_update_warning_limit_ms_.count(), version_name,
-                    duration.count());
-        }
-      });
-
-  // Initialize SDS secrets, the watcher callback above will be called after all threads have
-  // updated policies and secrets have been fetched, or timeout (15 seconds) hits.
-  version_init_manager_->initialize(*version_init_watcher_);
-}
-
+// onConfigUpdate parses the new network policy resources, allocates a new policy map and atomically
+// swaps it in place of the old policy map. Throws if any of the 'resources' can not be
+// parsed. Otherwise an OK status is returned without pausing NPDS gRPC stream, causing a new
+// request (ACK) to be sent immediately, without waiting SDS secrets to be loaded.
 absl::Status
 NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
                                  const std::string& version_info) {
   ENVOY_LOG(debug, "NetworkPolicyMap::onConfigUpdate({}), {} resources, version: {}", instance_id_,
             resources.size(), version_info);
-  update_latency_ms_ = std::make_unique<Stats::HistogramCompletableTimespanImpl>(
-      stats_.update_latency_ms_, context_.timeSource());
   stats_.updates_total_.inc();
 
   // Reopen IPcache for every new stream. Cilium agent re-creates IP cache on restart,
@@ -1390,86 +1260,92 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
   }
 
   std::string version_name = fmt::format("NetworkPolicyMap version {}", version_info);
+  Init::ManagerImpl version_init_manager(version_name);
+  // Set the init manager to use via the transport factory context
+  // Must be set before the new network policy is parsed, as the parsed
+  // SDS secrets will use this!
+  transport_factory_context_->setInitManager(version_init_manager);
 
-  absl::flat_hash_set<std::string> keeps;
-  absl::flat_hash_set<std::string> ct_maps_to_keep;
+  const auto* old_map = load();
+  {
+    absl::flat_hash_set<std::string> ctmaps_to_keep;
+    auto new_map = new RawPolicyMap();
+    try {
+      for (const auto& resource : resources) {
+        const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
+        ENVOY_LOG(debug,
+                  "Received Network Policy for endpoint {} in onConfigUpdate() "
+                  "version {}",
+                  config.endpoint_id(), version_info);
+        if (config.endpoint_ips().size() == 0) {
+          throw EnvoyException("Network Policy has no endpoint ips");
+        }
+        ctmaps_to_keep.insert(config.conntrack_map_name());
+        ctmaps_to_be_closed_.erase(config.conntrack_map_name());
 
-  updateInitManager(version_name);
+        // First find the old config to figure out if an update is needed.
+        const uint64_t new_hash = MessageUtil::hash(config);
+        auto it = old_map->find(config.endpoint_ips()[0]);
+        if (it != old_map->cend()) {
+          const auto& old_policy = it->second;
+          if (old_policy && old_policy->hash_ == new_hash &&
+              Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_, config)) {
+            ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
+            for (const auto& endpoint_ip : config.endpoint_ips()) {
+              ENVOY_LOG(trace, "Cilium keeping network policy for endpoint {}", endpoint_ip);
+              new_map->emplace(endpoint_ip, old_policy);
+            }
+            continue;
+          }
+        }
 
-  // Collect a shared vector of policies to be added
-  auto to_be_added = std::make_shared<std::vector<std::shared_ptr<PolicyInstanceImpl>>>();
-  try {
-    for (const auto& resource : resources) {
-      const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
-      ENVOY_LOG(debug,
-                "Received Network Policy for endpoint {} in onConfigUpdate() "
-                "version {}",
-                config.endpoint_id(), version_info);
-      if (config.endpoint_ips().size() == 0) {
-        throw EnvoyException("Network Policy has no endpoint ips");
+        // May throw
+        auto new_policy = std::make_shared<const PolicyInstanceImpl>(*this, new_hash, config);
+
+        for (const auto& endpoint_ip : config.endpoint_ips()) {
+          ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", endpoint_ip);
+          // new_map is not exception safe, new_policy must be computed separately!
+          new_map->emplace(endpoint_ip, new_policy);
+        }
       }
-      for (const auto& endpoint_ip : config.endpoint_ips()) {
-        keeps.insert(endpoint_ip);
-      }
-      ct_maps_to_keep.insert(config.conntrack_map_name());
+    } catch (const EnvoyException& e) {
+      ENVOY_LOG(warn, "NetworkPolicy update for version {} failed: {}", version_info, e.what());
+      stats_.updates_rejected_.inc();
 
-      // First find the old config to figure out if an update is needed.
-      const uint64_t new_hash = MessageUtil::hash(config);
-      const auto& old_policy = GetPolicyInstanceImpl(config.endpoint_ips()[0]);
-      if (old_policy && old_policy->hash_ == new_hash &&
-          Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_, config)) {
-        ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
-        continue;
-      }
-
-      // May throw
-      to_be_added->emplace_back(std::make_shared<PolicyInstanceImpl>(*this, new_hash, config));
+      removeInitManager();
+      throw; // re-throw
     }
-  } catch (const EnvoyException& e) {
-    ENVOY_LOG(warn, "NetworkPolicy update for version {} failed: {}", version_info, e.what());
-    stats_.updates_rejected_.inc();
-
     removeInitManager();
 
-    throw; // re-throw
-  }
+    // Initialize SDS secrets. We do not wait for the completion.
+    version_init_manager.initialize(Init::WatcherImpl(version_name, []() {}));
 
-  removeInitManager();
-
-  // Collect a shared vector of policy names to be removed
-  auto to_be_deleted = std::make_shared<std::vector<std::string>>();
-  // Collect a shared vector of conntrack maps to close
-  auto cts_to_be_closed = std::make_shared<absl::flat_hash_set<std::string>>();
-  const auto& policies = tls_map_->policies_;
-  for (auto& pair : policies) {
-    if (keeps.find(pair.first) == keeps.end()) {
-      to_be_deleted->emplace_back(pair.first);
+    // Add old ctmaps to be closed
+    for (auto& pair : *old_map) {
+      // insert conntrack map names we don't want to keep
+      auto& ct_map_name = pair.second->conntrack_map_name_;
+      if (ctmaps_to_keep.find(ct_map_name) == ctmaps_to_keep.end()) {
+        ctmaps_to_be_closed_.insert(ct_map_name);
+      }
     }
-    // insert conntrack map names we don't want to keep and that have not been
-    // already inserted.
-    auto& ct_map_name = pair.second->conntrack_map_name_;
-    if (ct_maps_to_keep.find(ct_map_name) == ct_maps_to_keep.end() &&
-        cts_to_be_closed->find(ct_map_name) == cts_to_be_closed->end()) {
-      ENVOY_LOG(debug, "Closing conntrack map {}", ct_map_name);
-      cts_to_be_closed->insert(ct_map_name);
-    }
+
+    // Swap the new map in, new_map goes out of scope right after to eliminate accidental
+    // modification.
+    old_map = exchange(new_map);
   }
 
-  // Execute non-empty update on all threads
-  if (to_be_added->size() != 0 || to_be_deleted->size() != 0 || cts_to_be_closed->size() != 0) {
-    executeUpdate(
-        version_name,
-        [to_be_added, to_be_deleted, version_info](ThreadLocalPolicyMap& npmap) {
-          npmap.Update(*to_be_added, *to_be_deleted, version_info);
-        },
-        [cts_to_be_closed](NetworkPolicyMapSharedPtr shared_this) {
-          if (shared_this->ctmap_ && cts_to_be_closed->size() > 0) {
-            shared_this->ctmap_->closeMaps(cts_to_be_closed);
-          }
-        });
-  } else {
-    ENVOY_LOG(trace, "Skipping empty or duplicate policy update.");
-  }
+  // 'this' may be already deleted when the main thread gets to execute the cleanup.
+  // Manage this by taking a shared_ptr on 'this' for the duration of the posted lambda.
+  std::shared_ptr<NetworkPolicyMap> shared_this = shared_from_this();
+
+  runAfterAllThreads([shared_this, old_map]() {
+    // Clean-up in the main thread after all threads have scheduled
+    if (shared_this->ctmap_) {
+      shared_this->ctmap_->closeMaps(shared_this->ctmaps_to_be_closed_);
+    }
+    shared_this->ctmaps_to_be_closed_.clear();
+    delete old_map;
+  });
 
   return absl::OkStatus();
 }
@@ -1482,8 +1358,16 @@ void NetworkPolicyMap::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureRe
 }
 
 void NetworkPolicyMap::runAfterAllThreads(std::function<void()> cb) const {
-  const_cast<NetworkPolicyMap*>(this)->tls_map_.runOnAllThreads([](OptRef<ThreadLocalPolicyMap>) {},
-                                                                cb);
+  // We can guarantee the callback 'cb' runs in the main thread after all worker threads have
+  // entered their event loop, and thus relinquished all state, such as policy lookup results that
+  // were stored in their call stack, by posting and empty function to their event queues and
+  // waiting until all of them have returned, as managed by 'runOnAllWorkerThreads'.
+  //
+  // For now we rely on the implementation dependent fact that the reference returned by
+  // context_.threadLocal() actually is a ThreadLocal::Instance reference, where
+  // runOnAllWorkerThreads() is exposed. Withtout this cast we'd need to use a dummy thread local
+  // variable that would take a thread local slot for no other purpose than to avoid this type cast.
+  dynamic_cast<ThreadLocal::Instance&>(context_.threadLocal()).runOnAllWorkerThreads([]() {}, cb);
 }
 
 ProtobufTypes::MessagePtr
@@ -1492,7 +1376,7 @@ NetworkPolicyMap::dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_m
 
   std::vector<uint64_t> policyEndpointIds;
   auto config_dump = std::make_unique<cilium::NetworkPoliciesConfigDump>();
-  for (const auto& item : tls_map_->policies_) {
+  for (const auto& item : *load()) {
     // filter duplicates (policies are stored per endpoint ip)
     if (std::find(policyEndpointIds.begin(), policyEndpointIds.end(),
                   item.second->policy_proto_.endpoint_id()) != policyEndpointIds.end()) {
