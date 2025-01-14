@@ -102,7 +102,10 @@ Network::FilterStatus Instance::onNewConnection() {
   }
 
   auto& conn = callbacks_->connection();
-  const auto policy_fs = Cilium::GetCiliumPolicyFilterState(conn.streamInfo());
+
+  const auto policy_fs =
+      conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicyFilterState>(
+          Cilium::CiliumPolicyFilterState::key());
 
   if (!policy_fs) {
     ENVOY_CONN_LOG(warn, "cilium.network: Cilium policy filter state not found", conn);
@@ -266,7 +269,10 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     bool changed = log_entry_.UpdateFromMetadata(l7proto_, metadata.filter_metadata().at(l7proto_));
 
     // Policy may have changed since the connection was established, get fresh policy
-    const auto policy_fs = Cilium::GetCiliumPolicyFilterState(conn.streamInfo());
+    const auto policy_fs =
+        conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicyFilterState>(
+            Cilium::CiliumPolicyFilterState::key());
+
     if (!policy_fs) {
       ENVOY_CONN_LOG(warn,
                      "cilium.network: Cilium policy filter state not found for pod {}, "
