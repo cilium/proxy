@@ -295,8 +295,12 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_EQ(0, option->ingress_source_identity_);
 
+  auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option);
+
   // Check that Ingress security ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+  EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option->mark_ >> 16) == 8);
 }
 
 TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
@@ -327,8 +331,12 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_EQ(12345678, option->ingress_source_identity_);
 
+  auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option);
+
   // Check that Ingress security ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+  EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option->mark_ >> 16) == 8);
 
   // Expect policy accepts security ID 12345678 on ingress on port 80
   auto port_policy = option->getPolicy()->findPortPolicy(true, 80);
@@ -363,8 +371,12 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_EQ(2, option->ingress_source_identity_);
 
+  auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option);
+
   // Check that Ingress security ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+  EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option->mark_ >> 16) == 8);
 
   // Expect policy does not accept security ID 2 on ingress on port 80
   auto port_policy = option->getPolicy()->findPortPolicy(true, 80);
@@ -415,8 +427,12 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_EQ(80, option->port_);
   EXPECT_EQ("10.1.1.1", option->pod_ip_);
 
+  auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option);
+
   // Check that Endpoint's ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0900 && (option->mark_ >> 16) == 2048);
+  EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0900 &&
+              (cilium_mark_socket_option->mark_ >> 16) == 2048);
 }
 
 // When original source is not configured to be used, east/west traffic takes the north/south path
@@ -445,8 +461,12 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   EXPECT_EQ("10.1.1.42", option->pod_ip_);
   EXPECT_EQ(0, option->ingress_source_identity_);
 
+  auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option);
+
   // Check that Ingress ID is used in the socket mark
-  EXPECT_TRUE((option->mark_ & 0xffff) == 0x0B00 && (option->mark_ >> 16) == 8);
+  EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option->mark_ >> 16) == 8);
 }
 
 } // namespace
