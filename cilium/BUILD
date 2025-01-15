@@ -36,6 +36,7 @@ envoy_cc_library(
     ],
     hdrs = [
         "network_policy.h",
+        "policy_id.h",
     ],
     repository = "@envoy",
     deps = [
@@ -85,7 +86,6 @@ envoy_cc_library(
     ],
     hdrs = [
         "filter_state_cilium_policy.h",
-        "policy_id.h",
     ],
     repository = "@envoy",
     deps = [
@@ -320,7 +320,6 @@ envoy_cc_library(
     hdrs = [
         "bpf_metadata.h",
         "host_map.h",
-        "policy_id.h",
     ],
     repository = "@envoy",
     deps = [
