@@ -522,8 +522,8 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
   }
   return absl::optional(Cilium::BpfMetadata::SocketMetadata(
-      mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
-      std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
+      mark, ingress_source_identity, source_identity, destination_identity, is_ingress_, is_l7lb_,
+      dip->port(), std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
       std::move(source_addresses.ipv6_), weak_from_this(), proxy_id_, sni));
 }
 

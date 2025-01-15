@@ -32,15 +32,17 @@ namespace BpfMetadata {
 
 struct SocketMetadata {
   SocketMetadata(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
-                 bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
+                 uint32_t destination_identity, bool ingress, bool l7lb, uint16_t port,
+                 std::string&& pod_ip,
                  Network::Address::InstanceConstSharedPtr original_source_address,
                  Network::Address::InstanceConstSharedPtr source_address_ipv4,
                  Network::Address::InstanceConstSharedPtr source_address_ipv6,
                  const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
                  absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
-        ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
-        proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver), mark_(mark),
+        destination_identity_(destination_identity), ingress_(ingress), is_l7lb_(l7lb), port_(port),
+        pod_ip_(std::move(pod_ip)), proxy_id_(proxy_id), sni_(sni),
+        policy_resolver_(policy_resolver), mark_(mark),
         original_source_address_(std::move(original_source_address)),
         source_address_ipv4_(std::move(source_address_ipv4)),
         source_address_ipv6_(std::move(source_address_ipv6)) {}
@@ -62,6 +64,7 @@ struct SocketMetadata {
 
   uint32_t ingress_source_identity_;
   uint32_t source_identity_;
+  uint32_t destination_identity_;
   bool ingress_;
   bool is_l7lb_;
   uint16_t port_;
