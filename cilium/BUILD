@@ -71,12 +71,6 @@ envoy_cc_library(
         "socket_option_source_address.h",
     ],
     repository = "@envoy",
-    deps = [
-        "//cilium:conntrack_lib",
-        "@envoy//envoy/network:listen_socket_interface",
-        "@envoy//source/common/common:logger_lib",
-        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
-    ],
 )
 
 envoy_cc_library(
