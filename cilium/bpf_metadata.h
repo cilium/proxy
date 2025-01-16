@@ -1,11 +1,11 @@
 #pragma once
 
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "envoy/api/io_error.h"
 #include "envoy/network/address.h"
@@ -30,7 +30,7 @@ namespace Envoy {
 namespace Cilium {
 namespace BpfMetadata {
 
-struct SocketMetadata {
+struct SocketMetadata : Logger::Loggable<Logger::Id::config> {
   SocketMetadata(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
                  uint32_t destination_identity, bool ingress, bool l7lb, uint16_t port,
                  std::string&& pod_ip,
@@ -61,6 +61,32 @@ struct SocketMetadata {
     return std::make_shared<Envoy::Cilium::SourceAddressSocketOption>(
         source_identity_, original_source_address_, source_address_ipv4_, source_address_ipv6_);
   };
+
+  // Add metadata for policy based listener filter chain matching.
+  // This requires the TLS inspector, if used, to run before us.
+  // Note: This requires egress policy be known before upstream host selection,
+  // so this feature only works with the original destination cluster.
+  // This means that L7 LB does not work with the experimental Envoy Metadata
+  // based policies (e.g., with MongoDB or MySQL filters).
+  void configureProxyLibApplicationProtocol(Network::ConnectionSocket& socket) {
+    if (const auto resolver = policy_resolver_.lock()) {
+      auto& policy = resolver->getPolicy(pod_ip_);
+
+      std::string l7proto;
+      uint32_t remote_id = ingress_ ? source_identity_ : destination_identity_;
+
+      if (policy.useProxylib(ingress_, remote_id, port_, l7proto)) {
+        const auto& old_protocols = socket.requestedApplicationProtocols();
+        std::vector<absl::string_view> protocols;
+        for (const auto& old_protocol : old_protocols) {
+          protocols.emplace_back(old_protocol);
+        }
+        protocols.emplace_back(l7proto);
+        socket.setRequestedApplicationProtocols(protocols);
+        ENVOY_LOG(info, "cilium.bpf_metadata: setRequestedApplicationProtocols(..., {})", l7proto);
+      }
+    }
+  }
 
   uint32_t ingress_source_identity_;
   uint32_t source_identity_;
