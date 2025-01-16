@@ -66,10 +66,10 @@ tidy-fix: compile_commands.json force-non-root
 	echo "clang-tidy fix results can contain duplicate includes, check before committing!"
 	run-clang-tidy-17 -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES)
 
-check: force-non-root
+format: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make fix' locally to fix formatting errors."
 
-fix: force-non-root
+format-fix: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
 
 # Run tests without debug by default.

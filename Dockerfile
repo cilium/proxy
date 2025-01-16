@@ -100,7 +100,7 @@ ENV TARGETARCH=$TARGETARCH
 #
 # Check format
 #
-RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS}" PKG_BUILD=1 V=$V DEBUG=$DEBUG make V=1 check > format-output.txt
+RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS}" PKG_BUILD=1 V=$V DEBUG=$DEBUG make V=1 format > format-output.txt
 
 FROM scratch AS format
 COPY --from=check-format /cilium/proxy/format-output.txt /
