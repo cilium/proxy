@@ -10,7 +10,7 @@ ARG TARGETARCH
 ENV TZ=Etc/UTC
 
 # renovate: datasource=golang-version depName=go
-ENV GO_VERSION=1.23.4
+ENV GO_VERSION=1.23.5
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update && \
