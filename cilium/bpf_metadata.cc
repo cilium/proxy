@@ -568,15 +568,6 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   Network::Socket::appendOptions(socket_options,
                                  Network::SocketOptionFactory::buildReusePortOptions());
 
-  // linger (SO_LINGER)
-  struct linger linger;
-  linger.l_onoff = 1;
-  linger.l_linger = 10;
-  absl::string_view linger_bstr{reinterpret_cast<const char*>(&linger), sizeof(struct linger)};
-  socket_options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
-      envoy::config::core::v3::SocketOption::STATE_LISTENING,
-      ENVOY_MAKE_SOCKET_OPTION_NAME(SOL_SOCKET, SO_LINGER), linger_bstr));
-
   // keep alive (SO_KEEPALIVE, TCP_KEEPINTVL, TCP_KEEPIDLE)
   Network::Socket::appendOptions(
       socket_options,
