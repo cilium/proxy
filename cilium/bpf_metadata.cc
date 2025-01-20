@@ -537,6 +537,8 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
       socket_options->push_back(socket_metadata->buildCiliumMarkSocketOption());
     }
 
+    socket_metadata->configureProxyLibApplicationProtocol(socket);
+
     // Make Cilium Policy data available to filters and upstream connection (Cilium TLS Wrapper) as
     // filter state.
     cb.filterState().setData(
