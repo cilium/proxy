@@ -1,11 +1,11 @@
 #pragma once
 
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "envoy/api/io_error.h"
 #include "envoy/network/address.h"
@@ -30,17 +30,18 @@ namespace Envoy {
 namespace Cilium {
 namespace BpfMetadata {
 
-struct SocketMetadata {
+struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
   SocketMetadata(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
                  bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
                  Network::Address::InstanceConstSharedPtr original_source_address,
                  Network::Address::InstanceConstSharedPtr source_address_ipv4,
                  Network::Address::InstanceConstSharedPtr source_address_ipv6,
                  const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
-                 absl::string_view sni)
+                 std::string&& proxylib_l7_proto, absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
-        proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver), mark_(mark),
+        proxy_id_(proxy_id), proxylib_l7_proto_(std::move(proxylib_l7_proto)), sni_(sni),
+        policy_resolver_(policy_resolver), mark_(mark),
         original_source_address_(std::move(original_source_address)),
         source_address_ipv4_(std::move(source_address_ipv4)),
         source_address_ipv6_(std::move(source_address_ipv6)) {}
@@ -60,6 +61,21 @@ struct SocketMetadata {
         source_identity_, original_source_address_, source_address_ipv4_, source_address_ipv6_);
   };
 
+  // Add ProxyLib L7 protocol as requested application protocol on the socket.
+  void configureProxyLibApplicationProtocol(Network::ConnectionSocket& socket) {
+    if (!proxylib_l7_proto_.empty()) {
+      const auto& old_protocols = socket.requestedApplicationProtocols();
+      std::vector<absl::string_view> protocols;
+      for (const auto& old_protocol : old_protocols) {
+        protocols.emplace_back(old_protocol);
+      }
+      protocols.emplace_back(proxylib_l7_proto_);
+      socket.setRequestedApplicationProtocols(protocols);
+      ENVOY_LOG(info, "cilium.bpf_metadata: setRequestedApplicationProtocols(..., {})",
+                proxylib_l7_proto_);
+    }
+  }
+
   uint32_t ingress_source_identity_;
   uint32_t source_identity_;
   bool ingress_;
@@ -67,6 +83,7 @@ struct SocketMetadata {
   uint16_t port_;
   std::string pod_ip_;
   uint32_t proxy_id_;
+  std::string proxylib_l7_proto_;
   std::string sni_;
   std::weak_ptr<PolicyResolver> policy_resolver_;
 
