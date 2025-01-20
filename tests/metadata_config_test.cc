@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <list>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -479,6 +480,40 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   // Check that Ingress ID is used in the socket mark
   EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
               (cilium_mark_socket_option->mark_ >> 16) == 8);
+}
+
+TEST_F(MetadataConfigTest, ProxyLibNotConfigured) {
+  ::cilium::BpfMetadata config{};
+
+  EXPECT_NO_THROW(initialize(config));
+
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+
+  EXPECT_CALL(socket_, setRequestedApplicationProtocols(_)).Times(0);
+
+  socket_metadata->configureProxyLibApplicationProtocol(socket_);
+}
+
+TEST_F(MetadataConfigTest, ProxyLibConfigured) {
+  ::cilium::BpfMetadata config{};
+
+  EXPECT_NO_THROW(initialize(config));
+
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+
+  // set proxylib proto manually
+  socket_metadata->proxylib_l7_proto_ = "r2d2";
+
+  std::vector<std::string> protocols = {"h2c"};
+  EXPECT_CALL(socket_, requestedApplicationProtocols).WillOnce(testing::ReturnRef(protocols));
+
+  // proxylib protocol should be appended to the list of existing requested application protocols
+  const auto protos = std::vector<absl::string_view>{"h2c", "r2d2"};
+  EXPECT_CALL(socket_, setRequestedApplicationProtocols(protos));
+
+  socket_metadata->configureProxyLibApplicationProtocol(socket_);
 }
 
 } // namespace
