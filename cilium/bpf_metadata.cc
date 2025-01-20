@@ -6,7 +6,6 @@
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -488,23 +487,16 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     src_address = nullptr;
   }
 
-  // Add metadata for policy based listener filter chain matching.
+  // Evaluating proxylib L7 protocol for later usage in filter chain matching.
   // This requires the TLS inspector, if used, to run before us.
   // Note: This requires egress policy be known before upstream host selection,
   // so this feature only works with the original destination cluster.
   // This means that L7 LB does not work with the experimental Envoy Metadata
   // based policies (e.g., with MongoDB or MySQL filters).
-  std::string l7proto;
+  std::string proxylib_l7proto;
   uint32_t remote_id = is_ingress_ ? source_identity : destination_identity;
-  if (policy->useProxylib(is_ingress_, remote_id, dip->port(), l7proto)) {
-    const auto& old_protocols = socket.requestedApplicationProtocols();
-    std::vector<absl::string_view> protocols;
-    for (const auto& old_protocol : old_protocols) {
-      protocols.emplace_back(old_protocol);
-    }
-    protocols.emplace_back(l7proto);
-    socket.setRequestedApplicationProtocols(protocols);
-    ENVOY_LOG(info, "cilium.bpf_metadata: setRequestedApplicationProtocols(..., {})", l7proto);
+  if (policy->useProxylib(is_ingress_, remote_id, dip->port(), proxylib_l7proto)) {
+    ENVOY_LOG(trace, "cilium.bpf_metadata: detected proxylib l7 proto: {}", proxylib_l7proto);
   }
 
   // Pass the metadata to an Envoy socket option we can retrieve later in other
@@ -524,7 +516,8 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   return absl::optional(Cilium::BpfMetadata::SocketMetadata(
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
-      std::move(source_addresses.ipv6_), weak_from_this(), proxy_id_, sni));
+      std::move(source_addresses.ipv6_), weak_from_this(), proxy_id_, std::move(proxylib_l7proto),
+      sni));
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
