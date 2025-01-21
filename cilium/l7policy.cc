@@ -1,17 +1,36 @@
 #include "cilium/l7policy.h"
 
+#include <fmt/format.h>
+
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <string>
+#include <utility>
 
+#include "envoy/common/time.h"
+#include "envoy/http/codes.h"
+#include "envoy/http/filter.h"
+#include "envoy/http/filter_factory.h"
+#include "envoy/http/header_map.h"
+#include "envoy/network/address.h"
+#include "envoy/network/socket.h"
 #include "envoy/registry/registry.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/server/filter_config.h"
+#include "envoy/stats/scope.h"
+#include "envoy/stats/stats_macros.h"
+#include "envoy/stream_info/filter_state.h"
+#include "envoy/stream_info/stream_info.h"
 
-#include "source/common/buffer/buffer_impl.h"
-#include "source/common/config/utility.h"
-#include "source/common/http/header_map_impl.h"
-#include "source/common/http/utility.h"
-#include "source/common/network/upstream_server_name.h"
-#include "source/common/network/upstream_subject_alt_names.h"
+#include "source/common/common/assert.h"
+#include "source/common/common/logger.h"
+#include "source/common/common/utility.h"
 #include "source/extensions/filters/http/common/factory_base.h"
 
+#include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/api/l7policy.pb.validate.h"
 #include "cilium/network_policy.h"
 #include "cilium/socket_option.h"

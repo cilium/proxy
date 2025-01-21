@@ -1,13 +1,21 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <string>
 
-#include "envoy/event/dispatcher.h"
+#include "envoy/buffer/buffer.h"
+#include "envoy/common/pure.h"
 #include "envoy/event/timer.h"
+#include "envoy/http/header_map.h"
+#include "envoy/network/address.h"
+#include "envoy/network/connection.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
 
+#include "absl/strings/string_view.h"
 #include "cilium/websocket_config.h"
 
 namespace Envoy {

@@ -1,7 +1,24 @@
-#include "source/common/config/decoded_resource_impl.h"
-#include "source/common/network/address_impl.h"
-#include "source/common/thread_local/thread_local_impl.h"
+#include <fmt/format.h>
+#include <gtest/gtest-param-test.h>
+#include <gtest/gtest.h>
 
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "envoy/network/address.h"
+
+#include "source/common/common/logger.h"
+#include "source/common/network/utility.h"
+
+#include "test/integration/http_integration.h"
+#include "test/test_common/environment.h"
+#include "test/test_common/utility.h"
+
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
+#include "absl/types/optional.h"
+#include "cilium/api/accesslog.pb.h"
 #include "cilium/secret_watcher.h"
 #include "tests/bpf_metadata.h" // host_map_config
 #include "tests/cilium_http_integration.h"

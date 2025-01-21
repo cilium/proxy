@@ -1,16 +1,25 @@
 #include "tests/cilium_tls_integration.h"
 
+#include <gmock/gmock-actions.h>
+#include <gmock/gmock-spec-builders.h>
+
+#include <string>
+#include <utility>
+
 #include "envoy/api/api.h"
+#include "envoy/common/exception.h"
+#include "envoy/extensions/transport_sockets/tls/v3/tls.pb.h"
 #include "envoy/network/transport_socket.h"
+#include "envoy/ssl/context_manager.h"
 
 #include "source/common/tls/client_ssl_socket.h"
 #include "source/common/tls/context_config_impl.h"
 
 #include "test/integration/server.h"
+#include "test/mocks/server/admin.h"
 #include "test/mocks/server/transport_socket_factory_context.h"
 #include "test/test_common/environment.h"
-
-#include "gtest/gtest.h"
+#include "test/test_common/utility.h"
 
 namespace Envoy {
 namespace Cilium {

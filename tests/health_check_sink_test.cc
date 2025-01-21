@@ -1,17 +1,22 @@
+#include <spdlog/common.h>
+
+#include <string>
+
+#include "envoy/data/core/v3/health_check_event.pb.h"
 #include "envoy/registry/registry.h"
+#include "envoy/upstream/health_check_event_sink.h"
 
+#include "source/common/common/base_logger.h"
 #include "source/common/common/logger.h"
-#include "source/common/protobuf/message_validator_impl.h"
 
-#include "test/mocks/access_log/mocks.h"
-#include "test/mocks/event/mocks.h"
+#include "test/mocks/server/admin.h"
 #include "test/mocks/server/health_checker_factory_context.h"
 #include "test/test_common/utility.h"
 
 #include "cilium/api/health_check_sink.pb.h"
-#include "cilium/api/health_check_sink.pb.validate.h"
-#include "cilium/health_check_sink.h"
-#include "gmock/gmock.h"
+#include "cilium/api/health_check_sink.pb.validate.h" // IWYU pragma: keep
+#include "google/protobuf/any.pb.h"
+#include "google/protobuf/util/message_differencer.h"
 #include "gtest/gtest.h"
 #include "tests/health_check_sink_server.h"
 

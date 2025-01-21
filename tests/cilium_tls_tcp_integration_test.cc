@@ -1,7 +1,40 @@
+#include <fmt/format.h>
+#include <gmock/gmock-cardinalities.h>
+#include <gmock/gmock-spec-builders.h>
+#include <gtest/gtest-param-test.h>
+#include <gtest/gtest.h>
+#include <unistd.h>
+
+#include <chrono>
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "envoy/buffer/buffer.h"
+#include "envoy/common/exception.h"
+#include "envoy/event/dispatcher.h"
+#include "envoy/extensions/transport_sockets/tls/v3/tls.pb.h"
+#include "envoy/network/address.h"
+#include "envoy/network/connection.h"
+#include "envoy/network/transport_socket.h"
+
+#include "source/common/buffer/buffer_impl.h"
+#include "source/common/common/assert.h"
+#include "source/common/stats/isolated_store_impl.h"
 #include "source/common/tls/server_context_config_impl.h"
 #include "source/common/tls/server_ssl_socket.h"
 
+#include "test/integration/fake_upstream.h"
+#include "test/integration/integration_tcp_client.h"
 #include "test/integration/ssl_utility.h"
+#include "test/integration/utility.h"
+#include "test/mocks/buffer/mocks.h"
+#include "test/mocks/server/admin.h"
+#include "test/test_common/environment.h"
+#include "test/test_common/utility.h"
 
 #include "tests/cilium_tcp_integration.h"
 #include "tests/cilium_tls_integration.h"

@@ -1,7 +1,19 @@
-#include "test/integration/integration.h"
-#include "test/integration/utility.h"
-#include "test/test_common/environment.h"
+#include <fmt/format.h>
+#include <gtest/gtest-param-test.h>
+#include <gtest/gtest.h>
 
+#include <chrono>
+#include <cstdint>
+#include <cstring>
+#include <string>
+
+#include "test/integration/fake_upstream.h"
+#include "test/integration/integration_tcp_client.h"
+#include "test/test_common/environment.h"
+#include "test/test_common/utility.h"
+
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "tests/cilium_tcp_integration.h"
 
 namespace Envoy {

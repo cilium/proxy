@@ -1,11 +1,41 @@
+#include <gmock/gmock-actions.h>
+#include <gmock/gmock-spec-builders.h>
+#include <spdlog/common.h>
+
+#include <cstdint>
+#include <list>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "envoy/api/api.h"
+#include "envoy/common/exception.h"
+#include "envoy/filesystem/watcher.h"
+#include "envoy/init/target.h"
+#include "envoy/init/watcher.h"
+#include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/network/socket.h"
 
+#include "source/common/common/base_logger.h"
 #include "source/common/common/logger.h"
+#include "source/common/init/watcher_impl.h"
 #include "source/common/network/address_impl.h"
+#include "source/common/network/socket_impl.h"
+#include "source/common/stats/isolated_store_impl.h"
 
+#include "test/mocks/filesystem/mocks.h"
+#include "test/mocks/network/io_handle.h"
+#include "test/mocks/network/mocks.h"
 #include "test/mocks/server/listener_factory_context.h"
+#include "test/mocks/server/transport_socket_factory_context.h"
+#include "test/test_common/utility.h"
 
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+#include "cilium/api/bpf_metadata.pb.h"
+#include "cilium/bpf_metadata.h"
+#include "cilium/socket_option.h"
 #include "gtest/gtest.h"
 #include "tests/bpf_metadata.h"
 

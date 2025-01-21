@@ -1,6 +1,17 @@
-#include "test/integration/integration.h"
-#include "test/integration/utility.h"
+#include <fmt/format.h>
+#include <gtest/gtest-param-test.h>
+#include <gtest/gtest.h>
+
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <string>
+
+#include "test/integration/fake_upstream.h"
+#include "test/integration/integration_tcp_client.h"
 #include "test/test_common/environment.h"
+#include "test/test_common/utility.h"
 
 #include "cilium/websocket_protocol.h"
 #include "tests/bpf_metadata.h" // original_dst_address
