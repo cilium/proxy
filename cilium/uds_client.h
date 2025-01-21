@@ -1,12 +1,17 @@
 #pragma once
 
-#include <map>
+#include <memory>
 #include <string>
+
+#include "envoy/common/time.h"
 
 #include "source/common/common/logger.h"
 #include "source/common/common/thread.h"
 #include "source/common/common/token_bucket_impl.h"
 #include "source/common/network/address_impl.h"
+
+#include "absl/base/thread_annotations.h"
+#include "absl/strings/string_view.h"
 
 namespace Envoy {
 namespace Cilium {

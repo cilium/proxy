@@ -1,8 +1,20 @@
-#include "source/common/config/decoded_resource_impl.h"
-#include "source/common/network/address_impl.h"
-#include "source/common/protobuf/protobuf.h"
-#include "source/common/thread_local/thread_local_impl.h"
+#include <fmt/format.h>
+#include <gtest/gtest-param-test.h>
+#include <gtest/gtest.h>
 
+#include <cstddef>
+#include <string>
+
+#include "envoy/event/dispatcher.h"
+
+#include "source/common/buffer/buffer_impl.h"
+
+#include "test/integration/fake_upstream.h"
+#include "test/integration/integration_stream_decoder.h"
+#include "test/test_common/environment.h"
+#include "test/test_common/utility.h"
+
+#include "absl/strings/string_view.h"
 #include "tests/bpf_metadata.h" // host_map_config, original_dst_address
 #include "tests/cilium_http_integration.h"
 

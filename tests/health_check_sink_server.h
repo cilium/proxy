@@ -1,18 +1,15 @@
 #pragma once
 
-#include <atomic>
 #include <chrono>
+#include <list>
 #include <string>
-#include <vector>
 
 #include "envoy/data/core/v3/health_check_event.pb.h"
-#include "envoy/data/core/v3/health_check_event.pb.validate.h"
-
-#include "source/common/common/logger.h"
-#include "source/common/common/thread.h"
+#include "envoy/data/core/v3/health_check_event.pb.validate.h" // IWYU pragma: keep
 
 #include "test/test_common/utility.h"
 
+#include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
 #include "absl/types/optional.h"
 #include "tests/uds_server.h"

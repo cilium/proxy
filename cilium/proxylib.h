@@ -2,13 +2,18 @@
 
 #include <google/protobuf/map.h>
 
+#include <cstdint>
+#include <memory>
+#include <string>
+
+#include "envoy/buffer/buffer.h"
 #include "envoy/network/connection.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
-#include "source/common/protobuf/protobuf.h"
 
 #include "proxylib/libcilium.h"
+#include "proxylib/types.h"
 
 namespace Envoy {
 namespace Cilium {

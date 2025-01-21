@@ -10,7 +10,18 @@
 #include <syscall.h>
 #include <unistd.h>
 #include <vector>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/syscall.h>
 
+#include <linux/capability.h>
+#include <linux/limits.h>
+#include <linux/prctl.h>
+
+#include "starter/privileged_service_protocol.h"
 #include "starter/privileged_service_server.h"
 
 // NOLINT(namespace-envoy)
@@ -71,7 +82,7 @@ int main(int argc, char** argv) {
   envoy_args.push_back(path); // program
 
   if (!delimiter_present) {
-    // backwards compabitility: handle all args as Envoys if delimiter isn't present
+    // backwards compatibility: handle all args as Envoys if delimiter isn't present
     envoy_args.insert(envoy_args.end(), args.begin(), args.end());
   } else {
     // parse arguments and split by delimiter "--"
@@ -113,9 +124,7 @@ int main(int argc, char** argv) {
     close(fds[0]);
 
     // Unconditionally drop all capabilities
-    struct __user_cap_header_struct hdr {
-      _LINUX_CAPABILITY_VERSION_3, 0
-    };
+    struct __user_cap_header_struct hdr{_LINUX_CAPABILITY_VERSION_3, 0};
     struct __user_cap_data_struct data[2];
     memset(&data, 0, sizeof(data));
 

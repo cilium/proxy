@@ -1,13 +1,22 @@
 #include "cilium/proxylib.h"
 
 #include <dlfcn.h>
+#include <fmt/format.h>
 
+#include <cstdint>
+#include <memory>
+#include <string>
+
+#include "envoy/buffer/buffer.h"
 #include "envoy/common/exception.h"
+#include "envoy/network/connection.h"
 
 #include "source/common/common/assert.h"
-#include "source/common/common/fmt.h"
+#include "source/common/common/logger.h"
 
 #include "absl/container/fixed_array.h"
+#include "google/protobuf/map.h"
+#include "proxylib/types.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -207,7 +216,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
     dir.inject_slice_.reset();
   }
 
-  // Do nothing if we don't have enought input (partial input remains buffered)
+  // Do nothing if we don't have enough input (partial input remains buffered)
   if (input_len < dir.need_bytes_) {
     return FILTER_OK;
   }

@@ -1,14 +1,23 @@
 #include "cilium/uds_client.h"
 
 #include <errno.h>
+#include <fmt/format.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
+#include <memory>
+#include <string>
+
 #include "envoy/common/exception.h"
+#include "envoy/common/time.h"
 
 #include "source/common/common/lock_guard.h"
+#include "source/common/common/logger.h"
+#include "source/common/common/token_bucket_impl.h"
 #include "source/common/common/utility.h"
+#include "source/common/network/address_impl.h"
 
 namespace Envoy {
 namespace Cilium {

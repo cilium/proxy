@@ -1,17 +1,40 @@
 #include "tests/bpf_metadata.h"
 
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/config_source.pb.h"
+#include "envoy/config/subscription.h"
+#include "envoy/network/address.h"
+#include "envoy/network/filter.h"
+#include "envoy/network/listen_socket.h"
+#include "envoy/registry/registry.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/server/filter_config.h"
 
 #include "source/common/common/logger.h"
 #include "source/common/config/utility.h"
+#include "source/common/protobuf/message_validator_impl.h"
+#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/utility.h"
 #include "source/extensions/config_subscription/filesystem/filesystem_subscription_impl.h"
 
 #include "test/test_common/environment.h"
 
+#include "absl/strings/string_view.h"
+#include "cilium/api/bpf_metadata.pb.h"
+#include "cilium/bpf_metadata.h"
+#include "cilium/host_map.h"
+#include "cilium/network_policy.h"
 #include "cilium/secret_watcher.h"
 #include "cilium/socket_option.h"
 #include "fmt/printf.h"
-#include "tests/bpf_metadata.pb.validate.h"
+#include "tests/bpf_metadata.pb.h"
+#include "tests/bpf_metadata.pb.validate.h" // IWYU pragma: keep
 
 namespace Envoy {
 

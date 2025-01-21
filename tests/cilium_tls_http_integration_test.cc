@@ -1,7 +1,26 @@
+#include <fmt/format.h>
+#include <gtest/gtest-param-test.h>
+#include <gtest/gtest.h>
+
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "envoy/common/exception.h"
+#include "envoy/extensions/transport_sockets/tls/v3/tls.pb.h"
+#include "envoy/network/address.h"
+#include "envoy/network/connection.h"
+#include "envoy/network/transport_socket.h"
+
+#include "source/common/common/logger.h"
+#include "source/common/stats/isolated_store_impl.h"
 #include "source/common/tls/server_context_config_impl.h"
 #include "source/common/tls/server_ssl_socket.h"
 
+#include "test/integration/fake_upstream.h"
 #include "test/integration/ssl_utility.h"
+#include "test/test_common/environment.h"
+#include "test/test_common/utility.h"
 
 #include "tests/cilium_http_integration.h"
 #include "tests/cilium_tls_integration.h"

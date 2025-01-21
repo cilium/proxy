@@ -1,12 +1,29 @@
 #pragma once
 
-#include "envoy/config/core/v3/base.pb.h"
-#include "envoy/network/listen_socket.h"
+#include <asm-generic/socket.h>
+#include <linux/in.h>
+#include <linux/in6.h>
+#include <netinet/in.h>
+
+#include <cerrno>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "envoy/common/pure.h"
+#include "envoy/config/core/v3/socket_option.pb.h"
+#include "envoy/network/address.h"
+#include "envoy/network/socket.h"
 
 #include "source/common/common/hex.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 
+#include "absl/numeric/int128.h"
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/conntrack.h"
 #include "cilium/policy_id.h"
 #include "cilium/privileged_service_client.h"
