@@ -36,6 +36,7 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
                  Network::Address::InstanceConstSharedPtr original_source_address,
                  Network::Address::InstanceConstSharedPtr source_address_ipv4,
                  Network::Address::InstanceConstSharedPtr source_address_ipv6,
+                 Network::Address::InstanceConstSharedPtr original_dest_address,
                  const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
                  std::string&& proxylib_l7_proto, absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
@@ -44,7 +45,8 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
         policy_resolver_(policy_resolver), mark_(mark),
         original_source_address_(std::move(original_source_address)),
         source_address_ipv4_(std::move(source_address_ipv4)),
-        source_address_ipv6_(std::move(source_address_ipv6)) {}
+        source_address_ipv6_(std::move(source_address_ipv6)),
+        original_dest_address_(std::move(original_dest_address)) {}
 
   std::shared_ptr<Envoy::Cilium::CiliumPolicyFilterState> buildCiliumPolicyFilterState() {
     return std::make_shared<Envoy::Cilium::CiliumPolicyFilterState>(
@@ -76,6 +78,19 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
     }
   }
 
+  void configureOriginalDstAddress(Network::ConnectionSocket& socket) {
+    if (!original_dest_address_) {
+      return;
+    }
+
+    // Restoration of the original destination address lets the OriginalDstCluster know the
+    // destination address that can be used.
+    ENVOY_LOG(trace, "cilium.bpf_metadata: restoreLocalAddress ({} -> {})",
+              socket.connectionInfoProvider().localAddress()->asString(),
+              original_dest_address_->asString());
+    socket.connectionInfoProvider().restoreLocalAddress(original_dest_address_);
+  }
+
   uint32_t ingress_source_identity_;
   uint32_t source_identity_;
   bool ingress_;
@@ -92,6 +107,7 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
   Network::Address::InstanceConstSharedPtr original_source_address_;
   Network::Address::InstanceConstSharedPtr source_address_ipv4_;
   Network::Address::InstanceConstSharedPtr source_address_ipv6_;
+  Network::Address::InstanceConstSharedPtr original_dest_address_;
 };
 
 /**
