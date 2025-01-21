@@ -1,5 +1,6 @@
 #include <gmock/gmock-actions.h>
 #include <gmock/gmock-spec-builders.h>
+#include <gtest/gtest.h>
 #include <spdlog/common.h>
 
 #include <cstdint>
@@ -514,6 +515,23 @@ TEST_F(MetadataConfigTest, ProxyLibConfigured) {
   EXPECT_CALL(socket_, setRequestedApplicationProtocols(protos));
 
   socket_metadata->configureProxyLibApplicationProtocol(socket_);
+}
+
+TEST_F(MetadataConfigTest, RestoreLocalAddress) {
+  ::cilium::BpfMetadata config{};
+
+  EXPECT_NO_THROW(initialize(config));
+
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+
+  EXPECT_NE(socket_.connectionInfoProvider().localAddress(), original_dst_address);
+  EXPECT_FALSE(socket_.connectionInfoProvider().localAddressRestored());
+
+  socket_metadata->configureOriginalDstAddress(socket_);
+
+  EXPECT_EQ(socket_.connectionInfoProvider().localAddress(), original_dst_address);
+  EXPECT_TRUE(socket_.connectionInfoProvider().localAddressRestored());
 }
 
 } // namespace
