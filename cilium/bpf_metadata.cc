@@ -370,10 +370,6 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     return absl::nullopt;
   }
 
-  // We do this first as this likely restores the destination address and
-  // lets the OriginalDstCluster know the destination address can be used.
-  socket.connectionInfoProvider().restoreLocalAddress(dst_address); // mark as `restored`
-
   std::string pod_ip, other_ip;
   if (is_ingress_) {
     pod_ip = dip->addressAsString();
@@ -516,8 +512,8 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   return absl::optional(Cilium::BpfMetadata::SocketMetadata(
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
-      std::move(source_addresses.ipv6_), weak_from_this(), proxy_id_, std::move(proxylib_l7proto),
-      sni));
+      std::move(source_addresses.ipv6_), std::move(dst_address), weak_from_this(), proxy_id_,
+      std::move(proxylib_l7proto), sni));
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
@@ -539,6 +535,8 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
     }
 
     socket_metadata->configureProxyLibApplicationProtocol(socket);
+
+    socket_metadata->configureOriginalDstAddress(socket);
 
     // Make Cilium Policy data available to filters and upstream connection (Cilium TLS Wrapper) as
     // filter state.

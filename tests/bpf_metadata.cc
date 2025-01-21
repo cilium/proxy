@@ -159,11 +159,6 @@ TestConfig::~TestConfig() {
 
 absl::optional<Cilium::BpfMetadata::SocketMetadata>
 TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
-  // fake setting the local address. It remains the same as required by the test
-  // infra, but it will be marked as restored as required by the original_dst
-  // cluster.
-  socket.connectionInfoProvider().restoreLocalAddress(original_dst_address);
-
   // TLS filter chain matches this, make namespace part of this (e.g.,
   // "default")?
   socket.setDetectedTransportProtocol("cilium:default");
@@ -197,7 +192,7 @@ TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
   return absl::optional(Cilium::BpfMetadata::SocketMetadata(
       0, 0, source_identity, is_ingress_, is_l7lb_, port, std::move(pod_ip), nullptr, nullptr,
-      nullptr, shared_from_this(), 0, std::move(l7proto), ""));
+      nullptr, original_dst_address, shared_from_this(), 0, std::move(l7proto), ""));
 }
 
 } // namespace BpfMetadata
