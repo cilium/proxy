@@ -83,6 +83,11 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
       return;
     }
 
+    if (*original_dest_address_ == *socket.connectionInfoProvider().localAddress()) {
+      // Only set the local address if it really changed, and mark it as address being restored.
+      return;
+    }
+
     // Restoration of the original destination address lets the OriginalDstCluster know the
     // destination address that can be used.
     ENVOY_LOG(trace, "cilium.bpf_metadata: restoreLocalAddress ({} -> {})",
