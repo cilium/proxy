@@ -64,6 +64,9 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "socket_option_lib",
+    srcs = [
+        "socket_option_cilium_policy.cc",
+    ],
     hdrs = [
         "policy_id.h",
         "socket_option_cilium_mark.h",
@@ -74,6 +77,7 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "//cilium:conntrack_lib",
+        "//cilium:network_policy_lib",
         "@envoy//envoy/network:listen_socket_interface",
         "@envoy//source/common/common:logger_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",

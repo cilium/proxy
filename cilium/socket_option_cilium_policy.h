@@ -1,27 +1,27 @@
 #pragma once
 
-#include <asm-generic/socket.h>
+// clang-format off
+#include <netinet/in.h> // Must be included before linux/in.h
+
+// clang-format on
 #include <linux/in.h>
 #include <linux/in6.h>
-#include <netinet/in.h>
 
 #include <cerrno>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "envoy/common/pure.h"
-#include "envoy/config/core/v3/socket_option.pb.h"
 #include "envoy/network/address.h"
-#include "envoy/network/socket.h"
+#include "envoy/stream_info/filter_state.h"
+#include "envoy/stream_info/stream_info.h"
 
 #include "source/common/common/logger.h"
 
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
-#include "cilium/conntrack.h"
+#include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 
 namespace Envoy {
@@ -40,7 +40,7 @@ public:
 
 // Socket Option that holds relevant connection & policy information that can be retrieved
 // by the Cilium network- and HTTP policy filters by using GetCiliumPolicySocketOption.
-class CiliumPolicySocketOption : public Network::Socket::Option,
+class CiliumPolicySocketOption : public StreamInfo::FilterState::Object,
                                  public Logger::Loggable<Logger::Id::filter> {
 public:
   CiliumPolicySocketOption(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
@@ -74,30 +74,7 @@ public:
   // basis of the upstream destination address.
   bool policyUseUpstreamDestinationAddress() const { return is_l7lb_; }
 
-  absl::optional<Network::Socket::Option::Details> getOptionDetails(
-      [[maybe_unused]] const Network::Socket&,
-      [[maybe_unused]] envoy::config::core::v3::SocketOption::SocketState) const override {
-    return absl::nullopt;
-  }
-
-  bool setOption(Network::Socket& socket,
-                 envoy::config::core::v3::SocketOption::SocketState state) const override {
-
-    // Only set the option once per socket
-    if (state != envoy::config::core::v3::SocketOption::STATE_PREBIND) {
-      ENVOY_LOG(trace, "Skipping setting socket ({}) option BPF_METADATA ",
-                socket.ioHandle().fdDoNotUse());
-      return true;
-    }
-
-    ENVOY_LOG(trace, "Set socket ({}) option BPF_METADATA)", socket.ioHandle().fdDoNotUse());
-
-    return true;
-  }
-
-  void hashKey([[maybe_unused]] std::vector<uint8_t>& key) const override {}
-
-  bool isSupported() const override { return true; }
+  static const std::string& key();
 
   // Additional ingress policy enforcement is performed if ingress_source_identity is non-zero
   uint32_t ingress_source_identity_;
@@ -116,16 +93,9 @@ private:
 using CiliumPolicySocketOptionSharedPtr = std::shared_ptr<CiliumPolicySocketOption>;
 
 static inline const Cilium::CiliumPolicySocketOption*
-GetCiliumPolicySocketOption(const Network::Socket::OptionsSharedPtr& options) {
-  if (options) {
-    for (const auto& option : *options) {
-      auto opt = dynamic_cast<const Cilium::CiliumPolicySocketOption*>(option.get());
-      if (opt) {
-        return opt;
-      }
-    }
-  }
-  return nullptr;
+GetCiliumPolicySocketOption(const StreamInfo::StreamInfo& streamInfo) {
+  return streamInfo.filterState().getDataReadOnly<Cilium::CiliumPolicySocketOption>(
+      Cilium::CiliumPolicySocketOption::key());
 }
 
 } // namespace Cilium

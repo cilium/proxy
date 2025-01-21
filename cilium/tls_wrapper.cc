@@ -29,6 +29,7 @@
 #include "cilium/api/tls_wrapper.pb.h"
 #include "cilium/network_policy.h"
 #include "cilium/socket_option_cilium_policy.h"
+#include "socket_option_cilium_policy.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -39,21 +40,28 @@ constexpr absl::string_view NotReadyReason{"TLS error: Secret is not supplied by
 
 // This SslSocketWrapper wraps a real SslSocket and hooks it up with
 // TLS configuration derived from Cilium Network Policy.
-class SslSocketWrapper : public Network::TransportSocket {
+class SslSocketWrapper : public Network::TransportSocket, Logger::Loggable<Logger::Id::config> {
 public:
   SslSocketWrapper(Extensions::TransportSockets::Tls::InitialState state,
                    const Network::TransportSocketOptionsConstSharedPtr& transport_socket_options)
-      : state_(state), transport_socket_options_(transport_socket_options) {}
+      : state_(state), transport_socket_options_(transport_socket_options), callbacks_() {}
 
   // Network::TransportSocket
   void setTransportSocketCallbacks(Network::TransportSocketCallbacks& callbacks) override {
-    // Get the Cilium socket option from the callbacks in order to get the TLS
-    // configuration
-    // Cilium socket option is only created if the (intial) policy for the local pod exists.
+    callbacks_ = &callbacks;
+
+    // Get the Cilium policy filter state from the callbacks in order to get the TLS
+    // configuration.
+    // Cilium socket option is only created if the (initial) policy for the local pod exists.
     // If the policy requires TLS then a TLS socket is used, but if the policy does not require
     // TLS a raw socket is used instead,
-    const auto policy_socket_option =
-        Cilium::GetCiliumPolicySocketOption(callbacks.connection().socketOptions());
+    auto& conn = callbacks_->connection();
+
+    ENVOY_CONN_LOG(trace, "retrieving policy filter state", conn);
+    auto policy_socket_option =
+        conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicySocketOption>(
+            Cilium::CiliumPolicySocketOption::key());
+
     if (policy_socket_option) {
       const auto& policy = policy_socket_option->getPolicy();
       if (!policy) {
@@ -69,8 +77,8 @@ public:
 
       if (!policy_socket_option->ingress_) {
         Network::Address::InstanceConstSharedPtr dst_address =
-            is_client ? callbacks.connection().connectionInfoProvider().remoteAddress()
-                      : callbacks.connection().connectionInfoProvider().localAddress();
+            is_client ? callbacks_->connection().connectionInfoProvider().remoteAddress()
+                      : callbacks_->connection().connectionInfoProvider().localAddress();
         if (dst_address) {
           dip = dst_address->ip();
           if (dip) {
@@ -103,7 +111,7 @@ public:
         if (status_or_socket.ok()) {
           socket_ = std::move(status_or_socket.value());
           // Set the callbacks
-          socket_->setTransportSocketCallbacks(callbacks);
+          socket_->setTransportSocketCallbacks(*callbacks_);
         } else {
           ENVOY_LOG_MISC(error, "Unable to create ssl socket {}",
                          status_or_socket.status().message());
@@ -113,15 +121,15 @@ public:
         // If policy has TLS context config then a raw socket must NOT be used.
         socket_ = std::make_unique<Network::RawBufferSocket>();
         // Set the callbacks
-        socket_->setTransportSocketCallbacks(callbacks);
+        socket_->setTransportSocketCallbacks(*callbacks_);
       } else {
         policy->tlsWrapperMissingPolicyInc();
 
         std::string ipStr("<none>");
         if (policy_socket_option->ingress_) {
           Network::Address::InstanceConstSharedPtr src_address =
-              is_client ? callbacks.connection().connectionInfoProvider().localAddress()
-                        : callbacks.connection().connectionInfoProvider().remoteAddress();
+              is_client ? callbacks_->connection().connectionInfoProvider().localAddress()
+                        : callbacks_->connection().connectionInfoProvider().remoteAddress();
           if (src_address) {
             const auto sip = src_address->ip();
             if (sip) {
@@ -148,9 +156,11 @@ public:
   }
 
   std::string protocol() const override { return socket_ ? socket_->protocol() : EMPTY_STRING; }
+
   absl::string_view failureReason() const override {
     return socket_ ? socket_->failureReason() : NotReadyReason;
   }
+
   bool canFlushClose() override { return socket_ ? socket_->canFlushClose() : true; }
 
   // Override if need to intercept client socket connect() call.
@@ -161,27 +171,33 @@ public:
       socket_->closeSocket(type);
     }
   }
+
   Network::IoResult doRead(Buffer::Instance& buffer) override {
     if (socket_) {
       return socket_->doRead(buffer);
     }
     return {Network::PostIoAction::Close, 0, false};
   }
+
   Network::IoResult doWrite(Buffer::Instance& buffer, bool end_stream) override {
     if (socket_) {
       return socket_->doWrite(buffer, end_stream);
     }
     return {Network::PostIoAction::Close, 0, false};
   }
+
   void onConnected() override {
     if (socket_) {
       socket_->onConnected();
     }
   }
+
   Ssl::ConnectionInfoConstSharedPtr ssl() const override {
     return socket_ ? socket_->ssl() : nullptr;
   }
+
   bool startSecureTransport() override { return socket_ ? socket_->startSecureTransport() : false; }
+
   void configureInitialCongestionWindow(uint64_t bandwidth_bits_per_sec,
                                         std::chrono::microseconds rtt) override {
     if (socket_) {
@@ -193,6 +209,7 @@ private:
   Extensions::TransportSockets::Tls::InitialState state_;
   const Network::TransportSocketOptionsConstSharedPtr transport_socket_options_;
   Network::TransportSocketPtr socket_{nullptr};
+  Network::TransportSocketCallbacks* callbacks_;
 };
 
 class ClientSslSocketFactory : public Network::CommonUpstreamTransportSocketFactory {
