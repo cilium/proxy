@@ -1,12 +1,14 @@
 module github.com/cilium/proxy
 
-go 1.22
+go 1.22.0
+
+toolchain go1.23.5
 
 require (
 	github.com/census-instrumentation/opencensus-proto v0.4.1
 	github.com/cilium/checkmate v1.0.3
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
-	github.com/cncf/xds/go v0.0.0-20240905190251-b4127c9b8d78
+	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42
 	github.com/envoyproxy/protoc-gen-validate v1.1.0
 	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
@@ -14,28 +16,28 @@ require (
 	github.com/sasha-s/go-deadlock v0.3.5
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
-	go.opentelemetry.io/proto/otlp v1.3.1
+	go.opentelemetry.io/proto/otlp v1.5.0
 	golang.org/x/sync v0.10.0
-	golang.org/x/sys v0.28.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20241206012308-a4fef0638583
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20241206012308-a4fef0638583
-	google.golang.org/grpc v1.68.1
-	google.golang.org/protobuf v1.35.2
+	golang.org/x/sys v0.29.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20250115164207-1a7da9e5054f
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f
+	google.golang.org/grpc v1.69.4
+	google.golang.org/protobuf v1.36.3
 	k8s.io/klog/v2 v2.130.1
 )
 
 require (
-	cel.dev/expr v0.16.1 // indirect
+	cel.dev/expr v0.16.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/go-logr/logr v1.4.1 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
-	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/net v0.33.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
