@@ -42,7 +42,7 @@ git_repository(
         "@//patches:0003-listener-add-socket-options.patch",
         # This patch is needed to fix the build with clang for envoy 1.29+
         # https://github.com/envoyproxy/envoy/pull/31894
-        "@//patches:0004-Patch-cel-cpp-to-not-break-build.patch",
+        #"@//patches:0004-Patch-cel-cpp-to-not-break-build.patch",
         "@//patches:0005-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
         "@//patches:0006-liburing.patch",
         "@//patches:0007-tcp_proxy-Check-for-nullptr-in-watermark-ASSERTs.patch",

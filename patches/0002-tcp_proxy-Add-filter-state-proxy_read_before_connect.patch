@@ -37,7 +37,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  4 files changed, 82 insertions(+), 26 deletions(-)
 
 diff --git a/source/common/tcp_proxy/BUILD b/source/common/tcp_proxy/BUILD
-index cf6d9e8bd3..ec65d5d7ef 100644
+index c1d1551424..27034f0f8d 100644
 --- a/source/common/tcp_proxy/BUILD
 +++ b/source/common/tcp_proxy/BUILD
 @@ -58,6 +58,7 @@ envoy_cc_library(
@@ -49,7 +49,7 @@ index cf6d9e8bd3..ec65d5d7ef 100644
          "//envoy/tcp:conn_pool_interface",
          "//envoy/tcp:upstream_interface",
 diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
-index e5540b093c..f28bf3f2ec 100644
+index feab76e70e..5adff484c5 100644
 --- a/source/common/tcp_proxy/tcp_proxy.cc
 +++ b/source/common/tcp_proxy/tcp_proxy.cc
 @@ -12,6 +12,7 @@
@@ -92,7 +92,7 @@ index e5540b093c..f28bf3f2ec 100644
  }
 
  void Filter::onClusterDiscoveryCompletion(Upstream::ClusterDiscoveryStatus cluster_status) {
-@@ -761,12 +775,18 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
+@@ -768,12 +782,18 @@ Network::FilterStatus Filter::onData(Buffer::Instance& data, bool end_stream) {
    if (upstream_) {
      getStreamInfo().getUpstreamBytesMeter()->addWireBytesSent(data.length());
      upstream_->encodeData(data, end_stream);
@@ -112,7 +112,7 @@ index e5540b093c..f28bf3f2ec 100644
    return Network::FilterStatus::StopIteration;
  }
 
-@@ -892,7 +912,13 @@ void Filter::onUpstreamConnection() {
+@@ -899,7 +919,13 @@ void Filter::onUpstreamConnection() {
    connecting_ = false;
    // Re-enable downstream reads now that the upstream connection is established
    // so we have a place to send downstream data to.
@@ -128,10 +128,10 @@ index e5540b093c..f28bf3f2ec 100644
    read_callbacks_->upstreamHost()->outlierDetector().putResult(
        Upstream::Outlier::Result::LocalOriginConnectSuccessFinal);
 diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
-index 097703692f..f839ec7455 100644
+index 12227f95fe..c8a014cd7c 100644
 --- a/source/common/tcp_proxy/tcp_proxy.h
 +++ b/source/common/tcp_proxy/tcp_proxy.h
-@@ -43,6 +43,8 @@ namespace TcpProxy {
+@@ -44,6 +44,8 @@ namespace TcpProxy {
  constexpr absl::string_view PerConnectionIdleTimeoutMs =
      "envoy.tcp_proxy.per_connection_idle_timeout_ms";
 
@@ -140,7 +140,7 @@ index 097703692f..f839ec7455 100644
  /**
   * All tcp proxy stats. @see stats_macros.h
   */
-@@ -667,6 +669,9 @@ protected:
+@@ -668,6 +670,9 @@ protected:
    uint32_t connect_attempts_{};
    bool connecting_{};
    bool downstream_closed_{};
@@ -151,7 +151,7 @@ index 097703692f..f839ec7455 100644
  };
 
 diff --git a/test/integration/tcp_proxy_integration_test.cc b/test/integration/tcp_proxy_integration_test.cc
-index c87c43a39c..f7081fdd42 100644
+index 503b2eb4d6..5887569f4b 100644
 --- a/test/integration/tcp_proxy_integration_test.cc
 +++ b/test/integration/tcp_proxy_integration_test.cc
 @@ -12,6 +12,8 @@
@@ -163,7 +163,7 @@ index c87c43a39c..f7081fdd42 100644
  #include "source/common/tls/context_manager_impl.h"
  #include "source/extensions/filters/network/common/factory_base.h"
 
-@@ -1299,18 +1301,27 @@ public:
+@@ -1302,18 +1304,27 @@ public:
    Network::FilterStatus onData(Buffer::Instance& data, bool) override {
      if (!metadata_set_) {
        // To allow testing a write that returns `StopIteration`, only proceed
@@ -199,7 +199,7 @@ index c87c43a39c..f7081fdd42 100644
 
        ProtobufWkt::Struct& map =
            (*read_callbacks_->connection()
-@@ -1319,24 +1330,25 @@ public:
+@@ -1322,24 +1333,25 @@ public:
                  .mutable_filter_metadata())[Envoy::Config::MetadataFilters::get().ENVOY_LB];
        (*map.mutable_fields())[key_] = val;
 
@@ -231,7 +231,7 @@ index c87c43a39c..f7081fdd42 100644
    }
 
    const std::string key_;
-@@ -1394,14 +1406,26 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataMatch) {
+@@ -1397,14 +1409,26 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataMatch) {
    initialize();
 
    expectEndpointToMatchRoute([](IntegrationTcpClient& tcp_client) -> std::string {
@@ -265,7 +265,7 @@ index c87c43a39c..f7081fdd42 100644
    });
  }
 
-@@ -1418,7 +1442,7 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataNonMatch) {
+@@ -1421,7 +1445,7 @@ TEST_P(TcpProxyDynamicMetadataMatchIntegrationTest, DynamicMetadataNonMatch) {
 
    initialize();
 
@@ -275,5 +275,5 @@ index c87c43a39c..f7081fdd42 100644
 
  INSTANTIATE_TEST_SUITE_P(TcpProxyIntegrationTestParams, TcpProxySslIntegrationTest,
 --
-2.45.2
+2.39.5
 
