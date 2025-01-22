@@ -114,5 +114,5 @@ index 09dff23777..88d7cea1a9 100644
    SlotPtr allocateSlotMock() { return SlotPtr{new SlotImpl(*this, current_slot_++)}; }
    void runOnAllThreads1(std::function<void()> cb) { cb(); }
 -- 
-2.47.1
+2.39.5
 
