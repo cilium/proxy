@@ -133,14 +133,14 @@ void Instance::initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callb
 }
 
 Network::FilterStatus Instance::onNewConnection() {
-  ENVOY_LOG(debug, "cilium.network.websocket: onNewConnection");
-
   std::string pod_ip;
   bool is_ingress;
   uint32_t identity, destination_identity;
   uint32_t proxy_id;
 
   auto& conn = callbacks_->connection();
+
+  ENVOY_CONN_LOG(debug, "cilium.network.websocket: onNewConnection", conn);
 
   // Enable half close if not already enabled
   if (!conn.isHalfCloseEnabled()) {
@@ -191,8 +191,8 @@ Network::FilterStatus Instance::onNewConnection() {
 }
 
 Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(debug, "cilium.network.websocket: onData {} bytes, end_stream: {}", data.length(),
-            end_stream);
+  auto& conn = callbacks_->connection();
+  ENVOY_CONN_LOG(debug, "cilium.network.websocket: onNewConnection", conn);
   if (codec_) {
     if (config_->client_) {
       codec_->encode(data, end_stream);
@@ -205,8 +205,9 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
 }
 
 Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(trace, "cilium.network.websocket: onWrite {} bytes, end_stream: {}", data.length(),
-            end_stream);
+  auto& conn = callbacks_->connection();
+  ENVOY_CONN_LOG(trace, "cilium.network.websocket: onWrite {} bytes, end_stream: {}", conn,
+                 data.length(), end_stream);
   if (codec_) {
     if (config_->client_) {
       codec_->decode(data, end_stream);
