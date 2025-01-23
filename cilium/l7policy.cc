@@ -124,7 +124,9 @@ void AccessFilter::onUpstreamConnectionEstablished() {
   if (latched_end_stream_.has_value()) {
     const bool end_stream = *latched_end_stream_;
     latched_end_stream_.reset();
-    ENVOY_LOG(debug, "cilium.l7policy: RESUMING after upstream connection has been established");
+    ENVOY_CONN_LOG(debug,
+                   "cilium.l7policy: RESUMING after upstream connection has been established",
+                   callbacks_->connection().ref());
     Http::FilterHeadersStatus status = decodeHeaders(*latched_headers_, end_stream);
     if (status == Http::FilterHeadersStatus::Continue) {
       callbacks_->continueDecoding();
@@ -152,15 +154,15 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     }
   }
 
-  ENVOY_LOG(debug, "cilium.l7policy: {} decodeHeaders()",
-            config_->is_upstream_ ? "upstream" : "downstream");
-
   const auto& conn = callbacks_->connection();
 
   if (!conn) {
     sendLocalError("cilium.l7policy: No connection");
     return Http::FilterHeadersStatus::StopIteration;
   }
+
+  ENVOY_CONN_LOG(debug, "cilium.l7policy: {} decodeHeaders()", conn.ref(),
+                 config_->is_upstream_ ? "upstream" : "downstream");
 
   const auto policy_fs =
       conn->streamInfo().filterState().getDataReadOnly<Cilium::CiliumPolicyFilterState>(
@@ -213,10 +215,10 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     if (policy_fs->ingress_source_identity_ != 0) {
       allowed_ = policy.allowed(true, policy_fs->ingress_source_identity_, policy_fs->port_,
                                 headers, *log_entry_);
-      ENVOY_LOG(debug,
-                "cilium.l7policy: Ingress from {} policy lookup for endpoint {} for port {}: {}",
-                policy_fs->ingress_source_identity_, policy_fs->pod_ip_, policy_fs->port_,
-                allowed_ ? "ALLOW" : "DENY");
+      ENVOY_CONN_LOG(
+          debug, "cilium.l7policy: Ingress from {} policy lookup for endpoint {} for port {}: {}",
+          conn.ref(), policy_fs->ingress_source_identity_, policy_fs->pod_ip_, policy_fs->port_,
+          allowed_ ? "ALLOW" : "DENY");
       denied = !allowed_;
     }
 
@@ -233,10 +235,11 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
                        policy_fs->ingress_ ? policy_fs->source_identity_ : destination_identity,
                        destination_port, headers, *log_entry_);
   }
-  ENVOY_LOG(debug, "cilium.l7policy: {} ({}->{}) {} policy lookup for endpoint {} for port {}: {}",
-            policy_fs->ingress_ ? "ingress" : "egress", policy_fs->source_identity_,
-            destination_identity, config_->is_upstream_ ? "upstream" : "downstream",
-            policy_fs->pod_ip_, destination_port, allowed_ ? "ALLOW" : "DENY");
+  ENVOY_CONN_LOG(
+      debug, "cilium.l7policy: {} ({}->{}) {} policy lookup for endpoint {} for port {}: {}",
+      conn.ref(), policy_fs->ingress_ ? "ingress" : "egress", policy_fs->source_identity_,
+      destination_identity, config_->is_upstream_ ? "upstream" : "downstream", policy_fs->pod_ip_,
+      destination_port, allowed_ ? "ALLOW" : "DENY");
 
   // Update the log entry with the chosen destination address and current headers, as remaining
   // filters, upstream, and/or policy may have altered headers.
@@ -262,8 +265,9 @@ void AccessFilter::onStreamComplete() {
 }
 
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& headers, bool) {
-  ENVOY_LOG(debug, "cilium.l7policy: {} encodeHeaders()",
-            config_->is_upstream_ ? "upstream" : "downstream");
+
+  ENVOY_CONN_LOG(debug, "cilium.l7policy: {} encodeHeaders()", callbacks_->connection().ref(),
+                 config_->is_upstream_ ? "upstream" : "downstream");
 
   // Nothing to do in the upstream filter
   if (config_->is_upstream_) {

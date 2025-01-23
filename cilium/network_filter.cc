@@ -94,14 +94,13 @@ void Config::Log(Cilium::AccessLog::Entry& entry, ::cilium::EntryType type) {
 }
 
 Network::FilterStatus Instance::onNewConnection() {
-  ENVOY_LOG(debug, "cilium.network: onNewConnection");
+  auto& conn = callbacks_->connection();
+  ENVOY_CONN_LOG(debug, "cilium.network: onNewConnection", conn);
 
   // Buffer data until proxylib policy is available, if configured with proxylib
   if (config_->proxylib_.get() != nullptr) {
     should_buffer_ = true;
   }
-
-  auto& conn = callbacks_->connection();
 
   const auto policy_fs =
       conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicyFilterState>(
@@ -144,8 +143,8 @@ Network::FilterStatus Instance::onNewConnection() {
   callbacks_->addUpstreamCallback([this, policy_fs,
                                    sni](Upstream::HostDescriptionConstSharedPtr host,
                                         StreamInfo::StreamInfo& stream_info) -> bool {
-    ENVOY_LOG(trace, "cilium.network: in upstream callback");
     auto& conn = callbacks_->connection();
+    ENVOY_CONN_LOG(trace, "cilium.network: in upstream callback", conn);
 
     // Resolve the destination security ID and port
     uint32_t destination_identity = 0;
@@ -155,14 +154,14 @@ Network::FilterStatus Instance::onNewConnection() {
             ? host->address()
             : stream_info.downstreamAddressProvider().localAddress();
     if (nullptr == dst_address) {
-      ENVOY_LOG(warn, "cilium.network (egress): No destination address ");
+      ENVOY_CONN_LOG(warn, "cilium.network (egress): No destination address", conn);
       return false;
     }
     const auto& policy = policy_fs->getPolicy();
     if (!policy_fs->ingress_) {
       const auto dip = dst_address->ip();
       if (!dip) {
-        ENVOY_LOG_MISC(warn, "cilium.network: Non-IP destination address: {}",
+        ENVOY_CONN_LOG(warn, "cilium.network: Non-IP destination address: {}", conn,
                        dst_address->asString());
         return false;
       }
@@ -223,7 +222,9 @@ Network::FilterStatus Instance::onNewConnection() {
 }
 
 Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) {
-  ENVOY_LOG(trace, "cilium.network: onData {} bytes, end_stream: {}", data.length(), end_stream);
+  auto& conn = callbacks_->connection();
+  ENVOY_CONN_LOG(trace, "cilium.network: onData {} bytes, end_stream: {}", conn, data.length(),
+                 end_stream);
   const char* reason;
 
   if (should_buffer_) {
@@ -235,7 +236,6 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
   if (buffer_.length() > 0) {
     data.prepend(buffer_);
   }
-  auto& conn = callbacks_->connection();
   if (go_parser_) {
     FilterResult res =
         go_parser_->OnIO(false, data, end_stream); // 'false' marks original direction data
