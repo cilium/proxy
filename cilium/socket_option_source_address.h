@@ -82,11 +82,16 @@ public:
       return true;
     }
 
-    // Note: we don't expect this to change the behaviour of the socket. We expect it to be copied
-    // into the upstream connection later.
+    // Note: Restoration of the original source address happens on the socket of the upstream
+    // connection.
+    ENVOY_LOG(trace, "Restoring local address (original source) on socket: {} ({} -> {})",
+              socket.ioHandle().fdDoNotUse(),
+              socket.connectionInfoProvider().localAddress()
+                  ? socket.connectionInfoProvider().localAddress()->asString()
+                  : "n/a",
+              source_address->asString());
+
     socket.connectionInfoProvider().setLocalAddress(std::move(source_address));
-    ENVOY_LOG(trace, "Successfully restored local address on socket: {}",
-              socket.ioHandle().fdDoNotUse());
 
     return true;
   }
