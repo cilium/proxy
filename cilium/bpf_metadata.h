@@ -90,9 +90,11 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
 
     // Restoration of the original destination address lets the OriginalDstCluster know the
     // destination address that can be used.
-    ENVOY_LOG(trace, "cilium.bpf_metadata: restoreLocalAddress ({} -> {})",
+    ENVOY_LOG(trace, "Restoring local address (original destination) on socket {} ({} -> {})",
+              socket.ioHandle().fdDoNotUse(),
               socket.connectionInfoProvider().localAddress()->asString(),
               original_dest_address_->asString());
+
     socket.connectionInfoProvider().restoreLocalAddress(original_dest_address_);
   }
 
