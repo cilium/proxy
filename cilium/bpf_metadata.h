@@ -88,11 +88,18 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
       return;
     }
 
+    if (is_l7lb_) {
+      // Don't restore local address (original destination address) in case
+      // of L7LB (these cases don't use original dest discovery type)
+      return;
+    }
+
     // Restoration of the original destination address lets the OriginalDstCluster know the
     // destination address that can be used.
     ENVOY_LOG(trace, "cilium.bpf_metadata: restoreLocalAddress ({} -> {})",
               socket.connectionInfoProvider().localAddress()->asString(),
               original_dest_address_->asString());
+
     socket.connectionInfoProvider().restoreLocalAddress(original_dest_address_);
   }
 
