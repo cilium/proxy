@@ -517,8 +517,8 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
-  ENVOY_LOG(trace, "onAccept");
   Network::ConnectionSocket& socket = cb.socket();
+  ENVOY_LOG(trace, "onAccept (socket={})", socket.ioHandle().fdDoNotUse());
 
   Network::Socket::OptionsSharedPtr socket_options =
       std::make_shared<std::vector<Network::Socket::OptionConstSharedPtr>>();
