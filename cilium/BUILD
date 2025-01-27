@@ -65,12 +65,22 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "socket_option_lib",
+    srcs = [
+        "socket_option_cilium_mark.cc",
+        "socket_option_ip_transparent.cc",
+        "socket_option_source_address.cc",
+    ],
     hdrs = [
         "socket_option_cilium_mark.h",
         "socket_option_ip_transparent.h",
         "socket_option_source_address.h",
     ],
     repository = "@envoy",
+    deps = [
+        "privileged_service_client_lib",
+        "@envoy//source/common/common:hex_lib",
+        "@envoy//source/common/network:address_lib",
+    ],
 )
 
 envoy_cc_library(
