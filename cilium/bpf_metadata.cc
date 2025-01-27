@@ -28,6 +28,7 @@
 #include "envoy/stream_info/filter_state.h"
 
 #include "source/common/common/logger.h"
+#include "source/common/common/utility.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/network/socket_option_factory.h"
 #include "source/common/network/socket_option_impl.h"
@@ -528,14 +529,10 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   auto socket_metadata = config_->extractSocketMetadata(socket);
   if (socket_metadata) {
 
-    socket_options->push_back(socket_metadata->buildSourceAddressSocketOption());
-
-    if (config_->addPrivilegedSocketOptions()) {
-      socket_options->push_back(socket_metadata->buildCiliumMarkSocketOption());
-    }
-
+    // Setting proxy lib application protocol on downstream socket
     socket_metadata->configureProxyLibApplicationProtocol(socket);
 
+    // Restoring original destination address on downstream socket
     socket_metadata->configureOriginalDstAddress(socket);
 
     // Make Cilium Policy data available to filters and upstream connection (Cilium TLS Wrapper) as
@@ -544,9 +541,18 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
         Cilium::CiliumPolicyFilterState::key(), socket_metadata->buildCiliumPolicyFilterState(),
         StreamInfo::FilterState::StateType::ReadOnly, StreamInfo::FilterState::LifeSpan::Connection,
         StreamInfo::StreamSharingMayImpactPooling::SharedWithUpstreamConnection);
+
+    // Restoring original source address on the upstream socket
+    socket_options->push_back(socket_metadata->buildSourceAddressSocketOption());
+
+    if (config_->addPrivilegedSocketOptions()) {
+      // adding SO_MARK (Cilium mark) on the upstream socket
+      socket_options->push_back(socket_metadata->buildCiliumMarkSocketOption());
+    }
   }
 
   if (config_->addPrivilegedSocketOptions()) {
+    // Setting IP_TRANSPARENT on upstream socket to be able to restore original source address
     socket_options->push_back(std::make_shared<Envoy::Cilium::IpTransparentSocketOption>());
   }
 
@@ -561,16 +567,35 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   Network::Socket::appendOptions(socket_options,
                                  Network::SocketOptionFactory::buildReusePortOptions());
 
-  // keep alive (SO_KEEPALIVE, TCP_KEEPINTVL, TCP_KEEPIDLE)
-  Network::Socket::appendOptions(
-      socket_options,
-      Network::SocketOptionFactory::buildTcpKeepaliveOptions(Envoy::Network::TcpKeepaliveConfig{
-          .keepalive_probes_ = absl::nullopt, // not setting TCP_KEEPCNT
-          .keepalive_time_ = 5 * 60,          // 5 min
-          .keepalive_interval_ = 5 * 60,      // 5 min
-      }));
-
+  // Adding SocketOptions to the downstream socket. The function `setOption` is NOT executed
+  // on the downstream socket itself - it's executed later on the corresponding upstream socket!
   socket.addOptions(socket_options);
+
+  // set keep alive socket options on accepted connection socket
+  // (SO_KEEPALIVE, TCP_KEEPINTVL, TCP_KEEPIDLE)
+  int keepalive = true;
+  int secs = 5 * 60; // Five minutes
+
+  auto status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
+  if (status.return_value_ < 0) {
+    ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}",
+              Envoy::errorDetails(status.errno_));
+    return Network::FilterStatus::StopIteration;
+  }
+
+  status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPINTVL, &secs, sizeof(secs));
+  if (status.return_value_ < 0) {
+    ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPINTVL: {}",
+              Envoy::errorDetails(status.errno_));
+    return Network::FilterStatus::StopIteration;
+  }
+
+  status = socket.setSocketOption(IPPROTO_TCP, TCP_KEEPIDLE, &secs, sizeof(secs));
+  if (status.return_value_ < 0) {
+    ENVOY_LOG(critical, "Socket option failure. Failed to set TCP_KEEPIDLE: {}",
+              Envoy::errorDetails(status.errno_));
+    return Network::FilterStatus::StopIteration;
+  }
 
   return Network::FilterStatus::Continue;
 }
