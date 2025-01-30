@@ -40,7 +40,7 @@ constexpr absl::string_view NotReadyReason{"TLS error: Secret is not supplied by
 
 // This SslSocketWrapper wraps a real SslSocket and hooks it up with
 // TLS configuration derived from Cilium Network Policy.
-class SslSocketWrapper : public Network::TransportSocket, Logger::Loggable<Logger::Id::config> {
+class SslSocketWrapper : public Network::TransportSocket, Logger::Loggable<Logger::Id::connection> {
 public:
   SslSocketWrapper(Extensions::TransportSockets::Tls::InitialState state,
                    const Network::TransportSocketOptionsConstSharedPtr& transport_socket_options)
@@ -114,11 +114,11 @@ public:
             destination_port = dip->port();
             destination_identity = policy_socket_option->resolvePolicyId(dip);
           } else {
-            ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Non-IP destination address: {}",
+            ENVOY_CONN_LOG(warn, "cilium.tls_wrapper: Non-IP destination address: {}", conn,
                            dst_address->asString());
           }
         } else {
-          ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: No destination address");
+          ENVOY_CONN_LOG(warn, "cilium.tls_wrapper: No destination address", conn);
         }
       }
 
@@ -144,7 +144,7 @@ public:
           // explicitly configure ssl connection with the latest configuration from the SSL socket.
           callbacks_->connection().connectionInfoSetter().setSslConnection(socket_->ssl());
         } else {
-          ENVOY_LOG_MISC(error, "Unable to create ssl socket {}",
+          ENVOY_CONN_LOG(error, "Unable to create ssl socket {}", conn,
                          status_or_socket.status().message());
         }
       } else if (config == nullptr && raw_socket_allowed) {
@@ -172,17 +172,19 @@ public:
             ipStr = dip->addressAsString();
           }
         }
-        ENVOY_LOG_MISC(
+        ENVOY_CONN_LOG(
             warn,
             "cilium.tls_wrapper: Could not get {} TLS context for pod {} on {} IP {} (id {}) port "
             "{} sni \"{}\" and raw socket is not allowed",
-            is_client ? "client" : "server", policy_socket_option->pod_ip_,
+            conn, is_client ? "client" : "server", policy_socket_option->pod_ip_,
             policy_socket_option->ingress_ ? "source" : "destination", ipStr, remote_id,
             destination_port, sni);
       }
     } else {
-      ENVOY_LOG_MISC(warn, "cilium.tls_wrapper: Can not correlate connection with Cilium Network "
-                           "Policy (Cilium socket option not found)");
+      ENVOY_CONN_LOG(warn,
+                     "cilium.tls_wrapper: Can not correlate connection with Cilium Network "
+                     "Policy (Cilium socket option not found)",
+                     conn);
     }
 
     if (socket_) {
