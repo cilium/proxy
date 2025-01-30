@@ -366,8 +366,8 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   auto sni = socket.requestedServerName();
 
   if (!sip || !dip) {
-    ENVOY_LOG_MISC(debug, "Non-IP addresses: src: {} dst: {}", src_address->asString(),
-                   dst_address->asString());
+    ENVOY_LOG(debug, "Non-IP addresses: src: {} dst: {}", src_address->asString(),
+              dst_address->asString());
     return absl::nullopt;
   }
 
@@ -375,12 +375,11 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   if (is_ingress_) {
     pod_ip = dip->addressAsString();
     other_ip = sip->addressAsString();
-    ENVOY_LOG_MISC(debug, "INGRESS POD IP: {}, source IP: {}, sni: \"{}\"", pod_ip, other_ip, sni);
+    ENVOY_LOG(debug, "INGRESS POD IP: {}, source IP: {}, sni: \"{}\"", pod_ip, other_ip, sni);
   } else {
     pod_ip = sip->addressAsString();
     other_ip = dip->addressAsString();
-    ENVOY_LOG_MISC(debug, "EGRESS POD IP: {}, destination IP: {} sni: \"{}\"", pod_ip, other_ip,
-                   sni);
+    ENVOY_LOG(debug, "EGRESS POD IP: {}, destination IP: {} sni: \"{}\"", pod_ip, other_ip, sni);
   }
 
   // Load the policy for the Pod that sends or receives traffic.
