@@ -87,7 +87,7 @@ public:
     // configuration.
     // Cilium socket option is only created if the (initial) policy for the local pod exists.
     // If the policy requires TLS then a TLS socket is used, but if the policy does not require
-    // TLS a raw socket is used instead,
+    // TLS a raw socket is used instead.
     auto& conn = callbacks_->connection();
 
     ENVOY_CONN_LOG(trace, "retrieving policy filter state", conn);
