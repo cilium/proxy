@@ -108,19 +108,19 @@ struct GoStringPair {
   GoString value;
 };
 
-typedef GoSlice<GoStringPair> GoKeyValueSlice;
-typedef uint64_t (*GoOpenModuleCB)(GoKeyValueSlice, bool);
-typedef void (*GoCloseModuleCB)(uint64_t);
+using GoKeyValueSlice = GoSlice<GoStringPair>;
+using GoOpenModuleCB = uint64_t (*)(GoKeyValueSlice, bool);
+using GoCloseModuleCB = void (*)(uint64_t);
 
-typedef ResetableSlice<uint8_t> GoBufferSlice;
-typedef FilterResult (*GoOnNewConnectionCB)(uint64_t, GoString, uint64_t, bool, uint32_t, uint32_t,
-                                            GoString, GoString, GoString, GoBufferSlice*,
-                                            GoBufferSlice*);
+using GoBufferSlice = ResetableSlice<uint8_t>;
+using GoOnNewConnectionCB = FilterResult (*)(uint64_t, GoString, uint64_t, bool, uint32_t, uint32_t,
+                                             GoString, GoString, GoString, GoBufferSlice*,
+                                             GoBufferSlice*);
 
-typedef GoSlice<GoSlice<uint8_t>> GoDataSlices; // Scatter-gather buffer list as '[][]byte'
-typedef ResetableSlice<FilterOp> GoFilterOpSlice;
-typedef FilterResult (*GoOnDataCB)(uint64_t, bool, bool, GoDataSlices*, GoFilterOpSlice*);
-typedef void (*GoCloseCB)(uint64_t);
+using GoDataSlices = GoSlice<GoSlice<uint8_t>>; // Scatter-gather buffer list as '[][]byte'
+using GoFilterOpSlice = ResetableSlice<FilterOp>;
+using GoOnDataCB = FilterResult (*)(uint64_t, bool, bool, GoDataSlices*, GoFilterOpSlice*);
+using GoCloseCB = void (*)(uint64_t);
 
 class GoFilter : public Logger::Loggable<Logger::Id::filter> {
 public:
@@ -166,7 +166,7 @@ public:
     Direction reply_;
     uint64_t connection_id_ = 0;
   };
-  typedef std::unique_ptr<Instance> InstancePtr;
+  using InstancePtr = std::unique_ptr<Instance>;
 
   InstancePtr NewInstance(Network::Connection& conn, const std::string& go_proto, bool ingress,
                           uint32_t src_id, uint32_t dst_id, const std::string& src_addr,
@@ -181,7 +181,7 @@ private:
   uint64_t go_module_id_{0};
 };
 
-typedef std::shared_ptr<const GoFilter> GoFilterSharedPtr;
+using GoFilterSharedPtr = std::shared_ptr<const GoFilter>;
 
 } // namespace Cilium
 } // namespace Envoy

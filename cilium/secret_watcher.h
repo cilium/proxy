@@ -26,7 +26,7 @@ namespace Envoy {
 namespace Cilium {
 
 // Facility for SDS config override for testing
-typedef envoy::config::core::v3::ConfigSource (*getSDSConfigFunc)(const std::string& name);
+using getSDSConfigFunc = envoy::config::core::v3::ConfigSource (*)(const std::string&);
 extern getSDSConfigFunc getSDSConfig;
 void setSDSConfigFunc(getSDSConfigFunc);
 void resetSDSConfigFunc();

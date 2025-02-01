@@ -30,12 +30,12 @@ namespace Cilium {
 // them to a separate include file we can include here instead of
 // copying them!
 
-typedef uint64_t __u64;
-typedef uint32_t __be32; // Beware of the byte order!
-typedef uint32_t __u32;
-typedef uint16_t __be16; // Beware of the byte order!
-typedef uint16_t __u16;
-typedef uint8_t __u8;
+using __u64 = uint64_t;
+using __be32 = uint32_t; // Beware of the byte order!
+using __u32 = uint32_t;
+using __be16 = uint16_t; // Beware of the byte order!
+using __u16 = uint16_t;
+using __u8 = uint8_t;
 
 #define TUPLE_F_OUT 0
 #define TUPLE_F_IN 1

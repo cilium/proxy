@@ -42,7 +42,7 @@ private:
   Cilium::AccessLogSharedPtr access_log_;
 };
 
-typedef std::shared_ptr<Config> ConfigSharedPtr;
+using ConfigSharedPtr = std::shared_ptr<Config>;
 
 /**
  * Implementation of a Cilium network filter.

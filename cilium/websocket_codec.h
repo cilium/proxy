@@ -127,7 +127,7 @@ private:
   Buffer::OwnedImpl handshake_buffer_{};
   bool accepted_{false};
 };
-typedef std::unique_ptr<Codec> CodecPtr;
+using CodecPtr = std::unique_ptr<Codec>;
 
 } // namespace WebSocket
 } // namespace Cilium
