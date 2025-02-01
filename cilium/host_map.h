@@ -187,7 +187,7 @@ public:
     std::vector<std::pair<unsigned int, absl::flat_hash_map<absl::uint128, uint64_t>>>
         ipv6_to_policy_;
   };
-  typedef std::shared_ptr<ThreadLocalHostMap> ThreadLocalHostMapSharedPtr;
+  using ThreadLocalHostMapSharedPtr = std::shared_ptr<ThreadLocalHostMap>;
 
   const ThreadLocalHostMap* getHostMap() const {
     return tls_->get().get() ? &tls_->getTyped<ThreadLocalHostMap>() : nullptr;

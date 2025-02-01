@@ -68,7 +68,7 @@ private:
 
   const std::string path_;
 };
-typedef std::shared_ptr<AccessLog> AccessLogSharedPtr;
+using AccessLogSharedPtr = std::shared_ptr<AccessLog>;
 
 } // namespace Cilium
 } // namespace Envoy

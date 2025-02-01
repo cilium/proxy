@@ -59,7 +59,7 @@ namespace Cilium {
 // other given this comparison predicate).
 // On lookups we'll set both ends of the port range to the same port number, which will find the one
 // range that it overlaps with, if one exists.
-typedef std::pair<uint16_t, uint16_t> PortRange;
+using PortRange = std::pair<uint16_t, uint16_t>;
 struct PortRangeCompare {
   bool operator()(const PortRange& a, const PortRange& b) const {
     // return true if range 'a.first - a.second' is below range 'b.first - b.second'.
@@ -68,12 +68,12 @@ struct PortRangeCompare {
 };
 
 class PortNetworkPolicyRules;
-typedef std::list<PortNetworkPolicyRules> RulesList;
+using RulesList = std::list<PortNetworkPolicyRules>;
 
 // PolicyMap is keyed by port ranges, and contains a list of PortNetworkPolicyRules's applicable
 // to this range. A list is needed as rules may come from multiple sources (e.g., resulting from
 // use of named ports and numbered ports in Cilium Network Policy at the same time).
-typedef absl::btree_map<PortRange, RulesList, PortRangeCompare> PolicyMap;
+using PolicyMap = absl::btree_map<PortRange, RulesList, PortRangeCompare>;
 
 // PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
 // Methods then iterate through the set to determine if policy allows or denies. This is needed to

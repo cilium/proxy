@@ -33,7 +33,7 @@ private:
   std::string path_;
 };
 
-typedef std::shared_ptr<IPCache> IPCacheSharedPtr;
+using IPCacheSharedPtr = std::shared_ptr<IPCache>;
 
 } // namespace Cilium
 } // namespace Envoy

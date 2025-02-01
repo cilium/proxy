@@ -92,7 +92,7 @@ private:
   Cilium::AccessLogSharedPtr access_log_;
 };
 
-typedef std::shared_ptr<Config> ConfigSharedPtr;
+using ConfigSharedPtr = std::shared_ptr<Config>;
 
 } // namespace WebSocket
 } // namespace Cilium

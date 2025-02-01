@@ -60,7 +60,7 @@ private:
   Cilium::AccessLogSharedPtr access_log_;
 };
 
-typedef std::shared_ptr<Config> ConfigSharedPtr;
+using ConfigSharedPtr = std::shared_ptr<Config>;
 
 // Each request gets their own instance of this filter, and
 // they can run parallel from multiple worker threads, all accessing
