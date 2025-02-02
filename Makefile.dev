@@ -44,11 +44,33 @@ precheck: force-non-root
 
 FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/" "./go/" "./envoy_build_config/"
 
+# The default set of sources assumes all relevant sources are dependecies of some tests!
+TIDY_SOURCES ?= $(shell bazel query 'kind("source file", deps(//tests/...))' 2>/dev/null | sed -n "s/\/\/cilium:/cilium\//p; s/\/\/tests:/tests\//p")
+
+# Must pass our bazel options to avoid discarding the analysis cache due to different options
+# between this, check and build!
+# Depend on the WORKSPACE and TIDY_SOURCES so that the database will be re-built if
+# Envoy dependency or any of the source files has changed.
+compile_commands.json: WORKSPACE $(TIDY_SOURCES) force-non-root
+	BAZEL_STARTUP_OPTION_LIST="$(BAZEL_OPTS)" BAZEL_BUILD_OPTION_LIST="$(BAZEL_BUILD_OPTS)" tools/gen_compilation_database.py --include_all //cilium/... //starter/... //tests/... @com_google_absl//absl/...
+
+# Default number of jobs, derived from available memory
+TIDY_JOBS ?= $$(( $(shell sed -n "s/^MemAvailable: *\([0-9]*\).*\$$/\1/p" /proc/meminfo) / 4500000 ))
+
+# tidy uses clang-tidy-17, .clang-tidy must be present in the project directory and configured to
+# ignore the same headers as .clangd. Unfortunately the configuration format is different.
+tidy: compile_commands.json force-non-root
+	run-clang-tidy-17 -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES)
+
+tidy-fix: compile_commands.json force-non-root
+	echo "clang-tidy fix results can contain duplicate includes, check before committing!"
+	run-clang-tidy-17 -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES)
+
 check: force-non-root
-	$(BAZEL) $(BAZEL_OPTS) run @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make fix' locally to fix formatting errors."
+	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make fix' locally to fix formatting errors."
 
 fix: force-non-root
-	$(BAZEL) $(BAZEL_OPTS) run @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
+	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
 
 # Run tests without debug by default.
 tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION proxylib/libcilium.so install-bazelisk

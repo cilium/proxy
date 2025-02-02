@@ -6,12 +6,15 @@ Diagnostics:
   MissingIncludes: Strict
   Includes:
     IgnoreHeader:
-      - "asm/unistd_32.h" # private -> use unistd.h
-      - "asm/unistd_64.h" # private -> use unistd.h
-      - "bits/basic_string\\.h" # private -> use string
+      - "fmt/format\.h" # Do not remove or add this
+      - "fmt/compile\.h" # private -> use fmt/format.h
+      - "asm-generic/socket\.h" # private -> use sys/socket.h
+      - "asm/unistd_32\.h" # private -> use unistd.h
+      - "asm/unistd_64\.h" # private -> use unistd.h
+      - "bits/.*" # private -> use standard headers like <string>, etc.
       - "google/protobuf/.*" # checked by envoy linting -> use source/common/protobuf/protobuf.h
-      - "linux/in\\.h" # private -> use netinet/in.h
-      - "linux/in6\\.h" # private -> use netinet/in.h
+      - "linux/in\.h" # private -> use netinet/in.h
+      - "linux/in6\.h" # private -> use netinet/in.h
       - "mutex" # checked by envoy linting -> use source/common/common/thread.h
 # CompileFlags:
 #   CompilationDatabase: ./compile_commands.json
