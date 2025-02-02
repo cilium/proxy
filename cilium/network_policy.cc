@@ -7,7 +7,6 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -79,16 +78,17 @@ public:
   HeaderMatch(const NetworkPolicyMap& parent, const cilium::HeaderMatch& config)
       : name_(config.name()), value_(config.value()), match_action_(config.match_action()),
         mismatch_action_(config.mismatch_action()) {
-    if (config.value_sds_secret().length() > 0)
+    if (config.value_sds_secret().length() > 0) {
       secret_ = std::make_unique<SecretWatcher>(parent, config.value_sds_secret());
+    }
   }
 
   void logRejected(Cilium::AccessLog::Entry& log_entry, absl::string_view value) const {
-    log_entry.AddRejected(name_.get(), !secret_ ? value : "[redacted]");
+    log_entry.addRejected(name_.get(), !secret_ ? value : "[redacted]");
   }
 
   void logMissing(Cilium::AccessLog::Entry& log_entry, absl::string_view value) const {
-    log_entry.AddMissing(name_.get(), !secret_ ? value : "[redacted]");
+    log_entry.addMissing(name_.get(), !secret_ ? value : "[redacted]");
   }
 
   // Returns 'true' if matching can continue
@@ -100,9 +100,9 @@ public:
     // Get secret value?
     if (secret_) {
       auto* secret_value = secret_->value();
-      if (secret_value)
+      if (secret_value) {
         match_value = secret_value;
-      else if (value_.length() == 0) {
+      } else if (value_.length() == 0) {
         // fail if secret has no value and the inline value to match is also empty
         ENVOY_LOG(info, "Cilium HeaderMatch missing SDS secret value for header {}", name_);
         return false;
@@ -111,9 +111,9 @@ public:
 
     // Perform presence match if the value to match is empty
     bool isPresentMatch = match_value->length() == 0;
-    if (isPresentMatch)
+    if (isPresentMatch) {
       matches = header_value.result().has_value();
-    else if (header_value.result().has_value()) {
+    } else if (header_value.result().has_value()) {
       const absl::string_view val = header_value.result().value();
       if (val.length() == match_value->length()) {
         // Use constant time comparison for security reason
@@ -154,8 +154,9 @@ public:
           // presence match failed, nothing to do
           return true;
         }
-        if (!header_value.result().has_value())
+        if (!header_value.result().has_value()) {
           return true; // nothing to remove
+        }
 
         // Remove the header with an incorrect value
         headers.remove(name_);
@@ -163,8 +164,9 @@ public:
         return true;
       case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
         // Log the wrong value as rejected, if the header existed with a wrong value
-        if (header_value.result().has_value())
+        if (header_value.result().has_value()) {
           logRejected(log_entry, header_value.result().value());
+        }
         // Set the expected value
         headers.setCopy(name_, *match_value);
         // Log the expected value as missing
@@ -243,7 +245,7 @@ public:
 
   // Should only be called after 'allowed' returns 'true'.
   // Returns 'true' if matching can continue
-  bool HeaderMatches(Envoy::Http::RequestHeaderMap& headers,
+  bool headerMatches(Envoy::Http::RequestHeaderMap& headers,
                      Cilium::AccessLog::Entry& log_entry) const {
     bool accepted = true;
     for (const auto& header_match : header_matches_) {
@@ -256,7 +258,7 @@ public:
 
   void toString(int indent, std::string& res) const {
     bool first = true;
-    if (headers_.size() > 0) {
+    if (!headers_.empty()) {
       if (first) {
         first = false;
         res.append(indent - 2, ' ').append("- ");
@@ -312,9 +314,9 @@ public:
         }
       }
     }
-    if (header_matches_.size() > 0) {
+    if (!header_matches_.empty()) {
       if (first) {
-        first = false;
+        // first = false; // not used after, so no need to update
         res.append(indent - 2, ' ').append("- ");
       } else {
         res.append(indent, ' ');
@@ -418,7 +420,7 @@ public:
       return false;
     }
     // Remote ID must match if we have any.
-    if (remotes_.size() > 0) {
+    if (!remotes_.empty()) {
       auto match = remotes_.find(remote_id);
       if (match != remotes_.end()) {
         // remote ID matched
@@ -443,7 +445,7 @@ public:
 
   bool allowed(uint32_t proxy_id, uint32_t remote_id, absl::string_view sni, bool& denied) const {
     // sni must match if we have any
-    if (allowed_snis_.size() > 0) {
+    if (!allowed_snis_.empty()) {
       if (sni.length() == 0) {
         return false;
       }
@@ -466,7 +468,7 @@ public:
     if (!allowed(proxy_id, remote_id, denied)) {
       return false;
     }
-    if (http_rules_.size() > 0) {
+    if (!http_rules_.empty()) {
       bool allowed = false;
       for (const auto& rule : http_rules_) {
         if (rule.allowed(headers)) {
@@ -477,7 +479,7 @@ public:
           }
           // orherwise evaluate all rules to run all the header actions,
           // and remember if any of them matched
-          if (rule.HeaderMatches(headers, log_entry)) {
+          if (rule.headerMatches(headers, log_entry)) {
             allowed = true;
           }
         }
@@ -516,7 +518,7 @@ public:
         return false; // request is denied if any deny rule matches
       }
     }
-    if (l7_allow_rules_.size() > 0) {
+    if (!l7_allow_rules_.empty()) {
       for (const auto& rule : l7_allow_rules_) {
         if (rule.matches(metadata)) {
           ENVOY_LOG(trace,
@@ -613,13 +615,13 @@ public:
     if (!l7_proto_.empty()) {
       res.append(indent, ' ').append("l7_proto: \"").append(l7_proto_).append("\"\n");
     }
-    if (l7_allow_rules_.size() > 0) {
+    if (!l7_allow_rules_.empty()) {
       res.append(indent, ' ').append("l7_allow_rules:\n");
       for (auto& rule : l7_allow_rules_) {
         rule.toString(indent + 2, res);
       }
     }
-    if (l7_deny_rules_.size() > 0) {
+    if (!l7_deny_rules_.empty()) {
       res.append(indent, ' ').append("l7_deny_rules:\n");
       for (auto& rule : l7_deny_rules_) {
         rule.toString(indent + 2, res);
@@ -645,10 +647,10 @@ using PortNetworkPolicyRuleConstSharedPtr = std::shared_ptr<const PortNetworkPol
 
 class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
 public:
-  PortNetworkPolicyRules() {}
+  PortNetworkPolicyRules() = default;
   PortNetworkPolicyRules(const NetworkPolicyMap& parent,
                          const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
-    if (rules.size() == 0) {
+    if (rules.empty()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): No rules, will allow "
                        "everything.");
     }
@@ -670,7 +672,7 @@ public:
   bool allowed(uint32_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry, bool& denied) const {
     // Empty set matches any payload from anyone
-    if (rules_.size() == 0) {
+    if (rules_.empty()) {
       return true;
     }
 
@@ -692,7 +694,7 @@ public:
 
   bool allowed(uint32_t proxy_id, uint32_t remote_id, absl::string_view sni, bool& denied) const {
     // Empty set matches any payload from anyone
-    if (rules_.size() == 0) {
+    if (rules_.empty()) {
       return true;
     }
 
@@ -722,7 +724,7 @@ public:
   bool allowed(uint32_t proxy_id, uint32_t remote_id,
                const envoy::config::core::v3::Metadata& metadata, bool& denied) const {
     // Empty set matches any payload from anyone
-    if (rules_.size() == 0) {
+    if (rules_.empty()) {
       return true;
     }
 
@@ -747,8 +749,9 @@ public:
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr server_context =
           rule->getServerTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
-      if (server_context)
+      if (server_context) {
         return server_context;
+      }
     }
     return nullptr;
   }
@@ -760,8 +763,9 @@ public:
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr client_context =
           rule->getClientTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
-      if (client_context)
+      if (client_context) {
         return client_context;
+      }
     }
     return nullptr;
   }
@@ -784,34 +788,38 @@ public:
 PortPolicy::PortPolicy(const PolicyMap& map, const RulesList& wildcard_rules, uint16_t port)
     : map_(map), wildcard_rules_(wildcard_rules), port_rules_(map_.find({port, port})) {}
 
-// for_range is used for policy lookups, so it will need to check both port-specific and
+// forRange is used for policy lookups, so it will need to check both port-specific and
 // wildcard-port rules, as either of them could contain rules that must be evaluated (i.e., deny
 // or header match rules with side effects).
-bool PortPolicy::for_range(
+bool PortPolicy::forRange(
     std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const {
   bool allow = false;
   bool denied = false;
   if (port_rules_ != map_.cend()) {
     for (auto& rules : port_rules_->second) {
       // Skip if allowed
-      if (allow && rules.can_short_circuit_)
+      if (allow && rules.can_short_circuit_) {
         continue;
-      if (allowed(rules, denied))
+      }
+      if (allowed(rules, denied)) {
         allow = true;
+      }
     }
   }
   // Wildcard port can deny a specific remote, so need to check for it too.
   for (auto& rules : wildcard_rules_) {
     // Skip if allowed
-    if (allow && rules.can_short_circuit_)
+    if (allow && rules.can_short_circuit_) {
       continue;
-    if (allowed(rules, denied))
+    }
+    if (allowed(rules, denied)) {
       allow = true;
+    }
   }
   return allow && !denied;
 }
 
-// for_first_range is used for proxylib parser and TLS context selection.
+// forFirstRange is used for proxylib parser and TLS context selection.
 //
 // rules for the specific ports are checked first, and within there singe-port ranges are placed in
 // the front, while actual ranges are placed in the back. This results in the following precedence
@@ -821,23 +829,25 @@ bool PortPolicy::for_range(
 // 2. port ranges (e.g., ports 80-90)
 // 3. Wildcard port rules
 //
-bool PortPolicy::for_first_range(std::function<bool(const PortNetworkPolicyRules&)> f) const {
+bool PortPolicy::forFirstRange(std::function<bool(const PortNetworkPolicyRules&)> f) const {
   if (port_rules_ != map_.cend()) {
     for (auto& rules : port_rules_->second) {
-      if (f(rules))
+      if (f(rules)) {
         return true;
+      }
     }
   }
   // Check the wildcard port entry
   for (auto& rules : wildcard_rules_) {
-    if (f(rules))
+    if (f(rules)) {
       return true;
+    }
   }
   return false;
 }
 
 bool PortPolicy::useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
-  return for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
+  return forFirstRange([&](const PortNetworkPolicyRules& rules) -> bool {
     return rules.useProxylib(proxy_id, remote_id, l7_proto);
   });
 }
@@ -845,20 +855,20 @@ bool PortPolicy::useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string&
 bool PortPolicy::allowed(uint32_t proxy_id, uint32_t remote_id,
                          Envoy::Http::RequestHeaderMap& headers,
                          Cilium::AccessLog::Entry& log_entry) const {
-  return for_range([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
+  return forRange([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
     return rules.allowed(proxy_id, remote_id, headers, log_entry, denied);
   });
 }
 
 bool PortPolicy::allowed(uint32_t proxy_id, uint32_t remote_id, absl::string_view sni) const {
-  return for_range([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
+  return forRange([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
     return rules.allowed(proxy_id, remote_id, sni, denied);
   });
 }
 
 bool PortPolicy::allowed(uint32_t proxy_id, uint32_t remote_id,
                          const envoy::config::core::v3::Metadata& metadata) const {
-  return for_range([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
+  return forRange([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
     return rules.allowed(proxy_id, remote_id, metadata, denied);
   });
 }
@@ -868,7 +878,7 @@ Ssl::ContextSharedPtr PortPolicy::getServerTlsContext(uint32_t proxy_id, uint32_
                                                       const Ssl::ContextConfig** config,
                                                       bool& raw_socket_allowed) const {
   Ssl::ContextSharedPtr ret;
-  for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
+  forFirstRange([&](const PortNetworkPolicyRules& rules) -> bool {
     ret = rules.getServerTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
     return ret != nullptr;
   });
@@ -880,7 +890,7 @@ Ssl::ContextSharedPtr PortPolicy::getClientTlsContext(uint32_t proxy_id, uint32_
                                                       const Ssl::ContextConfig** config,
                                                       bool& raw_socket_allowed) const {
   Ssl::ContextSharedPtr ret;
-  for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
+  forFirstRange([&](const PortNetworkPolicyRules& rules) -> bool {
     ret = rules.getClientTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
     return ret != nullptr;
   });
@@ -888,7 +898,7 @@ Ssl::ContextSharedPtr PortPolicy::getClientTlsContext(uint32_t proxy_id, uint32_
 }
 
 // Ranges overlap when one is not completely below or above the other
-bool inline ranges_overlap(const PortRange& a, const PortRange& b) {
+bool inline rangesOverlap(const PortRange& a, const PortRange& b) {
   // !(a.second < b.first || a.first > b.second)
   return a.second >= b.first && a.first <= b.second;
 }
@@ -948,8 +958,9 @@ public:
           while (it != rules_.begin()) {
             last_overlap = it;
             it--;
-            if (!ranges_overlap(it->first, rule_range))
+            if (!rangesOverlap(it->first, rule_range)) {
               break;
+            }
           }
           it = last_overlap; // Move back up to the frontmost overlapping entry
 
@@ -993,8 +1004,9 @@ public:
               // update the start range if a new start entry was added, which can happen only at the
               // beginning of this loop when port is still at the beginning of the rule range being
               // added.
-              if (port == rule_range.first)
+              if (port == rule_range.first) {
                 start_range = new_range;
+              }
               // absl::btree_map insertion invalidates iterators, have to update.
               it = ++new_pair.first; // one past the new entry
               if (end_port < range.first) {
@@ -1041,7 +1053,7 @@ public:
         // Add rules to all the overlapping entries
         bool singular = rule_range.first == rule_range.second;
         auto rules = PortNetworkPolicyRules(parent, rule.rules());
-        for (; it != rules_.end() && ranges_overlap(it->first, rule_range); it++) {
+        for (; it != rules_.end() && rangesOverlap(it->first, rule_range); it++) {
           auto range = it->first;
           auto& list = it->second;
           ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): Adding rules for [{}-{}] to [{}-{}]",
@@ -1067,23 +1079,23 @@ public:
   }
 
   void toString(int indent, std::string& res) const {
-    if (rules_.size() == 0) {
+    if (rules_.empty()) {
       res.append(indent, ' ').append("rules: []\n");
     } else {
       res.append(indent, ' ').append("rules:\n");
-      for (auto entry : rules_) {
+      for (const auto& entry : rules_) {
         res.append(indent + 2, ' ')
             .append(fmt::format("[{}-{}]:\n", entry.first.first, entry.first.second));
-        for (auto rule : entry.second) {
+        for (const auto& rule : entry.second) {
           rule.toString(indent + 4, res);
         }
       }
     }
-    if (wildcard_rules_.size() == 0) {
+    if (wildcard_rules_.empty()) {
       res.append(indent, ' ').append("wildcard_rules: []\n");
     } else {
       res.append(indent, ' ').append("wildcard_rules:\n");
-      for (auto rule : wildcard_rules_) {
+      for (const auto& rule : wildcard_rules_) {
         rule.toString(indent + 2, res);
       }
     }
@@ -1133,7 +1145,7 @@ public:
 
   const IPAddressPair& getEndpointIPs() const override { return endpoint_ips_; }
 
-  std::string String() const override {
+  std::string string() const override {
     std::string res;
     res.append("ingress:\n");
     ingress_.toString(2, res);
@@ -1267,10 +1279,10 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
     ENVOY_LOG(info, "New NetworkPolicy stream");
 
     // Get ipcache singleton only if it was successfully created previously
-    IPCacheSharedPtr ipcache = IPCache::GetIPCache(context_);
+    IPCacheSharedPtr ipcache = IPCache::getIpCache(context_);
     if (ipcache != nullptr) {
       ENVOY_LOG(info, "Reopening ipcache on new stream");
-      ipcache->Open();
+      ipcache->open();
     }
   }
 
@@ -1292,7 +1304,7 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
                   "Received Network Policy for endpoint {}, endpoint_ip {} in onConfigUpdate() "
                   "version {}",
                   config.endpoint_id(), config.endpoint_ips()[0], version_info);
-        if (config.endpoint_ips().size() == 0) {
+        if (config.endpoint_ips().empty()) {
           throw EnvoyException("Network Policy has no endpoint ips");
         }
         ctmaps_to_keep.insert(config.conntrack_map_name());
@@ -1442,7 +1454,7 @@ public:
 
   const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
 
-  std::string String() const override { return "AllowAllEgressPolicyInstanceImpl"; }
+  std::string string() const override { return "AllowAllEgressPolicyInstanceImpl"; }
 
   void tlsWrapperMissingPolicyInc() const override {}
 
@@ -1458,12 +1470,12 @@ const RulesList AllowAllEgressPolicyInstanceImpl::empty_rules_{};
 
 AllowAllEgressPolicyInstanceImpl NetworkPolicyMap::AllowAllEgressPolicy;
 
-PolicyInstance& NetworkPolicyMap::GetAllowAllEgressPolicy() { return AllowAllEgressPolicy; }
+PolicyInstance& NetworkPolicyMap::getAllowAllEgressPolicy() { return AllowAllEgressPolicy; }
 
 // Deny-all policy
 class DenyAllPolicyInstanceImpl : public PolicyInstance {
 public:
-  DenyAllPolicyInstanceImpl() {}
+  DenyAllPolicyInstanceImpl() = default;
 
   bool allowed(bool, uint32_t, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
                Cilium::AccessLog::Entry&) const override {
@@ -1488,7 +1500,7 @@ public:
 
   const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
 
-  std::string String() const override { return "DenyAllPolicyInstanceImpl"; }
+  std::string string() const override { return "DenyAllPolicyInstanceImpl"; }
 
   void tlsWrapperMissingPolicyInc() const override {}
 
@@ -1504,10 +1516,10 @@ const RulesList DenyAllPolicyInstanceImpl::empty_rules{};
 
 DenyAllPolicyInstanceImpl NetworkPolicyMap::DenyAllPolicy;
 
-PolicyInstance& NetworkPolicyMap::GetDenyAllPolicy() { return DenyAllPolicy; }
+PolicyInstance& NetworkPolicyMap::getDenyAllPolicy() { return DenyAllPolicy; }
 
 const PolicyInstance*
-NetworkPolicyMap::GetPolicyInstanceImpl(const std::string& endpoint_ip) const {
+NetworkPolicyMap::getPolicyInstanceImpl(const std::string& endpoint_ip) const {
   const auto* map = load();
   auto it = map->find(endpoint_ip);
   if (it != map->end()) {
@@ -1516,7 +1528,7 @@ NetworkPolicyMap::GetPolicyInstanceImpl(const std::string& endpoint_ip) const {
   return nullptr;
 }
 
-// GetPolicyInstance return a const reference to a policy in the policy map for the given
+// getPolicyInstance return a const reference to a policy in the policy map for the given
 // 'endpoint_ip'. If there is no policy for the given IP, a default policy is returned,
 // controlled by the 'default_allow_egress' argument as follows:
 //
@@ -1527,9 +1539,9 @@ NetworkPolicyMap::GetPolicyInstanceImpl(const std::string& endpoint_ip) const {
 // server error" if no policy is found. This mirrors what bpf datapath does if no policy entry is
 // found in the bpf policy map. The default deny for ingress with default allow for egress is needed
 // for Cilium Ingress when there is no egress policy enforcement for the Ingress traffic.
-const PolicyInstance& NetworkPolicyMap::GetPolicyInstance(const std::string& endpoint_ip,
+const PolicyInstance& NetworkPolicyMap::getPolicyInstance(const std::string& endpoint_ip,
                                                           bool default_allow_egress) const {
-  const auto* policy = GetPolicyInstanceImpl(endpoint_ip);
+  const auto* policy = getPolicyInstanceImpl(endpoint_ip);
   return policy != nullptr      ? *policy
          : default_allow_egress ? *static_cast<PolicyInstance*>(&AllowAllEgressPolicy)
                                 : *static_cast<PolicyInstance*>(&DenyAllPolicy);

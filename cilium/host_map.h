@@ -97,7 +97,7 @@ class PolicyHostMap : public Singleton::Instance,
 public:
   PolicyHostMap(Server::Configuration::CommonFactoryContext& context);
   PolicyHostMap(ThreadLocal::SlotAllocator& tls);
-  ~PolicyHostMap() {
+  ~PolicyHostMap() override {
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 

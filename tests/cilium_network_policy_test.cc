@@ -54,7 +54,7 @@ protected:
       logger.setLevel(spdlog::level::trace);
     }
   }
-  ~CiliumNetworkPolicyTest() override {}
+  ~CiliumNetworkPolicyTest() override = default;
 
   void SetUp() override {
     // Mock SDS secrets with a real implementation, which will not return anything if there is no
@@ -89,9 +89,9 @@ protected:
     return message.version_info();
   }
 
-  testing::AssertionResult Validate(const std::string& pod_ip, const std::string& expected) {
-    const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
-    auto str = policy.String();
+  testing::AssertionResult validate(const std::string& pod_ip, const std::string& expected) {
+    const auto& policy = policy_map_->getPolicyInstance(pod_ip, false);
+    auto str = policy.string();
     if (str != expected) {
       return testing::AssertionFailure() << "Policy:\n"
                                          << str << "Does not match expected:\n"
@@ -100,29 +100,29 @@ protected:
     return testing::AssertionSuccess();
   }
 
-  testing::AssertionResult Allowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
+  testing::AssertionResult allowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
                                    uint16_t port, Http::TestRequestHeaderMapImpl&& headers) {
-    const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
+    const auto& policy = policy_map_->getPolicyInstance(pod_ip, false);
     Cilium::AccessLog::Entry log_entry;
     return policy.allowed(ingress, proxy_id_, remote_id, port, headers, log_entry)
                ? testing::AssertionSuccess()
                : testing::AssertionFailure();
   }
-  testing::AssertionResult IngressAllowed(const std::string& pod_ip, uint64_t remote_id,
+  testing::AssertionResult ingressAllowed(const std::string& pod_ip, uint64_t remote_id,
                                           uint16_t port,
                                           Http::TestRequestHeaderMapImpl&& headers = {}) {
-    return Allowed(true, pod_ip, remote_id, port, std::move(headers));
+    return allowed(true, pod_ip, remote_id, port, std::move(headers));
   }
-  testing::AssertionResult EgressAllowed(const std::string& pod_ip, uint64_t remote_id,
+  testing::AssertionResult egressAllowed(const std::string& pod_ip, uint64_t remote_id,
                                          uint16_t port,
                                          Http::TestRequestHeaderMapImpl&& headers = {}) {
-    return Allowed(false, pod_ip, remote_id, port, std::move(headers));
+    return allowed(false, pod_ip, remote_id, port, std::move(headers));
   }
 
-  testing::AssertionResult TlsAllowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
+  testing::AssertionResult tlsAllowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
                                       uint16_t port, absl::string_view sni,
                                       bool& tls_socket_required, bool& raw_socket_allowed) {
-    const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
+    const auto& policy = policy_map_->getPolicyInstance(pod_ip, false);
 
     auto port_policy = policy.findPortPolicy(ingress, port);
     const Envoy::Ssl::ContextConfig* config = nullptr;
@@ -158,42 +158,46 @@ protected:
 
     EXPECT_TRUE(allowed == (tls_socket_required || raw_socket_allowed));
 
-    if (!allowed)
+    if (!allowed) {
       return testing::AssertionFailure() << pod_ip << " policy not allowing id " << remote_id
                                          << " on port " << port << " with SNI \"" << sni << "\"";
+    }
 
     // sanity check
     EXPECT_TRUE(!(tls_socket_required && raw_socket_allowed) &&
                 (tls_socket_required || raw_socket_allowed));
 
-    if (raw_socket_allowed)
+    if (raw_socket_allowed) {
       return testing::AssertionSuccess()
              << pod_ip << " policy allows id " << remote_id << " on port " << port << " with SNI \""
              << sni << "\" without TLS socket";
+    }
 
-    if (tls_socket_required && ctx != nullptr)
+    if (tls_socket_required && ctx != nullptr) {
       return testing::AssertionSuccess()
              << pod_ip << " policy allows id " << remote_id << " on port " << port << " with SNI \""
              << sni << "\" with TLS socket";
+    }
 
-    if (tls_socket_required && ctx == nullptr)
+    if (tls_socket_required && ctx == nullptr) {
       return testing::AssertionSuccess()
              << pod_ip << " policy allows id " << remote_id << " on port " << port << " with SNI \""
              << sni << "\" but missing TLS context";
+    }
 
     return testing::AssertionFailure();
   }
 
-  testing::AssertionResult TlsIngressAllowed(const std::string& pod_ip, uint64_t remote_id,
+  testing::AssertionResult tlsIngressAllowed(const std::string& pod_ip, uint64_t remote_id,
                                              uint16_t port, absl::string_view sni,
                                              bool& tls_socket_required, bool& raw_socket_allowed) {
-    return TlsAllowed(true, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
+    return tlsAllowed(true, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
   }
 
-  testing::AssertionResult TlsEgressAllowed(const std::string& pod_ip, uint64_t remote_id,
+  testing::AssertionResult tlsEgressAllowed(const std::string& pod_ip, uint64_t remote_id,
                                             uint16_t port, absl::string_view sni,
                                             bool& tls_socket_required, bool& raw_socket_allowed) {
-    return TlsAllowed(false, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
+    return tlsAllowed(false, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
   }
 
   std::string updatesRejectedStatName() { return policy_map_->stats_.updates_rejected_.name(); }
@@ -210,7 +214,7 @@ TEST_F(CiliumNetworkPolicyTest, UpdatesRejectedStatName) {
 
 TEST_F(CiliumNetworkPolicyTest, EmptyPolicyUpdate) {
   EXPECT_TRUE(policy_map_->onConfigUpdate({}, "1").ok());
-  EXPECT_FALSE(Validate("10.1.2.3", "")); // Policy not found
+  EXPECT_FALSE(validate("10.1.2.3", "")); // Policy not found
 }
 
 TEST_F(CiliumNetworkPolicyTest, SimplePolicyUpdate) {
@@ -218,7 +222,7 @@ TEST_F(CiliumNetworkPolicyTest, SimplePolicyUpdate) {
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "0"
 )EOF"));
   EXPECT_EQ(version, "0");
-  EXPECT_FALSE(Validate("10.1.2.3", "")); // Policy not found
+  EXPECT_FALSE(validate("10.1.2.3", "")); // Policy not found
 }
 
 TEST_F(CiliumNetworkPolicyTest, OverlappingPortRange) {
@@ -279,39 +283,39 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Ingress from 42 is allowed on port 23
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 42, 23));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 23));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 23));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 42, 23));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 23));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 23));
 
   // port 92 is denied from everyone
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 42, 92));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 92));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 92));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 42, 92));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 92));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 92));
 
   // Ingress from 43 is allowed on all ports of the range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 39));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 40));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 79));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 99));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 100));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 39));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 40));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 99));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 100));
 
   // 44 is only allowed to port 80
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 39));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 40));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 79));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 44, 80));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 81));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 99));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 100));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 39));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 40));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 79));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 81));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 99));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 100));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 44, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
 
   // Same with policies added in reverse order
   EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
@@ -337,39 +341,39 @@ resources:
     - remote_policies: [ 45 ]
 )EOF"));
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Ingress from 42 is allowed on port 23
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 42, 23));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 23));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 23));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 42, 23));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 23));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 23));
 
   // port 92 is denied from everyone
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 42, 92));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 92));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 92));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 42, 92));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 92));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 92));
 
   // Ingress from 43 is allowed on all ports of the range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 39));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 40));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 79));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 99));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 100));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 39));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 40));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 99));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 100));
 
   // 44 is only allowed to port 80
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 39));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 40));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 79));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 44, 80));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 81));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 99));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 100));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 39));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 40));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 79));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 81));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 99));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 100));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 44, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
 }
 
 TEST_F(CiliumNetworkPolicyTest, OverlappingPortRanges) {
@@ -409,25 +413,25 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Ingress from 43 is allowed to ports 80-8080 only:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4039));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4040));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4041));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8079));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8081));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9998));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9999));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 10000));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10000));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 44, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
 
   // Same with policies added in reverse order
   EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
@@ -467,25 +471,25 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Ingress from 43 is allowed to ports 80-8080 only:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4039));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4040));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4041));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8079));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8081));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9998));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9999));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 10000));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10000));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 44, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
 }
 
 TEST_F(CiliumNetworkPolicyTest, DuplicatePorts) {
@@ -517,15 +521,15 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Ingress from 43 is allowed on port 80 only:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 8080));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 8080));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80));
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
 }
 
 TEST_F(CiliumNetworkPolicyTest, DuplicatePortRange) {
@@ -561,18 +565,18 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Ingress is allowed:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 81));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8079));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8081));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
 }
 
 TEST_F(CiliumNetworkPolicyTest, InvalidPortRange) {
@@ -597,9 +601,9 @@ resources:
       "PortNetworkPolicy: Invalid port range, end port is less than start port 80-60");
 
   // No ingress is allowed:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80));
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
 }
 
 TEST_F(CiliumNetworkPolicyTest, InvalidWildcardPortRange) {
@@ -624,9 +628,9 @@ resources:
       "PortNetworkPolicy: Invalid port range including the wildcard zero port 0-80");
 
   // No ingress is allowed:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80));
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
 }
 
 // Zero end port is treated as no range
@@ -665,19 +669,19 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80));
   // Allowed port:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Path is ignored:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80));
 }
 
 TEST_F(CiliumNetworkPolicyTest, HttpPolicyUpdate) {
@@ -687,7 +691,7 @@ TEST_F(CiliumNetworkPolicyTest, HttpPolicyUpdate) {
   EXPECT_EQ(version, "0");
   EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
   // No policy for the pod
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
 
   // 1st update
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
@@ -724,19 +728,19 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Wrong path:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
 
   // 2nd update
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -791,27 +795,27 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Wrong path:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 44, 80, {{":path", "/public"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 44, 80, {{":path", "/public"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 40, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 40, 80, {{":path", "/public"}}));
   // Wrong port:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080, {{":path", "/public"}}));
   // Wrong path:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
 
   // 3rd update with Ingress deny rules
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -881,27 +885,27 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Denied remote ID, port, & path:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Denied remote ID & wrong path:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 44, 80, {{":path", "/public"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 44, 80, {{":path", "/public"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 40, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 40, 80, {{":path", "/public"}}));
   // Wrong port:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080, {{":path", "/public"}}));
   // Wrong path:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
 
   // 4th update with matching proxy_id in policy
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -967,21 +971,21 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Matching proxy ID:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Matching proxy ID:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Matching proxy ID:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79, {{":path", "/allowed"}}));
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 10001, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10001, {{":path", "/notallowed"}}));
 
   // 5th update with non-matching proxy_id in policy
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -1047,21 +1051,21 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Non-matching proxy ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Non-matching proxy ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Non-matching proxy ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79, {{":path", "/allowed"}}));
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 10001, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10001, {{":path", "/notallowed"}}));
 }
 
 TEST_F(CiliumNetworkPolicyTest, HttpOverlappingPortRanges) {
@@ -1071,7 +1075,7 @@ TEST_F(CiliumNetworkPolicyTest, HttpOverlappingPortRanges) {
   EXPECT_EQ(version, "0");
   EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
   // No policy for the pod
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
 
   // 1st update
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
@@ -1122,20 +1126,20 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Allowed remote ID, port, & method OR path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "PUSH"}, {":path", "/allowed"}}));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Wrong path:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
 
   // 2nd update with overlapping port range and a single port
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -1201,27 +1205,27 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Allowed remote ID, port, & method OR path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 70, {{":method", "PUSH"}, {":path", "/allowed"}}));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "PUSH"}, {":path", "/allowed"}}));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "PUSH"}, {":path", "/allowed"}}));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 70, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 90, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
   // wrong port for GET
   EXPECT_FALSE(
-      IngressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
+      ingressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
   EXPECT_FALSE(
-      IngressAllowed("10.1.2.3", 43, 90, {{":method", "GET"}, {":path", "/also_allowed"}}));
+      ingressAllowed("10.1.2.3", 43, 90, {{":method", "GET"}, {":path", "/also_allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Wrong path:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
 
   // 3rd update with overlapping port ranges
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -1288,28 +1292,28 @@ egress:
   wildcard_rules: []
 )EOF";
 
-  EXPECT_TRUE(Validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected));
 
   // Allowed remote ID, port, & method OR path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 70, {{":method", "PUSH"}, {":path", "/allowed"}}));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "PUSH"}, {":path", "/allowed"}}));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "PUSH"}, {":path", "/allowed"}}));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 90, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 70, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 90, {{":method", "PUSH"}, {":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":method", "GET"}, {":path", "/also_allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 90, {{":method", "GET"}, {":path", "/also_allowed"}}));
   EXPECT_TRUE(
-      IngressAllowed("10.1.2.3", 43, 8080, {{":method", "GET"}, {":path", "/also_allowed"}}));
+      ingressAllowed("10.1.2.3", 43, 8080, {{":method", "GET"}, {":path", "/also_allowed"}}));
   // wrong port for GET
   EXPECT_FALSE(
-      IngressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
+      ingressAllowed("10.1.2.3", 43, 70, {{":method", "GET"}, {":path", "/also_allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Wrong path:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
 }
 
 TEST_F(CiliumNetworkPolicyTest, TcpPolicyUpdate) {
@@ -1319,7 +1323,7 @@ TEST_F(CiliumNetworkPolicyTest, TcpPolicyUpdate) {
   EXPECT_EQ(version, "0");
   EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
   // No policy for the pod
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
 
   // 1st update
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
@@ -1336,16 +1340,16 @@ resources:
   EXPECT_EQ(version, "1");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Allowed remote ID & port:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Path does not matter:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
 
   // 2nd update
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -1366,24 +1370,24 @@ resources:
   EXPECT_EQ(version, "2");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Allowed remote ID & port:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Path does not matter
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // Allowed remote ID & port:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
   // Allowed remote ID & port:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 44, 80, {{":path", "/public"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 44, 80, {{":path", "/public"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 40, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 40, 80, {{":path", "/public"}}));
   // Wrong port:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080, {{":path", "/public"}}));
   // Path does not matter:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
 }
 
 TEST_F(CiliumNetworkPolicyTest, PortRanges) {
@@ -1393,7 +1397,7 @@ TEST_F(CiliumNetworkPolicyTest, PortRanges) {
   EXPECT_EQ(version, "0");
   EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
   // No policy for the pod
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80));
 
   // 1st update
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
@@ -1411,20 +1415,20 @@ resources:
   EXPECT_EQ(version, "1");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Allowed remote ID & port:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
   // Path does not matter
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
   // Port within the range:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
   // Port at the end of the range:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79));
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8081));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80));
 
   // 2nd update
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -1452,53 +1456,53 @@ resources:
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
   // Allowed remote ID & port:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
   // Wrong remote ID:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 40, 80));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 40, 80));
   // Path does not matter
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
   // Port within the range:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
   // Port at the end of the range:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79));
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8081));
 
   // Allowed remote ID & port:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 44, 9000));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 9000));
   // Port within the range:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 44, 9500));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 9500));
   // Port at the end of the range:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 44, 9999));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 9999));
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 8999));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 8999));
   // Port out of range:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 10000));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 10000));
 
   // Wrong remote IDs:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 44, 80));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9000));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9500));
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 9000));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 9500));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 9999));
 
   // Allowed remote ID & port:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 80));
   // Path does not matter:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
   // Allowed remote ID & port:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 44, 80));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 44, 80));
   // Wrong remote ID:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 40, 80));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 40, 80));
   // Port within the range:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 85));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 85));
   // Port at the end of the range:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 90));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 90));
   // Port out of range:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 79));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 79));
   // Port out of range:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 91));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 91));
 
   // 3rd update, ranges with HTTP
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -1537,21 +1541,21 @@ resources:
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong path:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
   // Allowed remote ID & port:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 44, 80, {{":path", "/allows"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 44, 80, {{":path", "/allows"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 40, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 40, 80, {{":path", "/public"}}));
   // Port within the range:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 85, {{":path", "/allows"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 85, {{":path", "/allows"}}));
   // Port at the end of the range:
-  EXPECT_TRUE(EgressAllowed("10.1.2.3", 43, 90, {{":path", "/public"}}));
+  EXPECT_TRUE(egressAllowed("10.1.2.3", 43, 90, {{":path", "/public"}}));
   // Port out of range:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 79, {{":path", "/allows"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 79, {{":path", "/allows"}}));
   // Port out of range:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 91, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 91, {{":path", "/public"}}));
 }
 
 TEST_F(CiliumNetworkPolicyTest, HttpPolicyUpdateToMissingSDS) {
@@ -1561,7 +1565,7 @@ TEST_F(CiliumNetworkPolicyTest, HttpPolicyUpdateToMissingSDS) {
   EXPECT_EQ(version, "0");
   EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
   // No policy for the pod
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
 
   // 1st update
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
@@ -1583,16 +1587,16 @@ resources:
   EXPECT_EQ(version, "1");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Allowed remote ID, port, & path:
-  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Wrong path:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 
   // No egress is allowed:
-  EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
 
   // 2nd update
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
@@ -1618,13 +1622,13 @@ resources:
   EXPECT_EQ(version, "2");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Drop due to the missing SDS secret
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Wrong remote ID:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
   // Wrong port:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Wrong path:
-  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
 }
 
 TEST_F(CiliumNetworkPolicyTest, TlsPolicyUpdate) {
@@ -1637,9 +1641,9 @@ TEST_F(CiliumNetworkPolicyTest, TlsPolicyUpdate) {
   EXPECT_EQ(version, "0");
   EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
   // No policy for the pod
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   // SNI does not make a difference
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
                                  raw_socket_allowed));
 
   // 1st update without TLS requirements
@@ -1657,27 +1661,27 @@ resources:
   EXPECT_EQ(version, "1");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Allowed remote ID & port:
-  EXPECT_TRUE(TlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
+  EXPECT_TRUE(tlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
                                 raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_TRUE(raw_socket_allowed);
   // SNI does not matter:
-  EXPECT_TRUE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_TRUE(tlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_TRUE(raw_socket_allowed);
   // Wrong remote ID:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required,
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required,
                                  raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Wrong port:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
                                  raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 
   // No egress is allowed:
-  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 
@@ -1697,37 +1701,37 @@ resources:
   EXPECT_EQ(version, "2");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Allowed remote ID, port, SNI:
-  EXPECT_TRUE(TlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
+  EXPECT_TRUE(tlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
                                 raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_TRUE(raw_socket_allowed);
   // Allowed remote ID, port, incorrect SNI:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
                                  raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Allowed remote ID, port, SNI:
   EXPECT_TRUE(
-      TlsIngressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
+      tlsIngressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_TRUE(raw_socket_allowed);
   // Missing SNI:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Wrong remote ID:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required,
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required,
                                  raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Wrong port:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
                                  raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 
   // No egress is allowed:
-  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 
@@ -1752,36 +1756,36 @@ resources:
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Allowed remote ID, port, SNI:
   EXPECT_TRUE(
-      TlsEgressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required, raw_socket_allowed));
+      tlsEgressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required, raw_socket_allowed));
   EXPECT_TRUE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Allowed remote ID, port, incorrect SNI:
-  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
+  EXPECT_FALSE(tlsEgressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
                                 raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Allowed remote ID, port, SNI:
   EXPECT_TRUE(
-      TlsEgressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
+      tlsEgressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
   EXPECT_TRUE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Missing SNI:
-  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Wrong remote ID:
   EXPECT_FALSE(
-      TlsEgressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required, raw_socket_allowed));
+      tlsEgressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Wrong port:
-  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+  EXPECT_FALSE(tlsEgressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
                                 raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 
   // No igress is allowed:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 
@@ -1803,37 +1807,37 @@ resources:
   EXPECT_EQ(version, "2");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Allowed remote ID, port, SNI:
-  EXPECT_TRUE(TlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
+  EXPECT_TRUE(tlsIngressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required,
                                 raw_socket_allowed));
   EXPECT_TRUE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Allowed remote ID, port, incorrect SNI:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
                                  raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Allowed remote ID, port, SNI:
   EXPECT_TRUE(
-      TlsIngressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
+      tlsIngressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
   EXPECT_TRUE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Missing SNI:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Wrong remote ID:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required,
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required,
                                  raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Wrong port:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
                                  raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 
   // No egress is allowed:
-  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 
@@ -1855,36 +1859,36 @@ resources:
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
   // Allowed remote ID, port, SNI:
   EXPECT_TRUE(
-      TlsEgressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required, raw_socket_allowed));
+      tlsEgressAllowed("10.1.2.3", 43, 80, "example.com", tls_socket_required, raw_socket_allowed));
   EXPECT_TRUE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Allowed remote ID, port,  SNI:
-  EXPECT_TRUE(TlsEgressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
+  EXPECT_TRUE(tlsEgressAllowed("10.1.2.3", 43, 80, "www.example.com", tls_socket_required,
                                raw_socket_allowed));
   EXPECT_TRUE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Allowed remote ID, port, SNI:
   EXPECT_TRUE(
-      TlsEgressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
+      tlsEgressAllowed("10.1.2.3", 43, 80, "cilium.io", tls_socket_required, raw_socket_allowed));
   EXPECT_TRUE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Empty SNI:
-  EXPECT_TRUE(TlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_TRUE(tlsEgressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_TRUE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Wrong remote ID:
   EXPECT_FALSE(
-      TlsEgressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required, raw_socket_allowed));
+      tlsEgressAllowed("10.1.2.3", 40, 80, "example.com", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
   // Wrong port:
-  EXPECT_FALSE(TlsEgressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
+  EXPECT_FALSE(tlsEgressAllowed("10.1.2.3", 43, 8080, "example.com", tls_socket_required,
                                 raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 
   // No igress is allowed:
-  EXPECT_FALSE(TlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
+  EXPECT_FALSE(tlsIngressAllowed("10.1.2.3", 43, 80, "", tls_socket_required, raw_socket_allowed));
   EXPECT_FALSE(tls_socket_required);
   EXPECT_FALSE(raw_socket_allowed);
 }

@@ -36,7 +36,7 @@ class TestConfig : public Config {
 public:
   TestConfig(const ::cilium::TestBpfMetadata& config,
              Server::Configuration::ListenerFactoryContext& context);
-  ~TestConfig();
+  ~TestConfig() override;
 
   absl::optional<Cilium::BpfMetadata::SocketMetadata>
   extractSocketMetadata(Network::ConnectionSocket& socket) override;

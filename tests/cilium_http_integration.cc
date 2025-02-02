@@ -33,7 +33,7 @@ CiliumHttpIntegrationTest::CiliumHttpIntegrationTest(const std::string& config)
 #endif
 }
 
-CiliumHttpIntegrationTest::~CiliumHttpIntegrationTest() {}
+CiliumHttpIntegrationTest::~CiliumHttpIntegrationTest() = default;
 
 void CiliumHttpIntegrationTest::createEnvoy() {
   // fake upstreams have been created by now, use the port from the 1st upstream

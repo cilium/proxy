@@ -16,6 +16,7 @@
 #include "envoy/config/subscription.h"
 #include "envoy/config/subscription_factory.h"
 #include "envoy/event/dispatcher.h"
+#include "envoy/grpc/async_client.h"
 #include "envoy/local_info/local_info.h"
 #include "envoy/stats/scope.h"
 #include "envoy/upstream/cluster_manager.h"
@@ -95,7 +96,7 @@ TypeUrlToServiceMap& typeUrlToServiceMap() {
 
 class NopConfigValidatorsImpl : public Envoy::Config::CustomConfigValidators {
 public:
-  NopConfigValidatorsImpl() {}
+  NopConfigValidatorsImpl() = default;
 
   void executeValidators(absl::string_view,
                          const std::vector<Envoy::Config::DecodedResourcePtr>&) override {}

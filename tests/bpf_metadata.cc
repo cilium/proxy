@@ -80,8 +80,8 @@ createPolicyMap(const std::string& config,
                 Server::Configuration::FactoryContext& context) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
       "cilium_network_policy_singleton", [&config, &secret_configs, &context] {
-        if (secret_configs.size() > 0) {
-          for (auto sds_pair : secret_configs) {
+        if (!secret_configs.empty()) {
+          for (const auto& sds_pair : secret_configs) {
             auto& name = sds_pair.first;
             auto& sds_config = sds_pair.second;
             std::string sds_path = TestEnvironment::writeStringToFileForTest(
@@ -190,9 +190,9 @@ TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
   policy.useProxylib(is_ingress_, proxy_id_, is_ingress_ ? source_identity : destination_identity,
                      port, l7proto);
 
-  return absl::optional(Cilium::BpfMetadata::SocketMetadata(
+  return {Cilium::BpfMetadata::SocketMetadata(
       0, 0, source_identity, is_ingress_, is_l7lb_, port, std::move(pod_ip), "", nullptr, nullptr,
-      nullptr, original_dst_address, shared_from_this(), 0, std::move(l7proto), ""));
+      nullptr, original_dst_address, shared_from_this(), 0, std::move(l7proto), "")};
 }
 
 } // namespace BpfMetadata

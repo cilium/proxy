@@ -1,8 +1,16 @@
 #include "cilium/filter_state_cilium_policy.h"
 
+#include <cstdint>
 #include <string>
 
+#include "envoy/http/header_map.h"
+#include "envoy/network/connection.h"
+
+#include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
+
+#include "absl/strings/string_view.h"
+#include "cilium/accesslog.h"
 
 namespace Envoy {
 namespace Cilium {

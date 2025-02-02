@@ -21,12 +21,14 @@
 
 #include "source/common/common/base_logger.h"
 #include "source/common/common/logger.h"
+#include "source/common/common/statusor.h"
 #include "source/common/init/watcher_impl.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/network/socket_impl.h"
 #include "source/common/stats/isolated_store_impl.h"
 
 #include "test/mocks/filesystem/mocks.h"
+#include "test/mocks/network/connection.h"
 #include "test/mocks/network/io_handle.h"
 #include "test/mocks/network/mocks.h"
 #include "test/mocks/server/listener_factory_context.h"

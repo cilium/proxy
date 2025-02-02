@@ -230,7 +230,7 @@ resources:
 class CiliumHttpTLSIntegrationTest : public CiliumHttpIntegrationTest {
 public:
   CiliumHttpTLSIntegrationTest(const std::string& config) : CiliumHttpIntegrationTest(config) {}
-  ~CiliumHttpTLSIntegrationTest() {}
+  ~CiliumHttpTLSIntegrationTest() override = default;
 
   void initialize() override {
     CiliumHttpIntegrationTest::initialize();
@@ -275,6 +275,7 @@ public:
     auto server_config_or_error =
         Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(tls_context,
                                                                            factory_context_, false);
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(server_config_or_error.status());
     auto cfg = std::move(server_config_or_error.value());
 
@@ -282,6 +283,7 @@ public:
     auto factory_or_error = Extensions::TransportSockets::Tls::ServerSslSocketFactory::create(
         std::move(cfg), context_manager_, *upstream_stats_store->rootScope(),
         std::vector<std::string>{});
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(factory_or_error.status());
     return std::move(factory_or_error.value());
   }
@@ -297,7 +299,7 @@ public:
     };
   }
 
-  void Denied(Http::TestRequestHeaderMapImpl&& headers) {
+  void denied(Http::TestRequestHeaderMapImpl&& headers) {
     initialize();
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     ASSERT_TRUE(response->waitForEndStream());
@@ -307,7 +309,7 @@ public:
     cleanupUpstreamAndDownstream();
   }
 
-  void Failed(Http::TestRequestHeaderMapImpl&& headers) {
+  void failed(Http::TestRequestHeaderMapImpl&& headers) {
     initialize();
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     ASSERT_TRUE(response->waitForEndStream());
@@ -317,7 +319,7 @@ public:
     cleanupUpstreamAndDownstream();
   }
 
-  void Accepted(Http::TestRequestHeaderMapImpl&& headers) {
+  void accepted(Http::TestRequestHeaderMapImpl&& headers) {
     initialize();
     auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
 
@@ -348,38 +350,38 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumTLSHttpIntegrationTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumTLSHttpIntegrationTest, DeniedPathPrefix) {
-  Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "localhost"}});
+  denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefix) {
-  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "localhost"}});
+  accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefixStrippedHeader) {
-  Accepted({{":method", "GET"},
+  accepted({{":method", "GET"},
             {":path", "/allowed"},
             {":authority", "localhost"},
             {"x-envoy-original-dst-host", "1.1.1.1:9999"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathRegex) {
-  Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "localhost"}});
+  accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, DeniedPath) {
-  Denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "localhost"}});
+  denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, DeniedMethod) {
-  Denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "localhost"}});
+  denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AcceptedMethod) {
-  Accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "localhost"}});
+  accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, L3DeniedPath) {
-  Denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "localhost"}});
+  denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "localhost"}});
 }
 
 } // namespace Cilium

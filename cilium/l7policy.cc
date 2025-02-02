@@ -72,7 +72,7 @@ Config::Config(const std::string& access_log_path, const std::string& denied_403
     : time_source_(time_source), stats_{ALL_CILIUM_STATS(POOL_COUNTER_PREFIX(scope, "cilium"))},
       denied_403_body_(denied_403_body), is_upstream_(is_upstream), access_log_(nullptr) {
   if (access_log_path.length()) {
-    access_log_ = AccessLog::Open(access_log_path, time_source);
+    access_log_ = AccessLog::open(access_log_path, time_source);
   }
   if (denied_403_body_.length() == 0) {
     denied_403_body_ = "Access denied";
@@ -87,9 +87,9 @@ Config::Config(const ::cilium::L7Policy& config, TimeSource& time_source, Stats:
                bool is_upstream)
     : Config(config.access_log_path(), config.denied_403_body(), time_source, scope, is_upstream) {}
 
-void Config::Log(AccessLog::Entry& entry, ::cilium::EntryType type) {
+void Config::log(AccessLog::Entry& entry, ::cilium::EntryType type) {
   if (access_log_) {
-    access_log_->Log(entry, type);
+    access_log_->log(entry, type);
   }
 }
 
@@ -202,7 +202,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
   // Initialize log entry in the beginning of downstream processing
   if (!config_->is_upstream_) {
-    log_entry_->InitFromRequest(
+    log_entry_->initFromRequest(
         policy_fs->pod_ip_, policy_fs->proxy_id_, policy_fs->ingress_, policy_fs->source_identity_,
         callbacks_->streamInfo().downstreamAddressProvider().remoteAddress(), 0,
         callbacks_->streamInfo().downstreamAddressProvider().localAddress(),
@@ -226,24 +226,24 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
   // Update the log entry with the chosen destination address and current headers, as remaining
   // filters, upstream, and/or policy may have altered headers.
-  log_entry_->UpdateFromRequest(destination_identity, dst_address, headers);
+  log_entry_->updateFromRequest(destination_identity, dst_address, headers);
 
   if (!allowed_) {
-    config_->Log(*log_entry_, ::cilium::EntryType::Denied);
+    config_->log(*log_entry_, ::cilium::EntryType::Denied);
     callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr,
                                absl::nullopt, absl::string_view());
     return Http::FilterHeadersStatus::StopIteration;
   }
 
   // Log as a forwarded request
-  config_->Log(*log_entry_, ::cilium::EntryType::Request);
+  config_->log(*log_entry_, ::cilium::EntryType::Request);
   return Http::FilterHeadersStatus::Continue;
 }
 
 void AccessFilter::onStreamComplete() {
   // Request may have been left unlogged due to an error and/or missing local reply
   if (log_entry_ && !log_entry_->request_logged_) {
-    config_->Log(*log_entry_, ::cilium::EntryType::Request);
+    config_->log(*log_entry_, ::cilium::EntryType::Request);
   }
 }
 
@@ -276,12 +276,12 @@ Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& h
       logType = ::cilium::EntryType::Denied;
       config_->stats_.access_denied_.inc();
     }
-    config_->Log(*log_entry_, logType);
+    config_->log(*log_entry_, logType);
   }
 
   // Log the response
-  log_entry_->UpdateFromResponse(headers, config_->time_source_);
-  config_->Log(*log_entry_, ::cilium::EntryType::Response);
+  log_entry_->updateFromResponse(headers, config_->time_source_);
+  config_->log(*log_entry_, ::cilium::EntryType::Response);
   return Http::FilterHeadersStatus::Continue;
 }
 

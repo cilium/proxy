@@ -1,6 +1,7 @@
 #include "tests/uds_server.h"
 
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -36,14 +37,14 @@ UDSServer::UDSServer(const std::string& path, std::function<void(const std::stri
   ENVOY_LOG(trace, "Binding to {}", addr_->asStringView());
   if (::bind(fd_, addr_->sockAddr(), addr_->sockAddrLen()) == -1) {
     ENVOY_LOG(warn, "Bind to {} failed: {}", addr_->asStringView(), Envoy::errorDetails(errno));
-    Close();
+    close();
     return;
   }
 
   ENVOY_LOG(trace, "Listening on {}", addr_->asStringView());
   if (::listen(fd_, 5) == -1) {
     ENVOY_LOG(warn, "Listen on {} failed: {}", addr_->asStringView(), Envoy::errorDetails(errno));
-    Close();
+    close();
     return;
   }
 
@@ -54,7 +55,7 @@ UDSServer::UDSServer(const std::string& path, std::function<void(const std::stri
 
 UDSServer::~UDSServer() {
   if (fd_ >= 0) {
-    Close();
+    close();
     ENVOY_LOG(trace, "Waiting on unix domain socket server to close: {}",
               Envoy::errorDetails(errno));
     thread_->join();
@@ -62,7 +63,7 @@ UDSServer::~UDSServer() {
   }
 }
 
-void UDSServer::Close() {
+void UDSServer::close() {
   ::shutdown(fd_, SHUT_RD);
   ::shutdown(fd2_, SHUT_RD);
   errno = 0;
@@ -94,8 +95,9 @@ void UDSServer::threadRoutine() {
       ENVOY_LOG(trace, "Unix domain socket server blocking recv on fd: {}", fd2_.load());
       ssize_t received = ::recv(fd2_, buf, sizeof(buf), 0);
       if (received < 0) {
-        if (errno == EINTR)
+        if (errno == EINTR) {
           continue;
+        }
         ENVOY_LOG(warn, "Unix domain socket server recv on fd {} failed: {}", fd2_.load(),
                   Envoy::errorDetails(errno));
         break;

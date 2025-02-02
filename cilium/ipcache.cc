@@ -51,7 +51,7 @@ PACKED_STRUCT(struct ipcache_key {
   };
 });
 
-struct remote_endpoint_info {
+struct RemoteEndpointInfo {
   using SecLabelType = __u32;
   SecLabelType sec_label;
   char buf[60]; // Enough space for all fields after the 'sec_label'
@@ -62,12 +62,12 @@ struct remote_endpoint_info {
 
 SINGLETON_MANAGER_REGISTRATION(cilium_ipcache);
 
-IPCacheSharedPtr IPCache::NewIPCache(Server::Configuration::ServerFactoryContext& context,
+IPCacheSharedPtr IPCache::newIpCache(Server::Configuration::ServerFactoryContext& context,
                                      const std::string& path) {
   auto ipcache = context.singletonManager().getTyped<Cilium::IPCache>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&path] {
         auto ipcache = std::make_shared<Cilium::IPCache>(path);
-        if (!ipcache->Open()) {
+        if (!ipcache->open()) {
           ipcache.reset();
         }
         return ipcache;
@@ -75,36 +75,36 @@ IPCacheSharedPtr IPCache::NewIPCache(Server::Configuration::ServerFactoryContext
 
   // Override the current path even on an existing singleton
   if (ipcache) {
-    ipcache->SetPath(path);
+    ipcache->setPath(path);
   }
   return ipcache;
 }
 
-IPCacheSharedPtr IPCache::GetIPCache(Server::Configuration::ServerFactoryContext& context) {
+IPCacheSharedPtr IPCache::getIpCache(Server::Configuration::ServerFactoryContext& context) {
   return context.singletonManager().getTyped<Cilium::IPCache>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache));
 }
 
 IPCache::IPCache(const std::string& path)
     : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct ipcache_key),
-          sizeof(remote_endpoint_info::SecLabelType), sizeof(struct remote_endpoint_info)),
+          sizeof(RemoteEndpointInfo::SecLabelType), sizeof(struct RemoteEndpointInfo)),
       path_(path) {}
 
-void IPCache::SetPath(const std::string& path) {
+void IPCache::setPath(const std::string& path) {
   Thread::LockGuard guard(path_mutex_);
   if (path != path_) {
     path_ = path;
     // re-open on path change
-    open_locked();
+    openLocked();
   }
 }
 
-bool IPCache::Open() {
+bool IPCache::open() {
   Thread::LockGuard guard(path_mutex_);
-  return open_locked();
+  return openLocked();
 }
 
-bool IPCache::open_locked() {
+bool IPCache::openLocked() {
   if (Bpf::open(path_)) {
     ENVOY_LOG(debug, "cilium.ipcache: Opened ipcache at {}", path_);
     return true;
@@ -115,7 +115,7 @@ bool IPCache::open_locked() {
 
 uint32_t IPCache::resolve(const Network::Address::Ip* ip) {
   struct ipcache_key key {};
-  struct remote_endpoint_info value {};
+  struct RemoteEndpointInfo value {};
 
   if (ip->version() == Network::Address::IpVersion::v4) {
     key.lpm_key = {32 + 32, {}};

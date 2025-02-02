@@ -316,7 +316,7 @@ public:
     }
   }
 
-  void Denied(Http::TestRequestHeaderMapImpl&& headers) {
+  void denied(Http::TestRequestHeaderMapImpl&& headers) {
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
@@ -345,7 +345,7 @@ public:
     cleanupUpstreamAndDownstream();
   }
 
-  void Accepted(Http::TestRequestHeaderMapImpl&& headers) {
+  void accepted(Http::TestRequestHeaderMapImpl&& headers) {
     initialize();
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
@@ -390,7 +390,7 @@ public:
 
   std::string testPolicyFmt() override { return "version_info: \"0\""; }
 
-  void InvalidHostMap(const std::string& config, const char* exmsg) {
+  void invalidHostMap(const std::string& config, const char* exmsg) {
     std::string path = TestEnvironment::writeStringToFileForTest("host_map_fail.yaml", config);
     envoy::service::discovery::v3::DiscoveryResponse message;
     ThreadLocal::InstanceImpl tls;
@@ -468,7 +468,7 @@ resources:
 
 TEST_P(HostMapTest, HostMapInvalidNonCIDRBits) {
   if (GetParam() == Network::Address::IpVersion::v4) {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -476,7 +476,7 @@ resources:
 )EOF",
                    "NetworkPolicyHosts: Non-prefix bits set in '127.0.0.1/31'");
   } else {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -488,7 +488,7 @@ resources:
 
 TEST_P(HostMapTest, HostMapInvalidPrefixLengths) {
   if (GetParam() == Network::Address::IpVersion::v4) {
-    InvalidHostMap(
+    invalidHostMap(
         R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -497,7 +497,7 @@ resources:
 )EOF",
         "NetworkPolicyHosts: Invalid prefix length in '127.0.0.1/33'");
   } else {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -509,7 +509,7 @@ resources:
 
 TEST_P(HostMapTest, HostMapInvalidPrefixLengths2) {
   if (GetParam() == Network::Address::IpVersion::v4) {
-    InvalidHostMap(
+    invalidHostMap(
         R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -518,7 +518,7 @@ resources:
 )EOF",
         "NetworkPolicyHosts: Invalid prefix length in '127.0.0.1/32a'");
   } else {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -530,7 +530,7 @@ resources:
 
 TEST_P(HostMapTest, HostMapInvalidPrefixLengths3) {
   if (GetParam() == Network::Address::IpVersion::v4) {
-    InvalidHostMap(
+    invalidHostMap(
         R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -539,7 +539,7 @@ resources:
 )EOF",
         "NetworkPolicyHosts: Invalid prefix length in '127.0.0.1/ 32'");
   } else {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -551,7 +551,7 @@ resources:
 
 TEST_P(HostMapTest, HostMapDuplicateEntry) {
   if (GetParam() == Network::Address::IpVersion::v4) {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -560,7 +560,7 @@ resources:
                    "NetworkPolicyHosts: Duplicate host entry '127.0.0.1' for "
                    "policy 11, already mapped to 11");
   } else {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -573,7 +573,7 @@ resources:
 
 TEST_P(HostMapTest, HostMapDuplicateEntry2) {
   if (GetParam() == Network::Address::IpVersion::v4) {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -585,7 +585,7 @@ resources:
                    "NetworkPolicyHosts: Duplicate host entry '127.0.0.1' for "
                    "policy 12, already mapped to 11");
   } else {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -601,7 +601,7 @@ resources:
 
 TEST_P(HostMapTest, HostMapInvalidAddress) {
   if (GetParam() == Network::Address::IpVersion::v4) {
-    InvalidHostMap(
+    invalidHostMap(
         R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -610,7 +610,7 @@ resources:
 )EOF",
         "NetworkPolicyHosts: Invalid host entry '255.256.0.0' for policy 11");
   } else {
-    InvalidHostMap(
+    invalidHostMap(
         R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -623,7 +623,7 @@ resources:
 
 TEST_P(HostMapTest, HostMapInvalidAddress2) {
   if (GetParam() == Network::Address::IpVersion::v4) {
-    InvalidHostMap(
+    invalidHostMap(
         R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -632,7 +632,7 @@ resources:
 )EOF",
         "NetworkPolicyHosts: Invalid host entry '255.255.0.0 ' for policy 11");
   } else {
-    InvalidHostMap(
+    invalidHostMap(
         R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
@@ -645,7 +645,7 @@ resources:
 
 TEST_P(HostMapTest, HostMapInvalidDefaults) {
   if (GetParam() == Network::Address::IpVersion::v4) {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -653,7 +653,7 @@ resources:
 )EOF",
                    "NetworkPolicyHosts: Non-prefix bits set in '128.0.0.0/0'");
   } else {
-    InvalidHostMap(R"EOF(version_info: "0"
+    invalidHostMap(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicyHosts
   policy: 11
@@ -664,7 +664,7 @@ resources:
 }
 
 TEST_P(CiliumIntegrationTest, DeniedPathPrefix) {
-  Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
@@ -674,7 +674,7 @@ TEST_P(CiliumIntegrationTest, DeniedPathPrefix) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathPrefix) {
-  Accepted({{":method", "GET"},
+  accepted({{":method", "GET"},
             {":path", "/allowed"},
             {":authority", "host"},
             {"bearer-token", "d4ef0f5011f163ac"}});
@@ -689,7 +689,7 @@ TEST_P(CiliumIntegrationTest, AllowedPathPrefix) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathPrefixWrongHeader) {
-  Accepted({{":method", "GET"},
+  accepted({{":method", "GET"},
             {":path", "/allowed"},
             {":authority", "host"},
             {"bearer-token", "wrong-value"},
@@ -711,7 +711,7 @@ TEST_P(CiliumIntegrationTest, AllowedPathPrefixWrongHeader) {
 
 TEST_P(CiliumIntegrationTest, MultipleRequests) {
   // 1st request
-  Accepted({{":method", "GET"},
+  accepted({{":method", "GET"},
             {":path", "/allowed"},
             {":authority", "host"},
             {"bearer-token", "d4ef0f5011f163ac"}});
@@ -725,7 +725,7 @@ TEST_P(CiliumIntegrationTest, MultipleRequests) {
   }));
 
   // 2nd request
-  Accepted({{":method", "GET"},
+  accepted({{":method", "GET"},
             {":path", "/allowed"},
             {":authority", "host"},
             {"bearer-token", "wrong-value"},
@@ -746,7 +746,7 @@ TEST_P(CiliumIntegrationTest, MultipleRequests) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathRegex) {
-  Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
+  accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
@@ -756,7 +756,7 @@ TEST_P(CiliumIntegrationTest, AllowedPathRegex) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedPathRegexDeleteHeader) {
-  Accepted({{":method", "GET"},
+  accepted({{":method", "GET"},
             {":path", "/maybe/public"},
             {":authority", "host"},
             {"User-Agent", "test"}});
@@ -771,7 +771,7 @@ TEST_P(CiliumIntegrationTest, AllowedPathRegexDeleteHeader) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedHostRegexDeleteHeader) {
-  Accepted({{":method", "GET"},
+  accepted({{":method", "GET"},
             {":path", "/maybe/private"},
             {":authority", "hostREGEXname"},
             {"header42", "test"}});
@@ -787,7 +787,7 @@ TEST_P(CiliumIntegrationTest, AllowedHostRegexDeleteHeader) {
 }
 
 TEST_P(CiliumIntegrationTest, DeniedPath) {
-  Denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
@@ -797,7 +797,7 @@ TEST_P(CiliumIntegrationTest, DeniedPath) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedHostString) {
-  Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "allowedHOST"}});
+  accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "allowedHOST"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
@@ -810,7 +810,7 @@ TEST_P(CiliumIntegrationTest, AllowedHostString) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedReplaced) {
-  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "allowedHOST"}});
+  accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "allowedHOST"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
@@ -825,7 +825,7 @@ TEST_P(CiliumIntegrationTest, AllowedReplaced) {
 }
 
 TEST_P(CiliumIntegrationTest, Denied42) {
-  Denied({{":method", "GET"},
+  denied({{":method", "GET"},
           {":path", "/allowed"},
           {":authority", "host"},
           {"header42", "anything"}});
@@ -843,7 +843,7 @@ TEST_P(CiliumIntegrationTest, Denied42) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedReplacedAndDeleted) {
-  Accepted({{":method", "GET"},
+  accepted({{":method", "GET"},
             {":path", "/allowed"},
             {":authority", "allowedHOST"},
             {"header42", "anything"}});
@@ -862,7 +862,7 @@ TEST_P(CiliumIntegrationTest, AllowedReplacedAndDeleted) {
 }
 
 TEST_P(CiliumIntegrationTest, AllowedHostRegex) {
-  Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "hostREGEXname"}});
+  accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "hostREGEXname"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
@@ -872,7 +872,7 @@ TEST_P(CiliumIntegrationTest, AllowedHostRegex) {
 }
 
 TEST_P(CiliumIntegrationTest, DeniedMethod) {
-  Denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "host"}});
+  denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
@@ -882,7 +882,7 @@ TEST_P(CiliumIntegrationTest, DeniedMethod) {
 }
 
 TEST_P(CiliumIntegrationTest, AcceptedMethod) {
-  Accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "host"}});
+  accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
@@ -892,7 +892,7 @@ TEST_P(CiliumIntegrationTest, AcceptedMethod) {
 }
 
 TEST_P(CiliumIntegrationTest, L3DeniedPath) {
-  Denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
@@ -903,9 +903,9 @@ TEST_P(CiliumIntegrationTest, L3DeniedPath) {
 
 class CiliumIntegrationPortTest : public CiliumIntegrationTest {
 public:
-  CiliumIntegrationPortTest() : CiliumIntegrationTest() {}
+  CiliumIntegrationPortTest() = default;
 
-  std::string testPolicyFmt() {
+  std::string testPolicyFmt() override {
     return TestEnvironment::substitute(R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
@@ -949,18 +949,18 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationPortTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumIntegrationPortTest, DuplicatePortAllowedPath) {
-  Accepted({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
+  accepted({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationPortTest, DuplicatePortAllowedPath2) {
-  Accepted({{":method", "GET"}, {":path", "/also-2-allowed"}, {":authority", "host"}});
+  accepted({{":method", "GET"}, {":path", "/also-2-allowed"}, {":authority", "host"}});
 }
 
 class CiliumIntegrationPortRangeTest : public CiliumIntegrationTest {
 public:
-  CiliumIntegrationPortRangeTest() : CiliumIntegrationTest() {}
+  CiliumIntegrationPortRangeTest() = default;
 
-  std::string testPolicyFmt() {
+  std::string testPolicyFmt() override {
     return TestEnvironment::substitute(BASIC_POLICY_fmt + R"EOF(  - end_port: {0}
     rules:
     - remote_policies: [ 2 ]
@@ -1017,39 +1017,39 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationEgressTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumIntegrationEgressTest, DeniedPathPrefix) {
-  Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, AllowedPathPrefix) {
-  Accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
+  accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, AllowedPathRegex) {
-  Accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
+  accepted({{":method", "GET"}, {":path", "/maybe/public"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, DeniedPath) {
-  Denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, AllowedHostString) {
-  Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "allowedHOST"}});
+  accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "allowedHOST"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, AllowedHostRegex) {
-  Accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "hostREGEXname"}});
+  accepted({{":method", "GET"}, {":path", "/maybe/private"}, {":authority", "hostREGEXname"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, DeniedMethod) {
-  Denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "host"}});
+  denied({{":method", "POST"}, {":path", "/maybe/private"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, AcceptedMethod) {
-  Accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "host"}});
+  accepted({{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressTest, L3DeniedPath) {
-  Denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
 }
 
 const std::string L34_POLICY_fmt = R"EOF(version_info: "0"
@@ -1067,20 +1067,22 @@ resources:
 
 class CiliumIntegrationEgressL34Test : public CiliumIntegrationEgressTest {
 public:
-  CiliumIntegrationEgressL34Test() {}
+  CiliumIntegrationEgressL34Test() = default;
 
-  std::string testPolicyFmt() { return TestEnvironment::substitute(L34_POLICY_fmt, GetParam()); }
+  std::string testPolicyFmt() override {
+    return TestEnvironment::substitute(L34_POLICY_fmt, GetParam());
+  }
 };
 
 INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationEgressL34Test,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix) {
-  Denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix2) {
-  Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 }
 
 const std::string HEADER_ACTION_MISSING_SDS_POLICY_fmt = R"EOF(version_info: "1"
@@ -1132,7 +1134,7 @@ resources:
 
 class SDSIntegrationTest : public CiliumIntegrationTest {
 public:
-  SDSIntegrationTest() : CiliumIntegrationTest() {
+  SDSIntegrationTest() {
     // switch back to SDS secrets so that we can test with a missing secret.
     // File based secret fails if the file does not exist, while SDS should allow for secret to be
     // created in future.
@@ -1169,7 +1171,7 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, SDSIntegrationTest,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(SDSIntegrationTest, TestDeniedL3) {
-  Denied({{":method", "GET"}, {":path", "/only42"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/only42"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
@@ -1186,7 +1188,7 @@ TEST_P(SDSIntegrationTest, TestDeniedL3) {
 }
 
 TEST_P(SDSIntegrationTest, TestDeniedL3SpoofedXFF) {
-  Denied({{":method", "GET"},
+  denied({{":method", "GET"},
           {":path", "/only42"},
           {":authority", "host"},
           {"x-forwarded-for", "192.168.1.1"}});
@@ -1207,7 +1209,7 @@ TEST_P(SDSIntegrationTest, TestDeniedL3SpoofedXFF) {
 }
 
 TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
-  Accepted({{":method", "GET"}, {":path", "/allowed2"}, {":authority", "host"}});
+  accepted({{":method", "GET"}, {":path", "/allowed2"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogRequestTo([](const ::cilium::LogEntry& entry) {
@@ -1235,7 +1237,7 @@ TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
   absl::SleepFor(absl::Milliseconds(100));
 
   // 2nd round, on updated policy
-  Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {
@@ -1258,7 +1260,7 @@ TEST_P(SDSIntegrationTest, TestMissingSDSSecretOnUpdate) {
   // Reduce flakiness by allowing some time for the policy to be updated before the following test
   absl::SleepFor(absl::Milliseconds(100));
 
-  Denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 
   // Validate that missing headers are access logged correctly
   EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry& entry) {

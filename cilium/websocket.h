@@ -38,24 +38,24 @@ public:
   // WebSocket::CodecCallbacks
   const ConfigSharedPtr& config() override { return config_; }
   void onHandshakeCreated(const Http::RequestHeaderMap& headers) override {
-    log_entry_.UpdateFromRequest(0, nullptr, headers);
+    log_entry_.updateFromRequest(0, nullptr, headers);
   }
-  void onHandshakeSent() override { config_->Log(log_entry_, ::cilium::EntryType::Request); }
+  void onHandshakeSent() override { config_->log(log_entry_, ::cilium::EntryType::Request); }
   void onHandshakeRequest(const Http::RequestHeaderMap& headers) override;
   void onHandshakeResponse(const Http::ResponseHeaderMap& headers) override {
-    log_entry_.UpdateFromResponse(headers, config_->time_source_);
-    config_->Log(log_entry_, ::cilium::EntryType::Response);
+    log_entry_.updateFromResponse(headers, config_->time_source_);
+    config_->log(log_entry_, ::cilium::EntryType::Response);
   }
   void onHandshakeResponseSent(const Http::ResponseHeaderMap& headers) override {
     bool accepted = headers.Status() && headers.getStatusValue() == "101";
     if (accepted) {
-      config_->Log(log_entry_, ::cilium::EntryType::Request);
+      config_->log(log_entry_, ::cilium::EntryType::Request);
     } else {
-      config_->Log(log_entry_, ::cilium::EntryType::Denied);
+      config_->log(log_entry_, ::cilium::EntryType::Denied);
       config_->stats_.access_denied_.inc();
     }
-    log_entry_.UpdateFromResponse(headers, config_->time_source_);
-    config_->Log(log_entry_, ::cilium::EntryType::Response);
+    log_entry_.updateFromResponse(headers, config_->time_source_);
+    config_->log(log_entry_, ::cilium::EntryType::Response);
   }
 
   void injectEncoded(Buffer::Instance& data, bool end_stream) override;

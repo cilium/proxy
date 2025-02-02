@@ -17,14 +17,14 @@ namespace Cilium {
 
 class IPCache : public Singleton::Instance, public Bpf {
 public:
-  static std::shared_ptr<IPCache> NewIPCache(Server::Configuration::ServerFactoryContext& context,
+  static std::shared_ptr<IPCache> newIpCache(Server::Configuration::ServerFactoryContext& context,
                                              const std::string& path);
-  static std::shared_ptr<IPCache> GetIPCache(Server::Configuration::ServerFactoryContext& context);
+  static std::shared_ptr<IPCache> getIpCache(Server::Configuration::ServerFactoryContext& context);
 
   IPCache(const std::string& path);
-  void SetPath(const std::string& path);
-  bool Open();
-  bool open_locked();
+  void setPath(const std::string& path);
+  bool open();
+  bool openLocked();
 
   uint32_t resolve(const Network::Address::Ip* ip);
 

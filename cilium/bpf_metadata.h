@@ -72,6 +72,7 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
     if (!proxylib_l7_proto_.empty()) {
       const auto& old_protocols = socket.requestedApplicationProtocols();
       std::vector<absl::string_view> protocols;
+      protocols.reserve(old_protocols.size());
       for (const auto& old_protocol : old_protocols) {
         protocols.emplace_back(old_protocol);
       }
@@ -133,7 +134,7 @@ class Config : public Cilium::PolicyResolver,
 public:
   Config(const ::cilium::BpfMetadata& config,
          Server::Configuration::ListenerFactoryContext& context);
-  virtual ~Config() {}
+  ~Config() override = default;
 
   // PolicyResolver
   uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
@@ -162,13 +163,13 @@ public:
 
 private:
   uint32_t resolveSourceIdentity(const PolicyInstance& policy, const Network::Address::Ip* sip,
-                                 const Network::Address::Ip* dip, bool ingress, bool isL7LB);
+                                 const Network::Address::Ip* dip, bool ingress, bool is_l7_lb);
 
-  IPAddressPair getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sourceAddress,
+  IPAddressPair getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr source_address,
                                      const IPAddressPair& addresses);
 
   const Network::Address::Ip* selectIPVersion(const Network::Address::IpVersion version,
-                                              const IPAddressPair& sourceAddresses);
+                                              const IPAddressPair& source_addresses);
 };
 
 using ConfigSharedPtr = std::shared_ptr<Config>;

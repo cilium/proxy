@@ -26,7 +26,7 @@ class CiliumHttpIntegrationTest : public HttpIntegrationTest,
                                   public testing::TestWithParam<Network::Address::IpVersion> {
 public:
   CiliumHttpIntegrationTest(const std::string& config);
-  ~CiliumHttpIntegrationTest();
+  ~CiliumHttpIntegrationTest() override;
 
   void createEnvoy() override;
 
@@ -63,8 +63,9 @@ public:
   getHeader(const Protobuf::RepeatedPtrField<::cilium::KeyValue>& headers,
             const std::string& name) {
     for (const auto& entry : headers) {
-      if (Http::LowerCaseString(entry.key()) == Http::LowerCaseString(name))
+      if (Http::LowerCaseString(entry.key()) == Http::LowerCaseString(name)) {
         return entry.value();
+      }
     }
     return absl::nullopt;
   }
@@ -73,8 +74,9 @@ public:
                         const std::string& name, const std::string& value = "") {
     for (const auto& entry : headers) {
       if (Http::LowerCaseString(entry.key()) == Http::LowerCaseString(name) &&
-          (value == "" || entry.value() == value))
+          (value.empty() || entry.value() == value)) {
         return true;
+      }
     }
     return false;
   }
