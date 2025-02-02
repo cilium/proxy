@@ -30,3 +30,6 @@ build:release --define manual_stamp=manual_stamp
 # Always have LD_LIBRARY_PATH=/usr/cross-compat/lib defined in the test environment.
 # The path does not need to exist, but can be created when needed for running tests.
 build --test_env=LD_LIBRARY_PATH=/usr/cilium-cross-compat/lib
+
+# use same env option for query as upstream is using for build
+query --incompatible_merge_fixed_and_default_shell_env

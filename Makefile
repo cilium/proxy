@@ -104,7 +104,7 @@ else
   # Install clang if needed
   define install_clang
 	$(SUDO) apt info clang-17 || $(call add_clang_apt_source,$(shell lsb_release -cs))
-	$(SUDO) apt install -y clang-17 llvm-17-dev lld-17 clang-format-17
+	$(SUDO) apt install -y clang-17 clangd-17 llvm-17-dev lld-17 lldb-17 clang-format-17 clang-tools-17 clang-tidy-17
   endef
 endif
 
