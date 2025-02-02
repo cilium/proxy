@@ -105,6 +105,24 @@ RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS}" PKG_BUILD=1 V=$V DEBUG=$DEBUG make V=
 FROM scratch AS format
 COPY --from=check-format /cilium/proxy/format-output.txt /
 
+# clang-tidy
+FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS run-clang-tidy-fix
+LABEL maintainer="maintainer@cilium.io"
+WORKDIR /cilium/proxy
+COPY --chown=1337:1337 . ./
+ARG V
+ARG BAZEL_BUILD_OPTS
+ARG DEBUG
+ARG TIDY_SOURCES="cilium/*.h cilium/*.cc tests/*.h tests/*.cc starter/*.h starter/*.cc"
+ENV TARGETARCH=$TARGETARCH
+#
+# Run clang tidy
+#
+RUN TIDY_SOURCES="${TIDY_SOURCES}" BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS}" PKG_BUILD=1 V=$V DEBUG=$DEBUG make V=1 tidy-fix > clang-tidy-output.txt
+
+FROM scratch AS clang-tidy
+COPY --from=run-clang-tidy-fix /cilium/proxy/clang-tidy-output.txt /
+
 #
 # Extract installed cilium-envoy binaries to an otherwise empty image
 #
