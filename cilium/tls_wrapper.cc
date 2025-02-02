@@ -158,7 +158,7 @@ public:
       } else {
         policy.tlsWrapperMissingPolicyInc();
 
-        std::string ipStr("<none>");
+        std::string ip_str("<none>");
         if (policy_fs->ingress_) {
           Network::Address::InstanceConstSharedPtr src_address =
               is_client ? callbacks_->connection().connectionInfoProvider().localAddress()
@@ -166,12 +166,12 @@ public:
           if (src_address) {
             const auto sip = src_address->ip();
             if (sip) {
-              ipStr = sip->addressAsString();
+              ip_str = sip->addressAsString();
             }
           }
         } else {
           if (dip) {
-            ipStr = dip->addressAsString();
+            ip_str = dip->addressAsString();
           }
         }
         ENVOY_CONN_LOG(
@@ -179,7 +179,7 @@ public:
             "cilium.tls_wrapper: Could not get {} TLS context for pod {} on {} IP {} (id {}) port "
             "{} sni \"{}\" and raw socket is not allowed",
             conn, is_client ? "client" : "server", policy_fs->pod_ip_,
-            policy_fs->ingress_ ? "source" : "destination", ipStr, remote_id, destination_port,
+            policy_fs->ingress_ ? "source" : "destination", ip_str, remote_id, destination_port,
             sni);
       }
     } else {

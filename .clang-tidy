@@ -106,6 +106,8 @@ CheckOptions:
   value: 'CamelCase'
 - key: readability-identifier-naming.FunctionCase
   value: 'camelBack'
+- key: readability-identifier-naming.LocalVariableCase
+  value: 'lower_case'
 
 HeaderFilterRegex: '^./source/.*|^./contrib/.*|^./test/.*|^./envoy/.*'
 

@@ -32,15 +32,15 @@ namespace Cilium {
 
 template <typename T>
 unsigned int checkPrefix(T addr, bool have_prefix, unsigned int plen, absl::string_view host) {
-  const unsigned int PLEN_MAX = sizeof(T) * 8;
+  const unsigned int plen_max = sizeof(T) * 8;
   if (!have_prefix) {
-    return PLEN_MAX;
+    return plen_max;
   }
-  if (plen > PLEN_MAX) {
+  if (plen > plen_max) {
     throw EnvoyException(fmt::format("NetworkPolicyHosts: Invalid prefix length in \'{}\'", host));
   }
   // Check for 1-bits after the prefix
-  if ((plen == 0 && addr) || (plen > 0 && addr & ntoh((T(1) << (PLEN_MAX - plen)) - 1))) {
+  if ((plen == 0 && addr) || (plen > 0 && addr & ntoh((T(1) << (plen_max - plen)) - 1))) {
     throw EnvoyException(fmt::format("NetworkPolicyHosts: Non-prefix bits set in \'{}\'", host));
   }
   return plen;

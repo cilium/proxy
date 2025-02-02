@@ -62,8 +62,8 @@ template <> inline absl::uint128 hton(absl::uint128 addr) {
 }
 
 template <typename I> I masked(I addr, unsigned int plen) {
-  const unsigned int PLEN_MAX = sizeof(I) * 8;
-  return plen == 0 ? I(0) : addr & ~hton((I(1) << (PLEN_MAX - plen)) - 1);
+  const unsigned int plen_max = sizeof(I) * 8;
+  return plen == 0 ? I(0) : addr & ~hton((I(1) << (plen_max - plen)) - 1);
 };
 
 class PolicyHostDecoder : public Envoy::Config::OpaqueResourceDecoder {

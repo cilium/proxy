@@ -42,16 +42,16 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
     auto remote_id = ingress_ ? source_identity_ : destination_identity;
     auto port = ingress_ ? port_ : destination_port;
 
-    auto portPolicy = policy.findPortPolicy(ingress_, port);
+    auto port_policy = policy.findPortPolicy(ingress_, port);
 
-    if (!portPolicy.allowed(proxy_id_, remote_id, sni)) {
+    if (!port_policy.allowed(proxy_id_, remote_id, sni)) {
       ENVOY_CONN_LOG(debug, "Pod policy DENY on proxy_id: {} id: {} port: {} sni: \"{}\"", conn,
                      proxy_id_, remote_id, destination_port, sni);
       return false;
     }
 
     // populate l7proto_ if available
-    use_proxy_lib = portPolicy.useProxylib(proxy_id_, remote_id, l7_proto);
+    use_proxy_lib = port_policy.useProxylib(proxy_id_, remote_id, l7_proto);
   }
 
   // enforce Ingress policy 2nd, if any
@@ -61,8 +61,8 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
 
     // Enforce ingress policy for Ingress, on the original destination port
     if (ingress_source_identity_ != 0) {
-      auto ingressPortPolicy = policy.findPortPolicy(true, port_);
-      if (!ingressPortPolicy.allowed(proxy_id_, ingress_source_identity_, sni)) {
+      auto ingress_port_policy = policy.findPortPolicy(true, port_);
+      if (!ingress_port_policy.allowed(proxy_id_, ingress_source_identity_, sni)) {
         ENVOY_CONN_LOG(debug,
                        "Ingress network policy {} DROP for source identity and destination "
                        "reserved ingress identity: {} proxy_id: {} port: {} sni: \"{}\"",
@@ -73,8 +73,8 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
     }
 
     // Enforce egress policy for Ingress
-    auto egressPortPolicy = policy.findPortPolicy(false, destination_port);
-    if (!egressPortPolicy.allowed(proxy_id_, destination_identity, sni)) {
+    auto egress_port_policy = policy.findPortPolicy(false, destination_port);
+    if (!egress_port_policy.allowed(proxy_id_, destination_identity, sni)) {
       ENVOY_CONN_LOG(debug,
                      "Egress network policy {} DROP for reserved ingress identity and destination "
                      "identity: {} proxy_id: {} port: {} sni: \"{}\"",

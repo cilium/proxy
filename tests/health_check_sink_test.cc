@@ -54,7 +54,7 @@ TEST(HealthCheckEventPipeSink, logTest) {
 
   // Set up server
   std::string normal_path("test_path");
-  HealthCheckSinkServer eventSink(normal_path);
+  HealthCheckSinkServer event_sink(normal_path);
 
   // Set up client factory
   auto factory =
@@ -92,7 +92,7 @@ TEST(HealthCheckEventPipeSink, logTest) {
 
   pipe_sink->log(eject_event);
   EXPECT_TRUE(
-      eventSink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
+      event_sink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
         return Protobuf::util::MessageDifferencer::Equals(observed_event, eject_event);
       }));
 
@@ -119,7 +119,7 @@ TEST(HealthCheckEventPipeSink, logTest) {
 
   pipe_sink2->log(add_event);
   EXPECT_TRUE(
-      eventSink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
+      event_sink.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
         return Protobuf::util::MessageDifferencer::Equals(observed_event, add_event);
       }));
 
@@ -127,7 +127,7 @@ TEST(HealthCheckEventPipeSink, logTest) {
   // Set up server
 #define ABSTRACT_PATH "@another\0test_path"
   std::string abstract_name(ABSTRACT_PATH, sizeof(ABSTRACT_PATH) - 1);
-  HealthCheckSinkServer eventSink3(abstract_name);
+  HealthCheckSinkServer event_sink3(abstract_name);
 
   // Set up 3rd client on a different socket
   cilium::HealthCheckEventPipeSink config3;
@@ -138,7 +138,7 @@ TEST(HealthCheckEventPipeSink, logTest) {
 
   pipe_sink3->log(eject_event);
   EXPECT_TRUE(
-      eventSink3.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
+      event_sink3.expectEventTo([&](const envoy::data::core::v3::HealthCheckEvent& observed_event) {
         return Protobuf::util::MessageDifferencer::Equals(observed_event, eject_event);
       }));
 }

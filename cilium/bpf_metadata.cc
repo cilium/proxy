@@ -311,28 +311,28 @@ uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
 IPAddressPair
 Config::getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr source_address,
                              const IPAddressPair& addresses) {
-  auto addressPair = IPAddressPair();
+  auto address_pair = IPAddressPair();
 
   switch (source_address->ip()->version()) {
   case Network::Address::IpVersion::v4:
-    addressPair.ipv4_ = source_address;
+    address_pair.ipv4_ = source_address;
     if (addresses.ipv6_) {
       sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(addresses.ipv6_->sockAddr());
       sa6.sin6_port = htons(source_address->ip()->port());
-      addressPair.ipv6_ = std::make_shared<Network::Address::Ipv6Instance>(sa6);
+      address_pair.ipv6_ = std::make_shared<Network::Address::Ipv6Instance>(sa6);
     }
     break;
   case Network::Address::IpVersion::v6:
-    addressPair.ipv6_ = source_address;
+    address_pair.ipv6_ = source_address;
     if (addresses.ipv4_) {
       sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(addresses.ipv4_->sockAddr());
       sa4.sin_port = htons(source_address->ip()->port());
-      addressPair.ipv4_ = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
+      address_pair.ipv4_ = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
     }
     break;
   }
 
-  return addressPair;
+  return address_pair;
 }
 
 const Network::Address::Ip* Config::selectIPVersion(const Network::Address::IpVersion version,

@@ -81,7 +81,7 @@ protected:
     NetworkPolicyDecoder network_policy_decoder;
     const auto decoded_resources_or_error = Config::DecodedResourcesWrapper::create(
         network_policy_decoder, message.resources(), message.version_info());
-    THROW_IF_NOT_OK(decoded_resources_or_error.status());
+    THROW_IF_NOT_OK_REF(decoded_resources_or_error.status());
     const auto decoded_resources = std::move(decoded_resources_or_error.value().get());
 
     EXPECT_TRUE(

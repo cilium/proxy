@@ -122,19 +122,19 @@ Network::FilterStatus Instance::onNewConnection() {
   // Pass metadata from tls_inspector to the filterstate, if any & not already
   // set via upstream cluster config.
   if (!sni.empty()) {
-    auto filterState = conn.streamInfo().filterState();
+    auto filter_state = conn.streamInfo().filterState();
     auto have_sni =
-        filterState->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
-    auto have_san = filterState->hasData<Network::UpstreamSubjectAltNames>(
+        filter_state->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
+    auto have_san = filter_state->hasData<Network::UpstreamSubjectAltNames>(
         Network::UpstreamSubjectAltNames::key());
     if (!have_sni && !have_san) {
-      filterState->setData(Network::UpstreamServerName::key(),
-                           std::make_unique<Network::UpstreamServerName>(sni),
-                           StreamInfo::FilterState::StateType::Mutable);
-      filterState->setData(Network::UpstreamSubjectAltNames::key(),
-                           std::make_unique<Network::UpstreamSubjectAltNames>(
-                               std::vector<std::string>{std::string(sni)}),
-                           StreamInfo::FilterState::StateType::Mutable);
+      filter_state->setData(Network::UpstreamServerName::key(),
+                            std::make_unique<Network::UpstreamServerName>(sni),
+                            StreamInfo::FilterState::StateType::Mutable);
+      filter_state->setData(Network::UpstreamSubjectAltNames::key(),
+                            std::make_unique<Network::UpstreamSubjectAltNames>(
+                                std::vector<std::string>{std::string(sni)}),
+                            StreamInfo::FilterState::StateType::Mutable);
     }
   }
 
@@ -180,9 +180,9 @@ Network::FilterStatus Instance::onNewConnection() {
                                   stream_info.downstreamAddressProvider().remoteAddress(),
                                   destination_identity, dst_address, &config_->time_source_);
 
-    bool useProxyLib;
+    bool use_proxy_lib;
     if (!policy_fs->enforceNetworkPolicy(conn, destination_identity, destination_port_, sni,
-                                         useProxyLib, l7proto_, log_entry_)) {
+                                         use_proxy_lib, l7proto_, log_entry_)) {
       ENVOY_CONN_LOG(debug, "cilium.network: policy DENY on id: {} port: {} sni: \"{}\"", conn,
                      remote_id_, destination_port_, sni);
       config_->log(log_entry_, ::cilium::EntryType::Denied);
@@ -196,7 +196,7 @@ Network::FilterStatus Instance::onNewConnection() {
     ENVOY_LOG(debug, "cilium.network: policy ALLOW on id: {} port: {} sni: \"{}\"", remote_id_,
               destination_port_, sni);
 
-    if (useProxyLib) {
+    if (use_proxy_lib) {
       const std::string& policy_name = policy_fs->pod_ip_;
 
       // Initialize Go parser if requested

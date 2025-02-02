@@ -58,8 +58,8 @@ namespace Cilium {
 uint64_t NetworkPolicyMap::instance_id_ = 0;
 
 IPAddressPair::IPAddressPair(const cilium::NetworkPolicy& proto) {
-  for (const auto& ipAddr : proto.endpoint_ips()) {
-    auto ip = Network::Utility::parseInternetAddressNoThrow(ipAddr);
+  for (const auto& ip_addr : proto.endpoint_ips()) {
+    auto ip = Network::Utility::parseInternetAddressNoThrow(ip_addr);
     if (ip) {
       switch (ip->ip()->version()) {
       case Network::Address::IpVersion::v4:
@@ -110,8 +110,8 @@ public:
     }
 
     // Perform presence match if the value to match is empty
-    bool isPresentMatch = match_value->length() == 0;
-    if (isPresentMatch) {
+    bool is_present_match = match_value->length() == 0;
+    if (is_present_match) {
       matches = header_value.result().has_value();
     } else if (header_value.result().has_value()) {
       const absl::string_view val = header_value.result().value();
@@ -150,7 +150,7 @@ public:
         logMissing(log_entry, *match_value);
         return true;
       case cilium::HeaderMatch::DELETE_ON_MISMATCH:
-        if (isPresentMatch) {
+        if (is_present_match) {
           // presence match failed, nothing to do
           return true;
         }
@@ -1401,12 +1401,12 @@ ProtobufTypes::MessagePtr
 NetworkPolicyMap::dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher) {
   ENVOY_LOG(debug, "Writing NetworkPolicies to NetworkPoliciesConfigDump");
 
-  std::vector<uint64_t> policyEndpointIds;
+  std::vector<uint64_t> policy_endpoint_ids;
   auto config_dump = std::make_unique<cilium::NetworkPoliciesConfigDump>();
   for (const auto& item : *load()) {
     // filter duplicates (policies are stored per endpoint ip)
-    if (std::find(policyEndpointIds.begin(), policyEndpointIds.end(),
-                  item.second->policy_proto_.endpoint_id()) != policyEndpointIds.end()) {
+    if (std::find(policy_endpoint_ids.begin(), policy_endpoint_ids.end(),
+                  item.second->policy_proto_.endpoint_id()) != policy_endpoint_ids.end()) {
       continue;
     }
 
@@ -1415,7 +1415,7 @@ NetworkPolicyMap::dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_m
     }
 
     config_dump->mutable_networkpolicies()->Add()->CopyFrom(item.second->policy_proto_);
-    policyEndpointIds.emplace_back(item.second->policy_proto_.endpoint_id());
+    policy_endpoint_ids.emplace_back(item.second->policy_proto_.endpoint_id());
   }
 
   return config_dump;
