@@ -196,15 +196,15 @@ FilterResult GoFilter::Instance::onIo(bool reply, Buffer::Instance& data, bool e
   dir.need_bytes_ = 0;
 
   const int max_ops = 16; // Make shorter for testing purposes
-  FilterOp ops_[max_ops];
-  GoFilterOpSlice ops(ops_, max_ops);
+  FilterOp ops[max_ops];
+  GoFilterOpSlice op_slice(ops, max_ops);
 
   FilterResult res;
   bool terminal_op_seen = false;
   bool inject_buf_exhausted = false;
 
   do {
-    ops.reset();
+    op_slice.reset();
     Buffer::RawSliceVector raw_slices = input.getRawSlices();
 
     int64_t total_length = 0;
@@ -221,14 +221,14 @@ FilterResult GoFilter::Instance::onIo(bool reply, Buffer::Instance& data, bool e
 
     ENVOY_CONN_LOG(trace, "Cilium Network::OnIO: Calling go module with {} bytes of data", conn_,
                    total_length);
-    res = (*parent_.go_on_data_)(connection_id_, reply, end_stream, &input_slices, &ops);
+    res = (*parent_.go_on_data_)(connection_id_, reply, end_stream, &input_slices, &op_slice);
     ENVOY_CONN_LOG(trace, "Cilium Network::OnIO: \'go_on_data\' returned {}, ops({})", conn_,
-                   toString(res), ops.len());
+                   toString(res), op_slice.len());
     if (res == FILTER_OK) {
       // Process all returned filter operations.
-      for (int i = 0; i < ops.len(); i++) {
-        auto op = ops_[i].op;
-        auto n_bytes = ops_[i].n_bytes;
+      for (int i = 0; i < op_slice.len(); i++) {
+        auto op = ops[i].op;
+        auto n_bytes = ops[i].n_bytes;
 
         if (n_bytes == 0) {
           ENVOY_CONN_LOG(warn, "Cilium Network::OnIO: INVALID op ({}) length: {} bytes", conn_, op,
@@ -317,7 +317,7 @@ FilterResult GoFilter::Instance::onIo(bool reply, Buffer::Instance& data, bool e
     dir.inject_slice_.reset();
 
     // Loop back if ops or inject buffer was exhausted
-  } while (!terminal_op_seen && (ops.len() == max_ops || inject_buf_exhausted));
+  } while (!terminal_op_seen && (op_slice.len() == max_ops || inject_buf_exhausted));
 
   if (output.length() < 100) {
     ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Output on return: {}", conn_, output.toString());
