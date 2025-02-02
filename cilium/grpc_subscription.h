@@ -28,7 +28,7 @@ public:
   GrpcMuxImpl(Config::GrpcMuxContext& grpc_mux_context, bool skip_subsequent_node)
       : Config::GrpcMuxImpl(grpc_mux_context, skip_subsequent_node) {}
 
-  ~GrpcMuxImpl() override {}
+  ~GrpcMuxImpl() override = default;
 
   void onStreamEstablished() override {
     new_stream_ = true;

@@ -44,7 +44,7 @@ class SslSocketWrapper : public Network::TransportSocket, Logger::Loggable<Logge
 public:
   SslSocketWrapper(Extensions::TransportSockets::Tls::InitialState state,
                    const Network::TransportSocketOptionsConstSharedPtr& transport_socket_options)
-      : state_(state), transport_socket_options_(transport_socket_options), callbacks_() {}
+      : state_(state), transport_socket_options_(transport_socket_options) {}
 
   // Network::TransportSocket
   void setTransportSocketCallbacks(Network::TransportSocketCallbacks& callbacks) override {
@@ -211,7 +211,7 @@ private:
   Extensions::TransportSockets::Tls::InitialState state_;
   const Network::TransportSocketOptionsConstSharedPtr transport_socket_options_;
   Network::TransportSocketPtr socket_{nullptr};
-  Network::TransportSocketCallbacks* callbacks_;
+  Network::TransportSocketCallbacks* callbacks_{};
 };
 
 class ClientSslSocketFactory : public Network::CommonUpstreamTransportSocketFactory {

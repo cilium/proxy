@@ -168,7 +168,7 @@ Network::FilterStatus Instance::onNewConnection() {
     destination_identity = 0;
   }
   // Initialize the log entry
-  log_entry_.InitFromConnection(pod_ip, proxy_id, is_ingress, identity,
+  log_entry_.initFromConnection(pod_ip, proxy_id, is_ingress, identity,
                                 callbacks_->connection().connectionInfoProvider().remoteAddress(),
                                 destination_identity, dst_address, &config_->time_source_);
 
@@ -258,7 +258,7 @@ void Instance::onHandshakeRequest(const Http::RequestHeaderMap& headers) {
   }
 
   // Initialize the log entry
-  log_entry_.UpdateFromRequest(destination_identity, orig_dst_address, headers);
+  log_entry_.updateFromRequest(destination_identity, orig_dst_address, headers);
 }
 
 } // namespace WebSocket

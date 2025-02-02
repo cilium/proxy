@@ -72,7 +72,7 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
   }
 
   if (!access_log_path.empty()) {
-    access_log_ = AccessLog::Open(access_log_path, time_source_);
+    access_log_ = AccessLog::open(access_log_path, time_source_);
   }
 
   const uint64_t timeout = DurationUtil::durationToMilliseconds(handshake_timeout);
@@ -107,8 +107,8 @@ Config::Config(const ::cilium::WebSocketClient& config,
   }
   if (key_.empty()) {
     uint64_t random[2]; // 16 bytes
-    for (size_t i = 0; i < sizeof(random) / sizeof(random[0]); i++) {
-      random[i] = random_.random();
+    for (unsigned long& i : random) {
+      i = random_.random();
     }
     key_ = Base64::encode(reinterpret_cast<char*>(random), sizeof(random));
   }
@@ -128,9 +128,9 @@ std::string Config::keyResponse(absl::string_view key) {
   return Base64::encode(reinterpret_cast<char*>(sha1.data()), sha1.size());
 }
 
-void Config::Log(AccessLog::Entry& entry, ::cilium::EntryType type) {
+void Config::log(AccessLog::Entry& entry, ::cilium::EntryType type) {
   if (access_log_) {
-    access_log_->Log(entry, type);
+    access_log_->log(entry, type);
   }
 }
 

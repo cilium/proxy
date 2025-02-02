@@ -20,7 +20,7 @@ HealthCheckSinkServer::HealthCheckSinkServer(const std::string path)
     : UDSServer(path, std::bind(&HealthCheckSinkServer::msgCallback, this, std::placeholders::_1)) {
 }
 
-HealthCheckSinkServer::~HealthCheckSinkServer() {}
+HealthCheckSinkServer::~HealthCheckSinkServer() = default;
 
 void HealthCheckSinkServer::clear() {
   absl::MutexLock lock(&mutex_);

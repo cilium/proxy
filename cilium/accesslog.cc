@@ -28,13 +28,14 @@ namespace Cilium {
 Thread::MutexBasicLockable AccessLog::logs_mutex;
 std::map<std::string, std::weak_ptr<AccessLog>> AccessLog::logs;
 
-AccessLogSharedPtr AccessLog::Open(const std::string& path, TimeSource& time_source) {
+AccessLogSharedPtr AccessLog::open(const std::string& path, TimeSource& time_source) {
   Thread::LockGuard guard(logs_mutex);
   auto it = logs.find(path);
   if (it != logs.end()) {
     auto log = it->second.lock();
-    if (log)
+    if (log) {
       return log;
+    }
     // expired, remove
     logs.erase(path);
   }
@@ -51,7 +52,7 @@ AccessLog::~AccessLog() {
   logs.erase(path_);
 }
 
-void AccessLog::Log(AccessLog::Entry& log_entry, ::cilium::EntryType entry_type) {
+void AccessLog::log(AccessLog::Entry& log_entry, ::cilium::EntryType entry_type) {
   ::cilium::LogEntry& entry = log_entry.entry_;
   entry.set_entry_type(entry_type);
 
@@ -66,7 +67,7 @@ void AccessLog::Log(AccessLog::Entry& log_entry, ::cilium::EntryType entry_type)
   std::string msg;
   entry.SerializeToString(&msg);
 
-  UDSClient::Log(msg);
+  UDSClient::log(msg);
 }
 
 #define CONST_STRING_VIEW(NAME, STR) const absl::string_view NAME = {STR, sizeof(STR) - 1}
@@ -78,7 +79,7 @@ CONST_STRING_VIEW(xForwardedProtoSV, "x-forwarded-proto");
 CONST_STRING_VIEW(xRequestIdSV, "x-request-id");
 CONST_STRING_VIEW(statusSV, ":status");
 
-void AccessLog::Entry::InitFromConnection(
+void AccessLog::Entry::initFromConnection(
     const std::string& policy_name, uint32_t proxy_id, bool ingress, uint32_t source_identity,
     const Network::Address::InstanceConstSharedPtr& source_address, uint32_t destination_identity,
     const Network::Address::InstanceConstSharedPtr& destination_address, TimeSource* time_source) {
@@ -103,7 +104,7 @@ void AccessLog::Entry::InitFromConnection(
   }
 }
 
-bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
+bool AccessLog::Entry::updateFromMetadata(const std::string& l7proto,
                                           const ProtobufWkt::Struct& metadata) {
   bool changed = false;
 
@@ -140,14 +141,14 @@ bool AccessLog::Entry::UpdateFromMetadata(const std::string& l7proto,
   return changed;
 }
 
-void AccessLog::Entry::InitFromRequest(const std::string& policy_name, uint32_t proxy_id,
+void AccessLog::Entry::initFromRequest(const std::string& policy_name, uint32_t proxy_id,
                                        bool ingress, uint32_t source_identity,
                                        const Network::Address::InstanceConstSharedPtr& src_address,
                                        uint32_t destination_identity,
                                        const Network::Address::InstanceConstSharedPtr& dst_address,
                                        const StreamInfo::StreamInfo& info,
                                        const Http::RequestHeaderMap& headers) {
-  InitFromConnection(policy_name, proxy_id, ingress, source_identity, src_address,
+  initFromConnection(policy_name, proxy_id, ingress, source_identity, src_address,
                      destination_identity, dst_address, nullptr);
 
   auto time = info.startTime();
@@ -170,10 +171,10 @@ void AccessLog::Entry::InitFromRequest(const std::string& policy_name, uint32_t 
   ::cilium::HttpLogEntry* http_entry = entry_.mutable_http();
   http_entry->set_http_protocol(proto);
 
-  UpdateFromRequest(destination_identity, dst_address, headers);
+  updateFromRequest(destination_identity, dst_address, headers);
 }
 
-void AccessLog::Entry::UpdateFromRequest(
+void AccessLog::Entry::updateFromRequest(
     uint32_t destination_identity, const Network::Address::InstanceConstSharedPtr& dst_address,
     const Http::RequestHeaderMap& headers) {
   // Destination may have changed
@@ -214,7 +215,7 @@ void AccessLog::Entry::UpdateFromRequest(
   });
 }
 
-void AccessLog::Entry::UpdateFromResponse(const Http::ResponseHeaderMap& headers,
+void AccessLog::Entry::updateFromResponse(const Http::ResponseHeaderMap& headers,
                                           TimeSource& time_source) {
   auto time = time_source.systemTime();
   entry_.set_timestamp(
@@ -263,19 +264,23 @@ void AccessLog::Entry::UpdateFromResponse(const Http::ResponseHeaderMap& headers
       });
 }
 
-void AccessLog::Entry::AddRejected(absl::string_view key, absl::string_view value) {
-  for (auto entry : entry_.http().rejected_headers())
-    if (entry.key() == key && entry.value() == value)
+void AccessLog::Entry::addRejected(absl::string_view key, absl::string_view value) {
+  for (const auto& entry : entry_.http().rejected_headers()) {
+    if (entry.key() == key && entry.value() == value) {
       return;
+    }
+  }
   ::cilium::KeyValue* kv = entry_.mutable_http()->add_rejected_headers();
   kv->set_key(key.data(), key.size());
   kv->set_value(value.data(), value.size());
 }
 
-void AccessLog::Entry::AddMissing(absl::string_view key, absl::string_view value) {
-  for (auto entry : entry_.http().missing_headers())
-    if (entry.key() == key && entry.value() == value)
+void AccessLog::Entry::addMissing(absl::string_view key, absl::string_view value) {
+  for (const auto& entry : entry_.http().missing_headers()) {
+    if (entry.key() == key && entry.value() == value) {
       return;
+    }
+  }
   ::cilium::KeyValue* kv = entry_.mutable_http()->add_missing_headers();
   kv->set_key(key.data(), key.size());
   kv->set_value(value.data(), value.size());

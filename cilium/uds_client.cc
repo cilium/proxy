@@ -43,15 +43,16 @@ UDSClient::~UDSClient() {
   fd_mutex_.unlock();
 }
 
-void UDSClient::Log(const std::string& msg) {
+void UDSClient::log(const std::string& msg) {
   {
     int tries = 2;
     ssize_t length = msg.length();
 
     Thread::LockGuard guard(fd_mutex_);
     while (tries-- > 0) {
-      if (!try_connect())
+      if (!tryConnect()) {
         continue; // retry
+      }
 
       ssize_t sent = ::send(fd_, msg.data(), length, MSG_DONTWAIT | MSG_EOR | MSG_NOSIGNAL);
       if (sent == -1) {
@@ -74,7 +75,7 @@ void UDSClient::Log(const std::string& msg) {
   fd_mutex_.unlock();
 }
 
-bool UDSClient::try_connect() {
+bool UDSClient::tryConnect() {
   if (fd_ != -1) {
     if (errno_ == 0) {
       return true;

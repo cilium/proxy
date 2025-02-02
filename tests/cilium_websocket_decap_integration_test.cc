@@ -115,7 +115,7 @@ resources:
                                        GetParam());
   }
 
-  void Denied(Http::TestRequestHeaderMapImpl&& headers) {
+  void denied(Http::TestRequestHeaderMapImpl&& headers) {
     codec_client_ = makeHttpConnection(lookupPort("http"));
     auto response = codec_client_->makeHeaderOnlyRequest(headers);
     ASSERT_TRUE(response->waitForEndStream());
@@ -131,7 +131,7 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumWebSocketIntegrationTest,
 
 TEST_P(CiliumWebSocketIntegrationTest, DeniedNonWebSocket) {
   initialize();
-  Denied({{":method", "GET"}, {":path", "/"}, {":authority", "host"}});
+  denied({{":method", "GET"}, {":path", "/"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
@@ -348,7 +348,7 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(seen_data_len + 13 - 5, &data));
   ASSERT_EQ(data.substr(seen_data_len), msg2.data() + 5);
-  seen_data_len = data.length();
+  // seen_data_len = data.length(); // not used after, no need to update
 
   ASSERT_TRUE(fake_upstream_connection->write(msg2));
 

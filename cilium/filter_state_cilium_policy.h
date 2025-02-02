@@ -8,6 +8,7 @@
 #include "envoy/common/pure.h"
 #include "envoy/http/header_map.h"
 #include "envoy/network/address.h"
+#include "envoy/network/connection.h"
 #include "envoy/stream_info/filter_state.h"
 
 #include "source/common/common/logger.h"
@@ -51,16 +52,18 @@ public:
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
     const auto resolver = policy_resolver_.lock();
-    if (resolver)
+    if (resolver) {
       return resolver->resolvePolicyId(ip);
+    }
     return Cilium::ID::WORLD; // default to WORLD policy ID if resolver is no longer available
   }
 
   const PolicyInstance& getPolicy() const {
     const auto resolver = policy_resolver_.lock();
-    if (resolver)
+    if (resolver) {
       return resolver->getPolicy(pod_ip_);
-    return NetworkPolicyMap::GetDenyAllPolicy();
+    }
+    return NetworkPolicyMap::getDenyAllPolicy();
   }
 
   bool enforceNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,

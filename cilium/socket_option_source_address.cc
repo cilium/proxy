@@ -1,15 +1,19 @@
 #include "cilium/socket_option_source_address.h"
 
+#include <sys/socket.h>
+
 #include <cstdint>
 #include <utility>
 #include <vector>
 
+#include "envoy/api/os_sys_calls_common.h"
 #include "envoy/config/core/v3/socket_option.pb.h"
 #include "envoy/network/address.h"
 #include "envoy/network/socket.h"
 
 #include "source/common/common/hex.h"
 #include "source/common/common/logger.h"
+#include "source/common/common/utility.h"
 
 #include "absl/numeric/int128.h"
 

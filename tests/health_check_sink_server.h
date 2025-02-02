@@ -28,8 +28,9 @@ public:
   template <typename P>
   bool expectEventTo(P&& pred, std::chrono::milliseconds timeout = TestUtility::DefaultTimeout) {
     auto maybe_event = waitForEvent(timeout);
-    if (maybe_event.has_value())
+    if (maybe_event.has_value()) {
       return pred(maybe_event.value());
+    }
     return false;
   }
 

@@ -68,7 +68,7 @@ public:
 
   static std::string keyResponse(absl::string_view key);
 
-  void Log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
+  void log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
 
   TimeSource& time_source_;
   Event::Dispatcher& dispatcher_;

@@ -42,6 +42,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
@@ -116,8 +117,8 @@ public:
                                             bool& raw_socket_allowed) const;
 
 private:
-  bool for_range(std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const;
-  bool for_first_range(std::function<bool(const PortNetworkPolicyRules&)> f) const;
+  bool forRange(std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const;
+  bool forFirstRange(std::function<bool(const PortNetworkPolicyRules&)> f) const;
 
   const PolicyMap& map_;
   const RulesList& wildcard_rules_;
@@ -126,7 +127,7 @@ private:
 
 class IPAddressPair {
 public:
-  IPAddressPair(){};
+  IPAddressPair() = default;
   IPAddressPair(Network::Address::InstanceConstSharedPtr& ipv4,
                 Network::Address::InstanceConstSharedPtr& ipv6)
       : ipv4_(ipv4), ipv6_(ipv6){};
@@ -165,7 +166,7 @@ public:
 
   virtual const IPAddressPair& getEndpointIPs() const PURE;
 
-  virtual std::string String() const PURE;
+  virtual std::string string() const PURE;
 
   virtual void tlsWrapperMissingPolicyInc() const PURE;
 };
@@ -226,7 +227,7 @@ class NetworkPolicyMap : public Singleton::Instance,
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context);
   NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct);
-  ~NetworkPolicyMap();
+  ~NetworkPolicyMap() override;
 
   // subscription_->start() calls onConfigUpdate(), which uses
   // shared_from_this(), which cannot be called before a shared
@@ -239,16 +240,16 @@ public:
     subscription_ = std::move(subscription);
   }
 
-  const PolicyInstance& GetPolicyInstance(const std::string& endpoint_policy_name,
+  const PolicyInstance& getPolicyInstance(const std::string& endpoint_policy_name,
                                           bool allow_egress) const;
 
   static DenyAllPolicyInstanceImpl DenyAllPolicy;
-  static PolicyInstance& GetDenyAllPolicy();
+  static PolicyInstance& getDenyAllPolicy();
   static AllowAllEgressPolicyInstanceImpl AllowAllEgressPolicy;
-  static PolicyInstance& GetAllowAllEgressPolicy();
+  static PolicyInstance& getAllowAllEgressPolicy();
 
   bool exists(const std::string& endpoint_policy_name) const {
-    return GetPolicyInstanceImpl(endpoint_policy_name) != nullptr;
+    return getPolicyInstanceImpl(endpoint_policy_name) != nullptr;
   }
 
   // run the given function after all the threads have scheduled
@@ -314,7 +315,7 @@ private:
     return map_ptr_.exchange(map, std::memory_order_release);
   }
 
-  const PolicyInstance* GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
+  const PolicyInstance* getPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
 
   void removeInitManager();
 
@@ -375,7 +376,7 @@ struct SNIPattern {
       }
       auto const prefix = lower_sni.substr(0, sni.size() - sub_pattern.size());
       // Make sure that only and exactly one label is before the wildcard
-      return !prefix.empty() && prefix.find_first_of(".") == std::string::npos;
+      return !prefix.empty() && prefix.find_first_of('.') == std::string::npos;
     }
 
     return false;

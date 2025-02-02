@@ -89,7 +89,7 @@ template <typename T> struct ResetableSlice : GoSlice<T> {
 
     return len;
   }
-  bool at_capacity() {
+  bool atCapacity() {
     // Return true if all of the available space was used, not affected by
     // draining
     return (data_ + len_) >= (base_ + cap_);
@@ -137,19 +137,19 @@ public:
       }
     }
 
-    void Close();
+    void close();
 
-    FilterResult OnIO(bool reply, Buffer::Instance& data, bool end_stream);
+    FilterResult onIo(bool reply, Buffer::Instance& data, bool end_stream);
 
-    bool WantReplyInject() const { return reply_.WantToInject(); }
-    void SetOrigEndStream(bool end_stream) { orig_.closed_ = end_stream; }
-    void SetReplyEndStream(bool end_stream) { reply_.closed_ = end_stream; }
+    bool wantReplyInject() const { return reply_.wantToInject(); }
+    void setOrigEndStream(bool end_stream) { orig_.closed_ = end_stream; }
+    void setReplyEndStream(bool end_stream) { reply_.closed_ = end_stream; }
 
     struct Direction {
       Direction() : inject_slice_(inject_buf_, sizeof(inject_buf_)) {}
 
-      bool WantToInject() const { return !closed_ && inject_slice_.len() > 0; }
-      void Close() { closed_ = true; }
+      bool wantToInject() const { return !closed_ && inject_slice_.len() > 0; }
+      void close() { closed_ = true; }
 
       Buffer::OwnedImpl buffer_; // Buffered data in this direction
       int64_t need_bytes_{0};    // Number of additional data bytes needed before can parse again
@@ -168,7 +168,7 @@ public:
   };
   using InstancePtr = std::unique_ptr<Instance>;
 
-  InstancePtr NewInstance(Network::Connection& conn, const std::string& go_proto, bool ingress,
+  InstancePtr newInstance(Network::Connection& conn, const std::string& go_proto, bool ingress,
                           uint32_t src_id, uint32_t dst_id, const std::string& src_addr,
                           const std::string& dst_addr, const std::string& policy_name) const;
 

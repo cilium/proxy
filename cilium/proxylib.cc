@@ -90,7 +90,7 @@ GoFilter::~GoFilter() {
   }
 }
 
-GoFilter::InstancePtr GoFilter::NewInstance(Network::Connection& conn, const std::string& go_proto,
+GoFilter::InstancePtr GoFilter::newInstance(Network::Connection& conn, const std::string& go_proto,
                                             bool ingress, uint32_t src_id, uint32_t dst_id,
                                             const std::string& src_addr,
                                             const std::string& dst_addr,
@@ -113,7 +113,7 @@ GoFilter::InstancePtr GoFilter::NewInstance(Network::Connection& conn, const std
   return parser;
 }
 
-FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool end_stream) {
+FilterResult GoFilter::Instance::onIo(bool reply, Buffer::Instance& data, bool end_stream) {
   auto& dir = reply ? reply_ : orig_;
   int64_t data_len = data.length();
 
@@ -311,7 +311,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
       return FILTER_PARSER_ERROR;
     }
 
-    inject_buf_exhausted = dir.inject_slice_.at_capacity();
+    inject_buf_exhausted = dir.inject_slice_.atCapacity();
 
     // Make space for more injected data
     dir.inject_slice_.reset();
@@ -327,7 +327,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
   return res;
 }
 
-void GoFilter::Instance::Close() {
+void GoFilter::Instance::close() {
   (*parent_.go_close_)(connection_id_);
   connection_id_ = 0;
   conn_.close(Network::ConnectionCloseType::FlushWrite);

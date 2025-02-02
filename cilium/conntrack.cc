@@ -58,7 +58,7 @@ PACKED_STRUCT(struct ipv4_ct_tuple {
   __u8 flags;
 });
 
-struct ct_entry {
+struct CtEntry {
   __u64 rx_packets;
   __u64 rx_bytes;
   __u64 tx_packets;
@@ -82,10 +82,10 @@ struct ct_entry {
 };
 
 CtMap::CtMap4::CtMap4()
-    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv4_ct_tuple), sizeof(struct ct_entry)) {}
+    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv4_ct_tuple), sizeof(struct CtEntry)) {}
 
 CtMap::CtMap6::CtMap6()
-    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv6_ct_tuple), sizeof(struct ct_entry)) {}
+    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv6_ct_tuple), sizeof(struct CtEntry)) {}
 
 CtMap::CtMaps4::CtMaps4(const std::string& bpf_root, const std::string& map_name) : ok_(false) {
   // Open the IPv4 bpf maps from Cilium specific paths
@@ -190,7 +190,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
 
   struct ipv4_ct_tuple key4 {};
   struct ipv6_ct_tuple key6 {};
-  struct ct_entry value {};
+  struct CtEntry value {};
 
   if (sip->version() == Network::Address::IpVersion::v4 &&
       dip->version() == Network::Address::IpVersion::v4) {

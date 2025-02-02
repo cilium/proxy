@@ -26,38 +26,38 @@ constexpr absl::string_view AccessLogKey = "cilium.accesslog.entry";
 
 class AccessLog : public UDSClient {
 public:
-  static std::shared_ptr<AccessLog> Open(const std::string& path, TimeSource& time_source);
+  static std::shared_ptr<AccessLog> open(const std::string& path, TimeSource& time_source);
   ~AccessLog();
 
   // wrapper for protobuf
   class Entry : public StreamInfo::FilterState::Object {
   public:
-    void InitFromRequest(const std::string& policy_name, uint32_t proxy_id, bool ingress,
+    void initFromRequest(const std::string& policy_name, uint32_t proxy_id, bool ingress,
                          uint32_t source_identity,
                          const Network::Address::InstanceConstSharedPtr& source_address,
                          uint32_t destination_identity,
                          const Network::Address::InstanceConstSharedPtr& destination_address,
                          const StreamInfo::StreamInfo&, const Http::RequestHeaderMap&);
-    void UpdateFromRequest(uint32_t destination_identity,
+    void updateFromRequest(uint32_t destination_identity,
                            const Network::Address::InstanceConstSharedPtr& destination_address,
                            const Http::RequestHeaderMap&);
-    void UpdateFromResponse(const Http::ResponseHeaderMap&, TimeSource&);
+    void updateFromResponse(const Http::ResponseHeaderMap&, TimeSource&);
 
-    void InitFromConnection(const std::string& policy_name, uint32_t proxy_id, bool ingress,
+    void initFromConnection(const std::string& policy_name, uint32_t proxy_id, bool ingress,
                             uint32_t source_identity,
                             const Network::Address::InstanceConstSharedPtr& source_address,
                             uint32_t destination_identity,
                             const Network::Address::InstanceConstSharedPtr& destination_address,
                             TimeSource* time_source);
-    bool UpdateFromMetadata(const std::string& l7proto, const ProtobufWkt::Struct& metadata);
-    void AddRejected(absl::string_view key, absl::string_view value);
-    void AddMissing(absl::string_view key, absl::string_view value);
+    bool updateFromMetadata(const std::string& l7proto, const ProtobufWkt::Struct& metadata);
+    void addRejected(absl::string_view key, absl::string_view value);
+    void addMissing(absl::string_view key, absl::string_view value);
 
     ::cilium::LogEntry entry_{};
     bool request_logged_ = false;
   };
 
-  void Log(Entry& entry, ::cilium::EntryType);
+  void log(Entry& entry, ::cilium::EntryType);
 
 private:
   explicit AccessLog(const std::string& path, TimeSource& time_source)

@@ -18,7 +18,7 @@ public:
   ~UDSServer();
 
 private:
-  void Close();
+  void close();
   void threadRoutine();
 
   std::function<void(const std::string&)> msg_cb_;

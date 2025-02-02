@@ -33,7 +33,7 @@ public:
   Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext& context);
   Config(const Json::Object& config, Server::Configuration::FactoryContext& context);
 
-  void Log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
+  void log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
 
   Cilium::GoFilterSharedPtr proxylib_;
   TimeSource& time_source_;

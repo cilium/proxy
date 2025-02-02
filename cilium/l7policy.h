@@ -49,7 +49,7 @@ public:
   Config(const ::cilium::L7Policy& config, TimeSource& time_source, Stats::Scope& scope,
          bool is_upstream);
 
-  void Log(AccessLog::Entry&, ::cilium::EntryType);
+  void log(AccessLog::Entry&, ::cilium::EntryType);
 
   TimeSource& time_source_;
   FilterStats stats_;
