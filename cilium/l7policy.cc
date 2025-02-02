@@ -269,14 +269,14 @@ Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& h
   if (!log_entry_->request_logged_) {
     // Default logging local errors as "forwarded".
     // The response log will contain the locally generated HTTP error code.
-    auto logType = ::cilium::EntryType::Request;
+    auto log_type = ::cilium::EntryType::Request;
 
     if (headers.Status()->value() == "403") {
       // Log as a denied request.
-      logType = ::cilium::EntryType::Denied;
+      log_type = ::cilium::EntryType::Denied;
       config_->stats_.access_denied_.inc();
     }
-    config_->log(*log_entry_, logType);
+    config_->log(*log_entry_, log_type);
   }
 
   // Log the response

@@ -47,8 +47,8 @@ bool SourceAddressSocketOption::setOption(
     return true;
   }
 
-  auto ipVersion = socket.ipVersion();
-  if (!ipVersion.has_value()) {
+  auto ip_version = socket.ipVersion();
+  if (!ip_version.has_value()) {
     ENVOY_LOG(critical, "Socket address family is not available, can not choose source address");
     return false;
   }
@@ -57,7 +57,7 @@ bool SourceAddressSocketOption::setOption(
   if (!source_address && (ipv4_source_address_ || ipv6_source_address_)) {
     // Select source address based on the socket address family
     source_address = ipv6_source_address_;
-    if (*ipVersion == Network::Address::IpVersion::v4) {
+    if (*ip_version == Network::Address::IpVersion::v4) {
       source_address = ipv4_source_address_;
     }
   }

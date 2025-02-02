@@ -240,12 +240,12 @@ public:
     Network::Address::InstanceConstSharedPtr address =
         Ssl::getSslAddress(version_, lookupPort("http"));
     context_ = createClientSslTransportSocketFactory(context_manager_, *api_);
-    Network::ClientConnectionPtr ssl_client_ = dispatcher_->createClientConnection(
+    Network::ClientConnectionPtr ssl_client = dispatcher_->createClientConnection(
         address, Network::Address::InstanceConstSharedPtr(),
         context_->createTransportSocket(nullptr, nullptr), nullptr, nullptr);
 
-    ssl_client_->enableHalfClose(true);
-    codec_client_ = makeHttpConnection(std::move(ssl_client_));
+    ssl_client->enableHalfClose(true);
+    codec_client_ = makeHttpConnection(std::move(ssl_client));
   }
 
   void createUpstreams() override {

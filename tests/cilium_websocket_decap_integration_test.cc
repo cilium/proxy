@@ -156,14 +156,14 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   response->waitForHeaders();
   EXPECT_EQ("101", response->headers().getStatusValue());
 
-  auto clientConn = codec_client_->connection();
+  auto client_conn = codec_client_->connection();
 
   // Create websocket framed data & write it on the client connection
   Buffer::OwnedImpl buf{"\x82\x5"
                         "hello"};
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   std::string data;
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &data));
@@ -187,9 +187,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
           "hello21"
           "\x82\x3"
           "foo");
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(seen_data_len + 16, &data));
   ASSERT_EQ(data.substr(seen_data_len), "hello2hello21foo");
@@ -211,9 +211,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
                             "len16",
                             9};
   buf.add(frame16);
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(seen_data_len + 5, &data));
   ASSERT_EQ(data.substr(seen_data_len), "len16");
@@ -238,9 +238,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
                             "len64",
                             15};
   buf.add(frame64);
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(seen_data_len + 5, &data));
   ASSERT_EQ(data.substr(seen_data_len), "len64");
@@ -259,9 +259,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
           "hello"
           "\x82\xe"
           "gap ");
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(seen_data_len + 9, &data));
   ASSERT_EQ(data.substr(seen_data_len), "hellogap ");
@@ -273,9 +273,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   buf.add("in between"
           "\x82\x3"
           "foo");
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(seen_data_len + 13, &data));
   ASSERT_EQ(data.substr(seen_data_len), "in betweenfoo");
@@ -298,9 +298,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   buf.add("\x82\x8e");
   buf.add(mask, 4);
   buf.add(masked.data(), masked.length());
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(seen_data_len + 14, &data));
   ASSERT_EQ(data.substr(seen_data_len), msg);
@@ -326,15 +326,15 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   // Write frame header
   buf.add("\x82\x8d");
   buf.add(mask2, 4);
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   // Write 5 first bytes
   buf.add(masked2.data(), 5);
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(seen_data_len + 5, &data));
   ASSERT_EQ(data.substr(seen_data_len), absl::string_view(msg2.data(), 5));
@@ -342,9 +342,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   // Write remaining bytes
   buf.add(masked2.data() + 5, masked2.length() - 5);
-  clientConn->write(buf, false);
+  client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
-  clientConn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+  client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(seen_data_len + 13 - 5, &data));
   ASSERT_EQ(data.substr(seen_data_len), msg2.data() + 5);

@@ -32,8 +32,8 @@ bool IpTransparentSocketOption::setOption(
 
   auto& cilium_calls = PrivilegedService::Singleton::get();
 
-  auto ipVersion = socket.ipVersion();
-  if (!ipVersion.has_value()) {
+  auto ip_version = socket.ipVersion();
+  if (!ip_version.has_value()) {
     ENVOY_LOG(critical, "Socket address family is not available, can not choose source address");
     return false;
   }
@@ -44,7 +44,7 @@ bool IpTransparentSocketOption::setOption(
   auto ip_socket_level = SOL_IP;
   auto ip_transparent_socket_option = IP_TRANSPARENT;
   auto ip_transparent_socket_option_name = "IP_TRANSPARENT";
-  if (*ipVersion == Network::Address::IpVersion::v6) {
+  if (*ip_version == Network::Address::IpVersion::v6) {
     ip_socket_level = SOL_IPV6;
     ip_transparent_socket_option = IPV6_TRANSPARENT;
     ip_transparent_socket_option_name = "IPV6_TRANSPARENT";
