@@ -38,7 +38,7 @@ TEST_F(CiliumTest, AccessLog) {
 
   AccessLog::Entry log;
 
-  log.InitFromRequest("1.2.3.4", 42, true, 1, source_address, 173, destination_address,
+  log.initFromRequest("1.2.3.4", 42, true, 1, source_address, 173, destination_address,
                       connection.stream_info_, headers);
 
   EXPECT_EQ(log.entry_.is_ingress(), true);
@@ -67,7 +67,7 @@ TEST_F(CiliumTest, AccessLog) {
   Http::TestResponseHeaderMapImpl response_headers{{"my-response-header", "response"}};
 
   NiceMock<Event::SimulatedTimeSystem> time_source;
-  log.UpdateFromResponse(response_headers, time_source);
+  log.updateFromResponse(response_headers, time_source);
 
   // Unmodified
   EXPECT_EQ(log.entry_.has_http(), true);

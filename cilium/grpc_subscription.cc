@@ -95,7 +95,7 @@ TypeUrlToServiceMap& typeUrlToServiceMap() {
 
 class NopConfigValidatorsImpl : public Envoy::Config::CustomConfigValidators {
 public:
-  NopConfigValidatorsImpl() {}
+  NopConfigValidatorsImpl() = default;
 
   void executeValidators(absl::string_view,
                          const std::vector<Envoy::Config::DecodedResourcePtr>&) override {}

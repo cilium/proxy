@@ -21,13 +21,13 @@ public:
   UDSClient(const std::string& path, TimeSource& time_source);
   ~UDSClient();
 
-  void Log(const std::string& msg);
+  void log(const std::string& msg);
 
   const std::string& asString() const { return addr_->asString(); }
   absl::string_view asStringView() const { return addr_->asStringView(); }
 
 private:
-  bool try_connect() ABSL_EXCLUSIVE_LOCKS_REQUIRED(fd_mutex_);
+  bool tryConnect() ABSL_EXCLUSIVE_LOCKS_REQUIRED(fd_mutex_);
 
   Thread::MutexBasicLockable fd_mutex_;
   std::shared_ptr<Network::Address::PipeInstance> addr_;

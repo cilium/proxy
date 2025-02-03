@@ -89,7 +89,7 @@ template <typename T> struct ResetableSlice : GoSlice<T> {
 
     return len;
   }
-  bool at_capacity() {
+  bool atCapacity() {
     // Return true if all of the available space was used, not affected by
     // draining
     return (data_ + len_) >= (base_ + cap_);
@@ -108,19 +108,19 @@ struct GoStringPair {
   GoString value;
 };
 
-typedef GoSlice<GoStringPair> GoKeyValueSlice;
-typedef uint64_t (*GoOpenModuleCB)(GoKeyValueSlice, bool);
-typedef void (*GoCloseModuleCB)(uint64_t);
+using GoKeyValueSlice = GoSlice<GoStringPair>;
+using GoOpenModuleCB = uint64_t (*)(GoKeyValueSlice, bool);
+using GoCloseModuleCB = void (*)(uint64_t);
 
-typedef ResetableSlice<uint8_t> GoBufferSlice;
-typedef FilterResult (*GoOnNewConnectionCB)(uint64_t, GoString, uint64_t, bool, uint32_t, uint32_t,
-                                            GoString, GoString, GoString, GoBufferSlice*,
-                                            GoBufferSlice*);
+using GoBufferSlice = ResetableSlice<uint8_t>;
+using GoOnNewConnectionCB = FilterResult (*)(uint64_t, GoString, uint64_t, bool, uint32_t, uint32_t,
+                                             GoString, GoString, GoString, GoBufferSlice*,
+                                             GoBufferSlice*);
 
-typedef GoSlice<GoSlice<uint8_t>> GoDataSlices; // Scatter-gather buffer list as '[][]byte'
-typedef ResetableSlice<FilterOp> GoFilterOpSlice;
-typedef FilterResult (*GoOnDataCB)(uint64_t, bool, bool, GoDataSlices*, GoFilterOpSlice*);
-typedef void (*GoCloseCB)(uint64_t);
+using GoDataSlices = GoSlice<GoSlice<uint8_t>>; // Scatter-gather buffer list as '[][]byte'
+using GoFilterOpSlice = ResetableSlice<FilterOp>;
+using GoOnDataCB = FilterResult (*)(uint64_t, bool, bool, GoDataSlices*, GoFilterOpSlice*);
+using GoCloseCB = void (*)(uint64_t);
 
 class GoFilter : public Logger::Loggable<Logger::Id::filter> {
 public:
@@ -137,19 +137,19 @@ public:
       }
     }
 
-    void Close();
+    void close();
 
-    FilterResult OnIO(bool reply, Buffer::Instance& data, bool end_stream);
+    FilterResult onIo(bool reply, Buffer::Instance& data, bool end_stream);
 
-    bool WantReplyInject() const { return reply_.WantToInject(); }
-    void SetOrigEndStream(bool end_stream) { orig_.closed_ = end_stream; }
-    void SetReplyEndStream(bool end_stream) { reply_.closed_ = end_stream; }
+    bool wantReplyInject() const { return reply_.wantToInject(); }
+    void setOrigEndStream(bool end_stream) { orig_.closed_ = end_stream; }
+    void setReplyEndStream(bool end_stream) { reply_.closed_ = end_stream; }
 
     struct Direction {
       Direction() : inject_slice_(inject_buf_, sizeof(inject_buf_)) {}
 
-      bool WantToInject() const { return !closed_ && inject_slice_.len() > 0; }
-      void Close() { closed_ = true; }
+      bool wantToInject() const { return !closed_ && inject_slice_.len() > 0; }
+      void close() { closed_ = true; }
 
       Buffer::OwnedImpl buffer_; // Buffered data in this direction
       int64_t need_bytes_{0};    // Number of additional data bytes needed before can parse again
@@ -166,9 +166,9 @@ public:
     Direction reply_;
     uint64_t connection_id_ = 0;
   };
-  typedef std::unique_ptr<Instance> InstancePtr;
+  using InstancePtr = std::unique_ptr<Instance>;
 
-  InstancePtr NewInstance(Network::Connection& conn, const std::string& go_proto, bool ingress,
+  InstancePtr newInstance(Network::Connection& conn, const std::string& go_proto, bool ingress,
                           uint32_t src_id, uint32_t dst_id, const std::string& src_addr,
                           const std::string& dst_addr, const std::string& policy_name) const;
 
@@ -181,7 +181,7 @@ private:
   uint64_t go_module_id_{0};
 };
 
-typedef std::shared_ptr<const GoFilter> GoFilterSharedPtr;
+using GoFilterSharedPtr = std::shared_ptr<const GoFilter>;
 
 } // namespace Cilium
 } // namespace Envoy

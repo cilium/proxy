@@ -79,7 +79,7 @@ private:
   std::string bpf_root_;
 };
 
-typedef std::shared_ptr<CtMap> CtMapSharedPtr;
+using CtMapSharedPtr = std::shared_ptr<CtMap>;
 
 } // namespace Cilium
 } // namespace Envoy

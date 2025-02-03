@@ -1,10 +1,8 @@
 #include "cilium/bpf_metadata.h"
 
-#include <asm-generic/socket.h>
 #include <fmt/format.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <sys/socket.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -33,7 +31,7 @@
 #include "source/common/network/socket_option_factory.h"
 #include "source/common/network/socket_option_impl.h"
 #include "source/common/network/utility.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/string_view.h"
@@ -238,7 +236,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
           // later.
           return std::make_shared<Cilium::CtMap>(bpf_root);
         });
-    ipcache_ = IPCache::NewIPCache(context.serverFactoryContext(), bpf_root);
+    ipcache_ = IPCache::newIpCache(context.serverFactoryContext(), bpf_root);
     if (bpf_root != ct_maps_->bpfRoot()) {
       // bpf root may not change during runtime
       throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
@@ -275,7 +273,8 @@ uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
 
 uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
                                        const Network::Address::Ip* sip,
-                                       const Network::Address::Ip* dip, bool ingress, bool isL7LB) {
+                                       const Network::Address::Ip* dip, bool ingress,
+                                       bool is_l7_lb) {
   uint32_t source_identity = 0;
 
   // Resolve the source security ID from conntrack map, or from ip cache
@@ -283,7 +282,7 @@ uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
     const std::string& ct_name = policy.conntrackName();
     if (ct_name.length() > 0) {
       source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, ingress);
-    } else if (isL7LB) {
+    } else if (is_l7_lb) {
       // non-local source should be in the global conntrack
       source_identity = ct_maps_->lookupSrcIdentity("global", sip, dip, ingress);
     }
@@ -299,30 +298,30 @@ uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
 // Returns a new IPAddressPair that keeps the source address and fills in the other address version
 // from the given IPAddressPair.
 IPAddressPair
-Config::getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sourceAddress,
+Config::getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr source_address,
                              const IPAddressPair& addresses) {
-  auto addressPair = IPAddressPair();
+  auto address_pair = IPAddressPair();
 
-  switch (sourceAddress->ip()->version()) {
+  switch (source_address->ip()->version()) {
   case Network::Address::IpVersion::v4:
-    addressPair.ipv4_ = sourceAddress;
+    address_pair.ipv4_ = source_address;
     if (addresses.ipv6_) {
       sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(addresses.ipv6_->sockAddr());
-      sa6.sin6_port = htons(sourceAddress->ip()->port());
-      addressPair.ipv6_ = std::make_shared<Network::Address::Ipv6Instance>(sa6);
+      sa6.sin6_port = htons(source_address->ip()->port());
+      address_pair.ipv6_ = std::make_shared<Network::Address::Ipv6Instance>(sa6);
     }
     break;
   case Network::Address::IpVersion::v6:
-    addressPair.ipv6_ = sourceAddress;
+    address_pair.ipv6_ = source_address;
     if (addresses.ipv4_) {
       sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(addresses.ipv4_->sockAddr());
-      sa4.sin_port = htons(sourceAddress->ip()->port());
-      addressPair.ipv4_ = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
+      sa4.sin_port = htons(source_address->ip()->port());
+      address_pair.ipv4_ = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
     }
     break;
   }
 
-  return addressPair;
+  return address_pair;
 }
 
 const Network::Address::Ip* Config::selectIPVersion(const Network::Address::IpVersion version,
@@ -349,11 +348,12 @@ const PolicyInstance& Config::getPolicy(const std::string& pod_ip) const {
   // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by Cilium
   // Ingress (which is implemented as an egress listener!).
   bool allow_egress = !enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_;
-  if (npmap_ == nullptr)
-    return allow_egress ? NetworkPolicyMap::GetAllowAllEgressPolicy()
-                        : NetworkPolicyMap::GetDenyAllPolicy();
+  if (npmap_ == nullptr) {
+    return allow_egress ? NetworkPolicyMap::getAllowAllEgressPolicy()
+                        : NetworkPolicyMap::getDenyAllPolicy();
+  }
 
-  return npmap_->GetPolicyInstance(pod_ip, allow_egress);
+  return npmap_->getPolicyInstance(pod_ip, allow_egress);
 }
 
 absl::optional<Cilium::BpfMetadata::SocketMetadata>
@@ -459,8 +459,9 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     }
 
     // Enforce ingress policy on the incoming Ingress traffic?
-    if (enforce_policy_on_l7lb_)
+    if (enforce_policy_on_l7lb_) {
       ingress_source_identity = source_identity;
+    }
 
     source_identity = new_source_identity;
 
@@ -509,11 +510,11 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     uint32_t identity_id = (source_identity & 0xFFFF) << 16;
     mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
   }
-  return absl::optional(Cilium::BpfMetadata::SocketMetadata(
+  return {Cilium::BpfMetadata::SocketMetadata(
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
       std::move(source_addresses.ipv6_), std::move(dst_address), weak_from_this(), proxy_id_,
-      std::move(proxylib_l7proto), sni));
+      std::move(proxylib_l7proto), sni)};
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {

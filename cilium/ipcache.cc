@@ -1,8 +1,8 @@
 #include "ipcache.h"
 
-#include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <cerrno> // IWYU pragma: keep
 #include <cstdint>
 #include <cstring>
 #include <memory>
@@ -28,11 +28,11 @@ namespace Cilium {
 // them to a separate include file we can include here instead of
 // copying them!
 
-typedef uint32_t __be32; // Beware of the byte order!
-typedef uint64_t __u64;
-typedef uint32_t __u32;
-typedef uint16_t __u16;
-typedef uint8_t __u8;
+using __be32 = uint32_t; // Beware of the byte order!
+using __u64 = uint64_t;
+using __u32 = uint32_t;
+using __u16 = uint16_t;
+using __u8 = uint8_t;
 
 PACKED_STRUCT(struct ipcache_key {
   struct bpf_lpm_trie_key lpm_key;
@@ -50,7 +50,7 @@ PACKED_STRUCT(struct ipcache_key {
   };
 });
 
-struct remote_endpoint_info {
+struct RemoteEndpointInfo {
   __u32 sec_label;
   __u32 tunnel_endpoint;
   __u16 pad;
@@ -62,31 +62,31 @@ struct remote_endpoint_info {
 
 SINGLETON_MANAGER_REGISTRATION(cilium_ipcache);
 
-IPCacheSharedPtr IPCache::NewIPCache(Server::Configuration::ServerFactoryContext& context,
+IPCacheSharedPtr IPCache::newIpCache(Server::Configuration::ServerFactoryContext& context,
                                      const std::string& bpf_root) {
   return context.singletonManager().getTyped<Cilium::IPCache>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
         auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
-        if (!ipcache->Open()) {
+        if (!ipcache->open()) {
           ipcache.reset();
         }
         return ipcache;
       });
 }
 
-IPCacheSharedPtr IPCache::GetIPCache(Server::Configuration::ServerFactoryContext& context) {
+IPCacheSharedPtr IPCache::getIpCache(Server::Configuration::ServerFactoryContext& context) {
   return context.singletonManager().getTyped<Cilium::IPCache>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache));
 }
 
 IPCache::IPCache(const std::string& bpf_root)
-    : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct ipcache_key), sizeof(struct remote_endpoint_info)),
+    : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct ipcache_key), sizeof(struct RemoteEndpointInfo)),
       bpf_root_(bpf_root) {}
 
-bool IPCache::Open() {
+bool IPCache::open() {
   // Open the bpf maps from Cilium specific paths
   std::string path(bpf_root_ + "/tc/globals/cilium_ipcache");
-  if (!open(path)) {
+  if (!Bpf::open(path)) {
     ENVOY_LOG(info, "cilium.ipcache: Cannot open ipcache map at {}", path);
     return false;
   }
@@ -96,7 +96,7 @@ bool IPCache::Open() {
 
 uint32_t IPCache::resolve(const Network::Address::Ip* ip) {
   struct ipcache_key key {};
-  struct remote_endpoint_info value {};
+  struct RemoteEndpointInfo value {};
 
   if (ip->version() == Network::Address::IpVersion::v4) {
     key.lpm_key = {32 + 32, {}};

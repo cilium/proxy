@@ -27,7 +27,7 @@
 #include "source/common/common/macros.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 
 #include "absl/container/flat_hash_map.h"
@@ -62,8 +62,8 @@ template <> inline absl::uint128 hton(absl::uint128 addr) {
 }
 
 template <typename I> I masked(I addr, unsigned int plen) {
-  const unsigned int PLEN_MAX = sizeof(I) * 8;
-  return plen == 0 ? I(0) : addr & ~hton((I(1) << (PLEN_MAX - plen)) - 1);
+  const unsigned int plen_max = sizeof(I) * 8;
+  return plen == 0 ? I(0) : addr & ~hton((I(1) << (plen_max - plen)) - 1);
 };
 
 class PolicyHostDecoder : public Envoy::Config::OpaqueResourceDecoder {
@@ -97,7 +97,7 @@ class PolicyHostMap : public Singleton::Instance,
 public:
   PolicyHostMap(Server::Configuration::CommonFactoryContext& context);
   PolicyHostMap(ThreadLocal::SlotAllocator& tls);
-  ~PolicyHostMap() {
+  ~PolicyHostMap() override {
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 
@@ -187,7 +187,7 @@ public:
     std::vector<std::pair<unsigned int, absl::flat_hash_map<absl::uint128, uint64_t>>>
         ipv6_to_policy_;
   };
-  typedef std::shared_ptr<ThreadLocalHostMap> ThreadLocalHostMapSharedPtr;
+  using ThreadLocalHostMapSharedPtr = std::shared_ptr<ThreadLocalHostMap>;
 
   const ThreadLocalHostMap* getHostMap() const {
     return tls_->get().get() ? &tls_->getTyped<ThreadLocalHostMap>() : nullptr;

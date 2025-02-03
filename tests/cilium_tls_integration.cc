@@ -40,11 +40,13 @@ createClientSslTransportSocketFactory(Ssl::ContextManager& context_manager, Api:
   ON_CALL(mock_factory_ctx.server_context_, api()).WillByDefault(testing::ReturnRef(api));
   auto cfg_or_error = Extensions::TransportSockets::Tls::ClientContextConfigImpl::create(
       tls_context, mock_factory_ctx);
+  // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
   THROW_IF_NOT_OK(cfg_or_error.status());
   auto cfg = std::move(cfg_or_error.value());
   static auto* client_stats_store = new Stats::TestIsolatedStoreImpl();
   auto factory_or_error = Extensions::TransportSockets::Tls::ClientSslSocketFactory::create(
       std::move(cfg), context_manager, *client_stats_store->rootScope());
+  // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
   THROW_IF_NOT_OK(factory_or_error.status());
   return std::move(factory_or_error.value());
 }

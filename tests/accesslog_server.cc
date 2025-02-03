@@ -1,7 +1,5 @@
 #include "tests/accesslog_server.h"
 
-#include <unistd.h>
-
 #include <chrono>
 #include <functional>
 #include <string>
@@ -20,7 +18,7 @@ namespace Envoy {
 AccessLogServer::AccessLogServer(const std::string path)
     : UDSServer(path, std::bind(&AccessLogServer::msgCallback, this, std::placeholders::_1)) {}
 
-AccessLogServer::~AccessLogServer() {}
+AccessLogServer::~AccessLogServer() = default;
 
 void AccessLogServer::clear() {
   absl::MutexLock lock(&mutex_);
