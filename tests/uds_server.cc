@@ -1,10 +1,10 @@
 #include "tests/uds_server.h"
 
-#include <errno.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <functional>
 #include <memory>
 #include <string>

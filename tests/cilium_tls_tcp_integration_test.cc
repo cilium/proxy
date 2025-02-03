@@ -18,6 +18,7 @@
 #include "envoy/common/exception.h"
 #include "envoy/event/dispatcher.h"
 #include "envoy/extensions/transport_sockets/tls/v3/tls.pb.h"
+#include "envoy/http/codec.h"
 #include "envoy/network/address.h"
 #include "envoy/network/connection.h"
 #include "envoy/network/transport_socket.h"

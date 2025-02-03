@@ -1,10 +1,8 @@
 #include "cilium/bpf_metadata.h"
 
-#include <asm-generic/socket.h>
 #include <fmt/format.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <sys/socket.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -33,7 +31,7 @@
 #include "source/common/network/socket_option_factory.h"
 #include "source/common/network/socket_option_impl.h"
 #include "source/common/network/utility.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/string_view.h"

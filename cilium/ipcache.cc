@@ -1,8 +1,8 @@
 #include "ipcache.h"
 
-#include <arpa/inet.h>
 #include <netinet/in.h>
 
+#include <cerrno> // IWYU pragma: keep
 #include <cstdint>
 #include <cstring>
 #include <memory>

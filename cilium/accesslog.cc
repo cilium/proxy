@@ -1,10 +1,5 @@
 #include "accesslog.h"
 
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
-
 #include <chrono>
 #include <cstdint>
 #include <map>
@@ -20,7 +15,6 @@
 #include "source/common/common/lock_guard.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/thread.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/numbers.h"

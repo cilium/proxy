@@ -1,7 +1,5 @@
 #include "cilium/network_filter.h"
 
-#include <dlfcn.h>
-
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -22,7 +20,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/network/upstream_server_name.h"
 #include "source/common/network/upstream_subject_alt_names.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 
 #include "absl/status/statusor.h"

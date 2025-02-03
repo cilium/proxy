@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -36,7 +37,7 @@
 #include "source/common/init/target_impl.h"
 #include "source/common/init/watcher_impl.h"
 #include "source/common/network/utility.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 #include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
 #include "source/server/transport_socket_config_impl.h"
