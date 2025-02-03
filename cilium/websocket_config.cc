@@ -1,11 +1,9 @@
 #include "cilium/websocket_config.h"
 
-#include <http_parser.h>
 #include <openssl/digest.h>
 #include <openssl/sha.h>
 
 #include <chrono>
-#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -21,7 +19,6 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/base64.h"
 #include "source/common/http/request_id_extension_impl.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/ascii.h"

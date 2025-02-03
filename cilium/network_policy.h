@@ -26,7 +26,7 @@
 #include "envoy/ssl/context.h"
 #include "envoy/ssl/context_config.h"
 #include "envoy/stats/scope.h"
-#include "envoy/stats/stats_macros.h"
+#include "envoy/stats/stats_macros.h" // IWYU pragma: keep
 
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
@@ -34,7 +34,7 @@
 #include "source/common/common/thread.h"
 #include "source/common/init/target_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 #include "source/server/transport_socket_config_impl.h"
 

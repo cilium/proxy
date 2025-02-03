@@ -1,7 +1,5 @@
 #include "cilium/websocket.h"
 
-#include <http_parser.h>
-
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -18,7 +16,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/http/headers.h"
 #include "source/common/network/utility.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 #include "source/common/stream_info/bool_accessor_impl.h"
 #include "source/common/tcp_proxy/tcp_proxy.h"

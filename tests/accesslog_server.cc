@@ -1,7 +1,5 @@
 #include "tests/accesslog_server.h"
 
-#include <unistd.h>
-
 #include <chrono>
 #include <functional>
 #include <string>

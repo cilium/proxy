@@ -1,12 +1,11 @@
 #include "cilium/uds_client.h"
 
-#include <errno.h>
 #include <fmt/format.h>
-#include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <memory>
 #include <string>
 

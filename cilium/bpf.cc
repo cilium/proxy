@@ -1,8 +1,8 @@
 #include "cilium/bpf.h"
 
-#include <errno.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <fstream>
 #include <sstream>

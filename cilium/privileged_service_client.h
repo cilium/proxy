@@ -4,9 +4,14 @@
 #error "Linux platform file is part of non-Linux build."
 #endif
 
+#include <sys/socket.h>
+#include <sys/types.h>
+
+#include <cstddef>
+#include <cstdint>
+
 #include "envoy/api/os_sys_calls_common.h"
 
-#include "source/common/common/assert.h"
 #include "source/common/singleton/threadsafe_singleton.h"
 
 #include "starter/privileged_service_protocol.h"

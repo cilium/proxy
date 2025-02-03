@@ -1,8 +1,5 @@
 #pragma once
 
-#include <asm-generic/socket.h>
-#include <netinet/in.h>
-
 #include <cstdint>
 #include <memory>
 #include <string>

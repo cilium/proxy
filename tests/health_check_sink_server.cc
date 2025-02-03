@@ -1,10 +1,5 @@
 #include "tests/health_check_sink_server.h"
 
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
-
 #include <chrono>
 #include <functional>
 #include <string>

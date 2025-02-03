@@ -10,7 +10,7 @@
 #include "envoy/upstream/health_check_event_sink.h"
 
 #include "source/common/common/thread.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 
 #include "absl/base/thread_annotations.h"
 #include "cilium/api/health_check_sink.pb.h"
