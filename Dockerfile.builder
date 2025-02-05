@@ -3,7 +3,7 @@
 # Also note that if build fails due to C++ internal error or similar,
 # it is possible that the image build needs more RAM than available by
 # default on non-Linux docker installs.
-FROM docker.io/library/ubuntu:22.04@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS base
+FROM docker.io/library/ubuntu:22.04@sha256:ed1544e454989078f5dec1bfdabd8c5cc9c48e0705d07b678ab6ae3fb61952d2 AS base
 LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
 # Setup TimeZone to prevent tzdata package asking for it interactively
