@@ -143,6 +143,11 @@ Network::FilterStatus Instance::onNewConnection() {
   callbacks_->addUpstreamCallback([this, policy_fs,
                                    sni](Upstream::HostDescriptionConstSharedPtr host,
                                         StreamInfo::StreamInfo& stream_info) -> bool {
+    // Skip enforcement or logging on shadows
+    if (stream_info.isShadow()) {
+      return true;
+    }
+
     auto& conn = callbacks_->connection();
     ENVOY_CONN_LOG(trace, "cilium.network: in upstream callback", conn);
 
