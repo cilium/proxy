@@ -265,6 +265,10 @@ void AccessFilter::onStreamComplete() {
 }
 
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& headers, bool) {
+  // Skip enforcement or logging on shadows
+  if (callbacks_->streamInfo().isShadow()) {
+    return Http::FilterHeadersStatus::Continue;
+  }
 
   ENVOY_CONN_LOG(debug, "cilium.l7policy: {} encodeHeaders()", callbacks_->connection().ref(),
                  config_->is_upstream_ ? "upstream" : "downstream");
