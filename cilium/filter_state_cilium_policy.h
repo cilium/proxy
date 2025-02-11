@@ -1,9 +1,5 @@
 #pragma once
 
-#include <asm-generic/socket.h>
-#include <netinet/in.h>
-
-#include <cerrno>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -50,16 +46,18 @@ public:
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
     const auto resolver = policy_resolver_.lock();
-    if (resolver)
+    if (resolver) {
       return resolver->resolvePolicyId(ip);
+    }
     return Cilium::ID::WORLD; // default to WORLD policy ID if resolver is no longer available
   }
 
   const PolicyInstance& getPolicy() const {
     const auto resolver = policy_resolver_.lock();
-    if (resolver)
+    if (resolver) {
       return resolver->getPolicy(pod_ip_);
-    return NetworkPolicyMap::GetDenyAllPolicy();
+    }
+    return NetworkPolicyMap::getDenyAllPolicy();
   }
 
   // policyUseUpstreamDestinationAddress returns 'true' if policy enforcement should be done on the

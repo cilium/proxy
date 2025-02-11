@@ -49,7 +49,7 @@ public:
   Config(const ::cilium::L7Policy& config, TimeSource& time_source, Stats::Scope& scope,
          bool is_upstream);
 
-  void Log(AccessLog::Entry&, ::cilium::EntryType);
+  void log(AccessLog::Entry&, ::cilium::EntryType);
 
   TimeSource& time_source_;
   FilterStats stats_;
@@ -60,7 +60,7 @@ private:
   Cilium::AccessLogSharedPtr access_log_;
 };
 
-typedef std::shared_ptr<Config> ConfigSharedPtr;
+using ConfigSharedPtr = std::shared_ptr<Config>;
 
 // Each request gets their own instance of this filter, and
 // they can run parallel from multiple worker threads, all accessing

@@ -1,0 +1,69 @@
+name: CI clang-tidy
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+# By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
+permissions:
+  # To be able to access the repository with actions/checkout
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
+  cancel-in-progress: true
+
+jobs:
+  tidy:
+    timeout-minutes: 60
+    name: Lint source style
+    runs-on: ubuntu-latest-64-cores-256gb
+    steps:
+      - name: Checkout PR Source Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Prep for build
+        run: |
+          echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+          echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
+          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
+          # git diff filter has everything else than deleted files (those need not be tidied)
+          echo "TIDY_SOURCES=$(git diff --name-only --diff-filter=ACMRTUXB main | grep -E '(.h$|.cc$)' | tr '\n' ' ')" >> $GITHUB_ENV
+
+      - name: Wait for cilium-envoy-builder to be available
+        timeout-minutes: 45
+        shell: bash
+        run: until docker manifest inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }} &> /dev/null; do sleep 15s; done
+
+      - name: Run clang-tidy
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        id: docker_clang_tidy
+        with:
+          target: clang-tidy
+          provenance: false
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          outputs: type=local,dest=clang-tidy-results
+          build-args: |
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
+          cache-from: type=local,src=/tmp/buildx-cache
+          push: false
+
+      - name: Check for failure
+        run: |
+          if grep -q "^make:.*Error" clang-tidy-results/clang-tidy-output.txt; then
+            git diff > clang-tidy-results/clang-tidy.diff
+            exit 1
+          fi
+
+      - name: Upload clang-tidy results
+        if: failure()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: clang-tidy-results
+          path: clang-tidy-results/
+          retention-days: 5

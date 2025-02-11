@@ -4,9 +4,14 @@
 #error "Linux platform file is part of non-Linux build."
 #endif
 
+#include <sys/socket.h>
+#include <sys/types.h>
+
+#include <cstddef>
+#include <cstdint>
+
 #include "envoy/api/os_sys_calls_common.h"
 
-#include "source/common/common/assert.h"
 #include "source/common/singleton/threadsafe_singleton.h"
 
 #include "starter/privileged_service_protocol.h"
@@ -34,13 +39,13 @@ public:
 
 protected:
   // Read-only bpf syscalls
-  Envoy::Api::SysCallIntResult bpf_open(const char* path);
-  Envoy::Api::SysCallIntResult bpf_lookup(int fd, const void* key, uint32_t key_size, void* value,
-                                          uint32_t value_size);
+  Envoy::Api::SysCallIntResult bpfOpen(const char* path);
+  Envoy::Api::SysCallIntResult bpfLookup(int fd, const void* key, uint32_t key_size, void* value,
+                                         uint32_t value_size);
 
 private:
-  bool check_privileged_service();
-  bool have_cilium_privileged_service() const { return is_open(); }
+  bool checkPrivilegedService();
+  bool haveCiliumPrivilegedService() const { return is_open(); }
 
   ssize_t transact(MessageHeader& req, size_t req_len, const void* data, size_t datalen, int* fd,
                    Response& resp, void* buf = nullptr, size_t bufsize = 0, bool assert = true);

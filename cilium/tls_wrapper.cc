@@ -21,7 +21,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/network/raw_buffer_socket.h"
 #include "source/common/network/transport_socket_options_impl.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/tls/ssl_socket.h"
 
 #include "absl/status/statusor.h"
@@ -44,7 +44,7 @@ class SslSocketWrapper : public Network::TransportSocket, Logger::Loggable<Logge
 public:
   SslSocketWrapper(Extensions::TransportSockets::Tls::InitialState state,
                    const Network::TransportSocketOptionsConstSharedPtr& transport_socket_options)
-      : state_(state), transport_socket_options_(transport_socket_options), callbacks_() {}
+      : state_(state), transport_socket_options_(transport_socket_options) {}
 
   // Network::TransportSocket
   void setTransportSocketCallbacks(Network::TransportSocketCallbacks& callbacks) override {
@@ -87,24 +87,24 @@ public:
     // configuration.
     // Cilium socket option is only created if the (initial) policy for the local pod exists.
     // If the policy requires TLS then a TLS socket is used, but if the policy does not require
-    // TLS a raw socket is used instead,
+    // TLS a raw socket is used instead.
     auto& conn = callbacks_->connection();
 
     ENVOY_CONN_LOG(trace, "retrieving policy filter state", conn);
-    auto policy_socket_option =
+    auto policy_ref =
         conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicyFilterState>(
             Cilium::CiliumPolicyFilterState::key());
 
-    if (policy_socket_option) {
-      const auto& policy = policy_socket_option->getPolicy();
+    if (policy_ref) {
+      const auto& policy = policy_ref->getPolicy();
 
       // Resolve the destination security ID and port
       uint32_t destination_identity = 0;
-      uint32_t destination_port = policy_socket_option->port_;
+      uint32_t destination_port = policy_ref->port_;
       const Network::Address::Ip* dip = nullptr;
       bool is_client = state_ == Extensions::TransportSockets::Tls::InitialState::Client;
 
-      if (!policy_socket_option->ingress_) {
+      if (!policy_ref->ingress_) {
         Network::Address::InstanceConstSharedPtr dst_address =
             is_client ? callbacks_->connection().connectionInfoProvider().remoteAddress()
                       : callbacks_->connection().connectionInfoProvider().localAddress();
@@ -112,7 +112,7 @@ public:
           dip = dst_address->ip();
           if (dip) {
             destination_port = dip->port();
-            destination_identity = policy_socket_option->resolvePolicyId(dip);
+            destination_identity = policy_ref->resolvePolicyId(dip);
           } else {
             ENVOY_CONN_LOG(warn, "cilium.tls_wrapper: Non-IP destination address: {}", conn,
                            dst_address->asString());
@@ -123,11 +123,10 @@ public:
       }
 
       // get the requested server name from the connection, if any
-      const auto& sni = policy_socket_option->sni_;
+      const auto& sni = policy_ref->sni_;
 
-      auto remote_id = policy_socket_option->ingress_ ? policy_socket_option->source_identity_
-                                                      : destination_identity;
-      auto port_policy = policy.findPortPolicy(policy_socket_option->ingress_, destination_port);
+      auto remote_id = policy_ref->ingress_ ? policy_ref->source_identity_ : destination_identity;
+      auto port_policy = policy.findPortPolicy(policy_ref->ingress_, destination_port);
       const Envoy::Ssl::ContextConfig* config = nullptr;
       bool raw_socket_allowed = false;
       Envoy::Ssl::ContextSharedPtr ctx =
@@ -156,29 +155,29 @@ public:
       } else {
         policy.tlsWrapperMissingPolicyInc();
 
-        std::string ipStr("<none>");
-        if (policy_socket_option->ingress_) {
+        std::string ip_str("<none>");
+        if (policy_ref->ingress_) {
           Network::Address::InstanceConstSharedPtr src_address =
               is_client ? callbacks_->connection().connectionInfoProvider().localAddress()
                         : callbacks_->connection().connectionInfoProvider().remoteAddress();
           if (src_address) {
             const auto sip = src_address->ip();
             if (sip) {
-              ipStr = sip->addressAsString();
+              ip_str = sip->addressAsString();
             }
           }
         } else {
           if (dip) {
-            ipStr = dip->addressAsString();
+            ip_str = dip->addressAsString();
           }
         }
         ENVOY_CONN_LOG(
             warn,
             "cilium.tls_wrapper: Could not get {} TLS context for pod {} on {} IP {} (id {}) port "
             "{} sni \"{}\" and raw socket is not allowed",
-            conn, is_client ? "client" : "server", policy_socket_option->pod_ip_,
-            policy_socket_option->ingress_ ? "source" : "destination", ipStr, remote_id,
-            destination_port, sni);
+            conn, is_client ? "client" : "server", policy_ref->pod_ip_,
+            policy_ref->ingress_ ? "source" : "destination", ip_str, remote_id, destination_port,
+            sni);
       }
     } else {
       ENVOY_CONN_LOG(warn,
@@ -209,7 +208,7 @@ private:
   Extensions::TransportSockets::Tls::InitialState state_;
   const Network::TransportSocketOptionsConstSharedPtr transport_socket_options_;
   Network::TransportSocketPtr socket_{nullptr};
-  Network::TransportSocketCallbacks* callbacks_;
+  Network::TransportSocketCallbacks* callbacks_{};
 };
 
 class ClientSslSocketFactory : public Network::CommonUpstreamTransportSocketFactory {

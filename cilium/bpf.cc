@@ -1,8 +1,8 @@
 #include "cilium/bpf.h"
 
-#include <errno.h>
 #include <unistd.h>
 
+#include <cerrno>
 #include <cstdint>
 #include <fstream>
 #include <sstream>
@@ -18,7 +18,7 @@ namespace Envoy {
 namespace Cilium {
 
 enum {
-  BPF_KEY_MAX_LEN = 64,
+  BpfKeyMaxLen = 64,
 };
 
 Bpf::Bpf(uint32_t map_type, uint32_t key_size, uint32_t value_size)
@@ -27,8 +27,9 @@ Bpf::Bpf(uint32_t map_type, uint32_t key_size, uint32_t value_size)
 Bpf::~Bpf() { close(); }
 
 void Bpf::close() {
-  if (fd_ >= 0)
+  if (fd_ >= 0) {
     ::close(fd_);
+  }
   fd_ = -1;
 }
 
@@ -39,11 +40,12 @@ bool Bpf::open(const std::string& path) {
   close();
 
   // store the path for later
-  if (path != path_)
+  if (path != path_) {
     path_ = path;
+  }
 
   auto& cilium_calls = PrivilegedService::Singleton::get();
-  auto ret = cilium_calls.bpf_open(path.c_str());
+  auto ret = cilium_calls.bpfOpen(path.c_str());
   fd_ = ret.return_value_;
   if (fd_ >= 0) {
     // Open fdinfo to check the map type and key and value size.
@@ -116,12 +118,13 @@ bool Bpf::open(const std::string& path) {
 bool Bpf::lookup(const void* key, void* value) {
   // Try reopen if open failed previously
   if (fd_ < 0) {
-    if (!open(path_))
+    if (!open(path_)) {
       return false;
+    }
   }
 
   auto& cilium_calls = PrivilegedService::Singleton::get();
-  auto result = cilium_calls.bpf_lookup(fd_, key, key_size_, value, value_size_);
+  auto result = cilium_calls.bpfLookup(fd_, key, key_size_, value, value_size_);
 
   if (result.return_value_ == 0) {
     return true;
