@@ -21,15 +21,22 @@ enum {
   BPF_KEY_MAX_LEN = 64,
 };
 
-Bpf::Bpf(uint32_t map_type, uint32_t key_size, uint32_t value_size)
-    : fd_(-1), map_type_(map_type), key_size_(key_size), value_size_(value_size) {}
+Bpf::Bpf(uint32_t map_type, uint32_t key_size, uint32_t min_value_size, uint32_t max_value_size)
+    : fd_(-1), map_type_(map_type), key_size_(key_size), min_value_size_(min_value_size),
+      max_value_size_(max_value_size), real_value_size_(0) {
+  if (max_value_size_ == 0) {
+    max_value_size_ = min_value_size_;
+  }
+}
 
 Bpf::~Bpf() { close(); }
 
 void Bpf::close() {
   if (fd_ >= 0)
     ::close(fd_);
+
   fd_ = -1;
+  real_value_size_ = 0;
 }
 
 bool Bpf::open(const std::string& path) {
@@ -76,7 +83,9 @@ bool Bpf::open(const std::string& path) {
 
       if ((map_type == map_type_ ||
            (map_type == BPF_MAP_TYPE_LRU_HASH && map_type_ == BPF_MAP_TYPE_HASH)) &&
-          key_size == key_size_ && value_size == value_size_) {
+          key_size == key_size_ && min_value_size_ <= value_size && value_size <= max_value_size_) {
+        // keep the actual value size.
+        real_value_size_ = value_size;
         return true;
       }
       if (log_on_error) {
@@ -91,8 +100,8 @@ bool Bpf::open(const std::string& path) {
         } else {
           ENVOY_LOG(warn,
                     "cilium.bpf_metadata: map value size mismatch on {}: got "
-                    "{}, wanted {}",
-                    path, value_size, value_size_);
+                    "{}, wanted {}-{}",
+                    path, value_size, min_value_size_, max_value_size_);
         }
       }
     } else if (log_on_error) {
@@ -113,6 +122,7 @@ bool Bpf::open(const std::string& path) {
   return false;
 }
 
+// value must point to space of at least 'max_value_size_' as passed in to the constructor.
 bool Bpf::lookup(const void* key, void* value) {
   // Try reopen if open failed previously
   if (fd_ < 0) {
@@ -121,7 +131,7 @@ bool Bpf::lookup(const void* key, void* value) {
   }
 
   auto& cilium_calls = PrivilegedService::Singleton::get();
-  auto result = cilium_calls.bpf_lookup(fd_, key, key_size_, value, value_size_);
+  auto result = cilium_calls.bpf_lookup(fd_, key, key_size_, value, real_value_size_);
 
   if (result.return_value_ == 0) {
     return true;

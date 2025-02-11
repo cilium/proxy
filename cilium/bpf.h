@@ -22,9 +22,11 @@ public:
    * @param map_type the type of a bpf map to be opened or created, e.g.,
    * BPF_MAP_TYPE_HASH
    * @param key_size the size of the bpf map entry lookup key.
-   * @param value_size the size of the bpf map entry value.
+   * @param min_value_size the minimum acceptable size of the bpf map entry value.
+   * @param max_value_size the maximum size of the bpf map entry value the caller is buffering for.
+   *        Defaults to same as min_value_size.
    */
-  Bpf(uint32_t map_type, uint32_t key_size, uint32_t value_size);
+  Bpf(uint32_t map_type, uint32_t key_size, uint32_t min_value_size, uint32_t max_value_size = 0);
   virtual ~Bpf();
 
   /**
@@ -45,6 +47,8 @@ public:
    * value, if any.
    * @param key pointer to the key identifying the entry to be found.
    * @param value pointer at which the value is copied to if the entry is found.
+   *        Enough space must be provided for 'max_value_size_' bytes.
+   *        The caller should only examine the first 'min_value_size_' bytes.
    * @returns boolean for success of the operation.
    */
   bool lookup(const void* key, void* value);
@@ -56,7 +60,9 @@ protected:
 public:
   uint32_t map_type_;
   uint32_t key_size_;
-  uint32_t value_size_;
+  uint32_t min_value_size_;
+  uint32_t max_value_size_;
+  uint32_t real_value_size_;
 };
 
 } // namespace Cilium
