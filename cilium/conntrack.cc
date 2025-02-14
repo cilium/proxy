@@ -40,7 +40,7 @@ using __u8 = uint8_t;
 #define TUPLE_F_OUT 0
 #define TUPLE_F_IN 1
 
-PACKED_STRUCT(struct ipv6_ct_tuple {
+PACKED_STRUCT(struct IPv6CtTuple {
   __be32 saddr[4];
   __be32 daddr[4];
   __be16 dport;
@@ -49,7 +49,7 @@ PACKED_STRUCT(struct ipv6_ct_tuple {
   __u8 flags;
 });
 
-PACKED_STRUCT(struct ipv4_ct_tuple {
+PACKED_STRUCT(struct IPv4CtTuple {
   __be32 saddr;
   __be32 daddr;
   __be16 dport;
@@ -82,10 +82,10 @@ struct CtEntry {
 };
 
 CtMap::CtMap4::CtMap4()
-    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv4_ct_tuple), sizeof(struct CtEntry)) {}
+    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct IPv4CtTuple), sizeof(struct CtEntry)) {}
 
 CtMap::CtMap6::CtMap6()
-    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv6_ct_tuple), sizeof(struct CtEntry)) {}
+    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct IPv6CtTuple), sizeof(struct CtEntry)) {}
 
 CtMap::CtMaps4::CtMaps4(const std::string& bpf_root, const std::string& map_name) : ok_(false) {
   // Open the IPv4 bpf maps from Cilium specific paths
@@ -188,8 +188,8 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
                                   const Network::Address::Ip* dip, bool ingress) {
   ENVOY_LOG(debug, "cilium.bpf_metadata: Using conntrack map {}", map_name);
 
-  struct ipv4_ct_tuple key4 {};
-  struct ipv6_ct_tuple key6 {};
+  struct IPv4CtTuple key4 {};
+  struct IPv6CtTuple key6 {};
   struct CtEntry value {};
 
   if (sip->version() == Network::Address::IpVersion::v4 &&

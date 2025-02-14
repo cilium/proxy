@@ -245,7 +245,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
     if (config.ipcache_name().length() > 0) {
       ipcache_name = config.ipcache_name();
     }
-    ipcache_ = IPCache::newIpCache(context.serverFactoryContext(),
+    ipcache_ = IpCache::newIpCache(context.serverFactoryContext(),
                                    bpf_root + "/tc/globals/" + ipcache_name);
 
     if (bpf_root != ct_maps_->bpfRoot()) {
@@ -306,12 +306,12 @@ uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
   return source_identity;
 }
 
-// Returns a new IPAddressPair that keeps the source address and fills in the other address version
-// from the given IPAddressPair.
-IPAddressPair
-Config::getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr source_address,
-                             const IPAddressPair& addresses) {
-  auto address_pair = IPAddressPair();
+// Returns a new IpAddressPair that keeps the source address and fills in the other address version
+// from the given IpAddressPair.
+IpAddressPair
+Config::getIpAddressPairFrom(const Network::Address::InstanceConstSharedPtr source_address,
+                             const IpAddressPair& addresses) {
+  auto address_pair = IpAddressPair();
 
   switch (source_address->ip()->version()) {
   case Network::Address::IpVersion::v4:
@@ -335,8 +335,8 @@ Config::getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sour
   return address_pair;
 }
 
-const Network::Address::Ip* Config::selectIPVersion(const Network::Address::IpVersion version,
-                                                    const IPAddressPair& source_addresses) {
+const Network::Address::Ip* Config::selectIpVersion(const Network::Address::IpVersion version,
+                                                    const IpAddressPair& source_addresses) {
   switch (version) {
   case Network::Address::IpVersion::v4:
     if (source_addresses.ipv4_) {
@@ -410,7 +410,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   uint32_t ingress_source_identity = 0;
 
   // Use the configured IPv4/IPv6 Ingress IPs as starting point for the sources addresses
-  IPAddressPair source_addresses(ipv4_source_address_, ipv6_source_address_);
+  IpAddressPair source_addresses(ipv4_source_address_, ipv6_source_address_);
 
   // NOTE: As L7 LB does not use the original destination, there is a possibility of a 5-tuple
   // collision if the same source pod is communicating with the same backends on same destination
@@ -437,7 +437,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     // Keep the original source address for the matching IP version, create a new source IP for
     // the other version (with the same source port number) in case an upstream of a different
     // IP version is chosen.
-    source_addresses = getIPAddressPairFrom(src_address, policy->getEndpointIPs());
+    source_addresses = getIpAddressPairFrom(src_address, policy->getEndpointIPs());
 
     // Original source address is now in one of 'ipv[46]_source_address'
     src_address = nullptr;
@@ -446,7 +446,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     // if any and policy for this identity exists.
 
     // Pick the local ingress source address of the same family as the incoming connection
-    const Network::Address::Ip* ingress_ip = selectIPVersion(sip->version(), source_addresses);
+    const Network::Address::Ip* ingress_ip = selectIpVersion(sip->version(), source_addresses);
 
     if (!ingress_ip) {
       // IP family of the connection has no configured local ingress source address

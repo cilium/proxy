@@ -125,13 +125,13 @@ private:
   const PolicyMap::const_iterator port_rules_; // iterator to 'map_'
 };
 
-class IPAddressPair {
+class IpAddressPair {
 public:
-  IPAddressPair() = default;
-  IPAddressPair(Network::Address::InstanceConstSharedPtr& ipv4,
+  IpAddressPair() = default;
+  IpAddressPair(Network::Address::InstanceConstSharedPtr& ipv4,
                 Network::Address::InstanceConstSharedPtr& ipv6)
       : ipv4_(ipv4), ipv6_(ipv6){};
-  IPAddressPair(const cilium::NetworkPolicy& proto);
+  IpAddressPair(const cilium::NetworkPolicy& proto);
 
   Network::Address::InstanceConstSharedPtr ipv4_{};
   Network::Address::InstanceConstSharedPtr ipv6_{};
@@ -164,7 +164,7 @@ public:
 
   virtual uint32_t getEndpointID() const PURE;
 
-  virtual const IPAddressPair& getEndpointIPs() const PURE;
+  virtual const IpAddressPair& getEndpointIPs() const PURE;
 
   virtual std::string string() const PURE;
 
@@ -348,10 +348,10 @@ protected:
 };
 using NetworkPolicyMapSharedPtr = std::shared_ptr<const NetworkPolicyMap>;
 
-struct SNIPattern {
+struct SniPattern {
   std::string pattern;
 
-  explicit SNIPattern(const std::string& p) : pattern(absl::AsciiStrToLower(p)) {}
+  explicit SniPattern(const std::string& p) : pattern(absl::AsciiStrToLower(p)) {}
 
   bool matches(const absl::string_view sni) const {
     if (pattern.empty() || sni.empty()) {

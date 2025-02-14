@@ -57,7 +57,7 @@ namespace Cilium {
 
 uint64_t NetworkPolicyMap::instance_id_ = 0;
 
-IPAddressPair::IPAddressPair(const cilium::NetworkPolicy& proto) {
+IpAddressPair::IpAddressPair(const cilium::NetworkPolicy& proto) {
   for (const auto& ip_addr : proto.endpoint_ips()) {
     auto ip = Network::Utility::parseInternetAddressNoThrow(ip_addr);
     if (ip) {
@@ -637,7 +637,7 @@ public:
   uint32_t proxy_id_;
   absl::btree_set<uint32_t> remotes_;
 
-  std::vector<SNIPattern> allowed_snis_;          // All SNIs allowed if empty.
+  std::vector<SniPattern> allowed_snis_;          // All SNIs allowed if empty.
   std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
   std::string l7_proto_{};
   std::vector<L7NetworkPolicyRule> l7_allow_rules_;
@@ -1143,7 +1143,7 @@ public:
 
   uint32_t getEndpointID() const override { return endpoint_id_; }
 
-  const IPAddressPair& getEndpointIPs() const override { return endpoint_ips_; }
+  const IpAddressPair& getEndpointIPs() const override { return endpoint_ips_; }
 
   std::string string() const override {
     std::string res;
@@ -1161,7 +1161,7 @@ public:
   uint32_t endpoint_id_;
   uint64_t hash_;
   const cilium::NetworkPolicy policy_proto_;
-  const IPAddressPair endpoint_ips_;
+  const IpAddressPair endpoint_ips_;
 
 private:
   const NetworkPolicyMap& parent_;
@@ -1279,7 +1279,7 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
     ENVOY_LOG(info, "New NetworkPolicy stream");
 
     // Get ipcache singleton only if it was successfully created previously
-    IPCacheSharedPtr ipcache = IPCache::getIpCache(context_);
+    IpCacheSharedPtr ipcache = IpCache::getIpCache(context_);
     if (ipcache != nullptr) {
       ENVOY_LOG(info, "Reopening ipcache on new stream");
       ipcache->open();
@@ -1452,7 +1452,7 @@ public:
 
   uint32_t getEndpointID() const override { return 0; }
 
-  const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
+  const IpAddressPair& getEndpointIPs() const override { return empty_ips; }
 
   std::string string() const override { return "AllowAllEgressPolicyInstanceImpl"; }
 
@@ -1461,11 +1461,11 @@ public:
 private:
   PolicyMap empty_map_;
   static const std::string empty_string;
-  static const IPAddressPair empty_ips;
+  static const IpAddressPair empty_ips;
   static const RulesList empty_rules_;
 };
 const std::string AllowAllEgressPolicyInstanceImpl::empty_string = "";
-const IPAddressPair AllowAllEgressPolicyInstanceImpl::empty_ips{};
+const IpAddressPair AllowAllEgressPolicyInstanceImpl::empty_ips{};
 const RulesList AllowAllEgressPolicyInstanceImpl::empty_rules_{};
 
 AllowAllEgressPolicyInstanceImpl NetworkPolicyMap::AllowAllEgressPolicy;
@@ -1498,7 +1498,7 @@ public:
 
   uint32_t getEndpointID() const override { return 0; }
 
-  const IPAddressPair& getEndpointIPs() const override { return empty_ips; }
+  const IpAddressPair& getEndpointIPs() const override { return empty_ips; }
 
   std::string string() const override { return "DenyAllPolicyInstanceImpl"; }
 
@@ -1507,11 +1507,11 @@ public:
 private:
   PolicyMap empty_map_;
   static const std::string empty_string;
-  static const IPAddressPair empty_ips;
+  static const IpAddressPair empty_ips;
   static const RulesList empty_rules;
 };
 const std::string DenyAllPolicyInstanceImpl::empty_string = "";
-const IPAddressPair DenyAllPolicyInstanceImpl::empty_ips{};
+const IpAddressPair DenyAllPolicyInstanceImpl::empty_ips{};
 const RulesList DenyAllPolicyInstanceImpl::empty_rules{};
 
 DenyAllPolicyInstanceImpl NetworkPolicyMap::DenyAllPolicy;

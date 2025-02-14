@@ -15,13 +15,13 @@
 namespace Envoy {
 namespace Cilium {
 
-class IPCache : public Singleton::Instance, public Bpf {
+class IpCache : public Singleton::Instance, public Bpf {
 public:
-  static std::shared_ptr<IPCache> newIpCache(Server::Configuration::ServerFactoryContext& context,
+  static std::shared_ptr<IpCache> newIpCache(Server::Configuration::ServerFactoryContext& context,
                                              const std::string& path);
-  static std::shared_ptr<IPCache> getIpCache(Server::Configuration::ServerFactoryContext& context);
+  static std::shared_ptr<IpCache> getIpCache(Server::Configuration::ServerFactoryContext& context);
 
-  IPCache(const std::string& path);
+  IpCache(const std::string& path);
   void setPath(const std::string& path);
   bool open();
   bool openLocked();
@@ -33,7 +33,7 @@ private:
   std::string path_;
 };
 
-using IPCacheSharedPtr = std::shared_ptr<IPCache>;
+using IpCacheSharedPtr = std::shared_ptr<IpCache>;
 
 } // namespace Cilium
 } // namespace Envoy
