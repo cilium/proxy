@@ -35,7 +35,7 @@ using __u32 = uint32_t;
 using __u16 = uint16_t;
 using __u8 = uint8_t;
 
-PACKED_STRUCT(struct ipcache_key {
+PACKED_STRUCT(struct IpCacheKey {
   struct bpf_lpm_trie_key lpm_key;
   __u16 pad1;
   __u8 pad2;
@@ -62,11 +62,11 @@ struct RemoteEndpointInfo {
 
 SINGLETON_MANAGER_REGISTRATION(cilium_ipcache);
 
-IPCacheSharedPtr IPCache::newIpCache(Server::Configuration::ServerFactoryContext& context,
+IpCacheSharedPtr IpCache::newIpCache(Server::Configuration::ServerFactoryContext& context,
                                      const std::string& path) {
-  auto ipcache = context.singletonManager().getTyped<Cilium::IPCache>(
+  auto ipcache = context.singletonManager().getTyped<Cilium::IpCache>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&path] {
-        auto ipcache = std::make_shared<Cilium::IPCache>(path);
+        auto ipcache = std::make_shared<Cilium::IpCache>(path);
         if (!ipcache->open()) {
           ipcache.reset();
         }
@@ -80,17 +80,17 @@ IPCacheSharedPtr IPCache::newIpCache(Server::Configuration::ServerFactoryContext
   return ipcache;
 }
 
-IPCacheSharedPtr IPCache::getIpCache(Server::Configuration::ServerFactoryContext& context) {
-  return context.singletonManager().getTyped<Cilium::IPCache>(
+IpCacheSharedPtr IpCache::getIpCache(Server::Configuration::ServerFactoryContext& context) {
+  return context.singletonManager().getTyped<Cilium::IpCache>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache));
 }
 
-IPCache::IPCache(const std::string& path)
-    : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct ipcache_key),
+IpCache::IpCache(const std::string& path)
+    : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct IpCacheKey),
           sizeof(RemoteEndpointInfo::SecLabelType), sizeof(struct RemoteEndpointInfo)),
       path_(path) {}
 
-void IPCache::setPath(const std::string& path) {
+void IpCache::setPath(const std::string& path) {
   Thread::LockGuard guard(path_mutex_);
   if (path != path_) {
     path_ = path;
@@ -99,12 +99,12 @@ void IPCache::setPath(const std::string& path) {
   }
 }
 
-bool IPCache::open() {
+bool IpCache::open() {
   Thread::LockGuard guard(path_mutex_);
   return openLocked();
 }
 
-bool IPCache::openLocked() {
+bool IpCache::openLocked() {
   if (Bpf::open(path_)) {
     ENVOY_LOG(debug, "cilium.ipcache: Opened ipcache at {}", path_);
     return true;
@@ -113,8 +113,8 @@ bool IPCache::openLocked() {
   return false;
 }
 
-uint32_t IPCache::resolve(const Network::Address::Ip* ip) {
-  struct ipcache_key key {};
+uint32_t IpCache::resolve(const Network::Address::Ip* ip) {
+  struct IpCacheKey key {};
   struct RemoteEndpointInfo value {};
 
   if (ip->version() == Network::Address::IpVersion::v4) {

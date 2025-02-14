@@ -158,18 +158,18 @@ public:
 
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
   Cilium::CtMapSharedPtr ct_maps_{};
-  Cilium::IPCacheSharedPtr ipcache_{};
+  Cilium::IpCacheSharedPtr ipcache_{};
   std::shared_ptr<const Cilium::PolicyHostMap> hosts_{};
 
 private:
   uint32_t resolveSourceIdentity(const PolicyInstance& policy, const Network::Address::Ip* sip,
                                  const Network::Address::Ip* dip, bool ingress, bool is_l7_lb);
 
-  IPAddressPair getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr source_address,
-                                     const IPAddressPair& addresses);
+  IpAddressPair getIpAddressPairFrom(const Network::Address::InstanceConstSharedPtr source_address,
+                                     const IpAddressPair& addresses);
 
-  const Network::Address::Ip* selectIPVersion(const Network::Address::IpVersion version,
-                                              const IPAddressPair& source_addresses);
+  const Network::Address::Ip* selectIpVersion(const Network::Address::IpVersion version,
+                                              const IpAddressPair& source_addresses);
 };
 
 using ConfigSharedPtr = std::shared_ptr<Config>;
