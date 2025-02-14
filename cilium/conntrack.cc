@@ -1,10 +1,10 @@
 #include "conntrack.h"
 
-#include <arpa/inet.h>
 #include <netinet/in.h>
-#include <string.h>
 
+#include <cerrno> // IWYU pragma: keep
 #include <cstdint>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <utility>
@@ -12,8 +12,8 @@
 #include "envoy/common/platform.h"
 #include "envoy/network/address.h"
 
+#include "source/common/common/lock_guard.h"
 #include "source/common/common/logger.h"
-#include "source/common/common/thread.h"
 #include "source/common/common/utility.h"
 
 #include "absl/container/flat_hash_map.h"
@@ -30,12 +30,12 @@ namespace Cilium {
 // them to a separate include file we can include here instead of
 // copying them!
 
-typedef uint64_t __u64;
-typedef uint32_t __be32; // Beware of the byte order!
-typedef uint32_t __u32;
-typedef uint16_t __be16; // Beware of the byte order!
-typedef uint16_t __u16;
-typedef uint8_t __u8;
+using __u64 = uint64_t;
+using __be32 = uint32_t; // Beware of the byte order!
+using __u32 = uint32_t;
+using __be16 = uint16_t; // Beware of the byte order!
+using __u16 = uint16_t;
+using __u8 = uint8_t;
 
 #define TUPLE_F_OUT 0
 #define TUPLE_F_IN 1
@@ -58,7 +58,7 @@ PACKED_STRUCT(struct ipv4_ct_tuple {
   __u8 flags;
 });
 
-struct ct_entry {
+struct CtEntry {
   __u64 rx_packets;
   __u64 rx_bytes;
   __u64 tx_packets;
@@ -82,10 +82,10 @@ struct ct_entry {
 };
 
 CtMap::CtMap4::CtMap4()
-    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv4_ct_tuple), sizeof(struct ct_entry)) {}
+    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv4_ct_tuple), sizeof(struct CtEntry)) {}
 
 CtMap::CtMap6::CtMap6()
-    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv6_ct_tuple), sizeof(struct ct_entry)) {}
+    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct ipv6_ct_tuple), sizeof(struct CtEntry)) {}
 
 CtMap::CtMaps4::CtMaps4(const std::string& bpf_root, const std::string& map_name) : ok_(false) {
   // Open the IPv4 bpf maps from Cilium specific paths
@@ -160,7 +160,7 @@ CtMap::openMap6(const std::string& map_name) {
 }
 
 void CtMap::closeMaps(const absl::flat_hash_set<std::string>& to_be_closed) {
-  std::lock_guard<Thread::MutexBasicLockable> guard(maps_mutex_);
+  Thread::LockGuard guard(maps_mutex_);
 
   for (const auto& name : to_be_closed) {
     auto ct4 = ct_maps4_.find(name);
@@ -190,7 +190,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
 
   struct ipv4_ct_tuple key4 {};
   struct ipv6_ct_tuple key6 {};
-  struct ct_entry value {};
+  struct CtEntry value {};
 
   if (sip->version() == Network::Address::IpVersion::v4 &&
       dip->version() == Network::Address::IpVersion::v4) {
@@ -224,7 +224,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
 
   if (dip->version() == Network::Address::IpVersion::v4) {
     // Lock for the duration of the map lookup and conntrack lookup
-    std::lock_guard<Thread::MutexBasicLockable> guard(maps_mutex_);
+    Thread::LockGuard guard(maps_mutex_);
     auto it = ct_maps4_.find(map_name);
     if (it == ct_maps4_.end()) {
       it = openMap4(map_name);
@@ -242,7 +242,7 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
     }
   } else {
     // Lock for the duration of the map lookup and conntrack lookup
-    std::lock_guard<Thread::MutexBasicLockable> guard(maps_mutex_);
+    Thread::LockGuard guard(maps_mutex_);
     auto it = ct_maps6_.find(map_name);
     if (it == ct_maps6_.end()) {
       it = openMap6(map_name);

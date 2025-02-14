@@ -1,7 +1,5 @@
 #include "cilium/network_filter.h"
 
-#include <dlfcn.h>
-
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -22,7 +20,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/network/upstream_server_name.h"
 #include "source/common/network/upstream_subject_alt_names.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 
 #include "absl/status/statusor.h"
@@ -80,16 +78,16 @@ Config::Config(const ::cilium::NetworkFilter& config,
     : time_source_(context.serverFactoryContext().timeSource()), access_log_(nullptr) {
   const auto& access_log_path = config.access_log_path();
   if (access_log_path.length()) {
-    access_log_ = Cilium::AccessLog::Open(access_log_path, time_source_);
+    access_log_ = Cilium::AccessLog::open(access_log_path, time_source_);
   }
   if (config.proxylib().length() > 0) {
     proxylib_ = std::make_shared<Cilium::GoFilter>(config.proxylib(), config.proxylib_params());
   }
 }
 
-void Config::Log(Cilium::AccessLog::Entry& entry, ::cilium::EntryType type) {
+void Config::log(Cilium::AccessLog::Entry& entry, ::cilium::EntryType type) {
   if (access_log_) {
-    access_log_->Log(entry, type);
+    access_log_->log(entry, type);
   }
 }
 
@@ -117,26 +115,26 @@ Network::FilterStatus Instance::onNewConnection() {
   // Pass SNI before the upstream callback so that it is available when upstream connection is
   // initialized.
   const auto sni = conn.requestedServerName();
-  if (sni != "") {
+  if (!sni.empty()) {
     ENVOY_CONN_LOG(trace, "cilium.network: SNI: {}", conn, sni);
   }
 
   // Pass metadata from tls_inspector to the filterstate, if any & not already
   // set via upstream cluster config.
-  if (sni != "") {
-    auto filterState = conn.streamInfo().filterState();
+  if (!sni.empty()) {
+    auto filter_state = conn.streamInfo().filterState();
     auto have_sni =
-        filterState->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
-    auto have_san = filterState->hasData<Network::UpstreamSubjectAltNames>(
+        filter_state->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
+    auto have_san = filter_state->hasData<Network::UpstreamSubjectAltNames>(
         Network::UpstreamSubjectAltNames::key());
     if (!have_sni && !have_san) {
-      filterState->setData(Network::UpstreamServerName::key(),
-                           std::make_unique<Network::UpstreamServerName>(sni),
-                           StreamInfo::FilterState::StateType::Mutable);
-      filterState->setData(Network::UpstreamSubjectAltNames::key(),
-                           std::make_unique<Network::UpstreamSubjectAltNames>(
-                               std::vector<std::string>{std::string(sni)}),
-                           StreamInfo::FilterState::StateType::Mutable);
+      filter_state->setData(Network::UpstreamServerName::key(),
+                            std::make_unique<Network::UpstreamServerName>(sni),
+                            StreamInfo::FilterState::StateType::Mutable);
+      filter_state->setData(Network::UpstreamSubjectAltNames::key(),
+                            std::make_unique<Network::UpstreamSubjectAltNames>(
+                                std::vector<std::string>{std::string(sni)}),
+                            StreamInfo::FilterState::StateType::Mutable);
     }
   }
 
@@ -204,7 +202,7 @@ Network::FilterStatus Instance::onNewConnection() {
     if (port_policy.useProxylib(remote_id_, l7proto_)) {
       // Initialize Go parser if requested
       if (config_->proxylib_.get() != nullptr) {
-        go_parser_ = config_->proxylib_->NewInstance(
+        go_parser_ = config_->proxylib_->newInstance(
             conn, l7proto_, policy_fs->ingress_, policy_fs->source_identity_, destination_identity,
             stream_info.downstreamAddressProvider().remoteAddress()->asString(),
             dst_address->asString(), policy_name);
@@ -213,7 +211,7 @@ Network::FilterStatus Instance::onNewConnection() {
           return false;
         }
       } else { // no Go parser, initialize logging for metadata based access control
-        log_entry_.InitFromConnection(policy_name, policy_fs->proxy_id_, policy_fs->ingress_,
+        log_entry_.initFromConnection(policy_name, policy_fs->proxy_id_, policy_fs->ingress_,
                                       policy_fs->source_identity_,
                                       stream_info.downstreamAddressProvider().remoteAddress(),
                                       destination_identity, dst_address, &config_->time_source_);
@@ -243,18 +241,18 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
   }
   if (go_parser_) {
     FilterResult res =
-        go_parser_->OnIO(false, data, end_stream); // 'false' marks original direction data
+        go_parser_->onIo(false, data, end_stream); // 'false' marks original direction data
     ENVOY_CONN_LOG(trace, "cilium.network::onData: \'GoFilter::OnIO\' returned {}", conn,
                    Envoy::Cilium::toString(res));
 
     if (res != FILTER_OK) {
       // Drop the connection due to an error
-      go_parser_->Close();
+      go_parser_->close();
       reason = "proxylib error";
       goto drop_close;
     }
 
-    if (go_parser_->WantReplyInject()) {
+    if (go_parser_->wantReplyInject()) {
       ENVOY_CONN_LOG(trace, "cilium.network::onData: calling write() on an empty buffer", conn);
 
       // We have no idea when, if ever new data will be received on the
@@ -265,10 +263,10 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
       conn.write(empty, false);
     }
 
-    go_parser_->SetOrigEndStream(end_stream);
+    go_parser_->setOrigEndStream(end_stream);
   } else if (!l7proto_.empty()) {
     const auto& metadata = conn.streamInfo().dynamicMetadata();
-    bool changed = log_entry_.UpdateFromMetadata(l7proto_, metadata.filter_metadata().at(l7proto_));
+    bool changed = log_entry_.updateFromMetadata(l7proto_, metadata.filter_metadata().at(l7proto_));
 
     // Policy may have changed since the connection was established, get fresh policy
     const auto policy_fs =
@@ -286,13 +284,13 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     const auto& policy = policy_fs->getPolicy();
     auto port_policy = policy.findPortPolicy(policy_fs->ingress_, destination_port_);
     if (!port_policy.allowed(remote_id_, metadata)) {
-      config_->Log(log_entry_, ::cilium::EntryType::Denied);
+      config_->log(log_entry_, ::cilium::EntryType::Denied);
       reason = "metadata policy drop";
       goto drop_close;
     } else {
       // accesslog only if metadata has changed
       if (changed) {
-        config_->Log(log_entry_, ::cilium::EntryType::Request);
+        config_->log(log_entry_, ::cilium::EntryType::Request);
       }
     }
   }
@@ -307,20 +305,20 @@ drop_close:
 Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream) {
   if (go_parser_) {
     FilterResult res =
-        go_parser_->OnIO(true, data, end_stream); // 'true' marks reverse direction data
+        go_parser_->onIo(true, data, end_stream); // 'true' marks reverse direction data
     ENVOY_CONN_LOG(trace, "cilium.network::OnWrite: \'GoFilter::OnIO\' returned {}",
                    callbacks_->connection(), Envoy::Cilium::toString(res));
 
     if (res != FILTER_OK) {
       // Drop the connection due to an error
-      go_parser_->Close();
+      go_parser_->close();
       return Network::FilterStatus::StopIteration;
     }
 
     // XXX: Unfortunately continueReading() continues from the next filter, and
     // there seems to be no way to trigger the whole filter chain to be called.
 
-    go_parser_->SetReplyEndStream(end_stream);
+    go_parser_->setReplyEndStream(end_stream);
   }
 
   return Network::FilterStatus::Continue;

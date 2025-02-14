@@ -4,6 +4,7 @@
 !\.bazelversion
 !\.clangd
 !\.clang-format
+!\.clang-tidy
 !\.github
 !\.gitignore
 

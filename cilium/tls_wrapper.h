@@ -8,7 +8,7 @@
 #include "envoy/server/transport_socket_config.h"
 #include "envoy/stats/stats_macros.h" // IWYU pragma: keep
 
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
+#include "source/common/protobuf/protobuf.h"
 
 #include "absl/status/statusor.h"
 

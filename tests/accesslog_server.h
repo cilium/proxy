@@ -27,24 +27,27 @@ public:
   template <typename P>
   bool expectRequestTo(P&& pred, std::chrono::milliseconds timeout = TestUtility::DefaultTimeout) {
     auto maybe_entry = waitForMessage(::cilium::EntryType::Request, timeout);
-    if (maybe_entry.has_value())
+    if (maybe_entry.has_value()) {
       return pred(maybe_entry.value());
+    }
     return false;
   }
 
   template <typename P>
   bool expectResponseTo(P&& pred, std::chrono::milliseconds timeout = TestUtility::DefaultTimeout) {
     auto maybe_entry = waitForMessage(::cilium::EntryType::Response, timeout);
-    if (maybe_entry.has_value())
+    if (maybe_entry.has_value()) {
       return pred(maybe_entry.value());
+    }
     return false;
   }
 
   template <typename P>
   bool expectDeniedTo(P&& pred, std::chrono::milliseconds timeout = TestUtility::DefaultTimeout) {
     auto maybe_entry = waitForMessage(::cilium::EntryType::Denied, timeout);
-    if (maybe_entry.has_value())
+    if (maybe_entry.has_value()) {
       return pred(maybe_entry.value());
+    }
     return false;
   }
 

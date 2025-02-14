@@ -26,9 +26,9 @@ namespace Envoy {
 namespace Cilium {
 
 // Facility for SDS config override for testing
-typedef envoy::config::core::v3::ConfigSource (*getSDSConfigFunc)(const std::string& name);
-extern getSDSConfigFunc getSDSConfig;
-void setSDSConfigFunc(getSDSConfigFunc);
+using GetSdsConfigFunc = envoy::config::core::v3::ConfigSource (*)(const std::string&);
+extern GetSdsConfigFunc getSDSConfig;
+void setSDSConfigFunc(GetSdsConfigFunc);
 void resetSDSConfigFunc();
 
 class SecretWatcher : public Logger::Loggable<Logger::Id::config> {

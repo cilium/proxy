@@ -33,7 +33,7 @@ public:
   Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext& context);
   Config(const Json::Object& config, Server::Configuration::FactoryContext& context);
 
-  void Log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
+  void log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
 
   Cilium::GoFilterSharedPtr proxylib_;
   TimeSource& time_source_;
@@ -42,7 +42,7 @@ private:
   Cilium::AccessLogSharedPtr access_log_;
 };
 
-typedef std::shared_ptr<Config> ConfigSharedPtr;
+using ConfigSharedPtr = std::shared_ptr<Config>;
 
 /**
  * Implementation of a Cilium network filter.

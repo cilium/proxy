@@ -1,10 +1,5 @@
 #include "tests/health_check_sink_server.h"
 
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
-
 #include <chrono>
 #include <functional>
 #include <string>
@@ -25,7 +20,7 @@ HealthCheckSinkServer::HealthCheckSinkServer(const std::string path)
     : UDSServer(path, std::bind(&HealthCheckSinkServer::msgCallback, this, std::placeholders::_1)) {
 }
 
-HealthCheckSinkServer::~HealthCheckSinkServer() {}
+HealthCheckSinkServer::~HealthCheckSinkServer() = default;
 
 void HealthCheckSinkServer::clear() {
   absl::MutexLock lock(&mutex_);
