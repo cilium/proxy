@@ -23,7 +23,8 @@ permissions:
   pull-requests: write
 
 env:
-  KIND_VERSION: v0.18.0
+  # renovate: datasource=github-releases depName=kubernetes-sigs/kind
+  KIND_VERSION: v0.27.0
   CILIUM_REPO_OWNER: cilium
   CILIUM_REPO_REF: main
   CILIUM_CLI_REF: latest
