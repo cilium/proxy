@@ -44,6 +44,7 @@ git_repository(
         "@//patches:0005-liburing.patch",
         "@//patches:0006-tcp_proxy-Check-for-nullptr-in-watermark-ASSERTs.patch",
         "@//patches:0007-thread_local-reset-slot-in-worker-threads-first.patch",
+        "@//patches:0008-http-header-expose-attribute.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
