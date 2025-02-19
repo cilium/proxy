@@ -209,20 +209,16 @@ public:
     ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
     headers_.reserve(rule.headers().size());
     for (const auto& header : rule.headers()) {
-      headers_.emplace_back(std::make_unique<Http::HeaderUtility::HeaderData>(
+      headers_.emplace_back(Http::HeaderUtility::createHeaderData(
           header, parent.transportFactoryContext().serverFactoryContext()));
-      const auto& header_data = *headers_.back();
-      ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
-                header_data.name_.get(),
-                header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
-                    ? fmt::format("[{}-{})", header_data.range_.start(), header_data.range_.end())
-                : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
-                    ? "<VALUE>"
-                : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present
-                    ? "<PRESENT>"
-                : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
-                    ? "<REGEX>"
-                    : "<UNKNOWN>");
+
+      auto value = header.has_range_match()   ? fmt::format("[{}-{})", header.range_match().start(),
+                                                            header.range_match().end())
+                   : header.has_exact_match() ? "<VALUE>"
+                   : header.has_present_match()    ? "<PRESENT>"
+                   : header.has_safe_regex_match() ? "<REGEX>"
+                                                   : "<UNKNOWN>";
+      ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}", header.name(), value);
     }
     header_matches_.reserve(rule.header_matches().size());
     for (const auto& config : rule.header_matches()) {
@@ -268,42 +264,50 @@ public:
       }
       res.append("headers:\n");
       for (auto& h : headers_) {
-        res.append(indent, ' ').append("- name: \"").append(h->name_.get()).append("\"\n");
-        switch (h->header_match_type_) {
-        case Http::HeaderUtility::HeaderMatchType::Value:
-          res.append(indent + 2, ' ').append("value: \"").append(h->value_).append("\"\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Regex:
+        if (const auto v = dynamic_cast<Http::HeaderUtility::HeaderDataBaseImpl*>(h.get())) {
+          res.append(indent, ' ').append("- name: \"").append(v->name_).append("\"\n");
+        }
+
+        if (const auto v = dynamic_cast<Http::HeaderUtility::HeaderDataExactMatch*>(h.get())) {
+          res.append(indent + 2, ' ').append("value: \"").append(v->expected_value_).append("\"\n");
+        } else if (const auto v =
+                       dynamic_cast<Http::HeaderUtility::HeaderDataRegexMatch*>(h.get())) {
           res.append(indent + 2, ' ').append("regex: ").append("<hidden>\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Range:
+        } else if (const auto v =
+                       dynamic_cast<Http::HeaderUtility::HeaderDataRangeMatch*>(h.get())) {
           res.append(indent + 2, ' ')
               .append("range: ")
-              .append(fmt::format("[{}-{})\n", h->range_.start(), h->range_.end()));
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Present:
+              .append(fmt::format("[{}-{})\n", v->range_start_, v->range_end_));
+        } else if (const auto v =
+                       dynamic_cast<Http::HeaderUtility::HeaderDataPresentMatch*>(h.get())) {
           res.append(indent + 2, ' ')
               .append("present: ")
-              .append(h->present_ ? "true\n" : "false\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Prefix:
-          res.append(indent + 2, ' ').append("prefix: \"").append(h->value_).append("\"\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Suffix:
-          res.append(indent + 2, ' ').append("suffix: \"").append(h->value_).append("\"\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Contains:
-          res.append(indent + 2, ' ').append("contains: \"").append(h->value_).append("\"\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::StringMatch:
+              .append(v->present_ ? "true\n" : "false\n");
+        } else if (const auto v =
+                       dynamic_cast<Http::HeaderUtility::HeaderDataPrefixMatch*>(h.get())) {
+          res.append(indent + 2, ' ').append("prefix: \"").append(v->prefix_).append("\"\n");
+        } else if (const auto v =
+                       dynamic_cast<Http::HeaderUtility::HeaderDataSuffixMatch*>(h.get())) {
+          res.append(indent + 2, ' ').append("suffix: \"").append(v->suffix_).append("\"\n");
+        } else if (const auto v =
+                       dynamic_cast<Http::HeaderUtility::HeaderDataContainsMatch*>(h.get())) {
+          res.append(indent + 2, ' ')
+              .append("contains: \"")
+              .append(v->expected_substr_)
+              .append("\"\n");
+        } else if (const auto v =
+                       dynamic_cast<Http::HeaderUtility::HeaderDataStringMatch*>(h.get())) {
           res.append(indent + 2, ' ').append("string_match: ").append("<hidden>\n");
-          break;
         }
-        if (h->invert_match_) {
-          res.append(indent + 2, ' ').append("invert_match: true\n");
-        }
-        if (h->treat_missing_as_empty_) {
-          res.append(indent + 2, ' ').append("treat_missing_as_empty: true\n");
+
+        if (const auto v = dynamic_cast<Http::HeaderUtility::HeaderDataBaseImpl*>(h.get())) {
+          if (v->invert_match_) {
+            res.append(indent + 2, ' ').append("invert_match: true\n");
+          }
+
+          if (v->treat_missing_as_empty_) {
+            res.append(indent + 2, ' ').append("treat_missing_as_empty: true\n");
+          }
         }
       }
     }
@@ -1208,7 +1212,7 @@ bool NetworkPolicyMap::isNewStream() {
   return mux->isNewStream();
 }
 
-// removeInitManager must be called at the end of each each policy update
+// removeInitManager must be called at the end of each policy update
 void NetworkPolicyMap::removeInitManager() {
   // Remove the local init manager from the transport factory context
 #pragma clang diagnostic push

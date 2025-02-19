@@ -105,7 +105,8 @@ protected:
     original_dst_address = std::make_shared<Network::Address::Ipv4Instance>("10.2.2.2", 80);
     EXPECT_TRUE(original_dst_address);
     EXPECT_NE(nullptr, original_dst_address->ip());
-
+    const auto original_dst_address_status =
+        StatusOr<Network::Address::InstanceConstSharedPtr>(original_dst_address);
     // Set up the default local address.
     // This is the "tproxy" address the listener is listening on:
     // - IP is localhost
@@ -122,9 +123,11 @@ protected:
     EXPECT_TRUE(remote_address_);
     EXPECT_NE(nullptr, remote_address_->ip());
 
-    ON_CALL(io_handle_, localAddress()).WillByDefault(testing::Return(original_dst_address));
+    ON_CALL(io_handle_, localAddress()).WillByDefault(testing::Return(original_dst_address_status));
     EXPECT_EQ(&io_handle_, &socket_.ioHandle());
-    auto addr = socket_.ioHandle().localAddress().get();
+    const auto addr = THROW_OR_RETURN_VALUE(socket_.ioHandle().localAddress(),
+                                            Network::Address::InstanceConstSharedPtr)
+                          .get();
     EXPECT_NE(nullptr, addr);
   }
   ~MetadataConfigTest() override {

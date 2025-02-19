@@ -166,7 +166,8 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
   THROW_IF_NOT_OK_REF(rate_limit_settings_or_error.status());
 
   Config::GrpcMuxContext grpc_mux_context{
-      factory_or_error.value()->createUncachedRawAsyncClient(),
+      /*async_client_=*/THROW_OR_RETURN_VALUE(
+          factory_or_error.value()->createUncachedRawAsyncClient(), Grpc::RawAsyncClientPtr),
       /*failover_async_client_=*/nullptr,
       /*dispatcher_=*/dispatcher,
       /*service_method_=*/sotwGrpcMethod(type_url),

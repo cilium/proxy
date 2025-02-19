@@ -79,10 +79,13 @@ protected:
     envoy::service::discovery::v3::DiscoveryResponse message;
     MessageUtil::loadFromYaml(config, message, ProtobufMessage::getNullValidationVisitor());
     NetworkPolicyDecoder network_policy_decoder;
-    const auto decoded_resources = Config::DecodedResourcesWrapper(
+    const auto decoded_resources_or_error = Config::DecodedResourcesWrapper::create(
         network_policy_decoder, message.resources(), message.version_info());
+    THROW_IF_NOT_OK(decoded_resources_or_error.status());
+    const auto decoded_resources = std::move(decoded_resources_or_error.value().get());
+
     EXPECT_TRUE(
-        policy_map_->onConfigUpdate(decoded_resources.refvec_, message.version_info()).ok());
+        policy_map_->onConfigUpdate(decoded_resources->refvec_, message.version_info()).ok());
     return message.version_info();
   }
 
@@ -147,8 +150,9 @@ protected:
     }
 
     // config must exist if ctx is returned
-    if (ctx != nullptr)
+    if (ctx != nullptr) {
       EXPECT_TRUE(config != nullptr);
+    }
 
     EXPECT_TRUE(allowed == (tls_socket_required || raw_socket_allowed));
 
@@ -157,8 +161,8 @@ protected:
                                          << " on port " << port << " with SNI \"" << sni << "\"";
 
     // sanity check
-    EXPECT_TRUE(!(tls_socket_required && raw_socket_allowed) && tls_socket_required ||
-                raw_socket_allowed);
+    EXPECT_TRUE(!(tls_socket_required && raw_socket_allowed) &&
+                (tls_socket_required || raw_socket_allowed));
 
     if (raw_socket_allowed)
       return testing::AssertionSuccess()

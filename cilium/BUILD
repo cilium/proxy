@@ -20,6 +20,7 @@ envoy_cc_library(
         "@envoy//envoy/network:transport_socket_interface",
         "@envoy//envoy/registry",
         "@envoy//envoy/server:transport_socket_config_interface",
+        "@envoy//source/common/network:raw_buffer_socket_lib",
         "@envoy//source/common/tls:server_context_config_lib",
         "@envoy//source/common/tls:ssl_socket_lib",
         "@envoy//source/server:transport_socket_config_lib",
