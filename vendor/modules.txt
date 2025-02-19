@@ -1,10 +1,6 @@
 # cel.dev/expr v0.19.1
 ## explicit; go 1.21.1
 cel.dev/expr
-# github.com/census-instrumentation/opencensus-proto v0.4.1
-## explicit; go 1.18
-github.com/census-instrumentation/opencensus-proto/gen-go/resource/v1
-github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1
 # github.com/cilium/checkmate v1.0.3
 ## explicit; go 1.11
 github.com/cilium/checkmate

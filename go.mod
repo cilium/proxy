@@ -5,7 +5,6 @@ go 1.23.0
 toolchain go1.24.1
 
 require (
-	github.com/census-instrumentation/opencensus-proto v0.4.1
 	github.com/cilium/checkmate v1.0.3
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42
