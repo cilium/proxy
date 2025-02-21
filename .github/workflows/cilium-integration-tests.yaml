@@ -162,7 +162,7 @@ jobs:
 
       - name: Execute Cilium L7 Connectivity Tests
         shell: bash
-        run: cilium connectivity test --test="l7|sni|tls|ingress|check-log-errors"
+        run: cilium connectivity test --test="l7|sni|tls|ingress|check-log-errors" --curl-parallel=10
 
       - name: Gather Cilium system dump
         if: failure()
