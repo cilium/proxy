@@ -1,18 +1,19 @@
 name: Cilium Integration Tests
 on:
-  push:
-    branches:
-    - v1.32
-  pull_request_target:
-    types:
-    - opened
-    - reopened
-    - synchronize
-    branches:
-    - v1.32
+  workflow_call:
+    inputs:
+      repository:
+        description: 'Github Repository to run the workflow on.'
+        type: string
+        required: true
+        default: cilium/proxy
+      commit_ref:
+        description: 'Git commit ref for image.'
+        type: string
+        required: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
+  group: ${{ github.workflow }}-${{ inputs.repository || github.event.pull_request.number || github.event.after }}
   cancel-in-progress: true
 
 # By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
@@ -45,11 +46,11 @@ jobs:
         echo "PROXY_GITHUB_REPO=github.com/cilium/proxy" >> $GITHUB_ENV
 
     - name: Prepare variables for PR
-      if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
+      if: inputs.commit_ref != ''
       run: |
         echo "PROXY_IMAGE=quay.io/cilium/cilium-envoy-dev" >> $GITHUB_ENV
-        echo "PROXY_TAG=${{ github.event.pull_request.head.sha }}" >> $GITHUB_ENV
-        echo "PROXY_GITHUB_REPO=github.com/${{github.event.pull_request.head.repo.full_name}}" >> $GITHUB_ENV
+        echo "PROXY_TAG=${{ inputs.commit_ref }}" >> $GITHUB_ENV
+        echo "PROXY_GITHUB_REPO=github.com/${{ inputs.repository }}" >> $GITHUB_ENV
 
     - name: Checkout Cilium ${{ env.CILIUM_REPO_REF }}
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

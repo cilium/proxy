@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 360
     name: Build and push multi-arch images
     runs-on: ubuntu-latest-64-cores-256gb
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
     steps:
     - name: Set up QEMU
       uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
@@ -147,3 +149,16 @@ jobs:
       run: |
         echo "Digests:"
         echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ci.outputs.digest }}"
+
+  cilium-intergration-tests:
+    name: Cilium Integration Tests
+    needs: build-and-push-prs
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
+    uses: ./.github/workflows/cilium-integration-tests.yaml
+    with:
+      repository: ${{ github.event.pull_request.head.repo.full_name }}
+      commit_ref: ${{ github.event.pull_request.head.sha }}
+    secrets: inherit
