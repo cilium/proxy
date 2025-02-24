@@ -38,6 +38,33 @@
   ],
   packageRules: [
     {
+      "groupName": "Go",
+      "matchDepNames": [
+        "go",
+        "docker.io/library/golang"
+      ],
+    },
+    {
+      "matchPackageNames": [
+        "docker.io/library/golang",
+        "go"
+      ],
+      "allowedVersions": "<1.25",
+      "matchBaseBranches": [
+        "main",
+      ]
+    },
+    {
+      "matchPackageNames": [
+        "docker.io/library/golang",
+        "go"
+      ],
+      "allowedVersions": "<1.24",
+      "matchBaseBranches": [
+        "v1.31",
+      ]
+    },
+    {
       groupName: 'all go dependencies main',
       groupSlug: 'all-go-deps-main',
       matchFileNames: [
