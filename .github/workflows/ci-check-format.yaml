@@ -36,7 +36,7 @@ jobs:
         run: until docker manifest inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }} &> /dev/null; do sleep 15s; done
 
       - name: Check format
-        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
         id: docker_format_ciak
         with:
           target: format
@@ -55,7 +55,7 @@ jobs:
 
       - name: Upload Format results
         if: failure()
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
           name: check-format-results
           path: check-format-results/format-output.txt
