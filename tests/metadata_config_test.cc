@@ -35,6 +35,7 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "cilium/accesslog.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/bpf_metadata.h"
 #include "gtest/gtest.h"
@@ -125,7 +126,13 @@ protected:
     EXPECT_EQ(&io_handle_, &socket_.ioHandle());
     auto addr = socket_.ioHandle().localAddress().get();
     EXPECT_NE(nullptr, addr);
+  }
+  ~MetadataConfigTest() override {
+    hostmap.reset();
+    npmap.reset();
+  }
 
+  void SetUp() override {
     // Set up default host map
     host_map_config = R"EOF(version_info: "1"
 resources:
@@ -175,20 +182,21 @@ resources:
   ingress_per_port_policies:
   - port: 0
     rules:
-    - remote_policies: [ 12345678 ]
-  egress_per_port_policies: {}
+    - remote_policies: [ 9999, 12345678 ]
+  egress_per_port_policies:
+  - port: 0
+    rules:
+    - remote_policies: [ 222, 9999, 12345678 ]
 )EOF";
   }
-  ~MetadataConfigTest() override {
-    hostmap.reset();
-    npmap.reset();
-  }
 
-  void SetUp() override {}
-
-  void initialize(const ::cilium::BpfMetadata& config) {
+  void initialize(const ::cilium::BpfMetadata& config, std::string extra_host_map_config = "",
+                  std::string extra_policy_config = "") {
     socket_.connection_info_provider_ =
         std::make_shared<Network::ConnectionInfoSetterImpl>(local_address_, remote_address_);
+
+    host_map_config += extra_host_map_config;
+    policy_config += extra_policy_config;
 
     initTestMaps(context_);
 
@@ -210,6 +218,7 @@ resources:
   std::shared_ptr<Cilium::BpfMetadata::Config> config_;
   Network::Address::InstanceConstSharedPtr local_address_;
   Network::Address::InstanceConstSharedPtr remote_address_;
+  NiceMock<Network::MockConnection> conn_;
   NiceMock<Network::MockConnectionSocket> socket_;
   NiceMock<Network::MockIoHandle> io_handle_;
   Network::Socket::OptionsSharedPtr options_;
@@ -268,6 +277,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbConfig) {
   EXPECT_NO_THROW(initialize(config));
 }
 
+// LEGACY N/S without policy enforcement
 TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   // Use external remote address
   remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.1.1", 12345);
@@ -289,7 +299,8 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   EXPECT_EQ(false, policy_fs->ingress_);
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
-  EXPECT_EQ("10.1.1.42", policy_fs->pod_ip_);
+  EXPECT_EQ("", policy_fs->pod_ip_);
+  EXPECT_EQ("", policy_fs->ingress_policy_name_);
   EXPECT_EQ(0, policy_fs->ingress_source_identity_);
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
@@ -328,12 +339,106 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   EXPECT_EQ(false, policy_fs->ingress_);
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
-  EXPECT_EQ("10.1.1.42", policy_fs->pod_ip_);
+  EXPECT_EQ("", policy_fs->pod_ip_);
+  EXPECT_EQ("10.1.1.42", policy_fs->ingress_policy_name_);
   EXPECT_EQ(12345678, policy_fs->ingress_source_identity_);
 
+  AccessLog::Entry logEntry;
+  logEntry.entry_.set_policy_name("pod");
+
   // Expect policy accepts security ID 12345678 on ingress on port 80
-  auto port_policy = policy_fs->getPolicy().findPortPolicy(true, 80);
-  EXPECT_TRUE(port_policy.allowed(12345678, ""));
+  bool useProxyLib;
+  std::string l7Proto;
+  EXPECT_TRUE(
+      policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", useProxyLib, l7Proto, logEntry));
+  EXPECT_FALSE(useProxyLib);
+  EXPECT_EQ("", l7Proto);
+  EXPECT_NE("pod", logEntry.entry_.policy_name());
+
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  EXPECT_NE(nullptr, source_addresses_socket_option);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option->ipv6_source_address_->asString());
+
+  auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option);
+
+  // Check that Ingress security ID is used in the socket mark
+  EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option->mark_ >> 16) == 8);
+}
+
+TEST_F(MetadataConfigTest, NorthSouthL7LbPodAndIngressEnforcedMetadata) {
+  // Use external remote address
+  remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.1.1", 12345);
+
+  ::cilium::BpfMetadata config{};
+  config.set_is_l7lb(true);
+  config.set_ipv4_source_address("10.1.1.42");
+  config.set_ipv6_source_address("face::42");
+  config.set_enforce_policy_on_l7lb(true);
+
+  std::string extra_host_map_config = R"EOF(- "@type": type.googleapis.com/cilium.NetworkPolicyHosts
+  policy: 9999
+  host_addresses: [ "192.168.1.1" ]
+)EOF";
+
+  std::string extra_policy_config = R"EOF(- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - '192.168.1.1'
+  - 'face:192:168:1:1'
+  endpoint_id: 3000
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 222, 333 ]
+)EOF";
+
+  EXPECT_NO_THROW(initialize(config, extra_host_map_config, extra_policy_config));
+
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  EXPECT_NE(nullptr, policy_fs);
+
+  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(false, policy_fs->ingress_);
+  EXPECT_EQ(true, policy_fs->is_l7lb_);
+  EXPECT_EQ(80, policy_fs->port_);
+  EXPECT_EQ("192.168.1.1", policy_fs->pod_ip_);
+  EXPECT_EQ("10.1.1.42", policy_fs->ingress_policy_name_);
+  EXPECT_EQ(9999, policy_fs->ingress_source_identity_);
+
+  AccessLog::Entry logEntry;
+  logEntry.entry_.set_policy_name("pod");
+
+  // Expect pod policy denies security ID 12345678 on port 80 (only 222 allowed)
+  bool useProxyLib;
+  std::string l7Proto;
+  EXPECT_FALSE(
+      policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", useProxyLib, l7Proto, logEntry));
+  EXPECT_FALSE(useProxyLib);
+  EXPECT_EQ("", l7Proto);
+  EXPECT_EQ("pod", logEntry.entry_.policy_name());
+
+  // Expect pod policy allows egress to security ID 222 on port 80
+  // Ingress policy allows ingress from 9999 (pod's security ID)
+  // Ingress policy allows 222 egress
+  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 222, 80, "", useProxyLib, l7Proto, logEntry));
+  EXPECT_FALSE(useProxyLib);
+  EXPECT_EQ("", l7Proto);
+  EXPECT_NE("pod", logEntry.entry_.policy_name());
+
+  // Expect pod policy allows egress to security ID 333 on port 80
+  // Ingress policy allows ingress from 9999
+  // Ingress policy denies 333 egress
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 333, 80, "", useProxyLib, l7Proto, logEntry));
+  EXPECT_FALSE(useProxyLib);
+  EXPECT_EQ("", l7Proto);
+  EXPECT_NE("pod", logEntry.entry_.policy_name());
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option);
@@ -371,12 +476,20 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   EXPECT_EQ(false, policy_fs->ingress_);
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
-  EXPECT_EQ("10.1.1.42", policy_fs->pod_ip_);
+  EXPECT_EQ("", policy_fs->pod_ip_);
+  EXPECT_EQ("10.1.1.42", policy_fs->ingress_policy_name_);
   EXPECT_EQ(2, policy_fs->ingress_source_identity_);
 
-  // Expect policy does not accept security ID 2 on ingress on port 80
-  auto port_policy = policy_fs->getPolicy().findPortPolicy(true, 80);
-  EXPECT_FALSE(port_policy.allowed(2, ""));
+  AccessLog::Entry logEntry;
+  logEntry.entry_.set_policy_name("pod");
+
+  // Expect policy does not accept security ID 2 on port 80
+  bool useProxyLib;
+  std::string l7Proto;
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 2, 80, "", useProxyLib, l7Proto, logEntry));
+  EXPECT_FALSE(useProxyLib);
+  EXPECT_EQ("", l7Proto);
+  EXPECT_NE("pod", logEntry.entry_.policy_name());
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option);
@@ -429,6 +542,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
   EXPECT_EQ("10.1.1.1", policy_fs->pod_ip_);
+  EXPECT_EQ("", policy_fs->ingress_policy_name_);
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
   EXPECT_NE(nullptr, source_addresses_socket_option);
@@ -447,6 +561,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
 }
 
 // When original source is not configured to be used, east/west traffic takes the north/south path
+// but retains local pod's IP as the "policy name" it found.
 TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   ::cilium::BpfMetadata config{};
   config.set_is_l7lb(true);
@@ -465,7 +580,8 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   EXPECT_EQ(false, policy_fs->ingress_);
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
-  EXPECT_EQ("10.1.1.42", policy_fs->pod_ip_);
+  EXPECT_EQ("10.1.1.1", policy_fs->pod_ip_);
+  EXPECT_EQ("", policy_fs->ingress_policy_name_);
   EXPECT_EQ(0, policy_fs->ingress_source_identity_);
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();

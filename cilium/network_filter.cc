@@ -162,46 +162,45 @@ Network::FilterStatus Instance::onNewConnection() {
       ENVOY_CONN_LOG(warn, "cilium.network (egress): No destination address", conn);
       return false;
     }
-    const auto& policy = policy_fs->getPolicy();
-    if (!policy_fs->ingress_) {
-      const auto dip = dst_address->ip();
-      if (!dip) {
-        ENVOY_CONN_LOG(warn, "cilium.network: Non-IP destination address: {}", conn,
-                       dst_address->asString());
-        return false;
-      }
+    const auto dip = dst_address->ip();
+    if (!dip) {
+      ENVOY_CONN_LOG(warn, "cilium.network: Non-IP destination address: {}", conn,
+                     dst_address->asString());
+      return false;
+    }
+
+    if (policy_fs->ingress_) {
+      remote_id_ = policy_fs->source_identity_;
+    } else {
+      remote_id_ = destination_identity;
       destination_port_ = dip->port();
       destination_identity = policy_fs->resolvePolicyId(dip);
-
-      if (policy_fs->ingress_source_identity_ != 0) {
-        auto ingress_port_policy = policy.findPortPolicy(true, destination_port_);
-        if (!ingress_port_policy.allowed(policy_fs->ingress_source_identity_, sni)) {
-          ENVOY_CONN_LOG(
-              debug,
-              "cilium.network: ingress policy DROP for source identity: {} port: {} sni: \"{}\"",
-              conn, policy_fs->ingress_source_identity_, destination_port_, sni);
-          return false;
-        }
-      }
     }
 
-    auto port_policy = policy.findPortPolicy(policy_fs->ingress_, destination_port_);
+    log_entry_.InitFromConnection(policy_fs->pod_ip_, policy_fs->proxy_id_, policy_fs->ingress_,
+                                  policy_fs->source_identity_,
+                                  stream_info.downstreamAddressProvider().remoteAddress(),
+                                  destination_identity, dst_address, &config_->time_source_);
 
-    remote_id_ = policy_fs->ingress_ ? policy_fs->source_identity_ : destination_identity;
-    if (!port_policy.allowed(remote_id_, sni)) {
-      // Connection not allowed by policy
-      ENVOY_CONN_LOG(debug, "cilium.network: Policy DENY on id: {} port: {} sni: \"{}\"", conn,
+    bool useProxyLib;
+    if (!policy_fs->enforceNetworkPolicy(conn, destination_identity, destination_port_, sni,
+                                         useProxyLib, l7proto_, log_entry_)) {
+      ENVOY_CONN_LOG(debug, "cilium.network: policy DENY on id: {} port: {} sni: \"{}\"", conn,
                      remote_id_, destination_port_, sni);
+      config_->Log(log_entry_, ::cilium::EntryType::Denied);
       return false;
-    } else {
-      // Connection allowed by policy
-      ENVOY_CONN_LOG(debug, "cilium.network: Policy ALLOW on id: {} port: {} sni: \"{}\"", conn,
-                     remote_id_, destination_port_, sni);
     }
+    // Emit accesslog if north/south l7 lb, as in that case the traffic is not going back to bpf
+    // datapath for policy enforcement
+    if (log_entry_.entry_.policy_name() != policy_fs->pod_ip_) {
+      config_->Log(log_entry_, ::cilium::EntryType::Request);
+    }
+    ENVOY_LOG(debug, "cilium.network: policy ALLOW on id: {} port: {} sni: \"{}\"", remote_id_,
+              destination_port_, sni);
 
-    const std::string& policy_name = policy_fs->pod_ip_;
-    // populate l7proto_ if available
-    if (port_policy.useProxylib(remote_id_, l7proto_)) {
+    if (useProxyLib) {
+      const std::string& policy_name = policy_fs->pod_ip_;
+
       // Initialize Go parser if requested
       if (config_->proxylib_.get() != nullptr) {
         go_parser_ = config_->proxylib_->NewInstance(
@@ -212,11 +211,6 @@ Network::FilterStatus Instance::onNewConnection() {
           ENVOY_CONN_LOG(warn, "cilium.network: Go parser \"{}\" not found", conn, l7proto_);
           return false;
         }
-      } else { // no Go parser, initialize logging for metadata based access control
-        log_entry_.InitFromConnection(policy_name, policy_fs->proxy_id_, policy_fs->ingress_,
-                                      policy_fs->source_identity_,
-                                      stream_info.downstreamAddressProvider().remoteAddress(),
-                                      destination_identity, dst_address, &config_->time_source_);
       }
     }
     should_buffer_ = false;
