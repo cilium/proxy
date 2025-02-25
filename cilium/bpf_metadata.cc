@@ -369,7 +369,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     return absl::nullopt;
   }
 
-  std::string pod_ip, other_ip;
+  std::string pod_ip, other_ip, ingress_policy_name;
   if (is_ingress_) {
     pod_ip = dip->addressAsString();
     other_ip = sip->addressAsString();
@@ -445,30 +445,27 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
       return absl::nullopt;
     }
 
-    auto& ingress_ip_str = ingress_ip->addressAsString();
+    // Enforce pod policy only for local pods.
+    if (policy->getEndpointID() == 0) {
+      pod_ip = ""; // source is not a local pod
+    }
 
-    auto new_source_identity = resolvePolicyId(ingress_ip);
-    if (new_source_identity == Cilium::ID::WORLD) {
+    // Enforce Ingress policy?
+    if (enforce_policy_on_l7lb_) {
+      ingress_source_identity = source_identity;
+      ingress_policy_name = ingress_ip->addressAsString();
+    }
+
+    // Resolve source identity for the Ingress address
+    source_identity = resolvePolicyId(ingress_ip);
+    if (source_identity == Cilium::ID::WORLD) {
       // No security ID available for the configured source IP
       ENVOY_LOG(warn,
                 "cilium.bpf_metadata (north/south L7 LB): Unknown local Ingress IP source address "
                 "configured: {}",
-                ingress_ip_str);
+                ingress_ip->addressAsString());
       return absl::nullopt;
     }
-
-    // Enforce ingress policy on the incoming Ingress traffic?
-    if (enforce_policy_on_l7lb_)
-      ingress_source_identity = source_identity;
-
-    source_identity = new_source_identity;
-
-    // AllowAllEgressPolicy will be returned if no explicit Ingress policy exists
-    policy = &getPolicy(ingress_ip_str);
-
-    // Set Ingress source IP as pod_ip (In case of egress (how N/S L7 LB is implemented), the pod_ip
-    // is the source IP)
-    pod_ip = ingress_ip_str;
 
     // Original source address is never used for north/south LB
     src_address = nullptr;
@@ -510,9 +507,9 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   }
   return absl::optional(Cilium::BpfMetadata::SocketMetadata(
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
-      std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
-      std::move(source_addresses.ipv6_), std::move(dst_address), weak_from_this(), proxy_id_,
-      std::move(proxylib_l7proto), sni));
+      std::move(pod_ip), std::move(ingress_policy_name), std::move(src_address),
+      std::move(source_addresses.ipv4_), std::move(source_addresses.ipv6_), std::move(dst_address),
+      weak_from_this(), proxy_id_, std::move(proxylib_l7proto), sni));
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {

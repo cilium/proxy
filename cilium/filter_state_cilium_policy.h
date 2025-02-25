@@ -7,19 +7,20 @@
 #include <linux/in.h>
 #include <linux/in6.h>
 
-#include <cerrno>
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "envoy/common/pure.h"
+#include "envoy/http/header_map.h"
 #include "envoy/network/address.h"
 #include "envoy/stream_info/filter_state.h"
 
 #include "source/common/common/logger.h"
 
 #include "absl/strings/string_view.h"
+#include "cilium/accesslog.h"
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 
@@ -44,15 +45,18 @@ class CiliumPolicyFilterState : public StreamInfo::FilterState::Object,
 public:
   CiliumPolicyFilterState(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
                           bool l7lb, uint16_t port, std::string&& pod_ip,
+                          std::string&& ingress_policy_name,
                           const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
                           absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
-        proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver) {
-    ENVOY_LOG(debug,
-              "Cilium CiliumPolicyFilterState(): source_identity: {}, "
-              "ingress: {}, port: {}, pod_ip: {}, proxy_id: {}, sni: \"{}\"",
-              source_identity_, ingress_, port_, pod_ip_, proxy_id_, sni_);
+        ingress_policy_name_(std::move(ingress_policy_name)), proxy_id_(proxy_id), sni_(sni),
+        policy_resolver_(policy_resolver) {
+    ENVOY_LOG(
+        debug,
+        "Cilium CiliumPolicyFilterState(): source_identity: {}, "
+        "ingress: {}, port: {}, pod_ip: {}, ingress_policy_name: {}, proxy_id: {}, sni: \"{}\"",
+        source_identity_, ingress_, port_, pod_ip_, ingress_policy_name_, proxy_id_, sni_);
   }
 
   uint32_t resolvePolicyId(const Network::Address::Ip* ip) const {
@@ -69,6 +73,17 @@ public:
     return NetworkPolicyMap::GetDenyAllPolicy();
   }
 
+  bool enforceNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
+                            uint16_t destination_port, const absl::string_view sni,
+                            /* OUT */ bool& use_proxy_lib,
+                            /* OUT */ std::string& l7_proto,
+                            /* INOUT */ AccessLog::Entry& log_entry) const;
+
+  bool enforceHTTPPolicy(const Network::Connection& conn, bool is_downstream,
+                         uint32_t destination_identity, uint16_t destination_port,
+                         /* INOUT */ Http::RequestHeaderMap& headers,
+                         /* INOUT */ AccessLog::Entry& log_entry) const;
+
   // policyUseUpstreamDestinationAddress returns 'true' if policy enforcement should be done on the
   // basis of the upstream destination address.
   bool policyUseUpstreamDestinationAddress() const { return is_l7lb_; }
@@ -82,6 +97,7 @@ public:
   bool is_l7lb_;
   uint16_t port_;
   std::string pod_ip_;
+  std::string ingress_policy_name_;
   uint32_t proxy_id_;
   std::string sni_;
 
