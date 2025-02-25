@@ -51,4 +51,10 @@ message BpfMetadata {
   // network policy update took longer
   // Deprecated, has no effect.
   google.protobuf.Duration policy_update_warning_limit = 9;
+
+  // l7_lb_identity is the identity of the ingress listener. Optional.
+  uint32 l7_lb_identity = 10;
+
+  // l7_policy_identity is the endpoint id. Optional.
+  uint32 l7_lb_policy_identity = 11;
 }

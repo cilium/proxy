@@ -209,7 +209,9 @@ Config::Config(const ::cilium::BpfMetadata& config,
           Network::Utility::parseInternetAddressNoThrow(config.ipv4_source_address())),
       ipv6_source_address_(
           Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address())),
-      enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()) {
+      enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()),
+      l7_lb_identity_(config.l7_lb_identity()),
+      l7_lb_policy_identity_(config.l7_lb_policy_identity()) {
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -258,6 +260,11 @@ Config::Config(const ::cilium::BpfMetadata& config,
 uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
   uint32_t id = 0;
 
+  // For L7LB, the same Ingress IP is used by multiple endpoints
+  if (is_l7lb_ && l7_lb_identity_ != 0 && l7_lb_policy_identity_ != 0) {
+    return l7_lb_policy_identity_;
+  }
+
   if (ipcache_ != nullptr) {
     id = ipcache_->resolve(ip);
   } else if (hosts_ != nullptr) {
@@ -275,7 +282,8 @@ uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
 
 uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
                                        const Network::Address::Ip* sip,
-                                       const Network::Address::Ip* dip, bool ingress, bool isL7LB) {
+                                       const Network::Address::Ip* dip, const bool ingress,
+                                       const bool isL7LB) const {
   uint32_t source_identity = 0;
 
   // Resolve the source security ID from conntrack map, or from ip cache
@@ -389,9 +397,11 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
   // Resolve the source security ID from conntrack map, or from ip cache
   uint32_t source_identity = resolveSourceIdentity(*policy, sip, dip, is_ingress_, is_l7lb_);
+  ENVOY_LOG(debug, "resolveSourceIdentity: {}", source_identity);
 
   // Resolve the destination security ID for egress traffic
   uint32_t destination_identity = is_ingress_ ? 0 : resolvePolicyId(dip);
+  ENVOY_LOG(debug, "destination_identity: {}", destination_identity);
 
   // ingress_source_identity is non-zero when the egress path l7 LB should also enforce
   // the ingress path policy using the original source identity.
@@ -448,7 +458,9 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
     auto& ingress_ip_str = ingress_ip->addressAsString();
 
-    auto new_source_identity = resolvePolicyId(ingress_ip);
+    auto new_source_identity = l7_lb_identity_ != 0 ? l7_lb_identity_ : resolvePolicyId(ingress_ip);
+    ENVOY_LOG(debug, "new_source_identity: {}", new_source_identity);
+
     if (new_source_identity == Cilium::ID::WORLD) {
       // No security ID available for the configured source IP
       ENVOY_LOG(warn,
@@ -501,7 +513,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
   if (is_l7lb_ && use_original_source_address_ /* E/W L7LB */) {
     // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
-    // processed by the the source endpoint's policy enforcement in the datapath.
+    // processed by the source endpoint's policy enforcement in the datapath.
     mark = 0x0900 | policy->getEndpointID() << 16;
   } else {
     // Mark with source identity
@@ -509,6 +521,12 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     uint32_t identity_id = (source_identity & 0xFFFF) << 16;
     mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
   }
+
+  ENVOY_LOG(trace,
+            "cilium.bpf_metadata: mark {}, ingress_source_identity {}, source_identity {}, "
+            "is_ingress {}, is_l7lb_ {}, port {}, pod_ip {}",
+            mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
+            pod_ip);
   return absl::optional(Cilium::BpfMetadata::SocketMetadata(
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(src_address), std::move(source_addresses.ipv4_),
