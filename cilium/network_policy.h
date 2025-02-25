@@ -149,7 +149,6 @@ public:
   virtual bool allowed(bool ingress, uint32_t remote_id, absl::string_view sni,
                        uint16_t port) const PURE;
 
-  // Returned pointer must not be stored for later use!
   virtual const PortPolicy findPortPolicy(bool ingress, uint16_t port) const PURE;
 
   // Returns true if the policy specifies l7 protocol for the connection, and
