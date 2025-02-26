@@ -162,18 +162,18 @@ jobs:
 
       - name: Execute Cilium L7 Connectivity Tests
         shell: bash
-        run: cilium connectivity test --test="l7|sni|tls|ingress|check-log-errors" --curl-parallel=10
+        run: cilium connectivity test --test="l7|sni|tls|ingress|check-log-errors" --curl-parallel=10 --collect-sysdump-on-failure --flush-ct --sysdump-hubble-flows-count=100000 --sysdump-hubble-flows-timeout=15s
 
       - name: Gather Cilium system dump
         if: failure()
         shell: bash
-        run: cilium sysdump --output-filename cilium-integration-test-sysdump
+        run: cilium sysdump --output-filename cilium-sysdump-final
 
 
       - name: Upload Cilium system dump
         if: failure()
         uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.1
         with:
-          name: cilium-integration-test-sysdump
-          path: cilium-integration-test-sysdump.zip
+          name: cilium-integration-test-sysdumps
+          path: cilium-sysdump-*.zip
           retention-days: 5
