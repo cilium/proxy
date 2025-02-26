@@ -24,6 +24,9 @@
 namespace Envoy {
 namespace Cilium {
 
+// IP cache names to look for, in the order of prefefrence
+static const char* ipcache_names[] = {"cilium_ipcache_v2", "cilium_ipcache"};
+
 // These must be kept in sync with Cilium source code, should refactor
 // them to a separate include file we can include here instead of
 // copying them!
@@ -51,10 +54,9 @@ PACKED_STRUCT(struct ipcache_key {
 });
 
 struct remote_endpoint_info {
-  __u32 sec_label;
-  __u32 tunnel_endpoint;
-  __u16 pad;
-  __u8 key;
+  using SecLabelType = __u32;
+  SecLabelType sec_label;
+  char buf[60]; // Enough space for all fields after the 'sec_label'
 };
 
 #define ENDPOINT_KEY_IPV4 1
@@ -80,18 +82,28 @@ IPCacheSharedPtr IPCache::GetIPCache(Server::Configuration::ServerFactoryContext
 }
 
 IPCache::IPCache(const std::string& bpf_root)
-    : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct ipcache_key), sizeof(struct remote_endpoint_info)),
+    : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct ipcache_key),
+          sizeof(remote_endpoint_info::SecLabelType), sizeof(struct remote_endpoint_info)),
       bpf_root_(bpf_root) {}
 
 bool IPCache::Open() {
   // Open the bpf maps from Cilium specific paths
-  std::string path(bpf_root_ + "/tc/globals/cilium_ipcache");
-  if (!open(path)) {
-    ENVOY_LOG(info, "cilium.ipcache: Cannot open ipcache map at {}", path);
-    return false;
+  std::string tried_paths;
+
+  for (const char* name : ipcache_names) {
+    std::string path(bpf_root_ + "/tc/globals/" + name);
+    if (!Bpf::open(path)) {
+      if (tried_paths.length() > 0) {
+        tried_paths += ", ";
+      }
+      tried_paths += path;
+      continue;
+    }
+    ENVOY_LOG(debug, "cilium.ipcache: Opened ipcache at {}", path);
+    return true;
   }
-  ENVOY_LOG(debug, "cilium.ipcache: Opened ipcache.");
-  return true;
+  ENVOY_LOG(info, "cilium.ipcache: Cannot open ipcache at any of {}", tried_paths);
+  return false;
 }
 
 uint32_t IPCache::resolve(const Network::Address::Ip* ip) {
