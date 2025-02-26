@@ -19,6 +19,11 @@ jobs:
     name: Build and push multi-arch images
     runs-on: ubuntu-latest-64-cores-256gb
     steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@4574d27a4764455b42196d70a065bc6853246a25 # v3.4.0
+        with:
+          image: tonistiigi/binfmt:qemu-v7.0.0-28
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
 
