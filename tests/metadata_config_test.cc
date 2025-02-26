@@ -79,8 +79,8 @@ protected:
         }));
     ON_CALL(context_.init_manager_, initialize(_))
         .WillByDefault(Invoke([this](const Init::Watcher& watcher) {
-          for (auto& handle_ : target_handles_) {
-            handle_->initialize(watcher);
+          for (auto& handle : target_handles_) {
+            handle->initialize(watcher);
           }
         }));
 

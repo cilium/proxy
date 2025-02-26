@@ -18,6 +18,7 @@
 #include "envoy/common/exception.h"
 #include "envoy/event/dispatcher.h"
 #include "envoy/extensions/transport_sockets/tls/v3/tls.pb.h"
+#include "envoy/http/codec.h"
 #include "envoy/network/address.h"
 #include "envoy/network/connection.h"
 #include "envoy/network/transport_socket.h"
@@ -146,6 +147,7 @@ public:
 
     auto cfg_or_error = Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(
         tls_context, factory_context_, false);
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(cfg_or_error.status());
     auto cfg = std::move(cfg_or_error.value());
 
@@ -153,6 +155,7 @@ public:
     auto server_or_error = Extensions::TransportSockets::Tls::ServerSslSocketFactory::create(
         std::move(cfg), context_manager_, *upstream_stats_store->rootScope(),
         std::vector<std::string>{});
+    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(server_or_error.status());
     return std::move(server_or_error.value());
   }

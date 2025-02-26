@@ -90,7 +90,7 @@ GoFilter::~GoFilter() {
   }
 }
 
-GoFilter::InstancePtr GoFilter::NewInstance(Network::Connection& conn, const std::string& go_proto,
+GoFilter::InstancePtr GoFilter::newInstance(Network::Connection& conn, const std::string& go_proto,
                                             bool ingress, uint32_t src_id, uint32_t dst_id,
                                             const std::string& src_addr,
                                             const std::string& dst_addr,
@@ -113,9 +113,9 @@ GoFilter::InstancePtr GoFilter::NewInstance(Network::Connection& conn, const std
   return parser;
 }
 
-FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool end_stream) {
+FilterResult GoFilter::Instance::onIo(bool reply, Buffer::Instance& data, bool end_stream) {
   auto& dir = reply ? reply_ : orig_;
-  int64_t input_len = data.length();
+  int64_t data_len = data.length();
 
   // Pass bytes based on an earlier verdict?
   if (dir.pass_bytes_ > 0) {
@@ -124,11 +124,11 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
     ASSERT(dir.need_bytes_ == 0);      // Passed bytes can't be needed
     // Can return immediately if passing more that we have input.
     // May need to process injected data even when there is no input left.
-    if (dir.pass_bytes_ > input_len) {
-      if (input_len > 0) {
+    if (dir.pass_bytes_ > data_len) {
+      if (data_len > 0) {
         ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Passing all input: {} bytes: {} ", conn_,
-                       input_len, data.toString());
-        dir.pass_bytes_ -= input_len;
+                       data_len, data.toString());
+        dir.pass_bytes_ -= data_len;
       }
       return FILTER_OK; // all of 'data' is passed to the next filter
     }
@@ -142,19 +142,18 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
       ASSERT(dir.need_bytes_ == 0);      // Dropped bytes can't be needed
       // Can return immediately if passing more that we have input.
       // May need to process injected data even when there is no input left.
-      if (dir.drop_bytes_ > input_len) {
-        if (input_len > 0) {
+      if (dir.drop_bytes_ > data_len) {
+        if (data_len > 0) {
           ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Dropping all input: {} bytes: {} ", conn_,
-                         input_len, data.toString());
-          dir.drop_bytes_ -= input_len;
-          data.drain(input_len);
+                         data_len, data.toString());
+          dir.drop_bytes_ -= data_len;
+          data.drain(data_len);
         }
         return FILTER_OK; // everything was dropped, nothing more to be done
       }
       ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Dropping first {} bytes of input: {}", conn_,
                      dir.drop_bytes_, data.toString());
       data.drain(dir.drop_bytes_);
-      input_len -= dir.drop_bytes_;
       dir.drop_bytes_ = 0;
       // At frame boundary, more data may remain
     }
@@ -164,7 +163,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
   dir.buffer_.move(data);
   ASSERT(data.length() == 0);
   auto& input = dir.buffer_;
-  input_len = input.length();
+  int64_t input_len = input.length();
   auto& output = data;
 
   // Move pre-passed input to output.
@@ -197,15 +196,15 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
   dir.need_bytes_ = 0;
 
   const int max_ops = 16; // Make shorter for testing purposes
-  FilterOp ops_[max_ops];
-  GoFilterOpSlice ops(ops_, max_ops);
+  FilterOp ops[max_ops];
+  GoFilterOpSlice op_slice(ops, max_ops);
 
   FilterResult res;
   bool terminal_op_seen = false;
   bool inject_buf_exhausted = false;
 
   do {
-    ops.reset();
+    op_slice.reset();
     Buffer::RawSliceVector raw_slices = input.getRawSlices();
 
     int64_t total_length = 0;
@@ -222,14 +221,14 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
 
     ENVOY_CONN_LOG(trace, "Cilium Network::OnIO: Calling go module with {} bytes of data", conn_,
                    total_length);
-    res = (*parent_.go_on_data_)(connection_id_, reply, end_stream, &input_slices, &ops);
+    res = (*parent_.go_on_data_)(connection_id_, reply, end_stream, &input_slices, &op_slice);
     ENVOY_CONN_LOG(trace, "Cilium Network::OnIO: \'go_on_data\' returned {}, ops({})", conn_,
-                   toString(res), ops.len());
+                   toString(res), op_slice.len());
     if (res == FILTER_OK) {
       // Process all returned filter operations.
-      for (int i = 0; i < ops.len(); i++) {
-        auto op = ops_[i].op;
-        auto n_bytes = ops_[i].n_bytes;
+      for (int i = 0; i < op_slice.len(); i++) {
+        auto op = ops[i].op;
+        auto n_bytes = ops[i].n_bytes;
 
         if (n_bytes == 0) {
           ENVOY_CONN_LOG(warn, "Cilium Network::OnIO: INVALID op ({}) length: {} bytes", conn_, op,
@@ -312,13 +311,13 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
       return FILTER_PARSER_ERROR;
     }
 
-    inject_buf_exhausted = dir.inject_slice_.at_capacity();
+    inject_buf_exhausted = dir.inject_slice_.atCapacity();
 
     // Make space for more injected data
     dir.inject_slice_.reset();
 
     // Loop back if ops or inject buffer was exhausted
-  } while (!terminal_op_seen && (ops.len() == max_ops || inject_buf_exhausted));
+  } while (!terminal_op_seen && (op_slice.len() == max_ops || inject_buf_exhausted));
 
   if (output.length() < 100) {
     ENVOY_CONN_LOG(debug, "Cilium Network::OnIO: Output on return: {}", conn_, output.toString());
@@ -328,7 +327,7 @@ FilterResult GoFilter::Instance::OnIO(bool reply, Buffer::Instance& data, bool e
   return res;
 }
 
-void GoFilter::Instance::Close() {
+void GoFilter::Instance::close() {
   (*parent_.go_close_)(connection_id_);
   connection_id_ = 0;
   conn_.close(Network::ConnectionCloseType::FlushWrite);

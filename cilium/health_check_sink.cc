@@ -33,9 +33,10 @@ HealthCheckEventPipeSink::HealthCheckEventPipeSink(const cilium::HealthCheckEven
   auto it = udss.find(path);
   if (it != udss.end()) {
     uds_client_ = it->second.lock();
-    if (!uds_client_)
+    if (!uds_client_) {
       // expired, remove
       udss.erase(path);
+    }
   }
   if (!uds_client_) {
     // Not found, allocate and store as a weak_ptr
@@ -52,7 +53,7 @@ void HealthCheckEventPipeSink::log(envoy::data::core::v3::HealthCheckEvent event
   }
   std::string msg;
   event.SerializeToString(&msg);
-  uds_client_->Log(msg);
+  uds_client_->log(msg);
 };
 
 Upstream::HealthCheckEventSinkPtr HealthCheckEventPipeSinkFactory::createHealthCheckEventSink(

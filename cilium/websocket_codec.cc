@@ -102,7 +102,7 @@ public:
     return message_complete_;
   }
 
-  bool versionIsHttp1_1() {
+  bool versionIsHttp11() {
     ENVOY_LOG(trace, "websocket: http_parser got version major: {} minor: {}", parser_.http_major,
               parser_.http_minor);
     return parser_.http_major == 1 && parser_.http_minor == 1;
@@ -557,7 +557,7 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
       const Http::ResponseHeaderMap& headers = parser.headers();
       parent_->onHandshakeResponse(headers);
 
-      if (!parser.versionIsHttp1_1()) {
+      if (!parser.versionIsHttp11()) {
         config->stats_.handshake_invalid_http_version_.inc();
         return closeOnError(handshake_buffer_, "unsupported HTTP protocol");
       }
@@ -603,7 +603,7 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
       const Http::RequestHeaderMap& headers = parser.headers();
       parent_->onHandshakeRequest(headers);
 
-      if (!parser.versionIsHttp1_1()) {
+      if (!parser.versionIsHttp11()) {
         config->stats_.handshake_invalid_http_version_.inc();
         return closeOnError(handshake_buffer_, "unsupported HTTP protocol");
       }

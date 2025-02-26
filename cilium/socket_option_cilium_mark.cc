@@ -1,8 +1,5 @@
 #include "cilium/socket_option_cilium_mark.h"
 
-#include <asm-generic/socket.h>
-#include <netinet/in.h>
-
 #include <cerrno>
 #include <cstdint>
 

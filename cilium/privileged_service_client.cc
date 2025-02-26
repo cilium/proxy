@@ -38,7 +38,7 @@ ProtocolClient::ProtocolClient()
                      (get_capabilities(CAP_PERMITTED) & ~(1UL << CAP_NET_BIND_SERVICE)) == 0,
                  "cilium-envoy running with privileges, exiting");
 
-  if (!check_privileged_service()) {
+  if (!checkPrivilegedService()) {
     // No Cilium privileged service detected
     close();
   }
@@ -90,7 +90,7 @@ out:
   return size;
 }
 
-bool ProtocolClient::check_privileged_service() {
+bool ProtocolClient::checkPrivilegedService() {
   // Dump the effective capabilities of the privileged service process
   DumpRequest req;
   Response resp;
@@ -105,8 +105,8 @@ bool ProtocolClient::check_privileged_service() {
   return true;
 }
 
-Envoy::Api::SysCallIntResult ProtocolClient::bpf_open(const char* path) {
-  if (!have_cilium_privileged_service()) {
+Envoy::Api::SysCallIntResult ProtocolClient::bpfOpen(const char* path) {
+  if (!haveCiliumPrivilegedService()) {
     return {-1, EPERM};
   }
 
@@ -123,9 +123,9 @@ Envoy::Api::SysCallIntResult ProtocolClient::bpf_open(const char* path) {
   return Envoy::Api::SysCallIntResult{resp.return_value_, resp.errno_};
 }
 
-Envoy::Api::SysCallIntResult ProtocolClient::bpf_lookup(int fd, const void* key, uint32_t key_size,
-                                                        void* value, uint32_t value_size) {
-  if (!have_cilium_privileged_service()) {
+Envoy::Api::SysCallIntResult ProtocolClient::bpfLookup(int fd, const void* key, uint32_t key_size,
+                                                       void* value, uint32_t value_size) {
+  if (!haveCiliumPrivilegedService()) {
     return {-1, EPERM};
   }
 
@@ -140,7 +140,7 @@ Envoy::Api::SysCallIntResult ProtocolClient::bpf_lookup(int fd, const void* key,
 
 Envoy::Api::SysCallIntResult ProtocolClient::setsockopt(int sockfd, int level, int optname,
                                                         const void* optval, socklen_t optlen) {
-  if (!have_cilium_privileged_service()) {
+  if (!haveCiliumPrivilegedService()) {
     return {-1, EPERM};
   }
 
