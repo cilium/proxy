@@ -215,10 +215,12 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     if (policy_fs->ingress_source_identity_ != 0) {
       allowed_ = policy.allowed(true, policy_fs->ingress_source_identity_, policy_fs->port_,
                                 headers, *log_entry_);
-      ENVOY_CONN_LOG(
-          debug, "cilium.l7policy: Ingress from {} policy lookup for endpoint {} for port {}: {}",
-          conn.ref(), policy_fs->ingress_source_identity_, policy_fs->pod_ip_, policy_fs->port_,
-          allowed_ ? "ALLOW" : "DENY");
+      ENVOY_CONN_LOG(debug,
+                     "cilium.l7policy: Ingress from {} policy lookup {} for endpoint {}, "
+                     "destination identity {} for port {}: {}",
+                     conn.ref(), policy_fs->ingress_source_identity_, policy.getEndpointID(),
+                     policy_fs->pod_ip_, destination_identity, policy_fs->port_,
+                     allowed_ ? "ALLOW" : "DENY");
       denied = !allowed_;
     }
 
