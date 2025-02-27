@@ -15,10 +15,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  5 files changed, 21 insertions(+), 1 deletion(-)
 
 diff --git a/envoy/server/factory_context.h b/envoy/server/factory_context.h
-index ff2fe0ab82..084fd07d17 100644
+index 6a4d77f3ad..049d50d625 100644
 --- a/envoy/server/factory_context.h
 +++ b/envoy/server/factory_context.h
-@@ -311,7 +311,13 @@ public:
+@@ -317,7 +317,13 @@ public:
   * An implementation of FactoryContext. The life time should cover the lifetime of the filter chains
   * and connections. It can be used to create ListenerFilterChain.
   */
@@ -34,10 +34,10 @@ index ff2fe0ab82..084fd07d17 100644
  /**
   * FactoryContext for ProtocolOptionsFactory.
 diff --git a/source/common/listener_manager/listener_impl.cc b/source/common/listener_manager/listener_impl.cc
-index dde6593928..e524cc8fd6 100644
+index 2affcdc553..3dcaa0e8d8 100644
 --- a/source/common/listener_manager/listener_impl.cc
 +++ b/source/common/listener_manager/listener_impl.cc
-@@ -876,6 +876,9 @@ PerListenerFactoryContextImpl::getTransportSocketFactoryContext() const {
+@@ -938,6 +938,9 @@ PerListenerFactoryContextImpl::getTransportSocketFactoryContext() const {
  Stats::Scope& PerListenerFactoryContextImpl::listenerScope() {
    return listener_factory_context_base_->listenerScope();
  }
@@ -48,10 +48,10 @@ index dde6593928..e524cc8fd6 100644
 
  bool ListenerImpl::createNetworkFilterChain(
 diff --git a/source/common/listener_manager/listener_impl.h b/source/common/listener_manager/listener_impl.h
-index 30a7d164a9..dac45ee26a 100644
+index cc674f400a..832c20972b 100644
 --- a/source/common/listener_manager/listener_impl.h
 +++ b/source/common/listener_manager/listener_impl.h
-@@ -178,6 +178,8 @@ public:
+@@ -181,6 +181,8 @@ public:
 
    Stats::Scope& listenerScope() override;
 
@@ -60,7 +60,7 @@ index 30a7d164a9..dac45ee26a 100644
    ListenerFactoryContextBaseImpl& parentFactoryContext() { return *listener_factory_context_base_; }
    friend class ListenerImpl;
 
-@@ -322,6 +324,13 @@ public:
+@@ -324,6 +326,13 @@ public:
      return listener_factory_context_->listener_factory_context_base_->listener_info_;
    }
 
@@ -99,5 +99,5 @@ index 3d5b6197f0..cbf6dcf6dd 100644
    MOCK_METHOD(TransportSocketFactoryContext&, getTransportSocketFactoryContext, (), (const));
    MOCK_METHOD(const Network::DrainDecision&, drainDecision, ());
 --
-2.45.2
+2.39.5
 
