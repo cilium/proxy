@@ -1,7 +1,8 @@
 name: CI Build & Push
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
+#  pull_request_target:
+#    types: [opened, synchronize, reopened]
+  pull_request: {}
 
 permissions:
   # To be able to access the repository with `actions/checkout`
@@ -18,6 +19,8 @@ jobs:
     timeout-minutes: 360
     name: Build and push multi-arch images
     runs-on: ubuntu-latest-64-cores-256gb
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
     steps:
       - name: Set up QEMU
         uses: docker/setup-qemu-action@4574d27a4764455b42196d70a065bc6853246a25 # v3.4.0
@@ -147,3 +150,16 @@ jobs:
         run: |
           echo "Digests:"
           echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ci.outputs.digest }}"
+
+  cilium-intergration-tests:
+    name: Cilium Integration Tests
+    needs: build-and-push-prs
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
+    uses: ./.github/workflows/cilium-integration-tests.yaml
+    with:
+      repository: ${{ github.event.pull_request.head.repo.full_name }}
+      commit_ref: ${{ github.event.pull_request.head.sha }}
+    secrets: inherit
