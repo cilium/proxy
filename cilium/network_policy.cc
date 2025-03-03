@@ -1257,9 +1257,9 @@ NetworkPolicyMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourc
       for (const auto& resource : resources) {
         const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
         ENVOY_LOG(debug,
-                  "Received Network Policy for endpoint {} in onConfigUpdate() "
+                  "Received Network Policy for endpoint {}, endpoint_ip {} in onConfigUpdate() "
                   "version {}",
-                  config.endpoint_id(), version_info);
+                  config.endpoint_id(), config.endpoint_ips()[0], version_info);
         if (config.endpoint_ips().size() == 0) {
           throw EnvoyException("Network Policy has no endpoint ips");
         }
