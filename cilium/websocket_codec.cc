@@ -358,7 +358,7 @@ void Codec::handshake() {
   // Set original destination address header
   headers->setReferenceInline(original_dst_host_handle.handle(), dst_address->asStringView());
   // Set 'x-request-id' header
-  config->request_id_extension_->set(*headers, false);
+  config->request_id_extension_->set(*headers, true, false);
 
   parent_->onHandshakeCreated(*headers);
 

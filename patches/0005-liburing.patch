@@ -1,5 +1,14 @@
+From 69d4eb0c25e77defed5cc469a40cf2cba35a61cf Mon Sep 17 00:00:00 2001
+From: Tam Mach <sayboras@yahoo.com>
+Date: Wed, 22 Jan 2025 18:53:36 +1100
+Subject: [PATCH 6/8] patch 6
+
+---
+ bazel/foreign_cc/BUILD | 13 +++++++++++++
+ 1 file changed, 13 insertions(+)
+
 diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index 60271a4925..991c1928f7 100644
+index c903af0465..2dd927e744 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
 @@ -11,6 +11,19 @@ envoy_package()
@@ -22,3 +31,6 @@ index 60271a4925..991c1928f7 100644
      lib_source = "@com_github_axboe_liburing//:all",
      tags = [
          "nocompdb",
+--
+2.39.5 (Apple Git-154)
+
