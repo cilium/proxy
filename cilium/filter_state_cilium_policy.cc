@@ -67,13 +67,13 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
     }
 
     // Enforce egress policy for Ingress
-    auto egressPortPolicy = policy.findPortPolicy(false, destination_port);
-    if (!egressPortPolicy.allowed(destination_identity, sni)) {
-      ENVOY_CONN_LOG(debug,
-                     "Egress network policy DROP for destination identity: {} port: {} sni: \"{}\"",
-                     conn, destination_identity, destination_port, sni);
-      return false;
-    }
+    // auto egressPortPolicy = policy.findPortPolicy(false, destination_port);
+    // if (!egressPortPolicy.allowed(destination_identity, sni)) {
+    //   ENVOY_CONN_LOG(debug,
+    //                  "Egress network policy DROP for destination identity: {} port: {} sni:
+    //                  \"{}\"", conn, destination_identity, destination_port, sni);
+    //   return false;
+    // }
   }
 
   // Connection allowed by policy
@@ -125,11 +125,12 @@ bool CiliumPolicyFilterState::enforceHTTPPolicy(const Network::Connection& conn,
     }
 
     // Enforce egress policy for Ingress
-    if (!policy.allowed(false, destination_identity, destination_port, headers, log_entry)) {
-      ENVOY_CONN_LOG(debug, "Egress HTTP policy DROP for destination identity: {} port: {}", conn,
-                     destination_identity, destination_port);
-      return false;
-    }
+    // if (!policy.allowed(false, destination_identity, destination_port, headers, log_entry)) {
+    //   ENVOY_CONN_LOG(debug, "Egress HTTP policy DROP for destination identity: {} port: {}",
+    //   conn,
+    //                  destination_identity, destination_port);
+    //   return false;
+    // }
   }
 
   // Connection allowed by policy

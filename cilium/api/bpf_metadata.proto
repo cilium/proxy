@@ -51,4 +51,8 @@ message BpfMetadata {
   // network policy update took longer
   // Deprecated, has no effect.
   google.protobuf.Duration policy_update_warning_limit = 9;
+
+  // l7lb_policy_name is the name of the L7LB policy that is enforced on the listener.
+  // This is optional field.
+  string l7lb_policy_name = 10;
 }
