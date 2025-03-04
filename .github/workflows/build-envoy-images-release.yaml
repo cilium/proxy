@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest-64-cores-256gb
     steps:
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
     - name: Login to quay.io
       uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
@@ -53,7 +53,7 @@ jobs:
         fi
 
     - name: Multi-arch build & push of Builder image (test)
-      uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
+      uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
       if: steps.cilium-builder-test-tag-in-repositories.outputs.exists == 'false'
       id: docker_build_builder_test
       with:
@@ -67,7 +67,7 @@ jobs:
           quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.base_ref }}
 
     - name: Multi-arch update integration test archive
-      uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
+      uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
       id: docker_tests_ci_build
       with:
         context: .
@@ -84,7 +84,7 @@ jobs:
         tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
 
     - name: Cache Docker layers
-      uses: actions/cache@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
       with:
         path: /tmp/buildx-cache
         key: docker-cache-tests-${{ github.ref_name }}
@@ -93,7 +93,7 @@ jobs:
       run: rm -rf /tmp/buildx-cache/*
 
     - name: Run integration tests on amd64 to update docker cache
-      uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
+      uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
       id: docker_tests_ci_cache_update
       with:
         provenance: false
@@ -115,7 +115,7 @@ jobs:
     runs-on: ubuntu-latest-64-cores-256gb
     steps:
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
     - name: Login to quay.io
       uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
@@ -145,7 +145,7 @@ jobs:
         fi
 
     - name: Multi-arch build & push of Builder image
-      uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
+      uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
       if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
       id: docker_build_builder
       with:
@@ -158,7 +158,7 @@ jobs:
           quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
           quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.base_ref }}
     - name: Multi-arch build & push of build artifact archive
-      uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
+      uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
       with:
         context: .
         file: ./Dockerfile
@@ -173,7 +173,7 @@ jobs:
         tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
 
     - name: Cache Docker layers
-      uses: actions/cache@0c907a75c2c80ebcb7f088228285e798b750cf8f # v4.2.1
+      uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
       with:
         path: /tmp/buildx-cache
         key: docker-cache-${{ github.ref_name }}
@@ -184,7 +184,7 @@ jobs:
         docker buildx prune -f
 
     - name: Multi-arch build & push ${{ github.ref_name }} latest
-      uses: docker/build-push-action@0adf9959216b96bec444f325f1e493d4aa344497 # v6.14.0
+      uses: docker/build-push-action@471d1dc4e07e5cdedd4c2171150001c434f0b7a4 # v6.15.0
       id: docker_build_cd
       with:
         provenance: false
