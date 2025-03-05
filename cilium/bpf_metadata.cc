@@ -209,7 +209,8 @@ Config::Config(const ::cilium::BpfMetadata& config,
           Network::Utility::parseInternetAddressNoThrow(config.ipv4_source_address())),
       ipv6_source_address_(
           Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address())),
-      enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()) {
+      enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()),
+      l7lb_policy_name_(config.l7lb_policy_name()) {
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -454,7 +455,8 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     // Enforce Ingress policy?
     if (enforce_policy_on_l7lb_) {
       ingress_source_identity = source_identity;
-      ingress_policy_name = ingress_ip->addressAsString();
+      ingress_policy_name =
+          l7lb_policy_name_.empty() ? ingress_ip->addressAsString() : l7lb_policy_name_;
     }
 
     // Resolve source identity for the Ingress address
@@ -506,6 +508,12 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     uint32_t identity_id = (source_identity & 0xFFFF) << 16;
     mark = ((is_ingress_) ? 0x0A00 : 0x0B00) | cluster_id | identity_id;
   }
+
+  ENVOY_LOG(trace,
+            "cilium.bpf_metadata: mark {}, ingress_source_identity {}, source_identity {}, "
+            "is_ingress {}, is_l7lb_ {}, ingress_policy_name {}, port {}, pod_ip {}",
+            mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_,
+            ingress_policy_name, dip->port(), pod_ip);
   return absl::optional(Cilium::BpfMetadata::SocketMetadata(
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(ingress_policy_name), std::move(src_address),
