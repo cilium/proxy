@@ -28,6 +28,7 @@ env:
   CILIUM_REPO_OWNER: cilium
   CILIUM_REPO_REF: main
   CILIUM_CLI_REF: latest
+  CURL_PARALLEL: ${{ vars.CURL_PARALLEL || 10 }}
 
 jobs:
   cilium-connectivity-tests:
@@ -162,7 +163,7 @@ jobs:
 
       - name: Execute Cilium L7 Connectivity Tests
         shell: bash
-        run: cilium connectivity test --test="l7|sni|tls|ingress|check-log-errors" --curl-parallel=10 --collect-sysdump-on-failure --flush-ct --sysdump-hubble-flows-count=100000 --sysdump-hubble-flows-timeout=15s
+        run: cilium connectivity test --test="l7|sni|tls|ingress|check-log-errors" --curl-parallel=${{ env.CURL_PARALLEL }} --collect-sysdump-on-failure --flush-ct --sysdump-hubble-flows-count=100000 --sysdump-hubble-flows-timeout=15s
 
       - name: Gather Cilium system dump
         if: failure()
