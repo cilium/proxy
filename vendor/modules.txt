@@ -28,9 +28,6 @@ github.com/golang/protobuf/ptypes/any
 # github.com/golang/snappy v0.0.4
 ## explicit
 github.com/golang/snappy
-# github.com/google/uuid v1.6.0
-## explicit
-github.com/google/uuid
 # github.com/kr/pretty v0.3.1
 ## explicit; go 1.12
 github.com/kr/pretty
