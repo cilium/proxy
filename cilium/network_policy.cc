@@ -209,20 +209,21 @@ public:
     ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule():");
     headers_.reserve(rule.headers().size());
     for (const auto& header : rule.headers()) {
-      headers_.emplace_back(std::make_unique<Http::HeaderUtility::HeaderData>(
+      headers_.emplace_back(Http::HeaderUtility::createHeaderData(
           header, parent.transportFactoryContext().serverFactoryContext()));
-      const auto& header_data = *headers_.back();
-      ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
-                header_data.name_.get(),
-                header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
-                    ? fmt::format("[{}-{})", header_data.range_.start(), header_data.range_.end())
-                : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
-                    ? "<VALUE>"
-                : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present
-                    ? "<PRESENT>"
-                : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
-                    ? "<REGEX>"
-                    : "<UNKNOWN>");
+      // const auto& header_data = *headers_.back();
+      // ENVOY_LOG(trace, "Cilium L7 HttpNetworkPolicyRule(): HeaderData {}={}",
+      //           header_data.name_.get(),
+      //           header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Range
+      //               ? fmt::format("[{}-{})", header_data.range_.start(),
+      //               header_data.range_.end())
+      //           : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Value
+      //               ? "<VALUE>"
+      //           : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Present
+      //               ? "<PRESENT>"
+      //           : header_data.header_match_type_ == Http::HeaderUtility::HeaderMatchType::Regex
+      //               ? "<REGEX>"
+      //               : "<UNKNOWN>");
     }
     header_matches_.reserve(rule.header_matches().size());
     for (const auto& config : rule.header_matches()) {
@@ -266,46 +267,46 @@ public:
       } else {
         res.append(indent, ' ');
       }
-      res.append("headers:\n");
-      for (auto& h : headers_) {
-        res.append(indent, ' ').append("- name: \"").append(h->name_.get()).append("\"\n");
-        switch (h->header_match_type_) {
-        case Http::HeaderUtility::HeaderMatchType::Value:
-          res.append(indent + 2, ' ').append("value: \"").append(h->value_).append("\"\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Regex:
-          res.append(indent + 2, ' ').append("regex: ").append("<hidden>\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Range:
-          res.append(indent + 2, ' ')
-              .append("range: ")
-              .append(fmt::format("[{}-{})\n", h->range_.start(), h->range_.end()));
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Present:
-          res.append(indent + 2, ' ')
-              .append("present: ")
-              .append(h->present_ ? "true\n" : "false\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Prefix:
-          res.append(indent + 2, ' ').append("prefix: \"").append(h->value_).append("\"\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Suffix:
-          res.append(indent + 2, ' ').append("suffix: \"").append(h->value_).append("\"\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::Contains:
-          res.append(indent + 2, ' ').append("contains: \"").append(h->value_).append("\"\n");
-          break;
-        case Http::HeaderUtility::HeaderMatchType::StringMatch:
-          res.append(indent + 2, ' ').append("string_match: ").append("<hidden>\n");
-          break;
-        }
-        if (h->invert_match_) {
-          res.append(indent + 2, ' ').append("invert_match: true\n");
-        }
-        if (h->treat_missing_as_empty_) {
-          res.append(indent + 2, ' ').append("treat_missing_as_empty: true\n");
-        }
-      }
+      // res.append("headers:\n");
+      // for (auto& h : headers_) {
+      //   res.append(indent, ' ').append("- name: \"").append(h->name_.get()).append("\"\n");
+      //   switch (h->header_match_type_) {
+      //   case Http::HeaderUtility::HeaderMatchType::Value:
+      //     res.append(indent + 2, ' ').append("value: \"").append(h->value_).append("\"\n");
+      //     break;
+      //   case Http::HeaderUtility::HeaderMatchType::Regex:
+      //     res.append(indent + 2, ' ').append("regex: ").append("<hidden>\n");
+      //     break;
+      //   case Http::HeaderUtility::HeaderMatchType::Range:
+      //     res.append(indent + 2, ' ')
+      //         .append("range: ")
+      //         .append(fmt::format("[{}-{})\n", h->range_.start(), h->range_.end()));
+      //     break;
+      //   case Http::HeaderUtility::HeaderMatchType::Present:
+      //     res.append(indent + 2, ' ')
+      //         .append("present: ")
+      //         .append(h->present_ ? "true\n" : "false\n");
+      //     break;
+      //   case Http::HeaderUtility::HeaderMatchType::Prefix:
+      //     res.append(indent + 2, ' ').append("prefix: \"").append(h->value_).append("\"\n");
+      //     break;
+      //   case Http::HeaderUtility::HeaderMatchType::Suffix:
+      //     res.append(indent + 2, ' ').append("suffix: \"").append(h->value_).append("\"\n");
+      //     break;
+      //   case Http::HeaderUtility::HeaderMatchType::Contains:
+      //     res.append(indent + 2, ' ').append("contains: \"").append(h->value_).append("\"\n");
+      //     break;
+      //   case Http::HeaderUtility::HeaderMatchType::StringMatch:
+      //     res.append(indent + 2, ' ').append("string_match: ").append("<hidden>\n");
+      //     break;
+      //   }
+      //   if (h->invert_match_) {
+      //     res.append(indent + 2, ' ').append("invert_match: true\n");
+      //   }
+      //   if (h->treat_missing_as_empty_) {
+      //     res.append(indent + 2, ' ').append("treat_missing_as_empty: true\n");
+      //   }
+      // }
     }
     if (header_matches_.size() > 0) {
       if (first) {

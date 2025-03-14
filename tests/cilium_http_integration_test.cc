@@ -396,14 +396,16 @@ public:
     ThreadLocal::InstanceImpl tls;
     Cilium::PolicyHostDecoder host_decoder;
 
-    MessageUtil::loadFromFile(path, message, ProtobufMessage::getNullValidationVisitor(),
-                              *api_.get());
+    THROW_IF_NOT_OK(MessageUtil::loadFromFile(
+        path, message, ProtobufMessage::getNullValidationVisitor(), *api_.get()));
     Envoy::Cilium::PolicyHostMap hmap(tls);
-    const auto decoded_resources = Envoy::Config::DecodedResourcesWrapper(
-        host_decoder, message.resources(), message.version_info());
+    const auto decoded_resources =
+        THROW_OR_RETURN_VALUE(Config::DecodedResourcesWrapper::create(
+                                  host_decoder, message.resources(), message.version_info()),
+                              std::unique_ptr<Config::DecodedResourcesWrapper>);
 
     EXPECT_THROW_WITH_MESSAGE(
-        EXPECT_TRUE(hmap.onConfigUpdate(decoded_resources.refvec_, message.version_info()).ok()),
+        EXPECT_TRUE(hmap.onConfigUpdate(decoded_resources->refvec_, message.version_info()).ok()),
         EnvoyException, exmsg);
 
     tls.shutdownGlobalThreading();
@@ -435,13 +437,15 @@ resources:
   ThreadLocal::InstanceImpl tls;
   Cilium::PolicyHostDecoder host_decoder;
 
-  MessageUtil::loadFromFile(path, message, ProtobufMessage::getNullValidationVisitor(),
-                            *api_.get());
+  THROW_IF_NOT_OK(MessageUtil::loadFromFile(
+      path, message, ProtobufMessage::getNullValidationVisitor(), *api_.get()));
   auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(tls);
-  const auto decoded_resources = Envoy::Config::DecodedResourcesWrapper(
-      host_decoder, message.resources(), message.version_info());
+  const auto decoded_resources =
+      THROW_OR_RETURN_VALUE(Config::DecodedResourcesWrapper::create(
+                                host_decoder, message.resources(), message.version_info()),
+                            std::unique_ptr<Config::DecodedResourcesWrapper>);
 
-  EXPECT_TRUE(hmap->onConfigUpdate(decoded_resources.refvec_, message.version_info()).ok());
+  EXPECT_TRUE(hmap->onConfigUpdate(decoded_resources->refvec_, message.version_info()).ok());
 
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()), 173);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.0").ip()), 12);
