@@ -11,12 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
-
-	"github.com/cilium/proxy/pkg/logging"
-	"github.com/cilium/proxy/pkg/logging/logfields"
 )
-
-var log = logging.DefaultLogger.WithField(logfields.LogSubsys, "backoff")
 
 // Exponential implements an exponential backoff
 type Exponential struct {
@@ -115,7 +110,8 @@ func (b *Exponential) Wait(ctx context.Context) error {
 	b.attempt++
 	t := b.Duration(b.attempt)
 
-	log.WithFields(logrus.Fields{
+	logrus.WithFields(logrus.Fields{
+		"subsys":  "backoff",
 		"time":    t,
 		"attempt": b.attempt,
 		"name":    b.Name,

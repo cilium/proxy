@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	. "github.com/cilium/checkmate"
+	"github.com/sirupsen/logrus"
 
-	"github.com/cilium/proxy/pkg/logging"
 	"github.com/cilium/proxy/proxylib/accesslog"
 	"github.com/cilium/proxy/proxylib/proxylib"
 	"github.com/cilium/proxy/proxylib/test"
@@ -17,8 +17,7 @@ import (
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) {
-	logging.SetLogLevelToDebug()
-	// flowdebug.Enable()
+	logrus.SetLevel(logrus.DebugLevel)
 	TestingT(t)
 }
 
