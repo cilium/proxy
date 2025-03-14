@@ -7,8 +7,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	api "github.com/cilium/proxy/pkg/policy/api/kafka"
-
-	"github.com/cilium/proxy/pkg/flowdebug"
 )
 
 type Rule struct {
@@ -124,9 +122,7 @@ func (r Rule) Matches(data interface{}) bool {
 		return false
 	}
 
-	if flowdebug.Enabled() {
-		logrus.Debugf("Matching Kafka request %s against rule %v", req.String(), r)
-	}
+	logrus.Debugf("Matching Kafka request %s against rule %v", req.String(), r)
 
 	if !r.CheckAPIKeyRole(req.kind) {
 		return false

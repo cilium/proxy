@@ -8,7 +8,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/cilium/proxy/pkg/flowdebug"
 	"github.com/cilium/proxy/proxylib/accesslog"
 	_ "github.com/cilium/proxy/proxylib/cassandra"
 	_ "github.com/cilium/proxy/proxylib/kafka"
@@ -91,7 +90,6 @@ func OpenModule(params [][2]string, debug bool) uint64 {
 	if debug {
 		mutex.Lock()
 		logrus.SetLevel(logrus.DebugLevel)
-		flowdebug.Enable()
 		mutex.Unlock()
 	}
 	// Copy strings from C-memory to Go-memory so that the string remains valid

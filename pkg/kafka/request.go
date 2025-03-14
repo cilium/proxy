@@ -12,8 +12,6 @@ import (
 
 	"github.com/cilium/kafka/proto"
 	"github.com/sirupsen/logrus"
-
-	"github.com/cilium/proxy/pkg/flowdebug"
 )
 
 // RequestMessage represents a Kafka request message
@@ -240,13 +238,11 @@ func ReadRequest(reader io.Reader) (*RequestMessage, error) {
 	case proto.OffsetFetchReqKind:
 		req.request, err = proto.ReadOffsetFetchReq(buf)
 	default:
-		if flowdebug.Enabled() {
-			logrus.Debugf("Unknown Kafka request API key: %d in %s", req.kind, req.String())
-		}
+		logrus.Debugf("Unknown Kafka request API key: %d in %s", req.kind, req.String())
 	}
 
 	if err != nil {
-		if flowdebug.Enabled() {
+		if logrus.IsLevelEnabled(logrus.DebugLevel) {
 			logrus.WithError(err).Debugf("Ignoring Kafka message %s due to parse error", req.String())
 		}
 		return nil, err
