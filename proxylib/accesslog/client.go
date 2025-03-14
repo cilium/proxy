@@ -5,20 +5,20 @@ package accesslog
 
 import (
 	"net"
+	"sync"
 	"sync/atomic"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/sirupsen/logrus"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
-	"github.com/cilium/proxy/pkg/lock"
 	"github.com/cilium/proxy/proxylib/proxylib"
 )
 
 type Client struct {
 	connected uint32 // Accessed atomically without locking
 	path      string
-	mutex     lock.Mutex                   // Used to protect opening the connection
+	mutex     sync.Mutex                   // Used to protect opening the connection
 	conn      atomic.Pointer[net.UnixConn] // Read atomically without locking
 }
 
