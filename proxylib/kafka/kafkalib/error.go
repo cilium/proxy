@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
-package kafka
+package kafkalib
 
 // List of possible Kafka error codes
 // Reference: https://kafka.apache.org/protocol#protocol_error_codes

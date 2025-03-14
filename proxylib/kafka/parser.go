@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
-	"github.com/cilium/proxy/pkg/kafka"
+	"github.com/cilium/proxy/proxylib/kafka/kafkalib"
 	. "github.com/cilium/proxy/proxylib/proxylib"
 )
 
@@ -28,7 +28,7 @@ func KafkaRuleParser(rule *cilium.PortNetworkPolicyRule) []L7NetworkPolicyRule {
 	allowRules := l7Rules.GetKafkaRules()
 	rules := make([]L7NetworkPolicyRule, 0, len(allowRules))
 	for _, r := range allowRules {
-		rules = append(rules, kafka.NewRule(r.ApiVersion, r.ApiKeys, r.ClientId, r.Topic))
+		rules = append(rules, kafkalib.NewRule(r.ApiVersion, r.ApiKeys, r.ClientId, r.Topic))
 	}
 	return rules
 }
@@ -86,13 +86,13 @@ func (p *KafkaParser) OnData(reply bool, reader *Reader) (OpType, int) {
 		return MORE, framelength - length
 	}
 
-	req, err := kafka.ReadRequest(reader)
+	req, err := kafkalib.ReadRequest(reader)
 	if err != nil {
 		logrus.WithError(err).Debug("Unable to parse Kafka request; closing Kafka connection")
 		p.connection.Log(cilium.EntryType_Denied,
 			&cilium.LogEntry_Kafka{Kafka: &cilium.KafkaLogEntry{
 				CorrelationId: correlationID,
-				ErrorCode:     kafka.ErrInvalidMessage,
+				ErrorCode:     kafkalib.ErrInvalidMessage,
 			}})
 		return ERROR, int(ERROR_INVALID_FRAME_TYPE)
 	}
@@ -107,7 +107,7 @@ func (p *KafkaParser) OnData(reply bool, reader *Reader) (OpType, int) {
 		p.connection.Log(cilium.EntryType_Request, logEntry)
 		return PASS, framelength
 	}
-	logEntry.Kafka.ErrorCode = kafka.ErrTopicAuthorizationFailed
+	logEntry.Kafka.ErrorCode = kafkalib.ErrTopicAuthorizationFailed
 
 	resp, err := req.CreateAuthErrorResponse()
 	if err != nil {
