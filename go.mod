@@ -9,7 +9,6 @@ require (
 	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42
 	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/golang/protobuf v1.5.4
-	github.com/google/uuid v1.6.0
 	github.com/prometheus/client_model v0.6.1
 	github.com/sirupsen/logrus v1.9.3
 	go.opentelemetry.io/proto/otlp v1.5.0
