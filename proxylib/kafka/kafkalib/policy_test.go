@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
-package kafka
+package kafkalib
 
 import (
 	"testing"
@@ -22,9 +22,7 @@ type kafkaTestSuite struct{}
 
 var _ = Suite(&kafkaTestSuite{})
 
-var (
-	messages = make([]*proto.Message, 100)
-)
+var messages = make([]*proto.Message, 100)
 
 func (k *kafkaTestSuite) SetUpTest(c *C) {
 	for i := range messages {
@@ -34,7 +32,6 @@ func (k *kafkaTestSuite) SetUpTest(c *C) {
 			Key:    nil,
 			Value:  []byte(`Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec a diam lectus. Sed sit amet ipsum mauris. Maecenas congue ligula ac quam viverra nec consectetur ante hendrerit. Donec et mollis dolor. Praesent et diam eget libero egestas mattis sit amet vitae augue. Nam tincidunt congue enim, ut porta lorem lacinia consectetur.`),
 		}
-
 	}
 }
 
@@ -118,8 +115,8 @@ func (k *kafkaTestSuite) TestProduceRequest(c *C) {
 
 	reqMsg.setTopics()
 	c.Assert(reqMsg.MatchesRule([]Rule{
-		NewRule(-1, nil, "", "bar"), NewRule(-1, nil, "", "foo"), NewRule(-1, nil, "", "baz")}), Equals, true)
-
+		NewRule(-1, nil, "", "bar"), NewRule(-1, nil, "", "foo"), NewRule(-1, nil, "", "baz"),
+	}), Equals, true)
 }
 
 func (k *kafkaTestSuite) TestUnknownRequest(c *C) {
