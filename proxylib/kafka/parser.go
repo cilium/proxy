@@ -9,7 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
-	"github.com/cilium/proxy/pkg/flowdebug"
 	"github.com/cilium/proxy/pkg/kafka"
 	. "github.com/cilium/proxy/proxylib/proxylib"
 )
@@ -89,9 +88,7 @@ func (p *KafkaParser) OnData(reply bool, reader *Reader) (OpType, int) {
 
 	req, err := kafka.ReadRequest(reader)
 	if err != nil {
-		if flowdebug.Enabled() {
-			logrus.WithError(err).Warning("Unable to parse Kafka request; closing Kafka connection")
-		}
+		logrus.WithError(err).Debug("Unable to parse Kafka request; closing Kafka connection")
 		p.connection.Log(cilium.EntryType_Denied,
 			&cilium.LogEntry_Kafka{Kafka: &cilium.KafkaLogEntry{
 				CorrelationId: correlationID,
@@ -114,9 +111,7 @@ func (p *KafkaParser) OnData(reply bool, reader *Reader) (OpType, int) {
 
 	resp, err := req.CreateAuthErrorResponse()
 	if err != nil {
-		if flowdebug.Enabled() {
-			logrus.WithError(err).Warning("Unable to create Kafka response")
-		}
+		logrus.WithError(err).Debug("Unable to create Kafka response")
 	} else {
 		// inject response
 		p.connection.Inject(!reply, resp.GetRaw())
