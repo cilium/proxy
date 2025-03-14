@@ -11,7 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
-	"github.com/cilium/proxy/pkg/inctimer"
 	"github.com/cilium/proxy/proxylib/proxylib"
 	"github.com/cilium/proxy/proxylib/test"
 	_ "github.com/cilium/proxy/proxylib/testparsers"
@@ -111,8 +110,6 @@ func checkAccessLogs(t *testing.T, logServer *test.AccessLogServer, expPasses, e
 	passes, drops := 0, 0
 	nWaits := 0
 	done := false
-	timer, timerDone := inctimer.New()
-	defer timerDone()
 	// Loop until done or when the timeout has ticked 100 times without any logs being received
 	for !done && nWaits < 100 {
 		select {
@@ -124,7 +121,7 @@ func checkAccessLogs(t *testing.T, logServer *test.AccessLogServer, expPasses, e
 			}
 			// Start the timeout again (for upto 5 seconds)
 			nWaits = 0
-		case <-timer.After(50 * time.Millisecond):
+		case <-time.After(50 * time.Millisecond):
 			// Count the number of times we have waited since the last log was received
 			nWaits++
 			// Finish when expected number of passes and drops have been collected
@@ -798,8 +795,8 @@ func TestAllowAllPolicyL3Egress(t *testing.T) {
 		defer CloseModule(mod)
 	}
 
-	//logging.ToggleDebugLogs(true)
-	//logrus.SetLevel(logrus.DebugLevel)
+	// logging.ToggleDebugLogs(true)
+	// logrus.SetLevel(logrus.DebugLevel)
 
 	insertPolicyText(t, mod, "1", []string{`
 		endpoint_ips: "1.1.1.1"

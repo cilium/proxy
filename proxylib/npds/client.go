@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -17,9 +18,6 @@ import (
 	cilium "github.com/cilium/proxy/go/cilium/api"
 	envoy_config_core "github.com/cilium/proxy/go/envoy/config/core/v3"
 	envoy_service_discovery "github.com/cilium/proxy/go/envoy/service/discovery/v3"
-
-	"github.com/cilium/proxy/pkg/backoff"
-	"github.com/cilium/proxy/pkg/lock"
 	"github.com/cilium/proxy/proxylib/proxylib"
 )
 
@@ -31,7 +29,7 @@ const (
 
 type Client struct {
 	updater proxylib.PolicyUpdater
-	mutex   lock.Mutex
+	mutex   sync.Mutex
 	nodeId  string
 	path    string
 	conn    *grpc.ClientConn
@@ -73,15 +71,13 @@ func NewClient(path, nodeId string, updater proxylib.PolicyUpdater) proxylib.Pol
 	// Only used for testing and logging, as we keep on trying anyway.
 	startErr := make(chan error) // Channel open as long as 'starting == true'
 
-	BackOff := backoff.Exponential{
-		Min:  DialDelay,
-		Max:  BackOffLimit * DialDelay,
-		Name: "proxylib NPDS client",
-	}
-
 	go func() {
 		starting := true
-		backOff := BackOff
+		backOff := exponentialBackoff{
+			Min:  DialDelay,
+			Max:  BackOffLimit * DialDelay,
+			Name: "proxylib NPDS client",
+		}
 		for {
 			err := c.Run(func() {
 				// Report successful start on the first try by closing the channel

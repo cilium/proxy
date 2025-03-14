@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,8 +18,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
-	"github.com/cilium/proxy/pkg/inctimer"
-	"github.com/cilium/proxy/pkg/lock"
 )
 
 type AccessLogServer struct {
@@ -26,7 +25,7 @@ type AccessLogServer struct {
 	Logs     chan cilium.EntryType
 	done     chan struct{}
 	listener *net.UnixListener
-	mu       lock.Mutex // protects conns
+	mu       sync.Mutex // protects conns
 	conns    []*net.UnixConn
 }
 
@@ -65,7 +64,7 @@ func (s *AccessLogServer) Clear() (passed, drops int) {
 			} else {
 				passes++
 			}
-		case <-inctimer.After(10 * time.Millisecond):
+		case <-time.After(10 * time.Millisecond):
 			empty = true
 		}
 	}

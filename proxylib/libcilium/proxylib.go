@@ -4,10 +4,10 @@
 package libcilium
 
 import (
+	"sync"
+
 	"github.com/sirupsen/logrus"
 
-	"github.com/cilium/proxy/pkg/flowdebug"
-	"github.com/cilium/proxy/pkg/lock"
 	"github.com/cilium/proxy/proxylib/accesslog"
 	_ "github.com/cilium/proxy/proxylib/cassandra"
 	_ "github.com/cilium/proxy/proxylib/kafka"
@@ -20,7 +20,7 @@ import (
 
 var (
 	// mutex protects connections
-	mutex lock.RWMutex
+	mutex sync.RWMutex
 	// Key uint64 is a connection ID allocated by Envoy, practically a monotonically increasing number
 	connections map[uint64]*proxylib.Connection = make(map[uint64]*proxylib.Connection)
 )
@@ -90,7 +90,6 @@ func OpenModule(params [][2]string, debug bool) uint64 {
 	if debug {
 		mutex.Lock()
 		logrus.SetLevel(logrus.DebugLevel)
-		flowdebug.Enable()
 		mutex.Unlock()
 	}
 	// Copy strings from C-memory to Go-memory so that the string remains valid

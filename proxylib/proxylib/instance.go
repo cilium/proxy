@@ -5,6 +5,7 @@ package proxylib
 
 import (
 	"fmt"
+	"sync"
 	"sync/atomic"
 
 	"github.com/golang/protobuf/proto"
@@ -12,7 +13,6 @@ import (
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
 	envoy_service_discovery "github.com/cilium/proxy/go/envoy/service/discovery/v3"
-	"github.com/cilium/proxy/pkg/lock"
 )
 
 type PolicyClient interface {
@@ -42,7 +42,7 @@ type Instance struct {
 
 var (
 	// mutex protects instances
-	mutex lock.RWMutex
+	mutex sync.RWMutex
 	// Key uint64 is a monotonically increasing instance ID
 	instances map[uint64]*Instance = make(map[uint64]*Instance)
 	// Last instance ID used
