@@ -93,8 +93,8 @@ TESTS_ARCHIVE_TAG ?= test-main-archive-latest
 
 BUILDER_DOCKER_HASH=$(shell git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $$3 }')
 TEST_BUILDER_DOCKER_HASH=$(shell git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $$3 }')
-BUILDER_BASE_TAG ?= $(BAZEL_VERSION)-$(BUILDER_DOCKER_HASH)
-TESTS_BUILDER_BASE_TAG ?= test-$(BAZEL_VERSION)-$(TEST_BUILDER_DOCKER_HASH)
+BUILDER_BASE_TAG ?= $(BUILDER_DOCKER_HASH)
+TESTS_BUILDER_BASE_TAG ?= test-$(TEST_BUILDER_DOCKER_HASH)
 BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG)
 TESTS_BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_BUILDER_BASE_TAG)
 
