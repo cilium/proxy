@@ -14,14 +14,9 @@ import (
 
 	"github.com/cilium/proxy/pkg/logging"
 	"github.com/cilium/proxy/pkg/logging/logfields"
-	"github.com/cilium/proxy/pkg/rand"
 )
 
-var (
-	log = logging.DefaultLogger.WithField(logfields.LogSubsys, "backoff")
-
-	randGen = rand.NewSafeRand(time.Now().UnixNano())
-)
+var log = logging.DefaultLogger.WithField(logfields.LogSubsys, "backoff")
 
 // Exponential implements an exponential backoff
 type Exponential struct {
@@ -36,9 +31,6 @@ type Exponential struct {
 	// Factor is the factor the backoff time grows exponentially, if
 	// unspecified, a factor of 2.0 will be used
 	Factor float64
-
-	// Jitter, when enabled, adds random jitter to the interval
-	Jitter bool
 
 	// Name is a free form string describing the operation subject to the
 	// backoff, if unspecified, a UUID is generated. This string is used
@@ -56,18 +48,14 @@ type Exponential struct {
 }
 
 // CalculateDuration calculates the backoff duration based on minimum base
-// interval, exponential factor, jitter and number of failures.
-func CalculateDuration(min, max time.Duration, factor float64, jitter bool, failures int) time.Duration {
+// interval, exponential factor and number of failures.
+func CalculateDuration(min, max time.Duration, factor float64, failures int) time.Duration {
 	minFloat := float64(min)
 	maxFloat := float64(max)
 
 	t := minFloat * math.Pow(factor, float64(failures))
 	if max != time.Duration(0) && t > maxFloat {
 		t = maxFloat
-	}
-
-	if jitter {
-		t = randGen.Float64()*(t-minFloat) + minFloat
 	}
 
 	return time.Duration(t)
@@ -158,7 +146,7 @@ func (b *Exponential) Duration(attempt int) time.Duration {
 		factor = b.Factor
 	}
 
-	t := CalculateDuration(min, b.Max, factor, b.Jitter, attempt)
+	t := CalculateDuration(min, b.Max, factor, attempt)
 
 	if b.Max != time.Duration(0) && t > b.Max {
 		t = b.Max
