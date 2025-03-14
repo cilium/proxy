@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
-package backoff
+package npds
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Exponential implements an exponential backoff
-type Exponential struct {
+// exponentialBackoff implements an exponential backoff
+type exponentialBackoff struct {
 	// Min is the minimal backoff time, if unspecified, 1 second will be
 	// used
 	Min time.Duration
@@ -47,12 +47,12 @@ func calculateDuration(min, max time.Duration, factor float64, failures int) tim
 }
 
 // Reset backoff attempt counter
-func (b *Exponential) Reset() {
+func (b *exponentialBackoff) Reset() {
 	b.attempt = 0
 }
 
 // Wait waits for the required time using an exponential backoff
-func (b *Exponential) Wait(ctx context.Context) error {
+func (b *exponentialBackoff) Wait(ctx context.Context) error {
 	if b.Name == "" {
 		panic("no name provided")
 	}
@@ -78,7 +78,7 @@ func (b *Exponential) Wait(ctx context.Context) error {
 }
 
 // duration returns the wait duration for the nth attempt
-func (b *Exponential) duration(attempt int) time.Duration {
+func (b *exponentialBackoff) duration(attempt int) time.Duration {
 	min := time.Duration(1) * time.Second
 	if b.Min != time.Duration(0) {
 		min = b.Min
