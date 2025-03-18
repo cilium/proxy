@@ -5,6 +5,9 @@ on:
     paths:
       - '.github/renovate.json5'
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
   cancel-in-progress: true
