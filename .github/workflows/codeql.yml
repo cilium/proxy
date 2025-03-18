@@ -3,11 +3,10 @@ name: CodeQL
 on: 
   workflow_dispatch:
 
-
 jobs:
   analyze:
     name: Analyze
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       actions: read
       contents: read
@@ -29,3 +28,50 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: '/language:${{matrix.language}}'
+
+  analyze-cpp:
+    name: Analyze
+    runs-on: ubuntu-latest-64-cores-256gb
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: 'cpp'
+
+    - name: Install deps (for C++)
+      shell: bash
+      run: |
+        sudo apt-get update --error-on=any
+        sudo apt-get install --yes \
+            libtool cmake automake autoconf make ninja-build curl unzip \
+            virtualenv openjdk-11-jdk build-essential libc++1
+        mkdir -p bin/clang17
+        cd bin/clang17
+        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz
+        tar -xf clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz --strip-components 1
+
+    - name: Build (for C++)
+      run: |
+        bazel/setup_clang.sh bin/clang17
+        bazelisk shutdown
+        bazel build \
+          -c fastbuild \
+          --spawn_strategy=local \
+          --discard_analysis_cache \
+          --nouse_action_cache \
+          --features="-layering_check" \
+          --config=clang-libc++ \
+          --config=ci \
+          //cilium/...
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: '/language:cpp'
