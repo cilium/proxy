@@ -67,7 +67,6 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $3 }')" >> $GITHUB_ENV
 
       - name: Checking if cilium-envoy-builder image exists
