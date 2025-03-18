@@ -16,7 +16,7 @@ jobs:
       matrix:
         config:
           - runner: ubuntu-24.04
-            language: 'go'
+            language: 'actions'
           - runner: ubuntu-24.04
             language: 'go'
           - runner: ubuntu-latest-64-cores-256gb
