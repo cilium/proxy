@@ -6,7 +6,7 @@ on:
 jobs:
   analyze:
     name: Analyze
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.config.runner }}
     permissions:
       actions: read
       contents: read
@@ -14,54 +14,40 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['go', 'actions']
+        config:
+          - runner: ubuntu-24.04
+            language: 'go'
+          - runner: ubuntu-24.04
+            language: 'go'
+          - runner: ubuntu-latest-64-cores-256gb
+            language: 'cpp'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: ${{ matrix.language }}
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: '/language:${{matrix.language}}'
+          languages: ${{ matrix.config.language }}
 
-  analyze-cpp:
-    name: Analyze
-    runs-on: ubuntu-latest-64-cores-256gb
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Install deps (for C++)
+        if: matrix.config.language == 'cpp'
+        shell: bash
+        run: |
+          sudo apt-get update --error-on=any
+          sudo apt-get install --yes \
+           libtool cmake automake autoconf make ninja-build curl unzip \
+           virtualenv openjdk-11-jdk build-essential libc++1
+          mkdir -p bin/clang17
+          cd bin/clang17
+          wget https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz
+          tar -xf clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz --strip-components 1
 
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: 'cpp'
-
-    - name: Install deps (for C++)
-      shell: bash
-      run: |
-        sudo apt-get update --error-on=any
-        sudo apt-get install --yes \
-            libtool cmake automake autoconf make ninja-build curl unzip \
-            virtualenv openjdk-11-jdk build-essential libc++1
-        mkdir -p bin/clang17
-        cd bin/clang17
-        wget https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz
-        tar -xf clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz --strip-components 1
-
-    - name: Build (for C++)
-      run: |
-        bazel/setup_clang.sh bin/clang17
-        bazelisk shutdown
-        bazel build \
+      - name: Build (for C++)
+        if: matrix.config.language == 'cpp'
+        run: |
+          bazel/setup_clang.sh bin/clang17
+          bazelisk shutdown
+          bazel build \
           -c fastbuild \
           --spawn_strategy=local \
           --discard_analysis_cache \
@@ -71,7 +57,11 @@ jobs:
           --config=ci \
           //cilium/...
 
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-      with:
-        category: '/language:cpp'
+      - name: Autobuild
+        if: matrix.config.language != 'cpp'
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{matrix.config.language}}'
