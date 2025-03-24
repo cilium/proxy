@@ -25,7 +25,6 @@
   baseBranches: [
     'main',
     'v1.32',
-    'v1.31',
   ],
   labels: [
     'kind/enhancement',
@@ -66,16 +65,6 @@
       ]
     },
     {
-      "matchPackageNames": [
-        "docker.io/library/golang",
-        "go"
-      ],
-      "allowedVersions": "<1.24",
-      "matchBaseBranches": [
-        "v1.31",
-      ]
-    },
-    {
       groupName: 'all go dependencies main',
       groupSlug: 'all-go-deps-main',
       matchFileNames: [
@@ -96,7 +85,6 @@
       matchBaseBranches: [
         'main',
         'v1.32',
-        'v1.31',
       ],
     },
     {
@@ -116,7 +104,6 @@
       matchBaseBranches: [
         'main',
         'v1.32',
-        'v1.31',
       ],
     },
     {
@@ -130,7 +117,6 @@
       matchBaseBranches: [
         'main',
         'v1.32',
-        'v1.31',
       ],
     },
     {
@@ -144,7 +130,6 @@
       matchBaseBranches: [
         'main',
         'v1.32',
-        'v1.31',
       ],
     },
     {
@@ -168,17 +153,6 @@
       matchBaseBranches: [
         'main',
         'v1.32',
-        'v1.31'
-      ],
-    },
-    {
-      groupName: 'envoy 1.31.x',
-      matchDepNames: [
-        'envoyproxy/envoy',
-      ],
-      allowedVersions: '<=1.31',
-      matchBaseBranches: [
-        'v1.31',
       ],
     },
     {
