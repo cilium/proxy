@@ -576,12 +576,22 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   // on the downstream socket itself - it's executed later on the corresponding upstream socket!
   socket.addOptions(socket_options);
 
+  // Set socket options with SO_LINGER enabled
+  struct ::linger lin {
+    .l_onoff = true, .l_linger = 1
+  };
+
   // set keep alive socket options on accepted connection socket
   // (SO_KEEPALIVE, TCP_KEEPINTVL, TCP_KEEPIDLE)
   int keepalive = true;
   int secs = 5 * 60; // Five minutes
 
-  auto status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
+  auto status = socket.setSocketOption(SOL_SOCKET, SO_LINGER, &lin, sizeof(lin));
+  if (status.return_value_ < 0) {
+    ENVOY_LOG(critical, "Socket option failure. Failed to set SO_LINGER: {}",
+              Envoy::errorDetails(status.errno_));
+  }
+  status = socket.setSocketOption(SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive));
   if (status.return_value_ < 0) {
     ENVOY_LOG(critical, "Socket option failure. Failed to set SO_KEEPALIVE: {}",
               Envoy::errorDetails(status.errno_));
