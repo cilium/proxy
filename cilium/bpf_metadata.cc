@@ -202,7 +202,10 @@ createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSha
 
 Config::Config(const ::cilium::BpfMetadata& config,
                Server::Configuration::ListenerFactoryContext& context)
-    : proxy_id_(config.proxy_id()), is_ingress_(config.is_ingress()),
+    : so_linger_(config.has_original_source_so_linger_time()
+                     ? config.original_source_so_linger_time()
+                     : -1),
+      proxy_id_(config.proxy_id()), is_ingress_(config.is_ingress()),
       use_original_source_address_(config.use_original_source_address()),
       is_l7lb_(config.is_l7lb()),
       ipv4_source_address_(
@@ -548,7 +551,7 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
         StreamInfo::StreamSharingMayImpactPooling::SharedWithUpstreamConnection);
 
     // Restoring original source address on the upstream socket
-    socket_options->push_back(socket_metadata->buildSourceAddressSocketOption());
+    socket_options->push_back(socket_metadata->buildSourceAddressSocketOption(config_->so_linger_));
 
     if (config_->addPrivilegedSocketOptions()) {
       // adding SO_MARK (Cilium mark) on the upstream socket

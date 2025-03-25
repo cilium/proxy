@@ -60,9 +60,11 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
     return std::make_shared<Envoy::Cilium::CiliumMarkSocketOption>(mark_);
   };
 
-  std::shared_ptr<Envoy::Cilium::SourceAddressSocketOption> buildSourceAddressSocketOption() {
+  std::shared_ptr<Envoy::Cilium::SourceAddressSocketOption>
+  buildSourceAddressSocketOption(int linger_time) {
     return std::make_shared<Envoy::Cilium::SourceAddressSocketOption>(
-        source_identity_, original_source_address_, source_address_ipv4_, source_address_ipv6_);
+        source_identity_, linger_time, original_source_address_, source_address_ipv4_,
+        source_address_ipv6_);
   };
 
   // Add ProxyLib L7 protocol as requested application protocol on the socket.
@@ -143,6 +145,7 @@ public:
   // NET_ADMIN privileges from being applied. Used by tests.
   virtual bool addPrivilegedSocketOptions() { return true; };
 
+  int so_linger_; // negative if disabled
   uint32_t proxy_id_;
   bool is_ingress_;
   bool use_original_source_address_;

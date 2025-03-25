@@ -23,7 +23,7 @@ class SourceAddressSocketOption : public Network::Socket::Option,
                                   public Logger::Loggable<Logger::Id::filter> {
 public:
   SourceAddressSocketOption(
-      uint32_t source_identity,
+      uint32_t source_identity, int linger_time = -1,
       Network::Address::InstanceConstSharedPtr original_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv4_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv6_source_address = nullptr);
@@ -42,6 +42,7 @@ public:
   bool isSupported() const override { return true; }
 
   uint32_t source_identity_;
+  int linger_time_;
 
   Network::Address::InstanceConstSharedPtr original_source_address_;
   // Version specific source addresses are only used if original source address is not used.
