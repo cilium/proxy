@@ -306,8 +306,9 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   EXPECT_EQ("", policy_fs->ingress_policy_name_);
   EXPECT_EQ(0, policy_fs->ingress_source_identity_);
 
-  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
   EXPECT_NE(nullptr, source_addresses_socket_option);
+  EXPECT_EQ(-1, source_addresses_socket_option->linger_time_);
 
   EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
@@ -358,8 +359,9 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   EXPECT_EQ("", l7Proto);
   EXPECT_NE("pod", logEntry.entry_.policy_name());
 
-  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
   EXPECT_NE(nullptr, source_addresses_socket_option);
+  EXPECT_EQ(-1, source_addresses_socket_option->linger_time_);
 
   EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
@@ -443,8 +445,9 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbPodAndIngressEnforcedMetadata) {
   EXPECT_EQ("", l7Proto);
   EXPECT_NE("pod", logEntry.entry_.policy_name());
 
-  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
   EXPECT_NE(nullptr, source_addresses_socket_option);
+  EXPECT_EQ(-1, source_addresses_socket_option->linger_time_);
 
   EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
@@ -494,8 +497,9 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   EXPECT_EQ("", l7Proto);
   EXPECT_NE("pod", logEntry.entry_.policy_name());
 
-  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
   EXPECT_NE(nullptr, source_addresses_socket_option);
+  EXPECT_EQ(-1, source_addresses_socket_option->linger_time_);
 
   EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
@@ -547,8 +551,10 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_EQ("10.1.1.1", policy_fs->pod_ip_);
   EXPECT_EQ("", policy_fs->ingress_policy_name_);
 
-  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  // test with 1 second SO_LINGER option
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(1);
   EXPECT_NE(nullptr, source_addresses_socket_option);
+  EXPECT_EQ(1, source_addresses_socket_option->linger_time_);
 
   EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
   EXPECT_EQ("10.1.1.1:41234", source_addresses_socket_option->ipv4_source_address_->asString());
@@ -587,8 +593,9 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   EXPECT_EQ("", policy_fs->ingress_policy_name_);
   EXPECT_EQ(0, policy_fs->ingress_source_identity_);
 
-  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption();
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
   EXPECT_NE(nullptr, source_addresses_socket_option);
+  EXPECT_EQ(-1, source_addresses_socket_option->linger_time_);
 
   EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
   EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
