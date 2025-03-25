@@ -21,7 +21,7 @@ BAZEL_ARCHIVE ?= ~/bazel-cache.tar.bz2
 API_DEPS = @envoy_api//:v3_protos
 PROTOC_TARGET = @com_google_protobuf//:protoc
 api: force-non-root Makefile.api install-bazelisk
-	PROTOC=`$(BAZEL) cquery --output=starlark --starlark:expr=target.files_to_run.executable.path $(PROTOC_TARGET) | grep fastbuild/bin/external`; \
+	PROTOC=`$(BAZEL) cquery --output=starlark --starlark:expr=target.files_to_run.executable.path $(PROTOC_TARGET) | grep "fastbuild.*/bin/external"`; \
 	$(BAZEL) build $(PROTOC_TARGET) $(API_DEPS); \
 	file $${PROTOC} && PROTOC=$${PROTOC} $(MAKE) -f Makefile.api all
 
