@@ -17,16 +17,19 @@ namespace Envoy {
 namespace Cilium {
 
 SourceAddressSocketOption::SourceAddressSocketOption(
-    uint32_t source_identity, Network::Address::InstanceConstSharedPtr original_source_address,
+    uint32_t source_identity, int linger_time,
+    Network::Address::InstanceConstSharedPtr original_source_address,
     Network::Address::InstanceConstSharedPtr ipv4_source_address,
     Network::Address::InstanceConstSharedPtr ipv6_source_address)
-    : source_identity_(source_identity),
+    : source_identity_(source_identity), linger_time_(linger_time),
       original_source_address_(std::move(original_source_address)),
       ipv4_source_address_(std::move(ipv4_source_address)),
       ipv6_source_address_(std::move(ipv6_source_address)) {
   ENVOY_LOG(debug,
-            "Cilium SourceAddressSocketOption(): source_identity: {}, source_addresses: {}/{}/{}",
-            source_identity, original_source_address_ ? original_source_address_->asString() : "",
+            "Cilium SourceAddressSocketOption(): source_identity: {}, linger_time: {}, "
+            "source_addresses: {}/{}/{}",
+            source_identity_, linger_time_,
+            original_source_address_ ? original_source_address_->asString() : "",
             ipv4_source_address_ ? ipv4_source_address_->asString() : "",
             ipv6_source_address_ ? ipv6_source_address_->asString() : "");
 }
@@ -59,6 +62,25 @@ bool SourceAddressSocketOption::setOption(
     ENVOY_LOG(trace, "Skipping restore of local address on socket: {} - no source address",
               socket.ioHandle().fdDoNotUse());
     return true;
+  }
+
+  // Note: SO_LINGER option is set on the socket of the upstream connection.
+  if (source_address->ip() != nullptr && source_address->ip()->port() != 0 && linger_time_ >= 0) {
+    struct linger linger;
+    linger.l_onoff = 1;
+    linger.l_linger = linger_time_;
+
+    ENVOY_LOG(trace, "Setting SO_LINGER option on socket {} to {} seconds",
+              socket.ioHandle().fdDoNotUse(), linger_time_);
+
+    const Api::SysCallIntResult result =
+        socket.setSocketOption(SOL_SOCKET, SO_LINGER, &linger, sizeof(linger));
+
+    if (result.return_value_ != 0) {
+      ENVOY_LOG(error, "Setting SO_LINGER option on socket {} failed: {}",
+                socket.ioHandle().fdDoNotUse(), errorDetails(result.errno_));
+      return false;
+    }
   }
 
   // Note: Restoration of the original source address happens on the socket of the upstream
