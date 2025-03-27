@@ -1215,10 +1215,14 @@ bool NetworkPolicyMap::isNewStream() {
 // removeInitManager must be called at the end of each policy update
 void NetworkPolicyMap::removeInitManager() {
   // Remove the local init manager from the transport factory context
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnull-dereference"
+#endif
   transport_factory_context_->setInitManager(*static_cast<Init::Manager*>(nullptr));
+#ifdef __clang__
 #pragma clang diagnostic pop
+#endif
 }
 
 // onConfigUpdate parses the new network policy resources, allocates a new policy map and atomically
