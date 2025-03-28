@@ -389,7 +389,7 @@ public:
     }
     for (const auto& sni : rule.server_names()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}", sni, name_);
-      allowed_snis_.emplace(sni);
+      allowed_snis_.emplace_back(sni);
     }
     if (rule.has_http_rules()) {
       for (const auto& http_rule : rule.http_rules().http_rules()) {
@@ -441,8 +441,14 @@ public:
       if (sni.length() == 0) {
         return false;
       }
-      auto search = allowed_snis_.find(sni);
-      if (search == allowed_snis_.end()) {
+      bool matched = false;
+      for (const auto& pattern : allowed_snis_) {
+        if (pattern.matches(sni)) {
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
         return false;
       }
     }
@@ -574,26 +580,26 @@ public:
       res.append(indent, ' ').append("deny: true\n");
     }
 
-    if (allowed_snis_.size() > 0) {
+    if (!allowed_snis_.empty()) {
       res.append(indent, ' ').append("allowed_snis: [");
       int count = 0;
       for (auto& sni : allowed_snis_) {
         if (count++ > 0) {
           res.append(",");
         }
-        res.append(fmt::format("\"{}\"", sni));
+        sni.toString(res);
       }
       res.append("]\n");
     }
 
-    if (http_rules_.size() > 0) {
+    if (!http_rules_.empty()) {
       res.append(indent, ' ').append("http_rules:\n");
       for (auto& rule : http_rules_) {
         rule.toString(indent + 2, res);
       }
     }
 
-    if (l7_proto_.length() > 0) {
+    if (!l7_proto_.empty()) {
       res.append(indent, ' ').append("l7_proto: \"").append(l7_proto_).append("\"\n");
     }
     if (l7_allow_rules_.size() > 0) {
@@ -616,8 +622,8 @@ public:
   bool can_short_circuit_{true};
   bool deny_;
   absl::btree_set<uint32_t> remotes_;
-  // Use std::less<> to allow heterogeneous lookups (with string_view).
-  std::set<std::string, std::less<>> allowed_snis_; // All SNIs allowed if empty.
+
+  std::vector<SNIPattern> allowed_snis_;          // All SNIs allowed if empty.
   std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
   std::string l7_proto_{};
   std::vector<L7NetworkPolicyRule> l7_allow_rules_;
