@@ -344,5 +344,42 @@ protected:
 };
 using NetworkPolicyMapSharedPtr = std::shared_ptr<const NetworkPolicyMap>;
 
+struct SNIPattern {
+  std::string pattern;
+
+  explicit SNIPattern(const std::string& p) : pattern(absl::AsciiStrToLower(p)) {}
+
+  bool matches(const absl::string_view sni) const {
+    if (pattern.empty() || sni.empty()) {
+      return false;
+    }
+    auto const lower_sni = absl::AsciiStrToLower(sni);
+    // Perform lower case exact match if there is no wildcard prefix
+    if (!pattern.starts_with("*")) {
+      return pattern == lower_sni;
+    }
+
+    // Pattern is "**.<domain>"
+    if (pattern.starts_with("**.")) {
+      return lower_sni.ends_with(pattern.substr(2));
+    }
+
+    // Pattern is "*.<domain>"
+    if (pattern.starts_with("*.")) {
+      auto const sub_pattern = pattern.substr(1);
+      if (!lower_sni.ends_with(sub_pattern)) {
+        return false;
+      }
+      auto const prefix = lower_sni.substr(0, sni.size() - sub_pattern.size());
+      // Make sure that only and exactly one label is before the wildcard
+      return !prefix.empty() && prefix.find_first_of(".") == std::string::npos;
+    }
+
+    return false;
+  }
+
+  void toString(std::string& res) const { res.append(fmt::format("\"{}\"", pattern)); }
+};
+
 } // namespace Cilium
 } // namespace Envoy

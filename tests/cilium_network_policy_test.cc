@@ -1726,5 +1726,59 @@ resources:
   EXPECT_FALSE(raw_socket_allowed);
 }
 
+TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
+  // Test empty pattern
+  SNIPattern empty("");
+  EXPECT_FALSE(empty.matches("example.com"));
+  EXPECT_FALSE(empty.matches("EXAMPLE.COM"));
+  EXPECT_FALSE(empty.matches("www.example.com"));
+  EXPECT_FALSE(empty.matches("notexample.com"));
+  EXPECT_FALSE(empty.matches(""));
+
+  // Test exact matches
+  SNIPattern exact("example.com");
+  EXPECT_TRUE(exact.matches("example.com"));
+  EXPECT_TRUE(exact.matches("EXAMPLE.COM"));
+  EXPECT_FALSE(exact.matches("www.example.com"));
+  EXPECT_FALSE(exact.matches("notexample.com"));
+  EXPECT_FALSE(exact.matches(""));
+
+  // Test wildcard matches
+  SNIPattern wild("*.example.com");
+  EXPECT_TRUE(wild.matches("foo.example.com"));
+  EXPECT_TRUE(wild.matches("bar.example.com"));
+  EXPECT_TRUE(wild.matches("FOO.EXAMPLE.COM"));
+  EXPECT_FALSE(wild.matches("example.com"));
+  EXPECT_FALSE(wild.matches("foo.bar.example.com"));
+  EXPECT_FALSE(wild.matches("fooexample.com"));
+  EXPECT_FALSE(wild.matches(""));
+
+  // Test subdomain wildcard matches
+  SNIPattern subwild("*.sub.example.com");
+  EXPECT_TRUE(subwild.matches("foo.sub.example.com"));
+  EXPECT_TRUE(subwild.matches("bar.sub.example.com"));
+  EXPECT_FALSE(subwild.matches("sub.example.com"));
+  EXPECT_FALSE(subwild.matches("foo.example.com"));
+  EXPECT_FALSE(subwild.matches("foo.bar.sub.example.com"));
+
+  // Test subdomain double wildcard matches
+  SNIPattern double_wildcard("**.sub.example.com");
+  EXPECT_TRUE(double_wildcard.matches("foo.sub.example.com"));
+  EXPECT_TRUE(double_wildcard.matches("bar.sub.example.com"));
+  EXPECT_FALSE(double_wildcard.matches("sub.example.com"));
+  EXPECT_FALSE(double_wildcard.matches("foo.example.com"));
+  EXPECT_TRUE(double_wildcard.matches("foo.bar.sub.example.com"));
+
+  // Test with unsupported wildcard label
+  SNIPattern wildcard_label("*example.com");
+  EXPECT_FALSE(wildcard_label.matches("foo.example.com"));
+  EXPECT_FALSE(wildcard_label.matches("bar.example.com"));
+  EXPECT_FALSE(wildcard_label.matches("FOO.EXAMPLE.COM"));
+  EXPECT_FALSE(wildcard_label.matches("example.com"));
+  EXPECT_FALSE(wildcard_label.matches("foo.bar.example.com"));
+  EXPECT_FALSE(wildcard_label.matches("fooexample.com"));
+  EXPECT_FALSE(wildcard_label.matches(""));
+}
+
 } // namespace Cilium
 } // namespace Envoy
