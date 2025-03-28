@@ -55,4 +55,13 @@ message BpfMetadata {
   // l7lb_policy_name is the name of the L7LB policy that is enforced on the listener.
   // This is optional field.
   string l7lb_policy_name = 10;
+
+  // original_source_so_linger_time specifies the number of seconds to linger on socket close.
+  // Only used if use_original_source_address is also true, and the original source address
+  // is used in the upstream connections. Value 0 causes connections to be reset on close (TCP RST).
+  // Values above 0 cause the Envoy worker thread to block up to the given number of seconds while
+  // the connection is closing. If the timeout is reached the connection is being reset (TCP RST).
+  // This option may be needed for allowing new connections to successfully bind to the original
+  // source address and port.
+  optional uint32 original_source_so_linger_time = 11;
 }
