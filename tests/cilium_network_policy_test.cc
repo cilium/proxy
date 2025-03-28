@@ -1726,5 +1726,39 @@ resources:
   EXPECT_FALSE(raw_socket_allowed);
 }
 
+TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
+  // Test the SNIPattern class directly
+  {
+    // Test exact matches
+    SNIPattern exact("example.com");
+    EXPECT_FALSE(exact.is_wildcard);
+    EXPECT_TRUE(exact.matches("example.com"));
+    EXPECT_TRUE(exact.matches("EXAMPLE.COM"));
+    EXPECT_FALSE(exact.matches("www.example.com"));
+    EXPECT_FALSE(exact.matches("notexample.com"));
+    EXPECT_FALSE(exact.matches(""));
+
+    // Test wildcard matches
+    SNIPattern wild("*.example.com");
+    EXPECT_TRUE(wild.is_wildcard);
+    EXPECT_TRUE(wild.matches("foo.example.com"));
+    EXPECT_TRUE(wild.matches("bar.example.com"));
+    EXPECT_TRUE(wild.matches("FOO.EXAMPLE.COM"));
+    EXPECT_FALSE(wild.matches("example.com"));
+    EXPECT_FALSE(wild.matches("foo.bar.example.com"));
+    EXPECT_FALSE(wild.matches("fooexample.com"));
+    EXPECT_FALSE(wild.matches(""));
+
+    // Test subdomain wildcard matches
+    SNIPattern subwild("*.sub.example.com");
+    EXPECT_TRUE(subwild.is_wildcard);
+    EXPECT_TRUE(subwild.matches("foo.sub.example.com"));
+    EXPECT_TRUE(subwild.matches("bar.sub.example.com"));
+    EXPECT_FALSE(subwild.matches("sub.example.com"));
+    EXPECT_FALSE(subwild.matches("foo.example.com"));
+    EXPECT_FALSE(subwild.matches("foo.bar.sub.example.com"));
+  }
+}
+
 } // namespace Cilium
 } // namespace Envoy

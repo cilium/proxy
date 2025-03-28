@@ -344,5 +344,74 @@ protected:
 };
 using NetworkPolicyMapSharedPtr = std::shared_ptr<const NetworkPolicyMap>;
 
+struct SNIPattern {
+  std::string pattern;
+  std::vector<std::string> pattern_labels;
+  bool is_wildcard;
+
+  // Convert string to lowercase and split into labels
+  static std::vector<std::string> split_domain(absl::string_view domain) {
+    std::vector<std::string> labels;
+    std::string label;
+    for (const char c : domain) {
+      if (c == '.') {
+        if (!label.empty()) {
+          labels.push_back(absl::AsciiStrToLower(label));
+          label.clear();
+        }
+      } else {
+        label += c;
+      }
+    }
+    if (!label.empty()) {
+      labels.push_back(absl::AsciiStrToLower(label));
+    }
+    return labels;
+  }
+
+  explicit SNIPattern(const std::string& p) : pattern(p) {
+    pattern_labels = split_domain(p);
+    // Check if first label is a wildcard
+    is_wildcard = !pattern_labels.empty() && pattern_labels[0] == "*";
+  }
+
+  bool matches(const absl::string_view sni) const {
+    // Split SNI into labels and convert to lowercase
+    const auto sni_labels = split_domain(sni);
+
+    if (!is_wildcard) {
+      // For exact match, number of labels must be equal
+      if (sni_labels.size() != pattern_labels.size()) {
+        return false;
+      }
+      // Compare each label
+      for (size_t i = 0; i < sni_labels.size(); i++) {
+        if (pattern_labels[i] != sni_labels[i]) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // For wildcard patterns:
+    // 1. SNI must have at least as many labels as the pattern
+    if (sni_labels.size() != pattern_labels.size()) {
+      return false;
+    }
+
+    // 2. Compare all labels after the wildcard
+    // Start from the end since wildcard is always at the beginning
+    for (size_t i = 1; i < pattern_labels.size(); i++) {
+      if (const size_t sni_idx = sni_labels.size() - (pattern_labels.size() - i);
+          pattern_labels[i] != sni_labels[sni_idx]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void toString(std::string& res) const { res.append(fmt::format("\"{}\"", pattern)); }
+};
+
 } // namespace Cilium
 } // namespace Envoy
