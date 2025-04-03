@@ -25,7 +25,7 @@ namespace Envoy {
 namespace Cilium {
 
 // IP cache names to look for, in the order of prefefrence
-static const char* ipcache_names[] = {"cilium_ipcache_v2", "cilium_ipcache"};
+static const char* ipcache_names[] = {"cilium_ipcache", "cilium_ipcache_v2"};
 
 // These must be kept in sync with Cilium source code, should refactor
 // them to a separate include file we can include here instead of
