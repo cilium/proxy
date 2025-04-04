@@ -82,7 +82,7 @@ GO_MAPPINGS := $(patsubst %/,%,$(map_sep)$(subst $(file_sep),$(map_sep),$(RAW_GO
 
 export PATH:=$(HOME)/go/bin:$(PATH)
 
-all: godeps cilium-go-targets
+all: cilium-go-targets
 
 .PHONY: envoy-go-targets
 envoy-go-targets: $(ENVOY_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api
@@ -108,16 +108,5 @@ cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api 
 		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT)" --go_opt=module=github.com/cilium/proxy/go "--validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)" --validate_opt=module=github.com/cilium/proxy/go $${path}*.proto; \
 	done
 	go mod tidy && go mod vendor
-
-godeps:
-# We have Renovate updating Go dependencies for us now
-#
-# Have to keep using github.com/golang/protobuf@v1.4.x version of protoc-gen-go to retain grpc
-# plugin support needed by Envoy API protos.
-# - google.golang.org/protobuf version of protoc-gen-go needs a separate protoc plugin for grpc,
-#   which also changes Go module name generation so that upstream Envoy API protos do not work any more.
-# - >v1.5.0 changes the Go module name generation so that upstream Envoy API protos do not work any more.
-	GO111MODULE=on go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
-	GO111MODULE=on go install github.com/envoyproxy/protoc-gen-validate@v0.10.1
 
 .PHONY: all
