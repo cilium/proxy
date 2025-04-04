@@ -58,7 +58,7 @@ jobs:
           --features="-layering_check" \
           --config=clang-libc++ \
           --config=ci \
-          //cilium/...
+          cilium-envoy
 
       - name: Autobuild
         if: matrix.config.language != 'cpp'
