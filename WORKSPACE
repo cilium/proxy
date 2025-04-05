@@ -41,10 +41,9 @@ git_repository(
         "@//patches:0002-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
         "@//patches:0003-listener-add-socket-options.patch",
         "@//patches:0004-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
-        "@//patches:0005-liburing.patch",
-        "@//patches:0006-tcp_proxy-Check-for-nullptr-in-watermark-ASSERTs.patch",
-        "@//patches:0007-thread_local-reset-slot-in-worker-threads-first.patch",
-        "@//patches:0008-http-header-expose-attribute.patch",
+        "@//patches:0005-tcp_proxy-Check-for-nullptr-in-watermark-ASSERTs.patch",
+        "@//patches:0006-thread_local-reset-slot-in-worker-threads-first.patch",
+        "@//patches:0007-http-header-expose-attribute.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
