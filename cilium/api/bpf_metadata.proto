@@ -64,4 +64,8 @@ message BpfMetadata {
   // This option may be needed for allowing new connections to successfully bind to the original
   // source address and port.
   optional uint32 original_source_so_linger_time = 11;
+
+  // Name of the pin file for opening bpf ipcache in "<bpf_root>/tc/globals/". If empty, defaults to
+  // "cilium_ipcache" for backwards compatibility.
+  string ipcache_name = 12;
 }
