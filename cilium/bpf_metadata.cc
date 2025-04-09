@@ -242,7 +242,14 @@ Config::Config(const ::cilium::BpfMetadata& config,
           // later.
           return std::make_shared<Cilium::CtMap>(bpf_root);
         });
-    ipcache_ = IPCache::NewIPCache(context.serverFactoryContext(), bpf_root);
+
+    std::string ipcache_name = "cilium_ipcache";
+    if (config.ipcache_name().length() > 0) {
+      ipcache_name = config.ipcache_name();
+    }
+    ipcache_ = IPCache::NewIPCache(context.serverFactoryContext(),
+                                   bpf_root + "/tc/globals/" + ipcache_name);
+
     if (bpf_root != ct_maps_->bpfRoot()) {
       // bpf root may not change during runtime
       throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));

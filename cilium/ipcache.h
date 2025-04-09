@@ -8,6 +8,8 @@
 #include "envoy/server/factory_context.h"
 #include "envoy/singleton/instance.h"
 
+#include "source/common/common/thread.h"
+
 #include "cilium/bpf.h"
 
 namespace Envoy {
@@ -16,18 +18,18 @@ namespace Cilium {
 class IPCache : public Singleton::Instance, public Bpf {
 public:
   static std::shared_ptr<IPCache> NewIPCache(Server::Configuration::ServerFactoryContext& context,
-                                             const std::string& bpf_root);
+                                             const std::string& path);
   static std::shared_ptr<IPCache> GetIPCache(Server::Configuration::ServerFactoryContext& context);
 
-  IPCache(const std::string& bpf_root);
+  IPCache(const std::string& path);
+  void SetPath(const std::string& path);
   bool Open();
-
-  const std::string& bpfRoot() { return bpf_root_; }
 
   uint32_t resolve(const Network::Address::Ip* ip);
 
 private:
-  std::string bpf_root_;
+  Thread::MutexBasicLockable path_mutex_;
+  std::string path_;
 };
 
 typedef std::shared_ptr<IPCache> IPCacheSharedPtr;
