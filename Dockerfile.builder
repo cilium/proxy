@@ -3,7 +3,7 @@
 # Also note that if build fails due to C++ internal error or similar,
 # it is possible that the image build needs more RAM than available by
 # default on non-Linux docker installs.
-FROM docker.io/library/ubuntu:22.04@sha256:d80997daaa3811b175119350d84305e1ec9129e1799bba0bd1e3120da3ff52c3 AS base
+FROM docker.io/library/ubuntu:24.04@sha256:1e622c5f073b4f6bfad6632f2616c7f59ef256e96fe78bf6a595d1dc4376ac02 AS base
 LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
 # Setup TimeZone to prevent tzdata package asking for it interactively
@@ -27,7 +27,7 @@ RUN apt-get update && \
       # Cilium-envoy build dependencies
       software-properties-common && \
     wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
-    apt-add-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" && \
+    apt-add-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-17 main" && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       clang-17 clang-tools-17 llvm-17-dev lldb-17 lld-17 clang-format-17 libc++-17-dev libc++abi-17-dev && \
