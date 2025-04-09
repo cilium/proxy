@@ -32,7 +32,7 @@ apt-get update && \
       python3 python-is-python3 unzip virtualenv wget zip \
       software-properties-common && \
     wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
-    apt-add-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" && \
+    apt-add-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-18 main" && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       clang-18 clang-tools-18 lldb-18 lld-18 clang-format-18 libc++-18-dev libc++abi-18-dev && \
@@ -41,7 +41,7 @@ apt-get update && \
 SCRIPT
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "ubuntu/jammy64"
+  config.vm.box = "bento/ubuntu-24.04"
   config.disksize.size = $VM_DISK
 
   config.vm.provider "virtualbox" do |vb|
