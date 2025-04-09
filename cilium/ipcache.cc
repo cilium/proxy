@@ -13,6 +13,7 @@
 #include "envoy/server/factory_context.h"
 #include "envoy/singleton/manager.h"
 
+#include "source/common/common/lock_guard.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 
@@ -23,9 +24,6 @@
 
 namespace Envoy {
 namespace Cilium {
-
-// IP cache names to look for, in the order of prefefrence
-static const char* ipcache_names[] = {"cilium_ipcache_v2", "cilium_ipcache"};
 
 // These must be kept in sync with Cilium source code, should refactor
 // them to a separate include file we can include here instead of
@@ -65,15 +63,21 @@ struct remote_endpoint_info {
 SINGLETON_MANAGER_REGISTRATION(cilium_ipcache);
 
 IPCacheSharedPtr IPCache::NewIPCache(Server::Configuration::ServerFactoryContext& context,
-                                     const std::string& bpf_root) {
-  return context.singletonManager().getTyped<Cilium::IPCache>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&bpf_root] {
-        auto ipcache = std::make_shared<Cilium::IPCache>(bpf_root);
+                                     const std::string& path) {
+  auto ipcache = context.singletonManager().getTyped<Cilium::IPCache>(
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache), [&path] {
+        auto ipcache = std::make_shared<Cilium::IPCache>(path);
         if (!ipcache->Open()) {
           ipcache.reset();
         }
         return ipcache;
       });
+
+  // Override the current path even on an existing singleton
+  if (ipcache) {
+    ipcache->SetPath(path);
+  }
+  return ipcache;
 }
 
 IPCacheSharedPtr IPCache::GetIPCache(Server::Configuration::ServerFactoryContext& context) {
@@ -81,28 +85,24 @@ IPCacheSharedPtr IPCache::GetIPCache(Server::Configuration::ServerFactoryContext
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_ipcache));
 }
 
-IPCache::IPCache(const std::string& bpf_root)
+IPCache::IPCache(const std::string& path)
     : Bpf(BPF_MAP_TYPE_LPM_TRIE, sizeof(struct ipcache_key),
           sizeof(remote_endpoint_info::SecLabelType), sizeof(struct remote_endpoint_info)),
-      bpf_root_(bpf_root) {}
+      path_(path) {}
+
+void IPCache::SetPath(const std::string& path) {
+  Thread::LockGuard guard(path_mutex_);
+  path_ = path;
+}
 
 bool IPCache::Open() {
-  // Open the bpf maps from Cilium specific paths
-  std::string tried_paths;
+  Thread::LockGuard guard(path_mutex_);
 
-  for (const char* name : ipcache_names) {
-    std::string path(bpf_root_ + "/tc/globals/" + name);
-    if (!Bpf::open(path)) {
-      if (tried_paths.length() > 0) {
-        tried_paths += ", ";
-      }
-      tried_paths += path;
-      continue;
-    }
-    ENVOY_LOG(debug, "cilium.ipcache: Opened ipcache at {}", path);
+  if (Bpf::open(path_)) {
+    ENVOY_LOG(debug, "cilium.ipcache: Opened ipcache at {}", path_);
     return true;
   }
-  ENVOY_LOG(info, "cilium.ipcache: Cannot open ipcache at any of {}", tried_paths);
+  ENVOY_LOG(warn, "cilium.ipcache: Cannot open ipcache at {}", path_);
   return false;
 }
 
