@@ -24,6 +24,7 @@ public:
   IPCache(const std::string& path);
   void SetPath(const std::string& path);
   bool Open();
+  bool open_locked();
 
   uint32_t resolve(const Network::Address::Ip* ip);
 
