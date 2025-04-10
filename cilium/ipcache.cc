@@ -92,12 +92,19 @@ IPCache::IPCache(const std::string& path)
 
 void IPCache::SetPath(const std::string& path) {
   Thread::LockGuard guard(path_mutex_);
-  path_ = path;
+  if (path != path_) {
+    path_ = path;
+    // re-open on path change
+    open_locked();
+  }
 }
 
 bool IPCache::Open() {
   Thread::LockGuard guard(path_mutex_);
+  return open_locked();
+}
 
+bool IPCache::open_locked() {
   if (Bpf::open(path_)) {
     ENVOY_LOG(debug, "cilium.ipcache: Opened ipcache at {}", path_);
     return true;
