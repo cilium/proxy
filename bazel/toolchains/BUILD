@@ -52,8 +52,9 @@ cc_toolchain_config(
         "/usr/lib/llvm-17",
         "/usr/aarch64-linux-gnu/include",
         "/usr/include",
+        "/usr/include/aarch64-linux-gnu",
     ],
-    cxx_flags = ["-std=c++0x"],
+    cxx_flags = ["-std=c++17"],
     dbg_compile_flags = ["-g"],
     host_system_name = "local",
     link_flags = [
@@ -63,7 +64,6 @@ cc_toolchain_config(
         "-Wl,-z,relro,-z,now",
         "-lm",
     ],
-    link_libs = ["-l:libstdc++.a"],
     opt_compile_flags = [
         "-g0",
         "-O2",
@@ -74,7 +74,7 @@ cc_toolchain_config(
     ],
     opt_link_flags = ["-Wl,--gc-sections"],
     supports_start_end_lib = True,
-    target_libc = "glibc",
+    target_libc = "unknown",
     target_system_name = "aarch64-linux-gnu",
     tool_paths = {
         "ar": "/usr/bin/llvm-ar-17",
@@ -152,7 +152,7 @@ cc_toolchain_config(
         "/usr/x86_64-linux-gnu/include",
         "/usr/include",
     ],
-    cxx_flags = ["-std=c++0x"],
+    cxx_flags = ["-std=c++17"],
     dbg_compile_flags = ["-g"],
     host_system_name = "local",
     link_flags = [
@@ -162,7 +162,6 @@ cc_toolchain_config(
         "-Wl,-z,relro,-z,now",
         "-lm",
     ],
-    link_libs = ["-l:libstdc++.a"],
     opt_compile_flags = [
         "-g0",
         "-O2",

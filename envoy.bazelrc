@@ -205,6 +205,17 @@ build:libc++ --action_env=BAZEL_LINKOPTS=-lm:-pthread
 build:libc++ --define force_libcpp=enabled
 build:clang-libc++ --config=libc++
 
+# AArch64-specific libc++ configuration
+build:libc++-aarch64 --config=libc++
+build:libc++-aarch64 --platforms=@local_config_platform//:host
+build:libc++-aarch64 --extra_toolchains=//bazel/toolchains:aarch64_linux_cc_toolchain
+build:libc++-aarch64 --cpu=aarch64
+build:libc++-aarch64 --action_env=BAZEL_LINKLIBS=-l%:libc++.a:-l%:libc++abi.a
+build:libc++-aarch64 --action_env=BAZEL_LINKOPTS=-lm:-pthread:-lunwind
+build:libc++-aarch64 --linkopt=-static
+build:libc++-aarch64 --features=fully_static_link
+build:libc++-aarch64 --define=ABSL_RANDOM_RANDEN_HWAES=0
+
 build:libc++20 --config=libc++
 # gRPC has a lot of deprecated-enum-enum-conversion warning. Remove once it is addressed
 build:libc++20 --copt=-Wno-error=deprecated-enum-enum-conversion

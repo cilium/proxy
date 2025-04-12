@@ -22,6 +22,9 @@ build:release --define no_debug_info=1
 build:release --linkopt=-Wl,--strip-all
 build --features=-per_object_debug_info
 build --fission=dbg
+build --cxxopt='-stdlib=libc++'
+build --linkopt='-lc++'
+build --linkopt='-lc++abi'
 
 # Manual link stamping, forces link to include current git SHA even if binary is otherwise
 # upto-date
