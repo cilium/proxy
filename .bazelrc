@@ -17,6 +17,12 @@ build --define path_normalization_by_default=true
 # release builds are optimized
 build:release -c opt
 
+# Static linking configuration
+build:static --linkopt=-static
+build:static --linkopt=-static-libgcc
+build:static --linkopt=-static-libstdc++
+build:static --features=fully_static_link
+
 # No debug info for release builds
 build:release --define no_debug_info=1
 build:release --linkopt=-Wl,--strip-all
