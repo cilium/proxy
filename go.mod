@@ -11,12 +11,12 @@ require (
 	github.com/cncf/xds/go v0.0.0-20250326154945-ae57f3c0d45f
 	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/golang/protobuf v1.5.4
-	github.com/prometheus/client_model v0.6.1
+	github.com/prometheus/client_model v0.6.2
 	github.com/sirupsen/logrus v1.9.3
 	go.opentelemetry.io/proto/otlp v1.5.0
 	golang.org/x/sys v0.32.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20250407143221-ac9807e6c755
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250407143221-ac9807e6c755
+	google.golang.org/genproto/googleapis/api v0.0.0-20250414145226-207652e42e2e
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250414145226-207652e42e2e
 	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.6
 )
