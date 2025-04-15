@@ -36,7 +36,7 @@ namespace Cilium {
 
 namespace {
 
-constexpr absl::string_view NotReadyReason{"TLS error: Secret is not supplied by SDS"};
+constexpr absl::string_view NotReadyReason{"Socket is not ready"};
 
 // This SslSocketWrapper wraps a real SslSocket and hooks it up with
 // TLS configuration derived from Cilium Network Policy.
