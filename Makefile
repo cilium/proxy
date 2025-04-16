@@ -136,27 +136,10 @@ cilium-envoy-starter: bazel-bin/cilium-envoy-starter
 
 BAZEL_CACHE := $(subst --disk_cache=,,$(filter --disk_cache=%, $(BAZEL_BUILD_OPTS)))
 
-GLIBC_VERSION ?= $(shell ldd --version | sed -n 's/.*GLIBC \([0-9.]\+\).*/\1/p')
-GLIBC_DIR ?= $(LIBDIR)/glibc-$(GLIBC_VERSION)
-
-$(DESTDIR)$(GLIBC_DIR): bazel-bin/cilium-envoy
-	$(SUDO) $(INSTALL) -m 0755 -d $@
-	LIBS=$$(readelf -d bazel-bin/cilium-envoy | sed -n 's/.*(NEEDED).*Shared library: \[\(.*\)\]/\1/p'); \
-	ARCH_TAG=$$(echo $$LIBS | sed -n 's/.*ld-linux-\(.*\)\.so.*/\1/p' | tr - _); \
-	echo "BUILD for $${ARCH_TAG}"; \
-	for lib in $${LIBS}; do \
-		$(SUDO) cp /usr/$${ARCH_TAG}-linux-gnu/lib/$$lib $@; \
-	done
-
 install: bazel-bin/cilium-envoy-starter bazel-bin/cilium-envoy
 	$(SUDO) $(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy-starter $(DESTDIR)$(BINDIR)/cilium-envoy-starter
 	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy $(DESTDIR)$(BINDIR)/cilium-envoy
-
-install-glibc: install $(DESTDIR)$(GLIBC_DIR)
-	LD_LINUX=$$(basename $$(patchelf --print-interpreter bazel-bin/cilium-envoy)); \
-	$(SUDO) patchelf --set-interpreter $(GLIBC_DIR)/$${LD_LINUX} --set-rpath $(GLIBC_DIR) $(DESTDIR)$(BINDIR)/cilium-envoy-starter
-	$(SUDO) patchelf --set-interpreter $(GLIBC_DIR)/$${LD_LINUX} --set-rpath $(GLIBC_DIR) $(DESTDIR)$(BINDIR)/cilium-envoy
 
 # Remove the binaries
 clean: force
