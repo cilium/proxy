@@ -279,7 +279,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     }
     const auto& policy = policy_fs->getPolicy();
     auto port_policy = policy.findPortPolicy(policy_fs->ingress_, destination_port_);
-    if (!port_policy.allowed(remote_id_, metadata)) {
+    if (!port_policy.allowed(policy_fs->proxy_id_, remote_id_, metadata)) {
       config_->Log(log_entry_, ::cilium::EntryType::Denied);
       reason = "metadata policy drop";
       goto drop_close;
