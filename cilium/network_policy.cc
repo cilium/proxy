@@ -364,7 +364,8 @@ private:
 class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
 public:
   PortNetworkPolicyRule(const NetworkPolicyMap& parent, const cilium::PortNetworkPolicyRule& rule)
-      : name_(rule.name()), deny_(rule.deny()), l7_proto_(rule.l7_proto()) {
+      : name_(rule.name()), deny_(rule.deny()), proxy_id_(rule.proxy_id()),
+        l7_proto_(rule.l7_proto()) {
     // Deny rules can not be short circuited, i.e., if any deny rules are present, then all
     // rules must be evaluated even if one would allow
     can_short_circuit_ = !deny_;
@@ -410,7 +411,11 @@ public:
     }
   }
 
-  bool allowed(uint32_t remote_id, bool& denied) const {
+  bool allowed(uint32_t proxy_id, uint32_t remote_id, bool& denied) const {
+    // proxy_id must match if we have any.
+    if (proxy_id_ != 0 && proxy_id != proxy_id_) {
+      return false;
+    }
     // Remote ID must match if we have any.
     if (remotes_.size() > 0) {
       auto match = remotes_.find(remote_id);
@@ -435,7 +440,7 @@ public:
     return true;
   }
 
-  bool allowed(uint32_t remote_id, absl::string_view sni, bool& denied) const {
+  bool allowed(uint32_t proxy_id, uint32_t remote_id, absl::string_view sni, bool& denied) const {
     // sni must match if we have any
     if (allowed_snis_.size() > 0) {
       if (sni.length() == 0) {
@@ -452,12 +457,12 @@ public:
         return false;
       }
     }
-    return allowed(remote_id, denied);
+    return allowed(proxy_id, remote_id, denied);
   }
 
-  bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+  bool allowed(uint32_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry, bool& denied) const {
-    if (!allowed(remote_id, denied)) {
+    if (!allowed(proxy_id, remote_id, denied)) {
       return false;
     }
     if (http_rules_.size() > 0) {
@@ -482,9 +487,9 @@ public:
     return true;
   }
 
-  bool useProxylib(uint32_t remote_id, std::string& l7_proto) const {
+  bool useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
     bool denied = false;
-    if (!allowed(remote_id, denied)) {
+    if (!allowed(proxy_id, remote_id, denied)) {
       return false;
     }
     if (l7_proto_.length() > 0) {
@@ -496,9 +501,9 @@ public:
   }
 
   // Envoy Metadata matcher, called after deny has already been checked for
-  bool allowed(uint32_t remote_id, const envoy::config::core::v3::Metadata& metadata,
-               bool& denied) const {
-    if (!allowed(remote_id, denied)) {
+  bool allowed(uint32_t proxy_id, uint32_t remote_id,
+               const envoy::config::core::v3::Metadata& metadata, bool& denied) const {
+    if (!allowed(proxy_id, remote_id, denied)) {
       return false;
     }
     for (const auto& rule : l7_deny_rules_) {
@@ -531,11 +536,12 @@ public:
     return true; // allowed by default
   }
 
-  Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id, absl::string_view sni,
+  Ssl::ContextSharedPtr getServerTlsContext(uint32_t proxy_id, uint32_t remote_id,
+                                            absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const {
     bool denied = false;
-    if (allowed(remote_id, sni, denied)) {
+    if (allowed(proxy_id, remote_id, sni, denied)) {
       if (server_context_) {
         *config = &server_context_->getTlsContextConfig();
         return server_context_->getTlsContext();
@@ -545,11 +551,12 @@ public:
     return nullptr;
   }
 
-  Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id, absl::string_view sni,
+  Ssl::ContextSharedPtr getClientTlsContext(uint32_t proxy_id, uint32_t remote_id,
+                                            absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const {
     bool denied = false;
-    if (allowed(remote_id, sni, denied)) {
+    if (allowed(proxy_id, remote_id, sni, denied)) {
       if (client_context_) {
         *config = &client_context_->getTlsContextConfig();
         return client_context_->getTlsContext();
@@ -578,6 +585,9 @@ public:
     }
     if (deny_) {
       res.append(indent, ' ').append("deny: true\n");
+    }
+    if (proxy_id_ != 0) {
+      res.append(indent, ' ').append(fmt::format("proxy_id: {}\n", proxy_id_));
     }
 
     if (!allowed_snis_.empty()) {
@@ -621,6 +631,7 @@ public:
   UpstreamTLSContextPtr client_context_;
   bool can_short_circuit_{true};
   bool deny_;
+  uint32_t proxy_id_;
   absl::btree_set<uint32_t> remotes_;
 
   std::vector<SNIPattern> allowed_snis_;          // All SNIs allowed if empty.
@@ -655,7 +666,7 @@ public:
     }
   }
 
-  bool allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+  bool allowed(uint32_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry, bool& denied) const {
     // Empty set matches any payload from anyone
     if (rules_.size() == 0) {
@@ -664,7 +675,7 @@ public:
 
     bool allowed = false;
     for (const auto& rule : rules_) {
-      if (rule->allowed(remote_id, headers, log_entry, denied)) {
+      if (rule->allowed(proxy_id, remote_id, headers, log_entry, denied)) {
         ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): ALLOWED");
         allowed = true;
         // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
@@ -678,7 +689,7 @@ public:
     return allowed && !denied;
   }
 
-  bool allowed(uint32_t remote_id, absl::string_view sni, bool& denied) const {
+  bool allowed(uint32_t proxy_id, uint32_t remote_id, absl::string_view sni, bool& denied) const {
     // Empty set matches any payload from anyone
     if (rules_.size() == 0) {
       return true;
@@ -686,7 +697,7 @@ public:
 
     bool allowed = false;
     for (const auto& rule : rules_) {
-      if (rule->allowed(remote_id, sni, denied)) {
+      if (rule->allowed(proxy_id, remote_id, sni, denied)) {
         allowed = true;
         // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
         // exist
@@ -698,17 +709,17 @@ public:
     return allowed && !denied;
   }
 
-  bool useProxylib(uint32_t remote_id, std::string& l7_proto) const {
+  bool useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
     for (const auto& rule : rules_) {
-      if (rule->useProxylib(remote_id, l7_proto)) {
+      if (rule->useProxylib(proxy_id, remote_id, l7_proto)) {
         return true;
       }
     }
     return false;
   }
 
-  bool allowed(uint32_t remote_id, const envoy::config::core::v3::Metadata& metadata,
-               bool& denied) const {
+  bool allowed(uint32_t proxy_id, uint32_t remote_id,
+               const envoy::config::core::v3::Metadata& metadata, bool& denied) const {
     // Empty set matches any payload from anyone
     if (rules_.size() == 0) {
       return true;
@@ -716,7 +727,7 @@ public:
 
     bool allowed = false;
     for (const auto& rule : rules_) {
-      if (rule->allowed(remote_id, metadata, denied)) {
+      if (rule->allowed(proxy_id, remote_id, metadata, denied)) {
         allowed = true;
         // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
         // exist
@@ -728,24 +739,26 @@ public:
     return allowed && !denied;
   }
 
-  Ssl::ContextSharedPtr getServerTlsContext(uint32_t remote_id, absl::string_view sni,
+  Ssl::ContextSharedPtr getServerTlsContext(uint32_t proxy_id, uint32_t remote_id,
+                                            absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const {
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr server_context =
-          rule->getServerTlsContext(remote_id, sni, config, raw_socket_allowed);
+          rule->getServerTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
       if (server_context)
         return server_context;
     }
     return nullptr;
   }
 
-  Ssl::ContextSharedPtr getClientTlsContext(uint32_t remote_id, absl::string_view sni,
+  Ssl::ContextSharedPtr getClientTlsContext(uint32_t proxy_id, uint32_t remote_id,
+                                            absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const {
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr client_context =
-          rule->getClientTlsContext(remote_id, sni, config, raw_socket_allowed);
+          rule->getClientTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
       if (client_context)
         return client_context;
     }
@@ -822,49 +835,52 @@ bool PortPolicy::for_first_range(std::function<bool(const PortNetworkPolicyRules
   return false;
 }
 
-bool PortPolicy::useProxylib(uint32_t remote_id, std::string& l7_proto) const {
+bool PortPolicy::useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
   return for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
-    return rules.useProxylib(remote_id, l7_proto);
+    return rules.useProxylib(proxy_id, remote_id, l7_proto);
   });
 }
 
-bool PortPolicy::allowed(uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+bool PortPolicy::allowed(uint32_t proxy_id, uint32_t remote_id,
+                         Envoy::Http::RequestHeaderMap& headers,
                          Cilium::AccessLog::Entry& log_entry) const {
   return for_range([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
-    return rules.allowed(remote_id, headers, log_entry, denied);
+    return rules.allowed(proxy_id, remote_id, headers, log_entry, denied);
   });
 }
 
-bool PortPolicy::allowed(uint32_t remote_id, absl::string_view sni) const {
+bool PortPolicy::allowed(uint32_t proxy_id, uint32_t remote_id, absl::string_view sni) const {
   return for_range([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
-    return rules.allowed(remote_id, sni, denied);
+    return rules.allowed(proxy_id, remote_id, sni, denied);
   });
 }
 
-bool PortPolicy::allowed(uint32_t remote_id,
+bool PortPolicy::allowed(uint32_t proxy_id, uint32_t remote_id,
                          const envoy::config::core::v3::Metadata& metadata) const {
   return for_range([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
-    return rules.allowed(remote_id, metadata, denied);
+    return rules.allowed(proxy_id, remote_id, metadata, denied);
   });
 }
 
-Ssl::ContextSharedPtr PortPolicy::getServerTlsContext(uint32_t remote_id, absl::string_view sni,
+Ssl::ContextSharedPtr PortPolicy::getServerTlsContext(uint32_t proxy_id, uint32_t remote_id,
+                                                      absl::string_view sni,
                                                       const Ssl::ContextConfig** config,
                                                       bool& raw_socket_allowed) const {
   Ssl::ContextSharedPtr ret;
   for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
-    ret = rules.getServerTlsContext(remote_id, sni, config, raw_socket_allowed);
+    ret = rules.getServerTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
     return ret != nullptr;
   });
   return ret;
 }
 
-Ssl::ContextSharedPtr PortPolicy::getClientTlsContext(uint32_t remote_id, absl::string_view sni,
+Ssl::ContextSharedPtr PortPolicy::getClientTlsContext(uint32_t proxy_id, uint32_t remote_id,
+                                                      absl::string_view sni,
                                                       const Ssl::ContextConfig** config,
                                                       bool& raw_socket_allowed) const {
   Ssl::ContextSharedPtr ret;
   for_first_range([&](const PortNetworkPolicyRules& rules) -> bool {
-    ret = rules.getClientTlsContext(remote_id, sni, config, raw_socket_allowed);
+    ret = rules.getClientTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
     return ret != nullptr;
   });
   return ret;
@@ -1087,27 +1103,27 @@ public:
         ingress_(parent, policy_proto_.ingress_per_port_policies()),
         egress_(parent, policy_proto_.egress_per_port_policies()) {}
 
-  bool allowed(bool ingress, uint32_t remote_id, uint16_t port,
+  bool allowed(bool ingress, uint32_t proxy_id, uint32_t remote_id, uint16_t port,
                Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const override {
     const auto port_policy = findPortPolicy(ingress, port);
-    return port_policy.allowed(remote_id, headers, log_entry);
+    return port_policy.allowed(proxy_id, remote_id, headers, log_entry);
   }
 
-  bool allowed(bool ingress, uint32_t remote_id, absl::string_view sni,
+  bool allowed(bool ingress, uint32_t proxy_id, uint32_t remote_id, absl::string_view sni,
                uint16_t port) const override {
     const auto port_policy = findPortPolicy(ingress, port);
-    return port_policy.allowed(remote_id, sni);
+    return port_policy.allowed(proxy_id, remote_id, sni);
   }
 
   const PortPolicy findPortPolicy(bool ingress, uint16_t port) const override {
     return ingress ? ingress_.findPortPolicy(port) : egress_.findPortPolicy(port);
   }
 
-  bool useProxylib(bool ingress, uint32_t remote_id, uint16_t port,
+  bool useProxylib(bool ingress, uint32_t proxy_id, uint32_t remote_id, uint16_t port,
                    std::string& l7_proto) const override {
     const auto port_policy = findPortPolicy(ingress, port);
-    return port_policy.useProxylib(remote_id, l7_proto);
+    return port_policy.useProxylib(proxy_id, remote_id, l7_proto);
   }
 
   const std::string& conntrackName() const override { return conntrack_map_name_; }
@@ -1401,12 +1417,12 @@ public:
     list.emplace_front(PortNetworkPolicyRules());
   }
 
-  bool allowed(bool ingress, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
+  bool allowed(bool ingress, uint32_t, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
                Cilium::AccessLog::Entry&) const override {
     return ingress ? false : true;
   }
 
-  bool allowed(bool ingress, uint32_t, absl::string_view, uint16_t) const override {
+  bool allowed(bool ingress, uint32_t, uint32_t, absl::string_view, uint16_t) const override {
     return ingress ? false : true;
   }
 
@@ -1415,7 +1431,9 @@ public:
                    : PortPolicy(empty_map_, empty_rules_, 1);
   }
 
-  bool useProxylib(bool, uint32_t, uint16_t, std::string&) const override { return false; }
+  bool useProxylib(bool, uint32_t, uint32_t, uint16_t, std::string&) const override {
+    return false;
+  }
 
   const std::string& conntrackName() const override { return empty_string; }
 
@@ -1446,18 +1464,22 @@ class DenyAllPolicyInstanceImpl : public PolicyInstance {
 public:
   DenyAllPolicyInstanceImpl() {}
 
-  bool allowed(bool, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
+  bool allowed(bool, uint32_t, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
                Cilium::AccessLog::Entry&) const override {
     return false;
   }
 
-  bool allowed(bool, uint32_t, absl::string_view, uint16_t) const override { return false; }
+  bool allowed(bool, uint32_t, uint32_t, absl::string_view, uint16_t) const override {
+    return false;
+  }
 
   const PortPolicy findPortPolicy(bool, uint16_t) const override {
     return PortPolicy(empty_map_, empty_rules, 0);
   }
 
-  bool useProxylib(bool, uint32_t, uint16_t, std::string&) const override { return false; }
+  bool useProxylib(bool, uint32_t, uint32_t, uint16_t, std::string&) const override {
+    return false;
+  }
 
   const std::string& conntrackName() const override { return empty_string; }
 

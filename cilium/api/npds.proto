@@ -130,6 +130,12 @@ message PortNetworkPolicyRule {
   // Traffic on this port is denied for all `remote_policies` if true
   bool deny = 8;
 
+  // ProxyID is non-zero if the rule was an allow rule with an explicit listener reference.
+  // The given value corresponds to the 'proxy_id' value in the BpfMetadata listener filter
+  // configuration.
+  // This rule should be ignored if not executing in the referred listener.
+  uint32 proxy_id = 9;
+
   // Optional name for the rule, can be used in logging and error messages.
   string name = 5;
 

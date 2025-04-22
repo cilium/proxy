@@ -501,7 +501,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   // based policies (e.g., with MongoDB or MySQL filters).
   std::string proxylib_l7proto;
   uint32_t remote_id = is_ingress_ ? source_identity : destination_identity;
-  if (policy->useProxylib(is_ingress_, remote_id, dip->port(), proxylib_l7proto)) {
+  if (policy->useProxylib(is_ingress_, proxy_id_, remote_id, dip->port(), proxylib_l7proto)) {
     ENVOY_LOG(trace, "cilium.bpf_metadata: detected proxylib l7 proto: {}", proxylib_l7proto);
   }
 
