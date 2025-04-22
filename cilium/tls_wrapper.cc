@@ -91,20 +91,20 @@ public:
     auto& conn = callbacks_->connection();
 
     ENVOY_CONN_LOG(trace, "retrieving policy filter state", conn);
-    auto policy_socket_option =
+    auto policy_fs =
         conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicyFilterState>(
             Cilium::CiliumPolicyFilterState::key());
 
-    if (policy_socket_option) {
-      const auto& policy = policy_socket_option->getPolicy();
+    if (policy_fs) {
+      const auto& policy = policy_fs->getPolicy();
 
       // Resolve the destination security ID and port
       uint32_t destination_identity = 0;
-      uint32_t destination_port = policy_socket_option->port_;
+      uint32_t destination_port = policy_fs->port_;
       const Network::Address::Ip* dip = nullptr;
       bool is_client = state_ == Extensions::TransportSockets::Tls::InitialState::Client;
 
-      if (!policy_socket_option->ingress_) {
+      if (!policy_fs->ingress_) {
         Network::Address::InstanceConstSharedPtr dst_address =
             is_client ? callbacks_->connection().connectionInfoProvider().remoteAddress()
                       : callbacks_->connection().connectionInfoProvider().localAddress();
@@ -112,7 +112,7 @@ public:
           dip = dst_address->ip();
           if (dip) {
             destination_port = dip->port();
-            destination_identity = policy_socket_option->resolvePolicyId(dip);
+            destination_identity = policy_fs->resolvePolicyId(dip);
           } else {
             ENVOY_CONN_LOG(warn, "cilium.tls_wrapper: Non-IP destination address: {}", conn,
                            dst_address->asString());
@@ -123,16 +123,18 @@ public:
       }
 
       // get the requested server name from the connection, if any
-      const auto& sni = policy_socket_option->sni_;
+      const auto& sni = policy_fs->sni_;
 
-      auto remote_id = policy_socket_option->ingress_ ? policy_socket_option->source_identity_
-                                                      : destination_identity;
-      auto port_policy = policy.findPortPolicy(policy_socket_option->ingress_, destination_port);
+      auto remote_id = policy_fs->ingress_ ? policy_fs->source_identity_ : destination_identity;
+      auto port_policy = policy.findPortPolicy(policy_fs->ingress_, destination_port);
       const Envoy::Ssl::ContextConfig* config = nullptr;
       bool raw_socket_allowed = false;
+      auto proxy_id = policy_fs->proxy_id_;
       Envoy::Ssl::ContextSharedPtr ctx =
-          is_client ? port_policy.getClientTlsContext(remote_id, sni, &config, raw_socket_allowed)
-                    : port_policy.getServerTlsContext(remote_id, sni, &config, raw_socket_allowed);
+          is_client ? port_policy.getClientTlsContext(proxy_id, remote_id, sni, &config,
+                                                      raw_socket_allowed)
+                    : port_policy.getServerTlsContext(proxy_id, remote_id, sni, &config,
+                                                      raw_socket_allowed);
       if (ctx) {
         // create the underlying SslSocket
         auto status_or_socket = Extensions::TransportSockets::Tls::SslSocket::create(
@@ -157,7 +159,7 @@ public:
         policy.tlsWrapperMissingPolicyInc();
 
         std::string ipStr("<none>");
-        if (policy_socket_option->ingress_) {
+        if (policy_fs->ingress_) {
           Network::Address::InstanceConstSharedPtr src_address =
               is_client ? callbacks_->connection().connectionInfoProvider().localAddress()
                         : callbacks_->connection().connectionInfoProvider().remoteAddress();
@@ -176,9 +178,9 @@ public:
             warn,
             "cilium.tls_wrapper: Could not get {} TLS context for pod {} on {} IP {} (id {}) port "
             "{} sni \"{}\" and raw socket is not allowed",
-            conn, is_client ? "client" : "server", policy_socket_option->pod_ip_,
-            policy_socket_option->ingress_ ? "source" : "destination", ipStr, remote_id,
-            destination_port, sni);
+            conn, is_client ? "client" : "server", policy_fs->pod_ip_,
+            policy_fs->ingress_ ? "source" : "destination", ipStr, remote_id, destination_port,
+            sni);
       }
     } else {
       ENVOY_CONN_LOG(warn,
