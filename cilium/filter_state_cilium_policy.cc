@@ -60,8 +60,9 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
       auto ingressPortPolicy = policy.findPortPolicy(true, port_);
       if (!ingressPortPolicy.allowed(ingress_source_identity_, sni)) {
         ENVOY_CONN_LOG(debug,
-                       "Ingress network policy DROP for source identity: {} port: {} sni: \"{}\"",
-                       conn, ingress_source_identity_, destination_port, sni);
+                       "Ingress network policy {} DROP for source identity and destination "
+                       "reserved ingress identity: {} port: {} sni: \"{}\"",
+                       conn, ingress_policy_name_, ingress_source_identity_, destination_port, sni);
         return false;
       }
     }
@@ -70,8 +71,9 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
     auto egressPortPolicy = policy.findPortPolicy(false, destination_port);
     if (!egressPortPolicy.allowed(destination_identity, sni)) {
       ENVOY_CONN_LOG(debug,
-                     "Egress network policy DROP for destination identity: {} port: {} sni: \"{}\"",
-                     conn, destination_identity, destination_port, sni);
+                     "Egress network policy {} DROP for reserved ingress identity and destination "
+                     "identity: {} port: {} sni: \"{}\"",
+                     conn, ingress_policy_name_, destination_identity, destination_port, sni);
       return false;
     }
   }
@@ -118,16 +120,16 @@ bool CiliumPolicyFilterState::enforceHTTPPolicy(const Network::Connection& conn,
     // Enforce ingress policy for Ingress, on the original destination port
     if (ingress_source_identity_ != 0) {
       if (!policy.allowed(true, ingress_source_identity_, port_, headers, log_entry)) {
-        ENVOY_CONN_LOG(debug, "Ingress HTTP policy DROP for source identity: {} port: {}", conn,
-                       ingress_source_identity_, port_);
+        ENVOY_CONN_LOG(debug, "Ingress HTTP policy {} DROP for source identity: {} port: {}", conn,
+                       ingress_policy_name_, ingress_source_identity_, port_);
         return false;
       }
     }
 
     // Enforce egress policy for Ingress
     if (!policy.allowed(false, destination_identity, destination_port, headers, log_entry)) {
-      ENVOY_CONN_LOG(debug, "Egress HTTP policy DROP for destination identity: {} port: {}", conn,
-                     destination_identity, destination_port);
+      ENVOY_CONN_LOG(debug, "Egress HTTP policy {} DROP for destination identity: {} port: {}",
+                     conn, ingress_policy_name_, destination_identity, destination_port);
       return false;
     }
   }
