@@ -187,8 +187,8 @@ TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
   // Set metadata for policy based listener filter chain matching
   // Note: tls_inspector may overwrite this value, if it executes after us!
   std::string l7proto;
-  policy.useProxylib(is_ingress_, port, is_ingress_ ? source_identity : destination_identity,
-                     l7proto);
+  policy.useProxylib(is_ingress_, proxy_id_, is_ingress_ ? source_identity : destination_identity,
+                     port, l7proto);
 
   return absl::optional(Cilium::BpfMetadata::SocketMetadata(
       0, 0, source_identity, is_ingress_, is_l7lb_, port, std::move(pod_ip), "", nullptr, nullptr,

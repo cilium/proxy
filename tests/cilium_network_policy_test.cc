@@ -104,7 +104,7 @@ protected:
                                    uint16_t port, Http::TestRequestHeaderMapImpl&& headers) {
     const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
     Cilium::AccessLog::Entry log_entry;
-    return policy.allowed(ingress, remote_id, port, headers, log_entry)
+    return policy.allowed(ingress, proxy_id_, remote_id, port, headers, log_entry)
                ? testing::AssertionSuccess()
                : testing::AssertionFailure();
   }
@@ -131,11 +131,13 @@ protected:
     tls_socket_required = false;
     raw_socket_allowed = false;
     Envoy::Ssl::ContextSharedPtr ctx =
-        !ingress ? port_policy.getClientTlsContext(remote_id, sni, &config, raw_socket_allowed)
-                 : port_policy.getServerTlsContext(remote_id, sni, &config, raw_socket_allowed);
+        !ingress ? port_policy.getClientTlsContext(proxy_id_, remote_id, sni, &config,
+                                                   raw_socket_allowed)
+                 : port_policy.getServerTlsContext(proxy_id_, remote_id, sni, &config,
+                                                   raw_socket_allowed);
 
     // separate policy lookup for validation
-    bool allowed = policy.allowed(ingress, remote_id, sni, port);
+    bool allowed = policy.allowed(ingress, proxy_id_, remote_id, sni, port);
 
     // if connection is allowed without TLS socket then TLS context is not required
     if (raw_socket_allowed) {
@@ -199,6 +201,7 @@ protected:
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;
   std::shared_ptr<NetworkPolicyMap> policy_map_;
   NiceMock<Stats::TestUtil::TestStore> store_;
+  uint32_t proxy_id_ = 42;
 };
 
 TEST_F(CiliumNetworkPolicyTest, UpdatesRejectedStatName) {
@@ -899,6 +902,166 @@ egress:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 8080, {{":path", "/public"}}));
   // Wrong path:
   EXPECT_FALSE(EgressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
+
+  // 4th update with matching proxy_id in policy
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+  - port: 80
+    end_port: 10000
+    rules:
+    - proxy_id: 42
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43, 44 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            safe_regex_match:
+              google_re2: {}
+              regex: '.*public$'
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+    - rules:
+      - remotes: []
+        proxy_id: 42
+    [81-10000]:
+    - rules:
+      - remotes: []
+        proxy_id: 42
+  wildcard_rules: []
+egress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43,44]
+        http_rules:
+        - headers:
+          - name: ":path"
+            regex: <hidden>
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Matching proxy ID:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Matching proxy ID:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Matching proxy ID:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // Port out of range:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79, {{":path", "/allowed"}}));
+  // Port out of range:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 10001, {{":path", "/notallowed"}}));
+
+  // 5th update with non-matching proxy_id in policy
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+  - port: 80
+    end_port: 10000
+    rules:
+    - proxy_id: 99
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43, 44 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            safe_regex_match:
+              google_re2: {}
+              regex: '.*public$'
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+    - rules:
+      - remotes: []
+        proxy_id: 99
+    [81-10000]:
+    - rules:
+      - remotes: []
+        proxy_id: 99
+  wildcard_rules: []
+egress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43,44]
+        http_rules:
+        - headers:
+          - name: ":path"
+            regex: <hidden>
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(Validate("10.1.2.3", expected));
+
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Non-matching proxy ID:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Non-matching proxy ID:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Non-matching proxy ID:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // Port out of range:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 79, {{":path", "/allowed"}}));
+  // Port out of range:
+  EXPECT_FALSE(IngressAllowed("10.1.2.3", 43, 10001, {{":path", "/notallowed"}}));
 }
 
 TEST_F(CiliumNetworkPolicyTest, HttpOverlappingPortRanges) {
