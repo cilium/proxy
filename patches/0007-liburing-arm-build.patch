@@ -1,0 +1,37 @@
+From 6d8d0c7dba595676d249a3c7fbba4ede3ebd19cd Mon Sep 17 00:00:00 2001
+From: Tam Mach <sayboras@yahoo.com>
+Date: Wed, 14 May 2025 11:27:14 +1000
+Subject: [PATCH 7/7] build: Fix arm build for liburing
+
+---
+ bazel/foreign_cc/BUILD | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
+index f97ff45b55..96b07e3c83 100644
+--- a/bazel/foreign_cc/BUILD
++++ b/bazel/foreign_cc/BUILD
+@@ -12,6 +12,20 @@ envoy_package()
+ configure_make(
+     name = "liburing",
+     configure_in_place = True,
++    env = select({
++        # (sayboras) Ideally, this should be passed as part of environment variables during cross-compilation,
++        # but somehow it doesn't work. So, we have to pass them manually for arm cross-compilation.
++        # The config should be kept in sync with bazel/toolchains/BUILD
++        "//bazel:linux_aarch64": {
++            "CFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld",
++            "CPPFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld",
++            "LDFLAGS": "-Wl,-S --target=aarch64-unknown-linux-gnu -fuse-ld=lld -Wl,-no-as-needed -Wl,-z,relro,-z,now -lm -l:libstdc++.a -lc",
++            "CC": "/usr/bin/clang-17",
++            "CXX": "/usr/bin/clang-17",
++            "LD": "/usr/bin/lld-17",
++        },
++        "//conditions:default": {},
++    }),
+     lib_source = "@com_github_axboe_liburing//:all",
+     tags = [
+         "nocompdb",
+--
+2.34.1
+
