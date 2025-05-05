@@ -17,6 +17,8 @@ import (
 	"unicode/utf8"
 
 	"google.golang.org/protobuf/types/known/anypb"
+
+	v3 "github.com/cilium/proxy/go/envoy/extensions/filters/http/ext_proc/v3"
 )
 
 // ensure the imports are used
@@ -33,7 +35,135 @@ var (
 	_ = (*mail.Address)(nil)
 	_ = anypb.Any{}
 	_ = sort.Sort
+
+	_ = v3.ProcessingMode_BodySendMode(0)
 )
+
+// Validate checks the field values on ProtocolConfiguration with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *ProtocolConfiguration) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on ProtocolConfiguration with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// ProtocolConfigurationMultiError, or nil if none found.
+func (m *ProtocolConfiguration) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *ProtocolConfiguration) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if _, ok := v3.ProcessingMode_BodySendMode_name[int32(m.GetRequestBodyMode())]; !ok {
+		err := ProtocolConfigurationValidationError{
+			field:  "RequestBodyMode",
+			reason: "value must be one of the defined enum values",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if _, ok := v3.ProcessingMode_BodySendMode_name[int32(m.GetResponseBodyMode())]; !ok {
+		err := ProtocolConfigurationValidationError{
+			field:  "ResponseBodyMode",
+			reason: "value must be one of the defined enum values",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	// no validation rules for SendBodyWithoutWaitingForHeaderResponse
+
+	if len(errors) > 0 {
+		return ProtocolConfigurationMultiError(errors)
+	}
+
+	return nil
+}
+
+// ProtocolConfigurationMultiError is an error wrapping multiple validation
+// errors returned by ProtocolConfiguration.ValidateAll() if the designated
+// constraints aren't met.
+type ProtocolConfigurationMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m ProtocolConfigurationMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m ProtocolConfigurationMultiError) AllErrors() []error { return m }
+
+// ProtocolConfigurationValidationError is the validation error returned by
+// ProtocolConfiguration.Validate if the designated constraints aren't met.
+type ProtocolConfigurationValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e ProtocolConfigurationValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e ProtocolConfigurationValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e ProtocolConfigurationValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e ProtocolConfigurationValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e ProtocolConfigurationValidationError) ErrorName() string {
+	return "ProtocolConfigurationValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e ProtocolConfigurationValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sProtocolConfiguration.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = ProtocolConfigurationValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = ProtocolConfigurationValidationError{}
 
 // Validate checks the field values on ProcessingRequest with the rules defined
 // in the proto definition for this message. If any rules are violated, the
@@ -133,6 +263,35 @@ func (m *ProcessingRequest) validate(all bool) error {
 	}
 
 	// no validation rules for ObservabilityMode
+
+	if all {
+		switch v := interface{}(m.GetProtocolConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, ProcessingRequestValidationError{
+					field:  "ProtocolConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, ProcessingRequestValidationError{
+					field:  "ProtocolConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetProtocolConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return ProcessingRequestValidationError{
+				field:  "ProtocolConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
 
 	oneofRequestPresent := false
 	switch v := m.Request.(type) {
@@ -416,7 +575,7 @@ type ProcessingRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ProcessingRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -915,7 +1074,7 @@ type ProcessingResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ProcessingResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1093,7 +1252,7 @@ type HttpHeadersMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpHeadersMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1196,7 +1355,7 @@ type HttpBodyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpBodyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1324,7 +1483,7 @@ type HttpTrailersMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpTrailersMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1453,7 +1612,7 @@ type HeadersResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HeadersResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1581,7 +1740,7 @@ type BodyResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m BodyResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1710,7 +1869,7 @@ type TrailersResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TrailersResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1910,7 +2069,7 @@ type CommonResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CommonResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2112,7 +2271,7 @@ type ImmediateResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ImmediateResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2215,7 +2374,7 @@ type GrpcStatusMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GrpcStatusMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2349,7 +2508,7 @@ type HeaderMutationMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HeaderMutationMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2453,7 +2612,7 @@ type StreamedBodyResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StreamedBodyResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2624,7 +2783,7 @@ type BodyMutationMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m BodyMutationMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

@@ -36,7 +36,7 @@ var (
 	_ = anypb.Any{}
 	_ = sort.Sort
 
-	_ = v3.ProtocolType(0)
+	_ = v3.TransportType(0)
 )
 
 // Validate checks the field values on Thrift with the rules defined in the
@@ -106,7 +106,7 @@ type ThriftMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ThriftMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

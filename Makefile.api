@@ -24,10 +24,10 @@ PROTO_DEPS = \
 	-I bazel-proxy/external/com_google_protobuf/src \
 	-I bazel-proxy/external/com_google_googleapis \
 	-I bazel-proxy/external/com_envoyproxy_protoc_gen_validate \
-	-I bazel-proxy/external/opencensus_proto \
 	-I bazel-proxy/external/opentelemetry_proto \
 	-I bazel-proxy/external/prometheus_metrics_model \
-	-I bazel-proxy/external/com_github_cncf_xds
+	-I bazel-proxy/external/com_github_cncf_xds \
+	-I bazel-proxy/external/dev_cel/proto
 
 GO_OUT = go
 
@@ -71,6 +71,7 @@ RAW_GO_MAPPINGS += xds/core/v3/authority.proto=github.com/cncf/xds/go/xds/core/v
 RAW_GO_MAPPINGS += xds/core/v3/context_params.proto=github.com/cncf/xds/go/xds/core/v3/
 RAW_GO_MAPPINGS += xds/core/v3/resource_locator.proto=github.com/cncf/xds/go/xds/core/v3/
 RAW_GO_MAPPINGS += xds/annotations/v3/status.proto=github.com/cncf/xds/go/xds/annotations/v3/
+RAW_GO_MAPPINGS += xds/type/v3/cel.proto=github.com/cncf/xds/go/xds/type/v3/
 RAW_GO_MAPPINGS += opentelemetry/proto/common/v1/common.proto=go.opentelemetry.io/proto/otlp/common/v1/
 
 # Add mapping separators and remove the trailing slash

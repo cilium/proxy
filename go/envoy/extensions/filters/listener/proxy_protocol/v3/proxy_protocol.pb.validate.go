@@ -142,7 +142,7 @@ type ProxyProtocolMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ProxyProtocolMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -255,7 +255,7 @@ type ProxyProtocol_KeyValuePairMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ProxyProtocol_KeyValuePairMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -397,7 +397,7 @@ type ProxyProtocol_RuleMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ProxyProtocol_RuleMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

@@ -100,7 +100,7 @@ type ClusterCollectionMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ClusterCollectionMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1554,7 +1554,7 @@ type ClusterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ClusterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1688,7 +1688,7 @@ type LoadBalancingPolicyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LoadBalancingPolicyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1850,7 +1850,7 @@ type UpstreamConnectionOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UpstreamConnectionOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1958,7 +1958,7 @@ type TrackClusterStatsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TrackClusterStatsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2129,7 +2129,7 @@ type Cluster_TransportSocketMatchMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_TransportSocketMatchMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2272,7 +2272,7 @@ type Cluster_CustomClusterTypeMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_CustomClusterTypeMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2405,7 +2405,7 @@ type Cluster_EdsClusterConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_EdsClusterConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2600,7 +2600,7 @@ type Cluster_LbSubsetConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_LbSubsetConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2789,7 +2789,7 @@ type Cluster_SlowStartConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_SlowStartConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2920,7 +2920,7 @@ type Cluster_RoundRobinLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_RoundRobinLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3095,7 +3095,7 @@ type Cluster_LeastRequestLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_LeastRequestLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3239,7 +3239,7 @@ type Cluster_RingHashLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_RingHashLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3356,7 +3356,7 @@ type Cluster_MaglevLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_MaglevLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3506,7 +3506,7 @@ type Cluster_OriginalDstLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_OriginalDstLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3816,7 +3816,7 @@ type Cluster_CommonLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_CommonLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3989,7 +3989,7 @@ type Cluster_RefreshRateMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_RefreshRateMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4121,7 +4121,7 @@ type Cluster_PreconnectPolicyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_PreconnectPolicyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4239,7 +4239,7 @@ type Cluster_LbSubsetConfig_LbSubsetSelectorMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_LbSubsetConfig_LbSubsetSelectorMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4405,7 +4405,7 @@ type Cluster_CommonLbConfig_ZoneAwareLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_CommonLbConfig_ZoneAwareLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4511,7 +4511,7 @@ type Cluster_CommonLbConfig_LocalityWeightedLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_CommonLbConfig_LocalityWeightedLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4639,7 +4639,7 @@ type Cluster_CommonLbConfig_ConsistentHashingLbConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Cluster_CommonLbConfig_ConsistentHashingLbConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4778,7 +4778,7 @@ type LoadBalancingPolicy_PolicyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LoadBalancingPolicy_PolicyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4900,7 +4900,7 @@ type UpstreamConnectionOptions_HappyEyeballsConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UpstreamConnectionOptions_HappyEyeballsConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

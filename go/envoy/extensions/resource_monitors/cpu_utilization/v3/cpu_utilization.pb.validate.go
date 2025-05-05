@@ -57,6 +57,17 @@ func (m *CpuUtilizationConfig) validate(all bool) error {
 
 	var errors []error
 
+	if _, ok := CpuUtilizationConfig_UtilizationComputeStrategy_name[int32(m.GetMode())]; !ok {
+		err := CpuUtilizationConfigValidationError{
+			field:  "Mode",
+			reason: "value must be one of the defined enum values",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
 	if len(errors) > 0 {
 		return CpuUtilizationConfigMultiError(errors)
 	}
@@ -71,7 +82,7 @@ type CpuUtilizationConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CpuUtilizationConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

@@ -104,7 +104,7 @@ type DnsCacheCircuitBreakersMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DnsCacheCircuitBreakersMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -319,6 +319,8 @@ func (m *DnsCacheConfig) validate(all bool) error {
 
 	}
 
+	// no validation rules for DisableDnsRefreshOnFailure
+
 	if all {
 		switch v := interface{}(m.GetDnsFailureRefreshRate()).(type) {
 		case interface{ ValidateAll() error }:
@@ -485,12 +487,12 @@ func (m *DnsCacheConfig) validate(all bool) error {
 			errors = append(errors, err)
 		} else {
 
-			gt := time.Duration(0*time.Second + 0*time.Nanosecond)
+			gte := time.Duration(0*time.Second + 0*time.Nanosecond)
 
-			if dur <= gt {
+			if dur < gte {
 				err := DnsCacheConfigValidationError{
 					field:  "DnsQueryTimeout",
-					reason: "value must be greater than 0s",
+					reason: "value must be greater than or equal to 0s",
 				}
 				if !all {
 					return err
@@ -544,7 +546,7 @@ type DnsCacheConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DnsCacheConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

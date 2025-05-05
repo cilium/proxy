@@ -145,7 +145,7 @@ type StreamEventsRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StreamEventsRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -247,7 +247,7 @@ type StreamEventsResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StreamEventsResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -389,7 +389,7 @@ type StreamEventsRequest_IdentifierMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StreamEventsRequest_IdentifierMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
