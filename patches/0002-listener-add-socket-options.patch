@@ -1,7 +1,7 @@
-From d094ba4d84f59569eaec9fd40f731648b18fed5f Mon Sep 17 00:00:00 2001
+From 0cf16105f43982ac22eac548d94ac5a16d0970d2 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 14 Aug 2023 10:01:21 +0300
-Subject: [PATCH 3/5] listener: add socket options
+Subject: [PATCH 2/6] listener: add socket options
 
 This reverts commit 170c89eb0b2afb7a39d44d0f8dfb77444ffc038f.
 
@@ -15,10 +15,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  5 files changed, 21 insertions(+), 1 deletion(-)
 
 diff --git a/envoy/server/factory_context.h b/envoy/server/factory_context.h
-index 6a4d77f3ad..049d50d625 100644
+index dd2dcee071..c216cb4fe3 100644
 --- a/envoy/server/factory_context.h
 +++ b/envoy/server/factory_context.h
-@@ -317,7 +317,13 @@ public:
+@@ -344,7 +344,13 @@ public:
   * An implementation of FactoryContext. The life time should cover the lifetime of the filter chains
   * and connections. It can be used to create ListenerFilterChain.
   */
@@ -34,10 +34,10 @@ index 6a4d77f3ad..049d50d625 100644
  /**
   * FactoryContext for ProtocolOptionsFactory.
 diff --git a/source/common/listener_manager/listener_impl.cc b/source/common/listener_manager/listener_impl.cc
-index 2affcdc553..3dcaa0e8d8 100644
+index 8744009357..47dff3ccab 100644
 --- a/source/common/listener_manager/listener_impl.cc
 +++ b/source/common/listener_manager/listener_impl.cc
-@@ -938,6 +938,9 @@ PerListenerFactoryContextImpl::getTransportSocketFactoryContext() const {
+@@ -937,6 +937,9 @@ PerListenerFactoryContextImpl::getTransportSocketFactoryContext() const {
  Stats::Scope& PerListenerFactoryContextImpl::listenerScope() {
    return listener_factory_context_base_->listenerScope();
  }
@@ -48,10 +48,10 @@ index 2affcdc553..3dcaa0e8d8 100644
 
  bool ListenerImpl::createNetworkFilterChain(
 diff --git a/source/common/listener_manager/listener_impl.h b/source/common/listener_manager/listener_impl.h
-index cc674f400a..832c20972b 100644
+index 5f24acc9c1..683352577d 100644
 --- a/source/common/listener_manager/listener_impl.h
 +++ b/source/common/listener_manager/listener_impl.h
-@@ -181,6 +181,8 @@ public:
+@@ -186,6 +186,8 @@ public:
 
    Stats::Scope& listenerScope() override;
 
@@ -60,7 +60,7 @@ index cc674f400a..832c20972b 100644
    ListenerFactoryContextBaseImpl& parentFactoryContext() { return *listener_factory_context_base_; }
    friend class ListenerImpl;
 
-@@ -324,6 +326,13 @@ public:
+@@ -327,6 +329,13 @@ public:
      return listener_factory_context_->listener_factory_context_base_->listener_info_;
    }
 
@@ -75,10 +75,10 @@ index cc674f400a..832c20972b 100644
      if (options == nullptr) {
        options = std::make_shared<std::vector<Network::Socket::OptionConstSharedPtr>>();
 diff --git a/test/mocks/server/factory_context.h b/test/mocks/server/factory_context.h
-index 3d273cd89d..cbb09512e1 100644
+index dfbdef7725..617da75c0b 100644
 --- a/test/mocks/server/factory_context.h
 +++ b/test/mocks/server/factory_context.h
-@@ -32,6 +32,7 @@ public:
+@@ -31,6 +31,7 @@ public:
    MOCK_METHOD(const Network::DrainDecision&, drainDecision, ());
    MOCK_METHOD(Stats::Scope&, listenerScope, ());
    MOCK_METHOD(const Network::ListenerInfo&, listenerInfo, (), (const));
@@ -99,5 +99,5 @@ index 3d5b6197f0..cbf6dcf6dd 100644
    MOCK_METHOD(TransportSocketFactoryContext&, getTransportSocketFactoryContext, (), (const));
    MOCK_METHOD(const Network::DrainDecision&, drainDecision, ());
 --
-2.39.5
+2.34.1
 
