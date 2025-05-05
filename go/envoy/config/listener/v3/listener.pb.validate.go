@@ -133,7 +133,7 @@ type AdditionalAddressMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AdditionalAddressMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -269,7 +269,7 @@ type ListenerCollectionMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListenerCollectionMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1112,7 +1112,7 @@ type ListenerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListenerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1212,7 +1212,7 @@ type ListenerManagerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListenerManagerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1312,7 +1312,7 @@ type ValidationListenerManagerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ValidationListenerManagerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1414,7 +1414,7 @@ type ApiListenerManagerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ApiListenerManagerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1545,7 +1545,7 @@ type Listener_DeprecatedV1MultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Listener_DeprecatedV1MultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1749,7 +1749,7 @@ type Listener_ConnectionBalanceConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Listener_ConnectionBalanceConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1852,7 +1852,7 @@ type Listener_InternalListenerConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Listener_InternalListenerConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1958,7 +1958,7 @@ type Listener_ConnectionBalanceConfig_ExactBalanceMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Listener_ConnectionBalanceConfig_ExactBalanceMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

@@ -431,7 +431,7 @@ type UdpProxyConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UdpProxyConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -595,7 +595,7 @@ type UdpProxyConfig_HashPolicyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UdpProxyConfig_HashPolicyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -795,7 +795,7 @@ type UdpProxyConfig_SessionFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UdpProxyConfig_SessionFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1073,7 +1073,7 @@ type UdpProxyConfig_UdpTunnelingConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UdpProxyConfig_UdpTunnelingConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1210,7 +1210,7 @@ type UdpProxyConfig_UdpAccessLogOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UdpProxyConfig_UdpAccessLogOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1374,7 +1374,7 @@ type UdpProxyConfig_UdpTunnelingConfig_BufferOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UdpProxyConfig_UdpTunnelingConfig_BufferOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1543,7 +1543,7 @@ type UdpProxyConfig_UdpTunnelingConfig_RetryOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UdpProxyConfig_UdpTunnelingConfig_RetryOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

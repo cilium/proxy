@@ -161,7 +161,7 @@ type KafkaBrokerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m KafkaBrokerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -295,7 +295,7 @@ type IdBasedBrokerRewriteSpecMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m IdBasedBrokerRewriteSpecMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -430,7 +430,7 @@ type IdBasedBrokerRewriteRuleMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m IdBasedBrokerRewriteRuleMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

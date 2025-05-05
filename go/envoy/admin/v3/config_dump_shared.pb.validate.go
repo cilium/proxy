@@ -133,7 +133,7 @@ type UpdateFailureStateMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UpdateFailureStateMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -305,7 +305,7 @@ type ListenersConfigDumpMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListenersConfigDumpMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -511,7 +511,7 @@ type ClustersConfigDumpMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ClustersConfigDumpMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -681,7 +681,7 @@ type RoutesConfigDumpMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RoutesConfigDumpMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -849,7 +849,7 @@ type ScopedRoutesConfigDumpMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRoutesConfigDumpMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1019,7 +1019,7 @@ type EndpointsConfigDumpMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m EndpointsConfigDumpMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1155,7 +1155,7 @@ type EcdsConfigDumpMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m EcdsConfigDumpMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1315,7 +1315,7 @@ type ListenersConfigDump_StaticListenerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListenersConfigDump_StaticListenerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1481,7 +1481,7 @@ type ListenersConfigDump_DynamicListenerStateMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListenersConfigDump_DynamicListenerStateMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1706,7 +1706,7 @@ type ListenersConfigDump_DynamicListenerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListenersConfigDump_DynamicListenerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1869,7 +1869,7 @@ type ClustersConfigDump_StaticClusterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ClustersConfigDump_StaticClusterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2065,7 +2065,7 @@ type ClustersConfigDump_DynamicClusterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ClustersConfigDump_DynamicClusterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2228,7 +2228,7 @@ type RoutesConfigDump_StaticRouteConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RoutesConfigDump_StaticRouteConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2424,7 +2424,7 @@ type RoutesConfigDump_DynamicRouteConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RoutesConfigDump_DynamicRouteConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2595,7 +2595,7 @@ type ScopedRoutesConfigDump_InlineScopedRouteConfigsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRoutesConfigDump_InlineScopedRouteConfigsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2804,7 +2804,7 @@ type ScopedRoutesConfigDump_DynamicScopedRouteConfigsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRoutesConfigDump_DynamicScopedRouteConfigsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2975,7 +2975,7 @@ type EndpointsConfigDump_StaticEndpointConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m EndpointsConfigDump_StaticEndpointConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3172,7 +3172,7 @@ type EndpointsConfigDump_DynamicEndpointConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m EndpointsConfigDump_DynamicEndpointConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3366,7 +3366,7 @@ type EcdsConfigDump_EcdsFilterConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m EcdsConfigDump_EcdsFilterConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

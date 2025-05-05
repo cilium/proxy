@@ -143,7 +143,7 @@ type CircuitBreakersMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CircuitBreakersMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -430,7 +430,7 @@ type CircuitBreakers_ThresholdsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CircuitBreakers_ThresholdsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -593,7 +593,7 @@ type CircuitBreakers_Thresholds_RetryBudgetMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CircuitBreakers_Thresholds_RetryBudgetMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

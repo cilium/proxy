@@ -191,7 +191,7 @@ type ClusterLoadAssignmentMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ClusterLoadAssignmentMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -374,7 +374,7 @@ type ClusterLoadAssignment_PolicyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ClusterLoadAssignment_PolicyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -520,7 +520,7 @@ type ClusterLoadAssignment_Policy_DropOverloadMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ClusterLoadAssignment_Policy_DropOverloadMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

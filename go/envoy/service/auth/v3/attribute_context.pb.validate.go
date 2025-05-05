@@ -247,7 +247,7 @@ type AttributeContextMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AttributeContextMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -384,7 +384,7 @@ type AttributeContext_PeerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AttributeContext_PeerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -544,7 +544,7 @@ type AttributeContext_RequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AttributeContext_RequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -699,7 +699,7 @@ type AttributeContext_HttpRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AttributeContext_HttpRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -804,7 +804,7 @@ type AttributeContext_TLSSessionMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AttributeContext_TLSSessionMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

@@ -182,7 +182,7 @@ type AwsRequestSigningMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AwsRequestSigningMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -324,7 +324,7 @@ type AwsRequestSigningPerRouteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AwsRequestSigningPerRouteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -457,7 +457,7 @@ type AwsRequestSigning_QueryStringMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AwsRequestSigning_QueryStringMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
