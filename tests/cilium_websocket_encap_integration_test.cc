@@ -153,8 +153,8 @@ static const char EXPECTED_HANDSHAKE_FMT[] =
     "GET / HTTP/1.1" CRLF "host: jarno.cilium.rocks" CRLF "upgrade: websocket" CRLF
     "connection: upgrade" CRLF "sec-websocket-key: c3VwZXItc2VjcmV0LWtleQ==" CRLF
     "sec-websocket-version: 13" CRLF "origin: jarno.cilium.rocks" CRLF
-    "x-envoy-original-dst-host: {}" CRLF X_REQUEST_ID_HEADER HEADER_SEPARATOR X_REQUEST_ID_VALUE
-        CRLF "content-length: 0" CRLF CRLF;
+    "x-envoy-original-dst-host: {}" CRLF X_REQUEST_ID_HEADER HEADER_SEPARATOR
+        X_REQUEST_ID_VALUE CRLF "content-length: 0" CRLF CRLF;
 
 namespace {
 
