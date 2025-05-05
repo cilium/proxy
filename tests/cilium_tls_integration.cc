@@ -17,7 +17,7 @@
 
 #include "test/integration/server.h"
 #include "test/mocks/server/admin.h"
-#include "test/mocks/server/transport_socket_factory_context.h"
+#include "test/mocks/server/server_factory_context.h"
 #include "test/test_common/environment.h"
 #include "test/test_common/utility.h"
 

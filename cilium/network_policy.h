@@ -137,7 +137,7 @@ public:
   IpAddressPair() = default;
   IpAddressPair(Network::Address::InstanceConstSharedPtr& ipv4,
                 Network::Address::InstanceConstSharedPtr& ipv6)
-      : ipv4_(ipv4), ipv6_(ipv6){};
+      : ipv4_(ipv4), ipv6_(ipv6) {};
   IpAddressPair(const cilium::NetworkPolicy& proto);
 
   Network::Address::InstanceConstSharedPtr ipv4_{};

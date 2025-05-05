@@ -16,7 +16,6 @@
 #include "envoy/init/target.h"
 #include "envoy/init/watcher.h"
 #include "envoy/network/address.h"
-#include "envoy/network/filter.h"
 #include "envoy/network/socket.h"
 
 #include "source/common/common/base_logger.h"
@@ -32,7 +31,7 @@
 #include "test/mocks/network/io_handle.h"
 #include "test/mocks/network/mocks.h"
 #include "test/mocks/server/listener_factory_context.h"
-#include "test/mocks/server/transport_socket_factory_context.h"
+#include "test/mocks/server/server_factory_context.h"
 #include "test/test_common/utility.h"
 
 #include "absl/status/status.h"

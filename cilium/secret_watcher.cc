@@ -41,8 +41,8 @@ Secret::GenericSecretConfigProviderSharedPtr
 secretProvider(Server::Configuration::TransportSocketFactoryContext& context,
                const std::string& sds_name) {
   envoy::config::core::v3::ConfigSource config_source = getSDSConfig(sds_name);
-  return context.secretManager().findOrCreateGenericSecretProvider(config_source, sds_name, context,
-                                                                   context.initManager());
+  return context.serverFactoryContext().secretManager().findOrCreateGenericSecretProvider(
+      config_source, sds_name, context, context.initManager());
 }
 
 } // namespace
@@ -90,7 +90,7 @@ absl::Status SecretWatcher::store() {
 const std::string* SecretWatcher::load() const { return ptr_.load(std::memory_order_acquire); }
 
 TLSContext::TLSContext(const NetworkPolicyMapImpl& parent, const std::string& name)
-    : manager_(parent.transportFactoryContext().sslContextManager()),
+    : manager_(parent.transportFactoryContext().serverFactoryContext().sslContextManager()),
       scope_(parent.transportFactoryContext().serverFactoryContext().serverScope()),
       init_target_(fmt::format("TLS Context {} secret", name), []() {}) {}
 
