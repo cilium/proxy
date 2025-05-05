@@ -1,7 +1,7 @@
-From 7f7f159be37e14e9f62f23453d87bd7d32f1147d Mon Sep 17 00:00:00 2001
+From cd2352dcfd3ee27fbf115330524e5ecef59abfc1 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 24 May 2024 18:27:28 +0200
-Subject: [PATCH 5/5] original_dst_cluster: Avoid multiple hosts for the same
+Subject: [PATCH 3/6] original_dst_cluster: Avoid multiple hosts for the same
  address
 
 Connection pool containers use HostSharedPtr as map keys, rather than the
@@ -25,12 +25,12 @@ map updates.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- .../original_dst/original_dst_cluster.cc      | 258 +++++++++++-------
+ .../original_dst/original_dst_cluster.cc      | 261 +++++++++++-------
  .../original_dst/original_dst_cluster.h       |  43 +--
- 2 files changed, 188 insertions(+), 113 deletions(-)
+ 2 files changed, 190 insertions(+), 114 deletions(-)
 
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.cc b/source/extensions/clusters/original_dst/original_dst_cluster.cc
-index 398bf4f254..b12e8cf8cb 100644
+index 1e8b9ce0a5..01e739c6fb 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.cc
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.cc
 @@ -29,6 +29,19 @@ OriginalDstClusterHandle::~OriginalDstClusterHandle() {
@@ -50,10 +50,10 @@ index 398bf4f254..b12e8cf8cb 100644
 +}
 +} // namespace
 +
- HostConstSharedPtr OriginalDstCluster::LoadBalancer::chooseHost(LoadBalancerContext* context) {
+ HostSelectionResponse OriginalDstCluster::LoadBalancer::chooseHost(LoadBalancerContext* context) {
    if (context) {
      // Check if filter state override is present, if yes use it before anything else.
-@@ -59,42 +72,8 @@ HostConstSharedPtr OriginalDstCluster::LoadBalancer::chooseHost(LoadBalancerCont
+@@ -59,42 +72,9 @@ HostSelectionResponse OriginalDstCluster::LoadBalancer::chooseHost(LoadBalancerC
      if (dst_host) {
        const Network::Address::Instance& dst_addr = *dst_host.get();
        // Check if a host with the destination address is already in the host set.
@@ -89,16 +89,17 @@ index 398bf4f254..b12e8cf8cb 100644
 -            parent->cluster_->addHost(host);
 -          }
 -        });
--        return host;
+-        return {host};
 -      } else {
 -        ENVOY_LOG(debug, "Failed to create host for {}.", dst_addr.asString());
 -      }
 +      HostConstSharedPtr host = findHost(*host_map_.get(), dst_addr.asString());
-+      return host ? host : parent_->cluster_->getHost(dst_addr);
++      HostConstSharedPtr res = host ? host : parent_->cluster_->getHost(dst_addr);
++      return {res};
      }
    }
    // TODO(ramaraochavali): add a stat and move this log line to debug.
-@@ -198,7 +177,7 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
+@@ -198,7 +178,7 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
        cleanup_interval_ms_(
            std::chrono::milliseconds(PROTOBUF_GET_MS_OR_DEFAULT(config, cleanup_interval, 5000))),
        cleanup_timer_(dispatcher_.createTimer([this]() -> void { cleanup(); })),
@@ -107,7 +108,7 @@ index 398bf4f254..b12e8cf8cb 100644
    if (config.has_original_dst_lb_config()) {
      const auto& lb_config = config.original_dst_lb_config();
      if (lb_config.use_http_header()) {
-@@ -216,47 +195,146 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
+@@ -216,47 +196,146 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
    cleanup_timer_->enableTimer(cleanup_interval_ms_);
  }
 
@@ -126,6 +127,9 @@ index 398bf4f254..b12e8cf8cb 100644
 -    // The first worker that creates a host for the address defines the primary
 -    // host structure.
 -    new_host_map->emplace(address, std::make_shared<HostsForAddress>(host));
+-  }
+-  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
+-  setHostMap(new_host_map);
 +// getHost returns the host for the address. A new host is created when needed.
 +// Called from the worker threads.
 +// When multiple worker threads call this at the same time the updates of the
@@ -239,9 +243,7 @@ index 398bf4f254..b12e8cf8cb 100644
 +    // Make available for load balancers
 +    host_map_ = new_host_map;
 +    updates_map_.swap(empty_map);
-   }
--  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
--  setHostMap(new_host_map);
++  }
 
 -  // Given the current config, only EDS clusters support multiple priorities.
    ASSERT(priority_set_.hostSetsPerPriority().size() == 1);
@@ -282,7 +284,7 @@ index 398bf4f254..b12e8cf8cb 100644
        //
        // Using the used_ bit is preserved for backwards compatibility and to
        // add a delay between load balancers choosing a host and grabbing a
-@@ -271,49 +349,41 @@ void OriginalDstCluster::cleanup() {
+@@ -271,49 +350,41 @@ void OriginalDstCluster::cleanup() {
        // 3) will not delete h since it takes at least one cleanup_interval for
        // the host to set used_ bit for h to false.
        bool keep = false;
@@ -354,7 +356,7 @@ index 398bf4f254..b12e8cf8cb 100644
 
    cleanup_timer_->enableTimer(cleanup_interval_ms_);
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.h b/source/extensions/clusters/original_dst/original_dst_cluster.h
-index 8afc58d8b2..e2dbaaacac 100644
+index df12c06b41..3152af8664 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.h
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.h
 @@ -22,25 +22,21 @@ namespace Upstream {

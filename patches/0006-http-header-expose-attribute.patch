@@ -9,7 +9,7 @@ Signed-off-by: Tam Mach <sayboras@yahoo.com>
  1 file changed, 13 insertions(+), 13 deletions(-)
 
 diff --git a/source/common/http/header_utility.h b/source/common/http/header_utility.h
-index 3ca4ce2b14..9b1fe0201d 100644
+index 00cb00d163..e479529e20 100644
 --- a/source/common/http/header_utility.h
 +++ b/source/common/http/header_utility.h
 @@ -92,7 +92,6 @@ public:
@@ -128,10 +128,10 @@ index 3ca4ce2b14..9b1fe0201d 100644
    };
 
    // Corresponds to the string_match from the HeaderMatchSpecifier proto in the RDS API.
-@@ -237,12 +237,12 @@ public:
-           string_match_(std::make_unique<
-                         Matchers::StringMatcherImpl<envoy::type::matcher::v3::StringMatcher>>(
-               config.string_match(), factory_context)) {}
+@@ -235,12 +235,12 @@ public:
+                           Server::Configuration::CommonFactoryContext& factory_context)
+         : HeaderDataBaseImpl(config), string_match_(std::make_unique<Matchers::StringMatcherImpl>(
+                                           config.string_match(), factory_context)) {}
 +    const Matchers::StringMatcherPtr string_match_;
 
    private:

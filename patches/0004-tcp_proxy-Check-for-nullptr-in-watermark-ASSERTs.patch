@@ -10,10 +10,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
-index 5adff484c5..e11bed4430 100644
+index a5210788da..532056606f 100644
 --- a/source/common/tcp_proxy/tcp_proxy.cc
 +++ b/source/common/tcp_proxy/tcp_proxy.cc
-@@ -389,7 +389,7 @@ void Filter::UpstreamCallbacks::onEvent(Network::ConnectionEvent event) {
+@@ -437,7 +437,7 @@ void Filter::UpstreamCallbacks::onEvent(Network::ConnectionEvent event) {
 
  void Filter::UpstreamCallbacks::onAboveWriteBufferHighWatermark() {
    // TCP Tunneling may call on high/low watermark multiple times.
@@ -22,7 +22,7 @@ index 5adff484c5..e11bed4430 100644
    on_high_watermark_called_ = true;
 
    if (parent_ != nullptr) {
-@@ -400,7 +400,7 @@ void Filter::UpstreamCallbacks::onAboveWriteBufferHighWatermark() {
+@@ -448,7 +448,7 @@ void Filter::UpstreamCallbacks::onAboveWriteBufferHighWatermark() {
 
  void Filter::UpstreamCallbacks::onBelowWriteBufferLowWatermark() {
    // TCP Tunneling may call on high/low watermark multiple times.
@@ -32,4 +32,5 @@ index 5adff484c5..e11bed4430 100644
 
    if (parent_ != nullptr) {
 --
-2.39.5
+2.34.1
+

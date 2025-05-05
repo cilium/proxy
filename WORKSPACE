@@ -38,11 +38,11 @@ git_repository(
     patch_tool = "git",
     patches = [
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
-        "@//patches:0003-listener-add-socket-options.patch",
-        "@//patches:0004-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
-        "@//patches:0005-tcp_proxy-Check-for-nullptr-in-watermark-ASSERTs.patch",
-        "@//patches:0006-thread_local-reset-slot-in-worker-threads-first.patch",
-        "@//patches:0007-http-header-expose-attribute.patch",
+        "@//patches:0002-listener-add-socket-options.patch",
+        "@//patches:0003-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
+        "@//patches:0004-tcp_proxy-Check-for-nullptr-in-watermark-ASSERTs.patch",
+        "@//patches:0005-thread_local-reset-slot-in-worker-threads-first.patch",
+        "@//patches:0006-http-header-expose-attribute.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
