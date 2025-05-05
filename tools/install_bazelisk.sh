@@ -6,7 +6,7 @@ else
     SUDO=sudo
 fi
 
-# renovate: datasource=datasource depName=bazelbuild/bazelisk
+# renovate: datasource=github-releases depName=bazelbuild/bazelisk
 BAZELISK_VERSION=v1.20.0
 
 installed_bazelisk_version=""
