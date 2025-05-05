@@ -35,6 +35,419 @@ var (
 	_ = sort.Sort
 )
 
+// Validate checks the field values on CookieConfig with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *CookieConfig) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CookieConfig with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in CookieConfigMultiError, or
+// nil if none found.
+func (m *CookieConfig) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CookieConfig) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if _, ok := CookieConfig_SameSite_name[int32(m.GetSameSite())]; !ok {
+		err := CookieConfigValidationError{
+			field:  "SameSite",
+			reason: "value must be one of the defined enum values",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return CookieConfigMultiError(errors)
+	}
+
+	return nil
+}
+
+// CookieConfigMultiError is an error wrapping multiple validation errors
+// returned by CookieConfig.ValidateAll() if the designated constraints aren't met.
+type CookieConfigMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CookieConfigMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CookieConfigMultiError) AllErrors() []error { return m }
+
+// CookieConfigValidationError is the validation error returned by
+// CookieConfig.Validate if the designated constraints aren't met.
+type CookieConfigValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CookieConfigValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CookieConfigValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CookieConfigValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CookieConfigValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CookieConfigValidationError) ErrorName() string { return "CookieConfigValidationError" }
+
+// Error satisfies the builtin error interface
+func (e CookieConfigValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCookieConfig.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CookieConfigValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CookieConfigValidationError{}
+
+// Validate checks the field values on CookieConfigs with the rules defined in
+// the proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *CookieConfigs) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on CookieConfigs with the rules defined
+// in the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in CookieConfigsMultiError, or
+// nil if none found.
+func (m *CookieConfigs) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *CookieConfigs) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if all {
+		switch v := interface{}(m.GetBearerTokenCookieConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "BearerTokenCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "BearerTokenCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBearerTokenCookieConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CookieConfigsValidationError{
+				field:  "BearerTokenCookieConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetOauthHmacCookieConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "OauthHmacCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "OauthHmacCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetOauthHmacCookieConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CookieConfigsValidationError{
+				field:  "OauthHmacCookieConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetOauthExpiresCookieConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "OauthExpiresCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "OauthExpiresCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetOauthExpiresCookieConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CookieConfigsValidationError{
+				field:  "OauthExpiresCookieConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetIdTokenCookieConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "IdTokenCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "IdTokenCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetIdTokenCookieConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CookieConfigsValidationError{
+				field:  "IdTokenCookieConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetRefreshTokenCookieConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "RefreshTokenCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "RefreshTokenCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetRefreshTokenCookieConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CookieConfigsValidationError{
+				field:  "RefreshTokenCookieConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetOauthNonceCookieConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "OauthNonceCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "OauthNonceCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetOauthNonceCookieConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CookieConfigsValidationError{
+				field:  "OauthNonceCookieConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetCodeVerifierCookieConfig()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "CodeVerifierCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, CookieConfigsValidationError{
+					field:  "CodeVerifierCookieConfig",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCodeVerifierCookieConfig()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return CookieConfigsValidationError{
+				field:  "CodeVerifierCookieConfig",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return CookieConfigsMultiError(errors)
+	}
+
+	return nil
+}
+
+// CookieConfigsMultiError is an error wrapping multiple validation errors
+// returned by CookieConfigs.ValidateAll() if the designated constraints
+// aren't met.
+type CookieConfigsMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m CookieConfigsMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m CookieConfigsMultiError) AllErrors() []error { return m }
+
+// CookieConfigsValidationError is the validation error returned by
+// CookieConfigs.Validate if the designated constraints aren't met.
+type CookieConfigsValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e CookieConfigsValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e CookieConfigsValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e CookieConfigsValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e CookieConfigsValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e CookieConfigsValidationError) ErrorName() string { return "CookieConfigsValidationError" }
+
+// Error satisfies the builtin error interface
+func (e CookieConfigsValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sCookieConfigs.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = CookieConfigsValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = CookieConfigsValidationError{}
+
 // Validate checks the field values on OAuth2Credentials with the rules defined
 // in the proto definition for this message. If any rules are violated, the
 // first error encountered is returned, or nil if there are no violations.
@@ -222,7 +635,7 @@ type OAuth2CredentialsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m OAuth2CredentialsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -686,6 +1099,37 @@ func (m *OAuth2Config) validate(all bool) error {
 
 	// no validation rules for DisableRefreshTokenSetCookie
 
+	if all {
+		switch v := interface{}(m.GetCookieConfigs()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, OAuth2ConfigValidationError{
+					field:  "CookieConfigs",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, OAuth2ConfigValidationError{
+					field:  "CookieConfigs",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetCookieConfigs()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return OAuth2ConfigValidationError{
+				field:  "CookieConfigs",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	// no validation rules for StatPrefix
+
 	if len(errors) > 0 {
 		return OAuth2ConfigMultiError(errors)
 	}
@@ -699,7 +1143,7 @@ type OAuth2ConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m OAuth2ConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -826,7 +1270,7 @@ type OAuth2MultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m OAuth2MultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1002,6 +1446,21 @@ func (m *OAuth2Credentials_CookieNames) validate(all bool) error {
 
 	}
 
+	if m.GetCodeVerifier() != "" {
+
+		if !_OAuth2Credentials_CookieNames_CodeVerifier_Pattern.MatchString(m.GetCodeVerifier()) {
+			err := OAuth2Credentials_CookieNamesValidationError{
+				field:  "CodeVerifier",
+				reason: "value does not match regex pattern \"^:?[0-9a-zA-Z!#$%&'*+-.^_|~`]+$\"",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
 	if len(errors) > 0 {
 		return OAuth2Credentials_CookieNamesMultiError(errors)
 	}
@@ -1016,7 +1475,7 @@ type OAuth2Credentials_CookieNamesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m OAuth2Credentials_CookieNamesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1094,3 +1553,5 @@ var _OAuth2Credentials_CookieNames_IdToken_Pattern = regexp.MustCompile("^:?[0-9
 var _OAuth2Credentials_CookieNames_RefreshToken_Pattern = regexp.MustCompile("^:?[0-9a-zA-Z!#$%&'*+-.^_|~`]+$")
 
 var _OAuth2Credentials_CookieNames_OauthNonce_Pattern = regexp.MustCompile("^:?[0-9a-zA-Z!#$%&'*+-.^_|~`]+$")
+
+var _OAuth2Credentials_CookieNames_CodeVerifier_Pattern = regexp.MustCompile("^:?[0-9a-zA-Z!#$%&'*+-.^_|~`]+$")

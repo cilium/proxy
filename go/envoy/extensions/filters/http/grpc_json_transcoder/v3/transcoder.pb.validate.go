@@ -228,7 +228,7 @@ type GrpcJsonTranscoderMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GrpcJsonTranscoderMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -376,7 +376,7 @@ type UnknownQueryParamsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UnknownQueryParamsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -488,7 +488,7 @@ type GrpcJsonTranscoder_PrintOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GrpcJsonTranscoder_PrintOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -600,7 +600,7 @@ type GrpcJsonTranscoder_RequestValidationOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GrpcJsonTranscoder_RequestValidationOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -703,7 +703,7 @@ type UnknownQueryParams_ValuesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m UnknownQueryParams_ValuesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

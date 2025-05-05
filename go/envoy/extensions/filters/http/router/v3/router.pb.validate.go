@@ -219,7 +219,7 @@ type RouterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RouterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -359,7 +359,7 @@ type Router_UpstreamAccessLogOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Router_UpstreamAccessLogOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

@@ -36,7 +36,7 @@ var (
 	_ = anypb.Any{}
 	_ = sort.Sort
 
-	_ = v3.ProtocolType(0)
+	_ = v3.TransportType(0)
 )
 
 // Validate checks the field values on KeyValuePair with the rules defined in
@@ -116,7 +116,7 @@ type KeyValuePairMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m KeyValuePairMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -267,7 +267,7 @@ type FieldSelectorMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m FieldSelectorMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -456,7 +456,7 @@ type RuleMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RuleMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -664,7 +664,7 @@ type ThriftToMetadataMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ThriftToMetadataMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -832,7 +832,7 @@ type ThriftToMetadataPerRouteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ThriftToMetadataPerRouteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

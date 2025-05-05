@@ -138,7 +138,7 @@ type ApiKeyAuthMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ApiKeyAuthMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -306,7 +306,7 @@ type ApiKeyAuthPerRouteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ApiKeyAuthPerRouteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -429,7 +429,7 @@ type CredentialMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CredentialMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -591,7 +591,7 @@ type KeySourceMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m KeySourceMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

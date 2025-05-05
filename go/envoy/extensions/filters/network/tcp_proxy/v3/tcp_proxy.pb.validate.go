@@ -262,6 +262,35 @@ func (m *TcpProxy) validate(all bool) error {
 
 	}
 
+	if all {
+		switch v := interface{}(m.GetBackoffOptions()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, TcpProxyValidationError{
+					field:  "BackoffOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, TcpProxyValidationError{
+					field:  "BackoffOptions",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetBackoffOptions()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return TcpProxyValidationError{
+				field:  "BackoffOptions",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(m.GetHashPolicy()) > 1 {
 		err := TcpProxyValidationError{
 			field:  "HashPolicy",
@@ -427,6 +456,40 @@ func (m *TcpProxy) validate(all bool) error {
 		}
 	}
 
+	for idx, item := range m.GetProxyProtocolTlvs() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, TcpProxyValidationError{
+						field:  fmt.Sprintf("ProxyProtocolTlvs[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, TcpProxyValidationError{
+						field:  fmt.Sprintf("ProxyProtocolTlvs[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return TcpProxyValidationError{
+					field:  fmt.Sprintf("ProxyProtocolTlvs[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
 	oneofClusterSpecifierPresent := false
 	switch v := m.ClusterSpecifier.(type) {
 	case *TcpProxy_Cluster:
@@ -511,7 +574,7 @@ type TcpProxyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TcpProxyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -656,7 +719,7 @@ type TcpProxy_WeightedClusterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TcpProxy_WeightedClusterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -822,7 +885,7 @@ type TcpProxy_TunnelingConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TcpProxy_TunnelingConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -984,7 +1047,7 @@ type TcpProxy_OnDemandMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TcpProxy_OnDemandMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1118,7 +1181,7 @@ type TcpProxy_TcpAccessLogOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TcpProxy_TcpAccessLogOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1275,7 +1338,7 @@ type TcpProxy_WeightedCluster_ClusterWeightMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TcpProxy_WeightedCluster_ClusterWeightMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

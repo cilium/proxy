@@ -158,7 +158,7 @@ type SocketOptionMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketOptionMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -292,7 +292,7 @@ type SocketOptionsOverrideMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketOptionsOverrideMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -452,7 +452,7 @@ type SocketOption_SocketTypeMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketOption_SocketTypeMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -554,7 +554,7 @@ type SocketOption_SocketType_StreamMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketOption_SocketType_StreamMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -659,7 +659,7 @@ type SocketOption_SocketType_DatagramMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketOption_SocketType_DatagramMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

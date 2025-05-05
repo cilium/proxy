@@ -36,7 +36,7 @@ var (
 	_ = anypb.Any{}
 	_ = sort.Sort
 
-	_ = v3.VhRateLimitsOptions(0)
+	_ = v3.XRateLimitHeadersRFCVersion(0)
 )
 
 // Validate checks the field values on LocalRateLimit with the rules defined in
@@ -441,6 +441,21 @@ func (m *LocalRateLimit) validate(all bool) error {
 
 	}
 
+	if wrapper := m.GetMaxDynamicDescriptors(); wrapper != nil {
+
+		if wrapper.GetValue() < 1 {
+			err := LocalRateLimitValidationError{
+				field:  "MaxDynamicDescriptors",
+				reason: "value must be greater than or equal to 1",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
 	if len(errors) > 0 {
 		return LocalRateLimitMultiError(errors)
 	}
@@ -455,7 +470,7 @@ type LocalRateLimitMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LocalRateLimitMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
