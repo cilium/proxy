@@ -1183,8 +1183,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
                    }),
       transport_factory_context_(
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
-              context_, context.getTransportSocketFactoryContext().sslContextManager(),
-              *npds_stats_scope_, context_.clusterManager(),
+              context_, *npds_stats_scope_,
               context_.messageValidationContext().dynamicValidationVisitor())),
       stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER(*policy_stats_scope_),
                                      POOL_HISTOGRAM(*policy_stats_scope_))} {
