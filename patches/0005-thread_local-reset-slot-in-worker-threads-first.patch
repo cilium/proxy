@@ -36,10 +36,10 @@ index 13ff7496ff..da982ccea5 100644
  
  } // namespace ThreadLocal
 diff --git a/source/common/thread_local/thread_local_impl.cc b/source/common/thread_local/thread_local_impl.cc
-index bd417164b1..ba3e98ab8c 100644
+index 2a49789a09..e57b2fd70d 100644
 --- a/source/common/thread_local/thread_local_impl.cc
 +++ b/source/common/thread_local/thread_local_impl.cc
-@@ -177,7 +177,8 @@ void InstanceImpl::removeSlot(uint32_t slot) {
+@@ -165,7 +165,8 @@ void InstanceImpl::removeSlot(uint32_t slot) {
               free_slot_indexes_.end(),
           fmt::format("slot index {} already in free slot set!", slot));
    free_slot_indexes_.push_back(slot);
@@ -49,7 +49,7 @@ index bd417164b1..ba3e98ab8c 100644
      // This runs on each thread and clears the slot, making it available for a new allocations.
      // This is safe even if a new allocation comes in, because everything happens with post() and
      // will be sequenced after this removal. It is also safe if there are callbacks pending on
-@@ -185,7 +186,12 @@ void InstanceImpl::removeSlot(uint32_t slot) {
+@@ -173,7 +174,12 @@ void InstanceImpl::removeSlot(uint32_t slot) {
      if (slot < thread_local_data_.data_.size()) {
        thread_local_data_.data_[slot] = nullptr;
      }
@@ -61,12 +61,12 @@ index bd417164b1..ba3e98ab8c 100644
 +  // worker thread.
 +  runOnAllWorkerThreads(cb, cb);
  }
- 
+
  void InstanceImpl::runOnAllThreads(std::function<void()> cb) {
-@@ -220,6 +226,22 @@ void InstanceImpl::runOnAllThreads(std::function<void()> cb,
+@@ -208,6 +214,22 @@ void InstanceImpl::runOnAllThreads(std::function<void()> cb,
    }
  }
- 
+
 +void InstanceImpl::runOnAllWorkerThreads(std::function<void()> cb,
 +                                         std::function<void()> worker_threads_complete_cb) const {
 +  ASSERT_IS_MAIN_OR_TEST_THREAD();
@@ -87,7 +87,7 @@ index bd417164b1..ba3e98ab8c 100644
    if (thread_local_data_.data_.size() <= index) {
      thread_local_data_.data_.resize(index + 1);
 diff --git a/source/common/thread_local/thread_local_impl.h b/source/common/thread_local/thread_local_impl.h
-index 90753101b6..bb87b9b502 100644
+index 719418991e..685457afe5 100644
 --- a/source/common/thread_local/thread_local_impl.h
 +++ b/source/common/thread_local/thread_local_impl.h
 @@ -29,6 +29,7 @@ public:
@@ -95,7 +95,7 @@ index 90753101b6..bb87b9b502 100644
    Event::Dispatcher& dispatcher() override;
    bool isShutdown() const override { return shutdown_; }
 +  void runOnAllWorkerThreads(std::function<void()> worker_cb, std::function<void()> main_cb) const override;
- 
+
  private:
    // On destruction returns the slot index to the deferred delete queue (detaches it). This allows
 diff --git a/test/mocks/thread_local/mocks.h b/test/mocks/thread_local/mocks.h
@@ -110,9 +110,9 @@ index 09dff23777..88d7cea1a9 100644
 +    worker_cb();
 +    main_cb();
 +  }
- 
+
    SlotPtr allocateSlotMock() { return SlotPtr{new SlotImpl(*this, current_slot_++)}; }
    void runOnAllThreads1(std::function<void()> cb) { cb(); }
--- 
-2.39.5
+--
+2.34.1
 
