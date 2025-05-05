@@ -11,6 +11,7 @@
     'Dockerfile.builder',
     'go.mod',
     'go.sum',
+    'tools/install_bazelisk.sh',
     'WORKSPACE',
     'ENVOY_VERSION',
   ],
