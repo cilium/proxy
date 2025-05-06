@@ -224,5 +224,14 @@
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?\\sENV .*?_VERSION=(?<currentValue>.*)\\s',
       ],
     },
+    {
+      customType: 'regex',
+      fileMatch: [
+        '^tools/install_bazelisk.sh$',
+      ],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?\\s.*?_VERSION=(?<currentValue>.*)\\s',
+      ],
+    }
   ],
 }
