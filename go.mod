@@ -2,7 +2,7 @@ module github.com/cilium/proxy
 
 go 1.23.0
 
-toolchain go1.24.2
+toolchain go1.24.3
 
 require (
 	github.com/census-instrumentation/opencensus-proto v0.4.1
