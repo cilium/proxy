@@ -69,7 +69,7 @@ jobs:
         push: true
         tags: |
           quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }}
-          quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.base_ref }}
+          quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}
 
     - name: Multi-arch update integration test archive
       uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
@@ -107,7 +107,7 @@ jobs:
         platforms: linux/amd64
         build-args: |
           BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }}
-          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
+          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
           BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1 --flaky_test_attempts=3
         cache-to: type=local,dest=/tmp/buildx-cache,mode=max
@@ -166,7 +166,7 @@ jobs:
         push: true
         tags: |
           quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
-          quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.base_ref }}
+          quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}
     - name: Multi-arch build & push of build artifact archive
       uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
       with:
@@ -176,7 +176,7 @@ jobs:
         platforms: linux/amd64,linux/arm64
         build-args: |
           BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
-          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
+          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
           COPY_CACHE_EXT=.new
           BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
         push: true
@@ -204,7 +204,7 @@ jobs:
         build-args: |
           BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
           BAZEL_BUILD_OPTS=--remote_upload_local_results=false
-          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
+          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
         cache-to: type=local,dest=/tmp/buildx-cache,mode=max
         push: true
         tags: |
