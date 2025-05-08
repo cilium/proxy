@@ -41,31 +41,31 @@
   ],
   packageRules: [
     {
-      "groupName": "Go",
-      "matchDepNames": [
-        "go",
-        "docker.io/library/golang"
+      groupName: 'Go',
+      matchDepNames: [
+        'go',
+        'docker.io/library/golang',
       ],
     },
     {
-      "matchPackageNames": [
-        "docker.io/library/golang",
-        "go"
+      matchPackageNames: [
+        'docker.io/library/golang',
+        'go',
       ],
-      "allowedVersions": "<1.25",
-      "matchBaseBranches": [
-        "main",
-      ]
+      allowedVersions: '<1.25',
+      matchBaseBranches: [
+        'main',
+      ],
     },
     {
-      "matchPackageNames": [
-        "docker.io/library/golang",
-        "go"
+      matchPackageNames: [
+        'docker.io/library/golang',
+        'go',
       ],
-      "allowedVersions": "<1.25",
-      "matchBaseBranches": [
-        "v1.32",
-      ]
+      allowedVersions: '<1.25',
+      matchBaseBranches: [
+        'v1.32',
+      ],
     },
     {
       groupName: 'all go dependencies main',
@@ -124,7 +124,7 @@
     },
     {
       matchFileNames: [
-        'Dockerfile.builder'
+        'Dockerfile.builder',
       ],
       matchPackageNames: [
         'docker.io/library/ubuntu',
@@ -147,7 +147,7 @@
     {
       matchFileNames: [
         'Dockerfile.builder',
-        '.github/workflows/**'
+        '.github/workflows/**',
       ],
       matchPackageNames: [
         'go',
@@ -182,8 +182,8 @@
   customManagers: [
     {
       customType: 'regex',
-      fileMatch: [
-        '^WORKSPACE$',
+      managerFilePatterns: [
+        '/^WORKSPACE$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+_VERSION = "(?<currentValue>.*)"',
@@ -192,8 +192,8 @@
     },
     {
       customType: 'regex',
-      fileMatch: [
-        '^\\.github/workflows/[^/]+\\.ya?ml$',
+      managerFilePatterns: [
+        '/^\\.github/workflows/[^/]+\\.ya?ml$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+-version: (?<currentValue>.*)',
@@ -202,8 +202,8 @@
     },
     {
       customType: 'regex',
-      fileMatch: [
-        '^ENVOY_VERSION$',
+      managerFilePatterns: [
+        '/^ENVOY_VERSION$/',
       ],
       datasourceTemplate: 'github-releases',
       depNameTemplate: 'envoyproxy/envoy',
@@ -214,11 +214,11 @@
     },
     {
       customType: 'regex',
-      fileMatch: [
-        '^Dockerfile$',
-        '^Dockerfile.builder$',
-        '^Dockerfile.tests$',
-        '^Dockerfile.builder.tests$',
+      managerFilePatterns: [
+        '/^Dockerfile$/',
+        '/^Dockerfile.builder$/',
+        '/^Dockerfile.tests$/',
+        '/^Dockerfile.builder.tests$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?\\sENV .*?_VERSION=(?<currentValue>.*)\\s',
@@ -226,12 +226,12 @@
     },
     {
       customType: 'regex',
-      fileMatch: [
-        '^tools/install_bazelisk.sh$',
+      managerFilePatterns: [
+        '/^tools/install_bazelisk.sh$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?\\s.*?_VERSION=(?<currentValue>.*)\\s',
       ],
-    }
+    },
   ],
 }
