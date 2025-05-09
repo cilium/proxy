@@ -133,7 +133,7 @@ type TCPAccessLogEntryMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TCPAccessLogEntryMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -324,7 +324,7 @@ type HTTPAccessLogEntryMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HTTPAccessLogEntryMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -430,7 +430,7 @@ type ConnectionPropertiesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ConnectionPropertiesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1110,7 +1110,7 @@ type AccessLogCommonMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AccessLogCommonMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1293,7 +1293,7 @@ type ResponseFlagsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ResponseFlagsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1488,7 +1488,7 @@ type TLSPropertiesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TLSPropertiesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1654,7 +1654,7 @@ type HTTPRequestPropertiesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HTTPRequestPropertiesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1799,7 +1799,7 @@ type HTTPResponsePropertiesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HTTPResponsePropertiesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1903,7 +1903,7 @@ type ResponseFlags_UnauthorizedMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ResponseFlags_UnauthorizedMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2045,7 +2045,7 @@ type TLSProperties_CertificatePropertiesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TLSProperties_CertificatePropertiesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2181,7 +2181,7 @@ type TLSProperties_CertificateProperties_SubjectAltNameMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TLSProperties_CertificateProperties_SubjectAltNameMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

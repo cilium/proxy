@@ -168,7 +168,7 @@ type DecompressorMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DecompressorMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -301,7 +301,7 @@ type Decompressor_CommonDirectionConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Decompressor_CommonDirectionConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -464,7 +464,7 @@ type Decompressor_RequestDirectionConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Decompressor_RequestDirectionConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -598,7 +598,7 @@ type Decompressor_ResponseDirectionConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Decompressor_ResponseDirectionConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

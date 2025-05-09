@@ -477,7 +477,7 @@ type HealthCheckEventMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HealthCheckEventMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -588,7 +588,7 @@ type HealthCheckEjectUnhealthyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HealthCheckEjectUnhealthyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -692,7 +692,7 @@ type HealthCheckAddHealthyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HealthCheckAddHealthyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -794,7 +794,7 @@ type HealthCheckSuccessfulMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HealthCheckSuccessfulMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -909,7 +909,7 @@ type HealthCheckFailureMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HealthCheckFailureMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1011,7 +1011,7 @@ type DegradedHealthyHostMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DegradedHealthyHostMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1113,7 +1113,7 @@ type NoLongerDegradedHostMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m NoLongerDegradedHostMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

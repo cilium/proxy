@@ -297,7 +297,7 @@ type BufferBehaviorMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m BufferBehaviorMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -498,7 +498,7 @@ type StreamConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StreamConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -714,7 +714,7 @@ type FileSystemBufferFilterConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m FileSystemBufferFilterConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -819,7 +819,7 @@ type BufferBehavior_StreamWhenPossibleMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m BufferBehavior_StreamWhenPossibleMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -922,7 +922,7 @@ type BufferBehavior_BypassMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m BufferBehavior_BypassMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1027,7 +1027,7 @@ type BufferBehavior_InjectContentLengthIfNecessaryMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m BufferBehavior_InjectContentLengthIfNecessaryMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1137,7 +1137,7 @@ type BufferBehavior_FullyBufferAndAlwaysInjectContentLengthMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m BufferBehavior_FullyBufferAndAlwaysInjectContentLengthMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1251,7 +1251,7 @@ type BufferBehavior_FullyBufferMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m BufferBehavior_FullyBufferMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

@@ -227,7 +227,7 @@ type StringMatcherMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StringMatcherMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -372,7 +372,7 @@ type ListStringMatcherMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ListStringMatcherMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

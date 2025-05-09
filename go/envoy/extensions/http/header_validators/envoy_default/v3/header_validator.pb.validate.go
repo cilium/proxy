@@ -135,7 +135,7 @@ type HeaderValidatorConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HeaderValidatorConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -255,7 +255,7 @@ type HeaderValidatorConfig_UriPathNormalizationOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HeaderValidatorConfig_UriPathNormalizationOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -370,7 +370,7 @@ type HeaderValidatorConfig_Http1ProtocolOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HeaderValidatorConfig_Http1ProtocolOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

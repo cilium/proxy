@@ -86,6 +86,35 @@ func (m *SocketEvent) validate(all bool) error {
 		}
 	}
 
+	if all {
+		switch v := interface{}(m.GetConnection()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, SocketEventValidationError{
+					field:  "Connection",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, SocketEventValidationError{
+					field:  "Connection",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetConnection()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return SocketEventValidationError{
+				field:  "Connection",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	switch v := m.EventSelector.(type) {
 	case *SocketEvent_Read_:
 		if v == nil {
@@ -227,7 +256,7 @@ type SocketEventMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketEventMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -396,7 +425,7 @@ type SocketBufferedTraceMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketBufferedTraceMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -587,7 +616,7 @@ type SocketStreamedTraceSegmentMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketStreamedTraceSegmentMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -718,7 +747,7 @@ type SocketEvent_ReadMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketEvent_ReadMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -849,7 +878,7 @@ type SocketEvent_WriteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketEvent_WriteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -951,7 +980,7 @@ type SocketEvent_ClosedMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m SocketEvent_ClosedMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

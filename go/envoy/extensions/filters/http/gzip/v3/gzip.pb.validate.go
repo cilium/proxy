@@ -165,7 +165,7 @@ type GzipMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GzipMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -265,7 +265,7 @@ type Gzip_CompressionLevelMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Gzip_CompressionLevelMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

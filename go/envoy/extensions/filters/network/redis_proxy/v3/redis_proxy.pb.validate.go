@@ -307,7 +307,7 @@ type RedisProxyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisProxyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -465,7 +465,7 @@ type RedisProtocolOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisProtocolOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -598,7 +598,7 @@ type RedisExternalAuthProviderMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisExternalAuthProviderMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -846,7 +846,7 @@ type RedisProxy_ConnPoolSettingsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisProxy_ConnPoolSettingsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1014,7 +1014,7 @@ type RedisProxy_PrefixRoutesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisProxy_PrefixRoutesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1196,7 +1196,7 @@ type RedisProxy_RedisFaultMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisProxy_RedisFaultMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1309,7 +1309,7 @@ type RedisProxy_ConnectionRateLimitMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisProxy_ConnectionRateLimitMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1501,7 +1501,7 @@ type RedisProxy_PrefixRoutes_RouteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisProxy_PrefixRoutes_RouteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1649,7 +1649,7 @@ type RedisProxy_PrefixRoutes_Route_RequestMirrorPolicyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisProxy_PrefixRoutes_Route_RequestMirrorPolicyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1773,7 +1773,7 @@ type RedisProxy_PrefixRoutes_Route_ReadCommandPolicyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RedisProxy_PrefixRoutes_Route_ReadCommandPolicyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
