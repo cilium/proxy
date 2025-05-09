@@ -20,6 +20,7 @@
 #include <linux/capability.h>
 #include <linux/limits.h>
 #include <linux/prctl.h>
+#include <sys/stat.h>
 
 #include "starter/privileged_service_protocol.h"
 #include "starter/privileged_service_server.h"
@@ -166,6 +167,19 @@ int main(int argc, char** argv) {
     }
 
     envoy_args.push_back(nullptr);
+
+    // Get the file's owner UID
+    struct stat file_stat;
+    if (stat(path, &file_stat) != 0) {
+      perror("stat failed");
+      exit(1);
+    }
+    // Switch to the target user
+    if (setuid(file_stat.st_uid) != 0) {
+      perror("setuid failed");
+      exit(1);
+    }
+
     execv(path, &envoy_args[0]);
     perror("execv");
     exit(1);
