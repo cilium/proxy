@@ -233,5 +233,14 @@
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?\\s.*?_VERSION=(?<currentValue>.*)\\s',
       ],
     },
+    {
+      customType: 'regex',
+      "managerFilePatterns": [
+        "/^.github/workflows/renovate-config-validator.yaml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>.*?)\\s+RENOVATE_IMAGE=\"(?<depName>.*):(?<currentValue>.*)@(?<currentDigest>sha256:[a-f0-9]+)\""
+      ]
+    }
   ],
 }
