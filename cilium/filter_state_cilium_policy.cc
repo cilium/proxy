@@ -58,7 +58,7 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
     // Enforce ingress policy for Ingress, on the original destination port
     if (ingress_source_identity_ != 0) {
       auto ingressPortPolicy = policy.findPortPolicy(true, port_);
-      if (!ingressPortPolicy.allowed((proxy_id_, ingress_source_identity_, sni)) {
+      if (!ingressPortPolicy.allowed(proxy_id_, ingress_source_identity_, sni)) {
         ENVOY_CONN_LOG(debug,
                        "Ingress network policy {} DROP for source identity and destination "
                        "reserved ingress identity: {} proxy_id: {} port: {} sni: \"{}\"",
@@ -122,7 +122,7 @@ bool CiliumPolicyFilterState::enforceHTTPPolicy(const Network::Connection& conn,
 
     // Enforce ingress policy for Ingress, on the original destination port
     if (ingress_source_identity_ != 0) {
-      if (!policy.allowed(true, ingress_source_identity_, port_, headers, log_entry)) {
+      if (!policy.allowed(true, proxy_id_, ingress_source_identity_, port_, headers, log_entry)) {
         ENVOY_CONN_LOG(debug,
                        "Ingress HTTP policy {} DROP for source identity: {} proxy_id: {} port: {}",
                        conn, ingress_policy_name_, ingress_source_identity_, proxy_id_, port_);
@@ -131,7 +131,8 @@ bool CiliumPolicyFilterState::enforceHTTPPolicy(const Network::Connection& conn,
     }
 
     // Enforce egress policy for Ingress
-    if (!policy.allowed(false, destination_identity, destination_port, headers, log_entry)) {
+    if (!policy.allowed(false, proxy_id_, destination_identity, destination_port, headers,
+                        log_entry)) {
       ENVOY_CONN_LOG(
           debug, "Egress HTTP policy {} DROP for destination identity: {} proxy_id: {} port: {}",
           conn, ingress_policy_name_, destination_identity, proxy_id_, destination_port);
