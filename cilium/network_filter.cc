@@ -198,10 +198,15 @@ Network::FilterStatus Instance::onNewConnection() {
                                   destination_identity, dst_address, &config_->time_source_);
 
     bool use_proxy_lib;
-    if (!policy_fs->enforceNetworkPolicy(conn, destination_identity, destination_port_, sni,
-                                         use_proxy_lib, l7proto_, log_entry_)) {
-      ENVOY_CONN_LOG(debug, "cilium.network: policy DENY on id: {} port: {} sni: \"{}\"", conn,
-                     remote_id_, destination_port_, sni);
+    const bool allowed =
+        dip->addressAsString() == policy_fs->pod_ip_
+            ? true
+            : policy_fs->enforceNetworkPolicy(conn, destination_identity, destination_port_, sni,
+                                              use_proxy_lib, l7proto_, log_entry_);
+    if (!allowed) {
+      ENVOY_CONN_LOG(debug, "cilium.network: policy DENY {}->{} on id: {} port: {} sni: \"{}\"",
+                     conn, dip->addressAsString(), policy_fs->pod_ip_, remote_id_,
+                     destination_port_, sni);
       config_->log(log_entry_, ::cilium::EntryType::Denied);
       return false;
     }
