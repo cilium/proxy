@@ -557,9 +557,8 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_EQ(1, source_addresses_socket_option->linger_time_);
 
   EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
-  EXPECT_EQ("10.1.1.1:41234", source_addresses_socket_option->ipv4_source_address_->asString());
-  EXPECT_EQ("[face::1:1:1]:41234",
-            source_addresses_socket_option->ipv6_source_address_->asString());
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
+  EXPECT_EQ("[face::42]:0", source_addresses_socket_option->ipv6_source_address_->asString());
 
   auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
   EXPECT_NE(nullptr, cilium_mark_socket_option);

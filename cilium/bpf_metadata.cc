@@ -432,13 +432,6 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
       return absl::nullopt;
     }
 
-    // Use original source address with L7 LB for local endpoint sources if requested, as policy
-    // enforcement after the proxy depends on it (i.e., for "east/west" LB).
-    // Keep the original source address for the matching IP version, create a new source IP for
-    // the other version (with the same source port number) in case an upstream of a different
-    // IP version is chosen.
-    source_addresses = getIPAddressPairFrom(src_address, policy->getEndpointIPs());
-
     // Original source address is now in one of 'ipv[46]_source_address'
     src_address = nullptr;
   } else if (is_l7lb_ && !use_original_source_address_ /* North/South L7 LB */) {
@@ -511,7 +504,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
   if (is_l7lb_ && use_original_source_address_ /* E/W L7LB */) {
     // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
-    // processed by the the source endpoint's policy enforcement in the datapath.
+    // processed by the source endpoint's policy enforcement in the datapath.
     mark = 0x0900 | policy->getEndpointID() << 16;
   } else {
     // Mark with source identity
