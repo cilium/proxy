@@ -7,7 +7,7 @@
 #include <memory>
 #include <string>
 
-#include "envoy/http/codec.h"
+#include "envoy/http/codec.h" // IWYU pragma: keep
 #include "envoy/network/address.h"
 
 #include "source/common/common/base_logger.h"
