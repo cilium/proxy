@@ -115,7 +115,7 @@ type HttpGrpcAccessLogConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpGrpcAccessLogConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -257,7 +257,7 @@ type TcpGrpcAccessLogConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TcpGrpcAccessLogConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -543,7 +543,7 @@ type CommonGrpcAccessLogConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CommonGrpcAccessLogConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

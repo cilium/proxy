@@ -116,7 +116,7 @@ type PayloadToMetadataMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m PayloadToMetadataMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -300,7 +300,7 @@ type PayloadToMetadata_KeyValuePairMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m PayloadToMetadata_KeyValuePairMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -543,7 +543,7 @@ type PayloadToMetadata_RuleMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m PayloadToMetadata_RuleMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -696,7 +696,7 @@ type PayloadToMetadata_FieldSelectorMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m PayloadToMetadata_FieldSelectorMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

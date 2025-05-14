@@ -151,7 +151,7 @@ type AccessLogMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AccessLogMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -813,7 +813,7 @@ type AccessLogFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AccessLogFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -964,7 +964,7 @@ type ComparisonFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ComparisonFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1104,7 +1104,7 @@ type StatusCodeFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m StatusCodeFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1244,7 +1244,7 @@ type DurationFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DurationFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1344,7 +1344,7 @@ type NotHealthCheckFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m NotHealthCheckFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1446,7 +1446,7 @@ type TraceableFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TraceableFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1588,7 +1588,7 @@ type RuntimeFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RuntimeFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1732,7 +1732,7 @@ type AndFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AndFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1876,7 +1876,7 @@ type OrFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m OrFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2015,7 +2015,7 @@ type HeaderFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HeaderFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2107,7 +2107,7 @@ func (m *ResponseFlagFilter) validate(all bool) error {
 		if _, ok := _ResponseFlagFilter_Flags_InLookup[item]; !ok {
 			err := ResponseFlagFilterValidationError{
 				field:  fmt.Sprintf("Flags[%v]", idx),
-				reason: "value must be in list [LH UH UT LR UR UF UC UO NR DI FI RL UAEX RLSE DC URX SI IH DPE UMSDR RFCF NFCF DT UPE NC OM DF DO DR]",
+				reason: "value must be in list [LH UH UT LR UR UF UC UO NR DI FI RL UAEX RLSE DC URX SI IH DPE UMSDR RFCF NFCF DT UPE NC OM DF DO DR UDO]",
 			}
 			if !all {
 				return err
@@ -2131,7 +2131,7 @@ type ResponseFlagFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ResponseFlagFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2227,6 +2227,7 @@ var _ResponseFlagFilter_Flags_InLookup = map[string]struct{}{
 	"DF":    {},
 	"DO":    {},
 	"DR":    {},
+	"UDO":   {},
 }
 
 // Validate checks the field values on GrpcStatusFilter with the rules defined
@@ -2283,7 +2284,7 @@ type GrpcStatusFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m GrpcStatusFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2441,7 +2442,7 @@ type MetadataFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m MetadataFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2559,7 +2560,7 @@ type LogTypeFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LogTypeFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2707,7 +2708,7 @@ type ExtensionFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ExtensionFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

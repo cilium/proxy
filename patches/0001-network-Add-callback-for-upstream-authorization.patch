@@ -1,7 +1,7 @@
-From d1759627dac4a556d7e17161bdfd9ff86b9bfa89 Mon Sep 17 00:00:00 2001
+From 612b4abeb4a2d46b4b665f988f7c1db4c34b3fd6 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
-Date: Mon, 24 Jan 2022 15:40:28 +0200
-Subject: [PATCH 1/5] network: Add callback for upstream authorization
+Date: Mon, 5 May 2025 11:15:52 +1000
+Subject: [PATCH 1/6] network: Add callback for upstream authorization
 
 Add new ReadFilterCallbacks addUpstreamCallback() and
 iterateUpstreamCallbacks(). Network filters can add callbacks using
@@ -60,10 +60,10 @@ index f1283df286..88fa85c2f0 100644
     * @return true if the filter should shed load based on the system pressure, typically memory.
     */
 diff --git a/envoy/network/filter.h b/envoy/network/filter.h
-index f2d6c2ef9c..590a2ff7fa 100644
+index 2ad394ffeb..c843f41c05 100644
 --- a/envoy/network/filter.h
 +++ b/envoy/network/filter.h
-@@ -117,6 +117,22 @@ public:
+@@ -147,6 +147,22 @@ public:
 
  using WriteFilterSharedPtr = std::shared_ptr<WriteFilter>;
 
@@ -86,11 +86,10 @@ index f2d6c2ef9c..590a2ff7fa 100644
  /**
   * Callbacks used by individual read filter instances to communicate with the filter manager.
   */
-@@ -175,6 +191,18 @@ public:
-    * mode to secure mode.
+@@ -206,6 +222,18 @@ public:
     */
    virtual bool startUpstreamSecureTransport() PURE;
-+
+
 +  /*
 +   * Adds the given callback to be executed later via iterateUpstreamCallbacks().
 +   */
@@ -102,9 +101,10 @@ index f2d6c2ef9c..590a2ff7fa 100644
 +   */
 +  virtual bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr,
 +                                        StreamInfo::StreamInfo&) PURE;
- };
-
- /**
++
+   /**
+    * Control the filter close status for read filters.
+    *
 diff --git a/envoy/tcp/upstream.h b/envoy/tcp/upstream.h
 index b201d2e153..9aece0fc6c 100644
 --- a/envoy/tcp/upstream.h
@@ -138,10 +138,10 @@ index ead93183f0..b9f1315afa 100644
    void dumpState(std::ostream& os, int indent_level) const override {
      const char* spaces = spacesForLevel(indent_level);
 diff --git a/source/common/http/conn_manager_impl.h b/source/common/http/conn_manager_impl.h
-index 01062379d0..3ce54a28b7 100644
+index 6afed5a356..d2e32e2ba8 100644
 --- a/source/common/http/conn_manager_impl.h
 +++ b/source/common/http/conn_manager_impl.h
-@@ -326,6 +326,12 @@ private:
+@@ -327,6 +327,12 @@ private:
      }
 
      absl::optional<Router::ConfigConstSharedPtr> routeConfig();
@@ -197,10 +197,10 @@ index 2a2a8b3178..be6a33ad42 100644
 
  /**
 diff --git a/source/common/network/filter_manager_impl.h b/source/common/network/filter_manager_impl.h
-index 27bc856921..0c33be97d1 100644
+index 6453048610..d4132a33ca 100644
 --- a/source/common/network/filter_manager_impl.h
 +++ b/source/common/network/filter_manager_impl.h
-@@ -132,6 +132,13 @@ private:
+@@ -156,6 +156,13 @@ private:
        parent_.host_description_ = host;
      }
      bool startUpstreamSecureTransport() override { return parent_.startUpstreamSecureTransport(); }
@@ -214,7 +214,7 @@ index 27bc856921..0c33be97d1 100644
 
      FilterManagerImpl& parent_;
      ReadFilterSharedPtr filter_;
-@@ -162,6 +169,20 @@ private:
+@@ -190,6 +197,20 @@ private:
    FilterStatus onWrite(ActiveWriteFilter* filter, WriteBufferSource& buffer_source);
    void onResumeWriting(ActiveWriteFilter* filter, WriteBufferSource& buffer_source);
 
@@ -233,13 +233,13 @@ index 27bc856921..0c33be97d1 100644
 +
 +  std::vector<UpstreamCallback> decoder_filter_upstream_cbs_{};
    FilterManagerConnection& connection_;
-   const Socket& socket_;
+   const ConnectionSocket& socket_;
    Upstream::HostDescriptionConstSharedPtr host_description_;
 diff --git a/source/common/router/router.cc b/source/common/router/router.cc
-index b37eb8b315..37dadeb999 100644
+index 46b4aac132..5affb17366 100644
 --- a/source/common/router/router.cc
 +++ b/source/common/router/router.cc
-@@ -699,6 +699,14 @@ Http::FilterHeadersStatus Filter::decodeHeaders(Http::RequestHeaderMap& headers,
+@@ -761,6 +761,14 @@ Http::FilterHeadersStatus Filter::continueDecodeHeaders(
      return Http::FilterHeadersStatus::StopIteration;
    }
 
@@ -255,10 +255,10 @@ index b37eb8b315..37dadeb999 100644
 
    timeout_ = FilterUtility::finalTimeout(*route_entry_, headers, !config_->suppress_envoy_headers_,
 diff --git a/source/common/router/upstream_request.h b/source/common/router/upstream_request.h
-index da2a1188b5..100065f6c9 100644
+index 755e4e2fad..8842169be2 100644
 --- a/source/common/router/upstream_request.h
 +++ b/source/common/router/upstream_request.h
-@@ -350,6 +350,11 @@ public:
+@@ -352,6 +352,11 @@ public:
    }
    OptRef<UpstreamStreamFilterCallbacks> upstreamCallbacks() override { return {*this}; }
 
@@ -271,10 +271,10 @@ index da2a1188b5..100065f6c9 100644
    StreamInfo::StreamInfo& upstreamStreamInfo() override { return upstream_request_.streamInfo(); }
    OptRef<GenericUpstream> upstream() override {
 diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
-index 92df517bf1..feab76e70e 100644
+index c0bf591cab..a5210788da 100644
 --- a/source/common/tcp_proxy/tcp_proxy.cc
 +++ b/source/common/tcp_proxy/tcp_proxy.cc
-@@ -576,6 +576,13 @@ bool Filter::maybeTunnel(Upstream::ThreadLocalCluster& cluster) {
+@@ -645,6 +645,13 @@ bool Filter::maybeTunnel(Upstream::ThreadLocalCluster& cluster) {
          upstream_decoder_filter_callbacks_, getStreamInfo());
    }
    if (generic_conn_pool_) {
@@ -289,10 +289,10 @@ index 92df517bf1..feab76e70e 100644
      connect_attempts_++;
      getStreamInfo().setAttemptCount(connect_attempts_);
 diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
-index 75b6af7fe3..12227f95fe 100644
+index 355dbdded0..4db9ee8778 100644
 --- a/source/common/tcp_proxy/tcp_proxy.h
 +++ b/source/common/tcp_proxy/tcp_proxy.h
-@@ -555,6 +555,10 @@ public:
+@@ -573,6 +573,10 @@ public:
        return absl::nullopt;
      }
      bool shouldLoadShed() const override { return false; }
@@ -303,7 +303,7 @@ index 75b6af7fe3..12227f95fe 100644
      void restoreContextOnContinue(ScopeTrackedObjectStack& tracked_object_stack) override {
        tracked_object_stack.add(*this);
      }
-@@ -598,6 +602,7 @@ protected:
+@@ -616,6 +620,7 @@ protected:
      NoHealthyUpstream,
      ResourceLimitExceeded,
      NoRoute,
@@ -312,10 +312,10 @@ index 75b6af7fe3..12227f95fe 100644
 
    // Callbacks for different error and success states during connection establishment
 diff --git a/source/common/tcp_proxy/upstream.cc b/source/common/tcp_proxy/upstream.cc
-index aea5be7fdd..e7e3825d2e 100644
+index 05e590a744..d765e415c3 100644
 --- a/source/common/tcp_proxy/upstream.cc
 +++ b/source/common/tcp_proxy/upstream.cc
-@@ -246,6 +246,10 @@ void TcpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
+@@ -247,6 +247,10 @@ void TcpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
    }
  }
 
@@ -326,7 +326,7 @@ index aea5be7fdd..e7e3825d2e 100644
  void TcpConnPool::onPoolFailure(ConnectionPool::PoolFailureReason reason,
                                  absl::string_view failure_reason,
                                  Upstream::HostDescriptionConstSharedPtr host) {
-@@ -348,6 +352,10 @@ void HttpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
+@@ -353,6 +357,10 @@ void HttpConnPool::newStream(GenericConnectionPoolCallbacks& callbacks) {
    }
  }
 
@@ -338,7 +338,7 @@ index aea5be7fdd..e7e3825d2e 100644
                                   absl::string_view failure_reason,
                                   Upstream::HostDescriptionConstSharedPtr host) {
 diff --git a/source/common/tcp_proxy/upstream.h b/source/common/tcp_proxy/upstream.h
-index 50dcb8a461..a7fd069274 100644
+index 507f966719..1b8b07c492 100644
 --- a/source/common/tcp_proxy/upstream.h
 +++ b/source/common/tcp_proxy/upstream.h
 @@ -40,6 +40,7 @@ public:
@@ -358,13 +358,13 @@ index 50dcb8a461..a7fd069274 100644
    // Http::ConnectionPool::Callbacks,
    void onPoolFailure(ConnectionPool::PoolFailureReason reason,
 diff --git a/source/server/api_listener_impl.h b/source/server/api_listener_impl.h
-index a5d03747e7..0c5e1b97ae 100644
+index 867a8847ba..5e2feb6a31 100644
 --- a/source/server/api_listener_impl.h
 +++ b/source/server/api_listener_impl.h
-@@ -73,6 +73,9 @@ protected:
+@@ -79,6 +79,9 @@ protected:
      }
      Network::Connection& connection() override { return connection_; }
-     const Network::Socket& socket() override { PANIC("not implemented"); }
+     const Network::ConnectionSocket& socket() override { PANIC("not implemented"); }
 +    void addUpstreamCallback(const Network::UpstreamCallback&) override {}
 +    bool iterateUpstreamCallbacks(Upstream::HostDescriptionConstSharedPtr,
 +				  StreamInfo::StreamInfo&) override { return true; }
@@ -372,5 +372,5 @@ index a5d03747e7..0c5e1b97ae 100644
      // Synthetic class that acts as a stub for the connection backing the
      // Network::ReadFilterCallbacks.
 --
-2.39.5
+2.34.1
 

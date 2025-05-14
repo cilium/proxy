@@ -135,6 +135,35 @@ func (m *Lua) validate(all bool) error {
 
 	// no validation rules for StatPrefix
 
+	if all {
+		switch v := interface{}(m.GetClearRouteCache()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, LuaValidationError{
+					field:  "ClearRouteCache",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, LuaValidationError{
+					field:  "ClearRouteCache",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetClearRouteCache()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return LuaValidationError{
+				field:  "ClearRouteCache",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return LuaMultiError(errors)
 	}
@@ -148,7 +177,7 @@ type LuaMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LuaMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -353,7 +382,7 @@ type LuaPerRouteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LuaPerRouteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

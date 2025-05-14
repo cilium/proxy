@@ -281,6 +281,64 @@ func (m *RateLimit) validate(all bool) error {
 
 	// no validation rules for StatPrefix
 
+	if all {
+		switch v := interface{}(m.GetFilterEnabled()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RateLimitValidationError{
+					field:  "FilterEnabled",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RateLimitValidationError{
+					field:  "FilterEnabled",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetFilterEnabled()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RateLimitValidationError{
+				field:  "FilterEnabled",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
+	if all {
+		switch v := interface{}(m.GetFilterEnforced()).(type) {
+		case interface{ ValidateAll() error }:
+			if err := v.ValidateAll(); err != nil {
+				errors = append(errors, RateLimitValidationError{
+					field:  "FilterEnforced",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		case interface{ Validate() error }:
+			if err := v.Validate(); err != nil {
+				errors = append(errors, RateLimitValidationError{
+					field:  "FilterEnforced",
+					reason: "embedded message failed validation",
+					cause:  err,
+				})
+			}
+		}
+	} else if v, ok := interface{}(m.GetFilterEnforced()).(interface{ Validate() error }); ok {
+		if err := v.Validate(); err != nil {
+			return RateLimitValidationError{
+				field:  "FilterEnforced",
+				reason: "embedded message failed validation",
+				cause:  err,
+			}
+		}
+	}
+
 	if len(errors) > 0 {
 		return RateLimitMultiError(errors)
 	}
@@ -294,7 +352,7 @@ type RateLimitMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RateLimitMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -459,7 +517,7 @@ type RateLimitPerRouteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RateLimitPerRouteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
