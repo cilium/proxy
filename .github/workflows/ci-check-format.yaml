@@ -46,7 +46,6 @@ jobs:
           outputs: type=local,dest=check-format-results
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-          cache-from: type=local,src=/tmp/buildx-cache
           push: false
 
       - name: Check for failure
