@@ -57,7 +57,7 @@ jobs:
       - name: Check for failure
         run: |
           if grep -q "^make:.*Error" clang-tidy-results/clang-tidy-output.txt; then
-            git diff > clang-tidy-results/clang-tidy.diff
+            git diff > clang-tidy-results/clang-tidy-diff.txt
             exit 1
           fi
 
@@ -66,5 +66,5 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: clang-tidy-results
-          path: clang-tidy-results
+          path: clang-tidy-results/*.txt
           retention-days: 5
