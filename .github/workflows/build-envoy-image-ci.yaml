@@ -38,8 +38,8 @@ jobs:
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         with:
           registry: quay.io
-          username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
-          password: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
+          username: ${{ secrets.QUAY_USER }}
+          password: ${{ secrets.QUAY_PASSWD }}
 
       - name: Checkout PR
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -58,7 +58,7 @@ jobs:
         id: cilium-builder-tag-in-repositories
         shell: bash
         run: |
-          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+          if docker buildx imagetools inspect quay.io/${{ QUAY_USERNAME }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
             echo exists="true" >> $GITHUB_OUTPUT
           else
             echo exists="false" >> $GITHUB_OUTPUT
@@ -74,14 +74,14 @@ jobs:
           file: ./Dockerfile.builder
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
+          tags: quay.io/${{ QUAY_USERNAME }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
 
       - name: CI Builder Image Digest
         if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
         shell: bash
         run: |
           echo "Digests:"
-          echo "quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}@${{ steps.docker_build_builder_ci.outputs.digest }}"
+          echo "quay.io/${{ QUAY_USERNAME }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}@${{ steps.docker_build_builder_ci.outputs.digest }}"
 
       - name: PR Multi-arch build & push of cilium-envoy
         uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
@@ -93,19 +93,19 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             BUILDER_BASE=quay.io/cilium/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
+            ARCHIVE_IMAGE=quay.io/${{ QUAY_USERNAME }}/cilium-envoy-builder:main-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
           cache-from: type=local,src=/tmp/buildx-cache
           cache-to: type=local,dest=/tmp/buildx-cache,mode=max
           push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
+          tags: quay.io/${{ QUAY_USERNAME }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
 
       - name: Sign Container Image
         run: |
-          cosign sign -y quay.io/${{ github.repository_owner }}/cilium-envoy-dev@${{ steps.docker_build_ci.outputs.digest }}
+          cosign sign -y quay.io/${{ QUAY_USERNAME }}/cilium-envoy-dev@${{ steps.docker_build_ci.outputs.digest }}
 
       - name: Install Bom
         shell: bash
@@ -121,23 +121,23 @@ jobs:
         shell: bash
         # To-Do: generate SBOM from source after https://github.com/kubernetes-sigs/bom/issues/202 is fixed
         run: |
-          bom generate -o sbom_cilium-envoy_${{ github.event.pull_request.head.sha }}.spdx --format=json --image=quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
+          bom generate -o sbom_cilium-envoy_${{ github.event.pull_request.head.sha }}.spdx --format=json --image=quay.io/${{ QUAY_USERNAME }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}
 
       - name: Attach SBOM to container images
         run: |
-          cosign attach sbom --sbom sbom_cilium-envoy_${{ github.event.pull_request.head.sha }}.spdx quay.io/${{ github.repository_owner }}/cilium-envoy-dev@${{ steps.docker_build_ci.outputs.digest }}
+          cosign attach sbom --sbom sbom_cilium-envoy_${{ github.event.pull_request.head.sha }}.spdx quay.io/${{ QUAY_USERNAME }}/cilium-envoy-dev@${{ steps.docker_build_ci.outputs.digest }}
 
       - name: Sign SBOM Image
         run: |
           docker_build_ci_digest="${{ steps.docker_build_ci.outputs.digest }}"
-          image_name="quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${docker_build_ci_digest/:/-}.sbom"
+          image_name="quay.io/${{ QUAY_USERNAME }}/cilium-envoy-dev:${docker_build_ci_digest/:/-}.sbom"
           docker_build_ci_sbom_digest="sha256:$(docker buildx imagetools inspect --raw ${image_name} | sha256sum | head -c 64)"
-          cosign sign -y "quay.io/${{ github.repository_owner }}/cilium-envoy-dev@${docker_build_ci_sbom_digest}"
+          cosign sign -y "quay.io/${{ QUAY_USERNAME }}/cilium-envoy-dev@${docker_build_ci_sbom_digest}"
 
       - name: Envoy binary version check
         shell: bash
         run: |
-          envoy_version=$(docker run --rm quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }} cilium-envoy --version)
+          envoy_version=$(docker run --rm quay.io/${{ QUAY_USERNAME }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }} cilium-envoy --version)
           expected_version=$(echo ${{ env.ENVOY_PATCH_RELEASE }} | sed 's/^v//')
           echo ${envoy_version}
           [[ "${envoy_version}" == *"${{ github.event.pull_request.head.sha }}/$expected_version"* ]]
@@ -146,4 +146,4 @@ jobs:
         shell: bash
         run: |
           echo "Digests:"
-          echo "quay.io/${{ github.repository_owner }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ci.outputs.digest }}"
+          echo "quay.io/${{ QUAY_USERNAME }}/cilium-envoy-dev:${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ci.outputs.digest }}"
