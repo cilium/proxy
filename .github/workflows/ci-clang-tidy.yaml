@@ -28,7 +28,6 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "ENVOY_VERSION=$(cat ENVOY_VERSION)" >> $GITHUB_ENV
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
           # git diff filter has everything else than deleted files (those need not be tidied)
           echo "TIDY_SOURCES=$(git diff --name-only --diff-filter=ACMRTUXB HEAD^1 | grep -E '(.h$|.cc$)' | tr '\n' ' ')" >> $GITHUB_ENV
@@ -39,7 +38,7 @@ jobs:
         run: until docker manifest inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }} &> /dev/null; do sleep 15s; done
 
       - name: Run clang-tidy
-        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
         # skip if nothing changed
         if: ${{ env.TIDY_SOURCES != '' }}
         id: docker_clang_tidy
@@ -64,8 +63,8 @@ jobs:
 
       - name: Upload clang-tidy results
         if: failure()
-        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: clang-tidy-results
-          path: clang-tidy-results/
+          path: clang-tidy-results
           retention-days: 5
