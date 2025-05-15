@@ -53,7 +53,6 @@ jobs:
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
             TIDY_SOURCES=${{ env.TIDY_SOURCES }}
-          cache-from: type=local,src=/tmp/buildx-cache
           push: false
 
       - name: Check for failure
