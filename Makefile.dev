@@ -60,14 +60,14 @@ TIDY_JOBS ?= $$(( $(shell sed -n "s/^MemAvailable: *\([0-9]*\).*\$$/\1/p" /proc/
 # tidy uses clang-tidy-17, .clang-tidy must be present in the project directory and configured to
 # ignore the same headers as .clangd. Unfortunately the configuration format is different.
 tidy: compile_commands.json force-non-root
-	run-clang-tidy-17 -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES)
+	run-clang-tidy-17 -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy check failed, run 'make tidy-fix' locally to fix tidy errors."
 
 tidy-fix: compile_commands.json force-non-root
 	echo "clang-tidy fix results can contain duplicate includes, check before committing!"
-	run-clang-tidy-17 -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES)
+	run-clang-tidy-17 -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy fix produced changes, please commit them."
 
 format: force-non-root
-	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make fix' locally to fix formatting errors."
+	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make format-fix' locally to fix formatting errors."
 
 format-fix: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
