@@ -56,8 +56,7 @@ jobs:
 
       - name: Check for failure
         run: |
-          if grep -q "^make:.*Error" clang-tidy-results/clang-tidy-output.txt; then
-            git diff > clang-tidy-results/clang-tidy-diff.txt
+          if grep -q "^clang-tidy fix produced changes, please commit them." clang-tidy-results/clang-tidy-output.txt; then
             exit 1
           fi
 
