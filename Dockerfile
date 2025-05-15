@@ -110,7 +110,8 @@ COPY --from=check-format /cilium/proxy/format-output.txt /
 FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS run-clang-tidy-fix
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
-COPY --chown=1337:1337 . ./
+COPY --chown=1337:1337 . ./a
+COPY --chown=1337:1337 . ./b
 ARG V
 ARG BAZEL_BUILD_OPTS
 ARG DEBUG
@@ -120,10 +121,10 @@ ENV TARGETARCH=$TARGETARCH
 #
 # Run clang tidy
 #
-RUN TIDY_SOURCES="${TIDY_SOURCES}" BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS}" PKG_BUILD=1 V=$V DEBUG=$DEBUG make V=1 tidy-fix > clang-tidy-output.txt
+RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache TIDY_SOURCES="${TIDY_SOURCES}" BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS}" PKG_BUILD=1 V=$V DEBUG=$DEBUG make -C b V=1 tidy-fix 2>&1 | tee /cilium/proxy/clang-tidy-output.txt && for file in ${TIDY_SOURCES}; do echo "\$ diff a/$file b/$file"  >> /cilium/proxy/clang-tidy-diff.txt && diff "a/$file" "b/$file" >> /cilium/proxy/clang-tidy-diff.txt || true; done
 
 FROM scratch AS clang-tidy
-COPY --from=run-clang-tidy-fix /cilium/proxy/clang-tidy-output.txt /
+COPY --from=run-clang-tidy-fix /cilium/proxy/*.txt /
 
 #
 # Extract installed cilium-envoy binaries to an otherwise empty image
