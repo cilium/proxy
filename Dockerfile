@@ -96,6 +96,7 @@ COPY --chown=1337:1337 . ./
 ARG V
 ARG BAZEL_BUILD_OPTS
 ARG DEBUG
+ARG TARGETARCH
 ENV TARGETARCH=$TARGETARCH
 #
 # Check format
@@ -114,6 +115,7 @@ ARG V
 ARG BAZEL_BUILD_OPTS
 ARG DEBUG
 ARG TIDY_SOURCES="cilium/*.h cilium/*.cc tests/*.h tests/*.cc starter/*.h starter/*.cc"
+ARG TARGETARCH
 ENV TARGETARCH=$TARGETARCH
 #
 # Run clang tidy
