@@ -40,6 +40,8 @@ jobs:
 
       - name: Run clang-tidy
         uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        # skip if nothing changed
+        if: ${{ env.TIDY_SOURCES != '' }}
         id: docker_clang_tidy
         with:
           target: clang-tidy
@@ -50,6 +52,7 @@ jobs:
           outputs: type=local,dest=clang-tidy-results
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
+            TIDY_SOURCES=${{ env.TIDY_SOURCES }}
           cache-from: type=local,src=/tmp/buildx-cache
           push: false
 
