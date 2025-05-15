@@ -39,6 +39,7 @@
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/api/bpf_metadata.pb.validate.h" // IWYU pragma: keep
 #include "cilium/conntrack.h"
+#include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
 #include "cilium/host_map.h"
 #include "cilium/ipcache.h"
@@ -557,8 +558,15 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
         StreamInfo::FilterState::StateType::ReadOnly, StreamInfo::FilterState::LifeSpan::Connection,
         StreamInfo::StreamSharingMayImpactPooling::SharedWithUpstreamConnection);
 
+    const auto dest_fs = socket_metadata->buildCiliumDestinationFilterState();
+    cb.filterState().setData(
+        Cilium::CiliumDestinationFilterState::key(), dest_fs,
+        StreamInfo::FilterState::StateType::Mutable, StreamInfo::FilterState::LifeSpan::Connection,
+        StreamInfo::StreamSharingMayImpactPooling::SharedWithUpstreamConnection);
+
     // Restoring original source address on the upstream socket
-    socket_options->push_back(socket_metadata->buildSourceAddressSocketOption(config_->so_linger_));
+    socket_options->push_back(
+        socket_metadata->buildSourceAddressSocketOption(config_->so_linger_, dest_fs));
 
     if (config_->addPrivilegedSocketOptions()) {
       // adding SO_MARK (Cilium mark) on the upstream socket
@@ -573,7 +581,7 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
 
   // allow reuse of the original source address by setting SO_REUSEADDR.
   // This may by needed for retries to not fail on "address already in use"
-  // when using a specifis source address and port.
+  // when using a specific source address and port.
   socket_options->push_back(std::make_shared<Envoy::Network::SocketOptionImpl>(
       envoy::config::core::v3::SocketOption::STATE_PREBIND,
       Envoy::Network::SocketOptionName(SOL_SOCKET, SO_REUSEADDR, "SO_REUSEADDR"), 1));
