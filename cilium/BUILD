@@ -78,6 +78,7 @@ envoy_cc_library(
     repository = "@envoy",
     deps = [
         "privileged_service_client_lib",
+        "//cilium:filter_state_lib",
         "@envoy//source/common/common:hex_lib",
         "@envoy//source/common/network:address_lib",
     ],
@@ -86,9 +87,11 @@ envoy_cc_library(
 envoy_cc_library(
     name = "filter_state_lib",
     srcs = [
+        "filter_state_cilium_destination.cc",
         "filter_state_cilium_policy.cc",
     ],
     hdrs = [
+        "filter_state_cilium_destination.h",
         "filter_state_cilium_policy.h",
     ],
     repository = "@envoy",

@@ -12,6 +12,7 @@
 #include "source/common/common/logger.h"
 
 #include "absl/numeric/int128.h"
+#include "cilium/filter_state_cilium_destination.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -20,11 +21,12 @@ SourceAddressSocketOption::SourceAddressSocketOption(
     uint32_t source_identity, int linger_time,
     Network::Address::InstanceConstSharedPtr original_source_address,
     Network::Address::InstanceConstSharedPtr ipv4_source_address,
-    Network::Address::InstanceConstSharedPtr ipv6_source_address)
+    Network::Address::InstanceConstSharedPtr ipv6_source_address,
+    std::shared_ptr<CiliumDestinationFilterState> dest_fs)
     : source_identity_(source_identity), linger_time_(linger_time),
       original_source_address_(std::move(original_source_address)),
       ipv4_source_address_(std::move(ipv4_source_address)),
-      ipv6_source_address_(std::move(ipv6_source_address)) {
+      ipv6_source_address_(std::move(ipv6_source_address)), dest_fs_(std::move(dest_fs)) {
   ENVOY_LOG(debug,
             "Cilium SourceAddressSocketOption(): source_identity: {}, linger_time: {}, "
             "source_addresses: {}/{}/{}",
@@ -61,6 +63,17 @@ bool SourceAddressSocketOption::setOption(
   if (!source_address) {
     ENVOY_LOG(trace, "Skipping restore of local address on socket: {} - no source address",
               socket.ioHandle().fdDoNotUse());
+    return true;
+  }
+
+  if (source_address->ip() && dest_fs_->getDestinationAddress() &&
+      dest_fs_->getDestinationAddress()->ip() &&
+      source_address->ip()->addressAsString() ==
+          dest_fs_->getDestinationAddress()->ip()->addressAsString()) {
+    ENVOY_LOG(trace,
+              "Skipping restore of local address on socket: {} - source address is same as "
+              "destination address {}",
+              socket.ioHandle().fdDoNotUse(), source_address->ip()->addressAsString());
     return true;
   }
 
