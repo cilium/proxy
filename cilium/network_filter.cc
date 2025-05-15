@@ -30,6 +30,7 @@
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/network_filter.pb.h"
 #include "cilium/api/network_filter.pb.validate.h" // IWYU pragma: keep
+#include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
 #include "cilium/proxylib.h"
 #include "proxylib/types.h"
@@ -114,6 +115,15 @@ Network::FilterStatus Instance::onNewConnection() {
   // Default to incoming destination port, may be changed for L7 LB
   destination_port_ = policy_fs->port_;
 
+  const auto dest_fs =
+      conn.streamInfo().filterState()->getDataMutable<Cilium::CiliumDestinationFilterState>(
+          Cilium::CiliumDestinationFilterState::key());
+
+  if (!dest_fs) {
+    ENVOY_CONN_LOG(warn, "cilium.network: Cilium destination filter state not found", conn);
+    return Network::FilterStatus::StopIteration;
+  }
+
   // Pass SNI before the upstream callback so that it is available when upstream connection is
   // initialized.
   const auto sni = conn.requestedServerName();
@@ -140,7 +150,7 @@ Network::FilterStatus Instance::onNewConnection() {
     }
   }
 
-  callbacks_->addUpstreamCallback([this, policy_fs,
+  callbacks_->addUpstreamCallback([this, policy_fs, dest_fs,
                                    sni](Upstream::HostDescriptionConstSharedPtr host,
                                         StreamInfo::StreamInfo& stream_info) -> bool {
     // Skip enforcement or logging on shadows
@@ -162,12 +172,19 @@ Network::FilterStatus Instance::onNewConnection() {
       ENVOY_CONN_LOG(warn, "cilium.network (egress): No destination address", conn);
       return false;
     }
+
     const auto dip = dst_address->ip();
     if (!dip) {
       ENVOY_CONN_LOG(warn, "cilium.network: Non-IP destination address: {}", conn,
                      dst_address->asString());
       return false;
     }
+
+    // Set the destination address in the filter state, so that we can use it later when
+    // the socket option is set for local address
+    ENVOY_CONN_LOG(debug, "cilium.network (egress): destination address: {}", conn,
+                   dst_address->asString());
+    dest_fs->setDestinationAddress(dst_address);
 
     if (policy_fs->ingress_) {
       remote_id_ = policy_fs->source_identity_;
