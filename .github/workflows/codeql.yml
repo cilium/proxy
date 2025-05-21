@@ -3,8 +3,8 @@ name: CodeQL
 on: 
   workflow_dispatch:
   schedule:
-    # Run at the end of every Monday
-    - cron: '0 0 * * 1'
+    # Run at the end of every day from Monday to Friday
+    - cron: '0 0 * * 1-5'
 
 jobs:
   analyze:
@@ -68,3 +68,67 @@ jobs:
         uses: github/codeql-action/analyze@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3
         with:
           category: '/language:${{matrix.config.language}}'
+          output: sarif-output-${{ matrix.config.language }}.sarif
+      - name: Filter SARIF Results
+        run: |
+          REPO_URL="https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/"
+          jq --arg baseUrl "$REPO_URL" '[.runs[].results[] |
+            {
+              ruleId: .ruleId,
+              message: .message.text,
+              url: "\($baseUrl)\(.locations[0].physicalLocation.artifactLocation.uri)#L\(.locations[0].physicalLocation.region.startLine)\(if .locations[0].physicalLocation.region.endLine != null then "-L\(.locations[0].physicalLocation.region.endLine)" else "" end)"
+            }]' sarif-output-${{ matrix.config.language }}.sarif/${{ matrix.config.language }}.sarif > filtered-${{ matrix.config.language }}.json
+      - name: Display Filtered Results
+        run: cat filtered-${{ matrix.config.language }}.json
+      - name: Send Slack Notification
+        env:
+          SEC_BOT_SLACK_WEBHOOK: ${{ secrets.SEC_BOT_SLACK_WEBHOOK }}
+          CHANNEL: "#security-team"
+        run: |
+          jq -c '.[]' filtered-${{ matrix.config.language }}.json | while read -r item; do
+            RULE_ID=$(echo "$item" | jq -r '.ruleId')
+            MESSAGE=$(echo "$item" | jq -r '.message')
+            URL=$(echo "$item" | jq -r '.url')
+
+            PAYLOAD=$(cat <<EOF
+          {
+            "channel": "$CHANNEL",
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "🚨 CodeQL Alert for ${{ matrix.config.language }} 🚨",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Rule:* $RULE_ID"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Message:* $MESSAGE"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*File:* $URL"
+                }
+              }
+            ]
+          }
+          EOF
+            )
+
+            curl -X POST -H "Authorization: Bearer $SEC_BOT_SLACK_WEBHOOK" \
+                  -H "Content-type: application/json" \
+                  --data-raw "$PAYLOAD" https://slack.com/api/chat.postMessage
+          done
