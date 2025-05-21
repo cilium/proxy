@@ -163,13 +163,19 @@ jobs:
 
     - name: Execute Cilium L7 Connectivity Tests
       shell: bash
-      run: cilium connectivity test --test="l7|sni|tls|ingress|check-log-errors" --curl-parallel=${{ env.CURL_PARALLEL }} --collect-sysdump-on-failure --flush-ct --sysdump-hubble-flows-count=100000 --sysdump-hubble-flows-timeout=15s
+      run: |
+        cilium connectivity test \
+        --test="l7|sni|tls|ingress|check-log-errors" \
+        --curl-parallel=${{ env.CURL_PARALLEL }} \
+        --collect-sysdump-on-failure --flush-ct \
+        --sysdump-hubble-flows-count=100000 \
+        --sysdump-hubble-flows-timeout=15s \
+        --test-concurrency=5
 
     - name: Gather Cilium system dump
       if: failure()
       shell: bash
       run: cilium sysdump --output-filename cilium-sysdump-final
-
 
     - name: Upload Cilium system dump
       if: failure()
