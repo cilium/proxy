@@ -37,14 +37,14 @@ ENVOY_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(ENVOY_RAW_PROTOS))
 ENVOY_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(ENVOY_API_PROTOS))
 ENVOY_PROTO_DIRS := $(sort $(dir $(ENVOY_PROTO_SOURCES)))
 # Produce a raw list of package mappings
-RAW_GO_MAPPINGS := $(foreach proto,$(ENVOY_API_PROTOS),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
+RAW_GO_MAPPINGS := $(foreach proto,$(ENVOY_API_PROTOS),$(proto)=github.com/envoyproxy/go-control-plane/$(dir $(proto)))
 
 CONTRIB_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/contrib -not -path "*/v3alpha*" \( -name *.proto \) -print))
 CONTRIB_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(CONTRIB_RAW_PROTOS))
 CONTRIB_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(CONTRIB_API_PROTOS))
 CONTRIB_PROTO_DIRS := $(sort $(dir $(CONTRIB_PROTO_SOURCES)))
 # Produce a raw list of package mappings
-RAW_GO_MAPPINGS += $(foreach proto,$(CONTRIB_API_PROTOS),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
+RAW_GO_MAPPINGS += $(foreach proto,$(CONTRIB_API_PROTOS),$(proto)=github.com/envoyproxy/go-control-plane/contrib/$(dir $(proto)))
 
 CILIUM_PROTO_SOURCES := \
 	cilium/api/accesslog.proto \
@@ -84,24 +84,8 @@ export PATH:=$(HOME)/go/bin:$(PATH)
 
 all: cilium-go-targets
 
-.PHONY: envoy-go-targets
-envoy-go-targets: $(ENVOY_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api
-	$(QUIET)set -e; \
-	for path in $(ENVOY_PROTO_DIRS) ; do \
-		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT)" --go_opt=module=github.com/cilium/proxy/go "--validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)" --validate_opt=module=github.com/envoyproxy/go-control-plane $${path}*.proto; \
-	done
-
-.PHONY: contrib-go-targets
-contrib-go-targets: $(CONTRIB_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api envoy-go-targets
-	$(QUIET)set -e; \
-	for path in $(CONTRIB_PROTO_DIRS) ; do \
-		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT)" --go_opt=module=github.com/cilium/proxy/go "--validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)/contrib/envoy" --validate_opt=module=github.com/envoyproxy/go-control-plane/envoy $${path}*.proto; \
-	done
-
 .PHONY: cilium-go-targets
-cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api contrib-go-targets
+cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api
 	$(QUIET)set -e; \
 	for path in $(CILIUM_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
