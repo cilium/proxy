@@ -12,7 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
-	envoy_service_discovery "github.com/cilium/proxy/go/envoy/service/discovery/v3"
+	envoy_service_discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 )
 
 type PolicyClient interface {
