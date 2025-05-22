@@ -18,7 +18,7 @@ import (
 
 	"google.golang.org/protobuf/types/known/anypb"
 
-	v3 "github.com/cilium/proxy/go/envoy/config/core/v3"
+	v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 )
 
 // ensure the imports are used
@@ -174,7 +174,7 @@ type NetworkPolicyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m NetworkPolicyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -332,7 +332,7 @@ type PortNetworkPolicyMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m PortNetworkPolicyMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -443,7 +443,7 @@ type TLSContextMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m TLSContextMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -737,7 +737,7 @@ type PortNetworkPolicyRuleMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m PortNetworkPolicyRuleMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -884,7 +884,7 @@ type HttpNetworkPolicyRulesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpNetworkPolicyRulesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1004,7 +1004,7 @@ type HeaderMatchMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HeaderMatchMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1172,7 +1172,7 @@ type HttpNetworkPolicyRuleMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpNetworkPolicyRuleMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1319,7 +1319,7 @@ type KafkaNetworkPolicyRulesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m KafkaNetworkPolicyRulesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1456,7 +1456,7 @@ type KafkaNetworkPolicyRuleMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m KafkaNetworkPolicyRuleMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1630,7 +1630,7 @@ type L7NetworkPolicyRulesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m L7NetworkPolicyRulesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1770,7 +1770,7 @@ type L7NetworkPolicyRuleMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m L7NetworkPolicyRuleMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1906,7 +1906,7 @@ type NetworkPoliciesConfigDumpMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m NetworkPoliciesConfigDumpMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
