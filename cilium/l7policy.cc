@@ -209,8 +209,11 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
         callbacks_->streamInfo(), headers);
   }
 
-  allowed_ = policy_fs->enforceHTTPPolicy(conn.ref(), !config_->is_upstream_, destination_identity,
-                                          destination_port, headers, *log_entry_);
+  allowed_ =
+      dip->addressAsString() == policy_fs->pod_ip_
+          ? true
+          : policy_fs->enforceHTTPPolicy(conn.ref(), !config_->is_upstream_, destination_identity,
+                                         destination_port, headers, *log_entry_);
 
   ENVOY_CONN_LOG(
       debug, "cilium.l7policy: {} ({}->{}) {} policy lookup for endpoint {} for port {}: {}",
