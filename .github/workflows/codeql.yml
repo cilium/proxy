@@ -1,10 +1,7 @@
 name: CodeQL
 
-on: 
-  workflow_dispatch:
-  schedule:
-    # Run at the end of every Monday
-    - cron: '0 0 * * 1'
+on:
+  push
 
 jobs:
   analyze:
@@ -68,3 +65,47 @@ jobs:
         uses: github/codeql-action/analyze@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3
         with:
           category: '/language:${{matrix.config.language}}'
+          output: sarif-output-${{ matrix.config.language }}.sarif
+      - name: Filter SARIF Results
+        run: |
+          REPO_URL="https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/"
+          jq --arg baseUrl "$REPO_URL" '.runs[].results[] |
+            {
+              ruleId: .ruleId,
+              message: .message.text,
+              url: "\($baseUrl)\(.locations[0].physicalLocation.artifactLocation.uri)#L\(.locations[0].physicalLocation.region.startLine)\(if .locations[0].physicalLocation.region.endLine != null then "-L\(.locations[0].physicalLocation.region.endLine)" else "" end)"
+            }' sarif-output-${{ matrix.config.language }}.sarif/${{ matrix.config.language }}.sarif > filtered-${{ matrix.config.language }}.json
+      - name: Display Filtered Results
+        run: cat filtered-${{ matrix.config.language }}.json
+      - name: Send Slack Notification
+        env:
+          SEC_BOT_SLACK_WEBHOOK: ${{ secrets.SEC_BOT_SLACK_WEBHOOK }}
+          CHANNEL: "#a-new-private-channel-in-this-slack-org-for-kyle-and-feroz-to-test-some-security"
+        run: |
+          PAYLOAD=$(cat <<EOF
+          {
+            "channel": "$CHANNEL",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "plain_text",
+                  "text": "Hello! This is a test.",
+                  "emoji": true
+                }
+              }
+            ]
+          }
+          EOF
+          )
+          
+          # Debug the generated payload
+          echo "Generated Payload:"
+          echo "$PAYLOAD" | jq .
+          # Debug the generated JSON
+          echo "${ALERTS}" | jq .
+
+          # Send the alerts as a Slack message
+          curl -X POST -H "Authorization: Bearer $SEC_BOT_SLACK_WEBHOOK" \
+                -H "Content-type: application/json" \
+                --data-raw "$PAYLOAD" https://slack.com/api/chat.postMessage
