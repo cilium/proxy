@@ -9,7 +9,6 @@
     '.github/workflows/**',
     'Dockerfile',
     'Dockerfile.builder',
-    'Dockerfile.builder.tests',
     'Dockerfile.tests',
     'go.mod',
     'go.sum',
@@ -218,7 +217,6 @@
         '/^Dockerfile$/',
         '/^Dockerfile.builder$/',
         '/^Dockerfile.tests$/',
-        '/^Dockerfile.builder.tests$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)( versioning=(?<versioning>.*?))?\\sENV .*?_VERSION=(?<currentValue>.*)\\s',

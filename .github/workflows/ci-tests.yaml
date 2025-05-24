@@ -67,10 +67,10 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $3 }')" >> $GITHUB_ENV
+          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
 
       - name: Checking if cilium-envoy-builder image exists
-        id: cilium-builder-tests-tag-in-repositories
+        id: cilium-builder-tag-in-repositories
         shell: bash
         run: |
           if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
@@ -81,15 +81,15 @@ jobs:
 
       - name: PR Multi-arch build & push of Builder image (dev)
         uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
-        if: steps.cilium-builder-tests-tag-in-repositories.outputs.exists == 'false'
+        if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
         id: docker_build_builder_tests_ci
         with:
           provenance: false
           context: .
-          file: ./Dockerfile.builder.tests
+          file: ./Dockerfile.builder
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BUILDER_DOCKER_HASH }}
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
 
       - name: Run integration tests on amd64
         uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
@@ -100,8 +100,8 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:test-${{ env.BUILDER_DOCKER_HASH }}
-            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:main-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
             BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1 --flaky_test_attempts=3
           cache-from: type=local,src=/tmp/buildx-cache
