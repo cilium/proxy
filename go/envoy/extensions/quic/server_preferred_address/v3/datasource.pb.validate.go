@@ -132,7 +132,7 @@ type DataSourceServerPreferredAddressConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DataSourceServerPreferredAddressConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -337,7 +337,7 @@ type DataSourceServerPreferredAddressConfig_AddressFamilyConfigMultiError []erro
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m DataSourceServerPreferredAddressConfig_AddressFamilyConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

@@ -232,7 +232,7 @@ type CompressorMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CompressorMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -361,7 +361,7 @@ type ResponseDirectionOverridesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ResponseDirectionOverridesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -492,7 +492,7 @@ type CompressorOverridesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CompressorOverridesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -676,7 +676,7 @@ type CompressorPerRouteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CompressorPerRouteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -838,7 +838,7 @@ type Compressor_CommonDirectionConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Compressor_CommonDirectionConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -972,7 +972,7 @@ type Compressor_RequestDirectionConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Compressor_RequestDirectionConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1095,6 +1095,37 @@ func (m *Compressor_ResponseDirectionConfig) validate(all bool) error {
 
 	// no validation rules for RemoveAcceptEncodingHeader
 
+	_Compressor_ResponseDirectionConfig_UncompressibleResponseCodes_Unique := make(map[uint32]struct{}, len(m.GetUncompressibleResponseCodes()))
+
+	for idx, item := range m.GetUncompressibleResponseCodes() {
+		_, _ = idx, item
+
+		if _, exists := _Compressor_ResponseDirectionConfig_UncompressibleResponseCodes_Unique[item]; exists {
+			err := Compressor_ResponseDirectionConfigValidationError{
+				field:  fmt.Sprintf("UncompressibleResponseCodes[%v]", idx),
+				reason: "repeated value must contain unique items",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		} else {
+			_Compressor_ResponseDirectionConfig_UncompressibleResponseCodes_Unique[item] = struct{}{}
+		}
+
+		if val := item; val < 200 || val >= 600 {
+			err := Compressor_ResponseDirectionConfigValidationError{
+				field:  fmt.Sprintf("UncompressibleResponseCodes[%v]", idx),
+				reason: "value must be inside range [200, 600)",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
 	if len(errors) > 0 {
 		return Compressor_ResponseDirectionConfigMultiError(errors)
 	}
@@ -1110,7 +1141,7 @@ type Compressor_ResponseDirectionConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m Compressor_ResponseDirectionConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

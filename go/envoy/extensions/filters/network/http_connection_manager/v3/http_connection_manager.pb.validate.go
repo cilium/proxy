@@ -1264,7 +1264,7 @@ type HttpConnectionManagerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpConnectionManagerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1433,7 +1433,7 @@ type LocalReplyConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m LocalReplyConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1691,7 +1691,7 @@ type ResponseMapperMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ResponseMapperMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1831,7 +1831,7 @@ type RdsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RdsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1976,7 +1976,7 @@ type ScopedRouteConfigurationsListMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRouteConfigurationsListMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2258,7 +2258,7 @@ type ScopedRoutesMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRoutesMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2399,7 +2399,7 @@ type ScopedRdsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRdsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2600,7 +2600,7 @@ type HttpFilterMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpFilterMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2729,7 +2729,7 @@ type RequestIDExtensionMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RequestIDExtensionMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -2862,7 +2862,7 @@ type EnvoyMobileHttpConnectionManagerMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m EnvoyMobileHttpConnectionManagerMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3175,7 +3175,7 @@ type HttpConnectionManager_TracingMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpConnectionManager_TracingMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3317,7 +3317,7 @@ type HttpConnectionManager_InternalAddressConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpConnectionManager_InternalAddressConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3460,7 +3460,7 @@ type HttpConnectionManager_SetCurrentClientCertDetailsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpConnectionManager_SetCurrentClientCertDetailsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3637,7 +3637,7 @@ type HttpConnectionManager_UpgradeConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpConnectionManager_UpgradeConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3801,7 +3801,7 @@ type HttpConnectionManager_PathNormalizationOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpConnectionManager_PathNormalizationOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -3947,7 +3947,7 @@ type HttpConnectionManager_ProxyStatusConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpConnectionManager_ProxyStatusConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4087,7 +4087,7 @@ type HttpConnectionManager_HcmAccessLogOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpConnectionManager_HcmAccessLogOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4235,7 +4235,7 @@ type ScopedRoutes_ScopeKeyBuilderMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRoutes_ScopeKeyBuilderMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4399,7 +4399,7 @@ type ScopedRoutes_ScopeKeyBuilder_FragmentBuilderMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRoutes_ScopeKeyBuilder_FragmentBuilderMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4589,7 +4589,7 @@ type ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HeaderValueExtractorMultiError
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HeaderValueExtractorMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -4732,7 +4732,7 @@ type ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HeaderValueExtractor_KvElement
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ScopedRoutes_ScopeKeyBuilder_FragmentBuilder_HeaderValueExtractor_KvElementMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

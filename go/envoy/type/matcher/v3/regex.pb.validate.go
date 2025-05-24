@@ -127,7 +127,7 @@ type RegexMatcherMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RegexMatcherMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -278,7 +278,7 @@ type RegexMatchAndSubstituteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RegexMatchAndSubstituteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -411,7 +411,7 @@ type RegexMatcher_GoogleRE2MultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m RegexMatcher_GoogleRE2MultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

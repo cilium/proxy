@@ -511,7 +511,7 @@ type ExtAuthzMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ExtAuthzMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -626,7 +626,7 @@ type BufferSettingsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m BufferSettingsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -814,7 +814,7 @@ type HttpServiceMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpServiceMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -977,7 +977,7 @@ type AuthorizationRequestMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AuthorizationRequestMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1224,7 +1224,7 @@ type AuthorizationResponseMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m AuthorizationResponseMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1326,18 +1326,7 @@ func (m *ExtAuthzPerRoute) validate(all bool) error {
 			errors = append(errors, err)
 		}
 		oneofOverridePresent = true
-
-		if m.GetDisabled() != true {
-			err := ExtAuthzPerRouteValidationError{
-				field:  "Disabled",
-				reason: "value must equal true",
-			}
-			if !all {
-				return err
-			}
-			errors = append(errors, err)
-		}
-
+		// no validation rules for Disabled
 	case *ExtAuthzPerRoute_CheckSettings:
 		if v == nil {
 			err := ExtAuthzPerRouteValidationError{
@@ -1419,7 +1408,7 @@ type ExtAuthzPerRouteMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m ExtAuthzPerRouteMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -1552,7 +1541,7 @@ type CheckSettingsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m CheckSettingsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}

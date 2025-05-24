@@ -334,7 +334,7 @@ type HttpProtocolOptionsMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpProtocolOptionsMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -581,7 +581,7 @@ type HttpProtocolOptions_ExplicitHttpConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpProtocolOptions_ExplicitHttpConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -774,7 +774,7 @@ type HttpProtocolOptions_UseDownstreamHttpConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpProtocolOptions_UseDownstreamHttpConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
@@ -995,7 +995,7 @@ type HttpProtocolOptions_AutoHttpConfigMultiError []error
 
 // Error returns a concatenation of all the error messages it wraps.
 func (m HttpProtocolOptions_AutoHttpConfigMultiError) Error() string {
-	var msgs []string
+	msgs := make([]string, 0, len(m))
 	for _, err := range m {
 		msgs = append(msgs, err.Error())
 	}
