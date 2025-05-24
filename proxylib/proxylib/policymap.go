@@ -11,7 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
-	core "github.com/cilium/proxy/go/envoy/config/core/v3"
+	core "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 )
 
 // L7NetworkPolicyRule is the interface, which each L7 rule implements this interface

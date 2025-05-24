@@ -4,8 +4,6 @@ option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
 
 package cilium;
 
-import "google/protobuf/wrappers.proto";
-
 message L7Policy {
   // Path to the unix domain socket for the cilium access log.
   string access_log_path = 1;
