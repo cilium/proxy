@@ -1,7 +1,7 @@
 # 
 # BUILDER_BASE is a multi-platform image with all the build tools
 #
-ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.1.0-latest@sha256:9209b86ec2ca1de5a1d71be16be2fec7f9d6c9cee56fe00889b8aa54868bb8f8
+ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.5.0-latest@sha256:3f98b069a4c4737d8252fdf47f77d9f7e27ef5acb1bec13af3619180d6baee23
 
 # Common Builder image used in cilium/cilium
 ARG PROXYLIB_BUILDER=quay.io/cilium/cilium-builder:767c4152bb156a879fca4c5b76f445de4b4cdaa9@sha256:26392846fa25ab2607c120ece242d61365724a5f21e85f5733f72221637b70fa
