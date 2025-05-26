@@ -15,6 +15,105 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-cache-refresh:
+    timeout-minutes: 360
+    name: Build test cache and push images
+    runs-on: ubuntu-latest-64-cores-256gb
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        with:
+          image: tonistiigi/binfmt:qemu-v7.0.0-28
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Login to quay.io
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_ENVOY_USERNAME }}
+          password: ${{ secrets.QUAY_ENVOY_PASSWORD }}
+
+      - name: Checkout source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Prep for build
+        run: |
+          echo "${{ github.sha }}" >SOURCE_VERSION
+          echo "ENVOY_MINOR_RELEASE=$(cat ENVOY_VERSION | sed 's/envoy-\([0-9]\+\.[0-9]\+\)\..*/v\1/')" >> $GITHUB_ENV
+          echo "ENVOY_PATCH_RELEASE=$(cat ENVOY_VERSION | sed 's/^envoy-\([0-9]\+\.[0-9]\+\.[0-9]\+$\)/v\1/')" >> $GITHUB_ENV
+          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder.tests | awk '{ print $3 }')" >> $GITHUB_ENV
+
+      - name: Checking if cilium-envoy-builder:test image exists
+        id: cilium-builder-test-tag-in-repositories
+        shell: bash
+        run: |
+          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+            echo exists="true" >> $GITHUB_OUTPUT
+          else
+            echo exists="false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Multi-arch build & push of Builder image (test)
+        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
+        if: steps.cilium-builder-test-tag-in-repositories.outputs.exists == 'false'
+        id: docker_build_builder_test
+        with:
+          provenance: false
+          context: .
+          file: ./Dockerfile.builder.tests
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }}
+            quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-latest
+
+      - name: Multi-arch update integration test archive
+        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
+        id: docker_tests_ci_build
+        with:
+          context: .
+          file: ./Dockerfile.tests
+          target: builder-archive
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }}
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
+            COPY_CACHE_EXT=.new
+            BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
+            BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1 --flaky_test_attempts=3
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
+
+      - name: Cache Docker layers
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          path: /tmp/buildx-cache
+          key: docker-cache-tests
+
+      - name: Clear cache
+        run: rm -rf /tmp/buildx-cache/*
+
+      - name: Run integration tests on amd64 to update docker cache
+        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
+        id: docker_tests_ci_cache_update
+        with:
+          provenance: false
+          context: .
+          file: ./Dockerfile.tests
+          platforms: linux/amd64
+          build-args: |
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ env.BUILDER_DOCKER_HASH }}
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+            BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1 --flaky_test_attempts=3
+          cache-to: type=local,dest=/tmp/buildx-cache,mode=max
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy:latest-testlogs
+
   build-cache-and-push-images:
     timeout-minutes: 360
     name: Build cache and push images
@@ -67,7 +166,6 @@ jobs:
           tags: |
             quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
             quay.io/${{ github.repository_owner }}/cilium-envoy-builder:latest
-
       - name: Multi-arch build & push of build artifact archive
         uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
         with:
@@ -82,23 +180,6 @@ jobs:
             BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
           push: true
           tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
-
-      - name: Multi-arch update integration test archive
-        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
-        id: docker_tests_ci_build
-        with:
-          context: .
-          file: ./Dockerfile.tests
-          target: builder-archive
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
-            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
-            COPY_CACHE_EXT=.new
-            BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
-            BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1 --flaky_test_attempts=3
-          push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
 
       - name: Cache Docker layers
         uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -131,23 +212,6 @@ jobs:
             quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_MINOR_RELEASE }}-${{ github.sha }}
             quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_PATCH_RELEASE }}-${{ github.sha }}
             quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_PATCH_RELEASE }}-${{ env.SOURCE_TIMESTAMP }}-${{ github.sha }}
-
-      - name: Run integration tests on amd64 to update docker cache
-        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0
-        id: docker_tests_ci_cache_update
-        with:
-          provenance: false
-          context: .
-          file: ./Dockerfile.tests
-          platforms: linux/amd64
-          build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
-            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.ref_name }}-archive-latest
-            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
-            BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1 --flaky_test_attempts=3
-          cache-to: type=local,dest=/tmp/buildx-cache,mode=max
-          push: true
-          tags: quay.io/${{ github.repository_owner }}/cilium-envoy:latest-testlogs
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
