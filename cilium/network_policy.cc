@@ -1216,9 +1216,12 @@ NetworkPolicyMap::~NetworkPolicyMap() {
   ENVOY_LOG(debug, "Cilium L7 NetworkPolicyMap({}): NetworkPolicyMap is deleted NOW!",
             instance_id_);
   // Policy map destruction happens when the last listener with the Cilium bpf_metadata listener
-  // filter has drained out and is finally removed. At this point the listener socket can no
-  // longer receive new traffic and we can simply delete the policy map without synchronizing with
-  // the worker threads.
+  // filter has drained out and is finally removed, and last connection of the old listener is
+  // closed. This does not happen if new listener(s) with references to policy map are created in
+  // the meanwhile.
+  //
+  // Note that this can happen from a worker thread, but since we no longer synchronize with the
+  // worker threads there is no assumption that this would be executed from the main thread only.
   delete load();
 }
 
