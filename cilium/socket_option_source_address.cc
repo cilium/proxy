@@ -3,6 +3,7 @@
 #include <sys/socket.h>
 
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -17,18 +18,20 @@
 
 #include "absl/numeric/int128.h"
 #include "cilium/filter_state_cilium_destination.h"
+#include "cilium/filter_state_cilium_policy.h"
+#include "cilium/policy_id.h"
 
 namespace Envoy {
 namespace Cilium {
 
 SourceAddressSocketOption::SourceAddressSocketOption(
-    uint32_t source_identity, int linger_time,
+    uint32_t source_identity, const PolicyResolverSharedPtr& policy_resolver, int linger_time,
     Network::Address::InstanceConstSharedPtr original_source_address,
     Network::Address::InstanceConstSharedPtr ipv4_source_address,
     Network::Address::InstanceConstSharedPtr ipv6_source_address,
     std::shared_ptr<CiliumDestinationFilterState> dest_fs)
-    : source_identity_(source_identity), linger_time_(linger_time),
-      original_source_address_(std::move(original_source_address)),
+    : source_identity_(source_identity), policy_resolver_(policy_resolver),
+      linger_time_(linger_time), original_source_address_(std::move(original_source_address)),
       ipv4_source_address_(std::move(ipv4_source_address)),
       ipv6_source_address_(std::move(ipv6_source_address)), dest_fs_(std::move(dest_fs)) {
   ENVOY_LOG(debug,
@@ -71,14 +74,42 @@ bool SourceAddressSocketOption::setOption(
   }
 
   if (source_address->ip() && dest_fs_->getDestinationAddress() &&
-      dest_fs_->getDestinationAddress()->ip() &&
-      source_address->ip()->addressAsString() ==
-          dest_fs_->getDestinationAddress()->ip()->addressAsString()) {
-    ENVOY_LOG(trace,
-              "Skipping restore of local address on socket: {} - source address is same as "
-              "destination address {}",
-              socket.ioHandle().fdDoNotUse(), source_address->ip()->addressAsString());
-    return true;
+      dest_fs_->getDestinationAddress()->ip()) {
+    // Skip using original source if hairpinning back to the source, as otherwise Linux would
+    // drop the packet
+    auto destination_ip = dest_fs_->getDestinationAddress()->ip();
+    const auto& destination_ip_str = destination_ip->addressAsString();
+    if (source_address->ip()->addressAsString() == destination_ip_str) {
+      ENVOY_LOG(trace,
+                "Skipping restore of local address on socket: {} - source address is same as "
+                "destination address {}",
+                socket.ioHandle().fdDoNotUse(), destination_ip_str);
+      return true;
+    }
+    // Also skip using original source if destination is a local pod or the local host,
+    // as otherwise there could be 5-tuple collisions, and the local host may not be able to
+    // send replies back to the proxy otherwise.
+    auto destination_identity = policy_resolver_->resolvePolicyId(destination_ip);
+    ENVOY_LOG(trace, "Socket {} destination address {} has security identity {}",
+              socket.ioHandle().fdDoNotUse(), destination_ip_str, destination_identity);
+
+    if (destination_identity == Cilium::ID::Host) {
+      ENVOY_LOG(
+          trace,
+          "Skipping restore of local address on socket: {} - destination is the local host {}",
+          socket.ioHandle().fdDoNotUse(), destination_ip_str);
+      return true;
+    }
+
+    if (policy_resolver_->exists(destination_ip_str)) {
+      ENVOY_LOG(trace,
+                "Skipping restore of local address on socket: {} - destination is a local pod {}",
+                socket.ioHandle().fdDoNotUse(), destination_ip_str);
+      return true;
+    }
+  } else if (source_address->ip()) {
+    ENVOY_LOG(debug, "Destination address filter state for socket {} is not available",
+              socket.ioHandle().fdDoNotUse());
   }
 
   // Note: SO_LINGER option is set on the socket of the upstream connection.

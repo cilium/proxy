@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "envoy/config/core/v3/socket_option.pb.h"
@@ -25,7 +26,8 @@ class SourceAddressSocketOption : public Network::Socket::Option,
                                   public Logger::Loggable<Logger::Id::filter> {
 public:
   SourceAddressSocketOption(
-      uint32_t source_identity, int linger_time = -1,
+      uint32_t source_identity, const PolicyResolverSharedPtr& policy_resolver,
+      int linger_time = -1,
       Network::Address::InstanceConstSharedPtr original_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv4_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv6_source_address = nullptr,
@@ -45,6 +47,11 @@ public:
   bool isSupported() const override { return true; }
 
   uint32_t source_identity_;
+
+  // need information about the destination policy/identity to decide if original source address can
+  // be used or not.
+  const PolicyResolverSharedPtr policy_resolver_;
+
   int linger_time_;
 
   Network::Address::InstanceConstSharedPtr original_source_address_;
