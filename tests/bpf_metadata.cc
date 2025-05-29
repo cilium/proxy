@@ -114,7 +114,7 @@ createPolicyMap(const std::string& config,
         auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
             context.serverFactoryContext().mainThreadDispatcher(),
-            Envoy::Config::makePathConfigSource(policy_path), *map,
+            Envoy::Config::makePathConfigSource(policy_path), map->getImpl(),
             std::make_shared<Cilium::NetworkPolicyDecoder>(), stats,
             ProtobufMessage::getNullValidationVisitor(), context.serverFactoryContext().api());
         map->startSubscription(std::move(subscription));
