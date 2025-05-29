@@ -81,13 +81,14 @@ protected:
     NetworkPolicyDecoder network_policy_decoder;
     const auto decoded_resources = Config::DecodedResourcesWrapper(
         network_policy_decoder, message.resources(), message.version_info());
-    EXPECT_TRUE(
-        policy_map_->onConfigUpdate(decoded_resources.refvec_, message.version_info()).ok());
+    EXPECT_TRUE(policy_map_->getImpl()
+                    .onConfigUpdate(decoded_resources.refvec_, message.version_info())
+                    .ok());
     return message.version_info();
   }
 
   testing::AssertionResult Validate(const std::string& pod_ip, const std::string& expected) {
-    const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
+    const auto& policy = policy_map_->getPolicyInstance(pod_ip, false);
     auto str = policy.String();
     if (str != expected) {
       return testing::AssertionFailure() << "Policy:\n"
@@ -99,7 +100,7 @@ protected:
 
   testing::AssertionResult Allowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
                                    uint16_t port, Http::TestRequestHeaderMapImpl&& headers) {
-    const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
+    const auto& policy = policy_map_->getPolicyInstance(pod_ip, false);
     Cilium::AccessLog::Entry log_entry;
     return policy.allowed(ingress, remote_id, port, headers, log_entry)
                ? testing::AssertionSuccess()
@@ -119,7 +120,7 @@ protected:
   testing::AssertionResult TlsAllowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
                                       uint16_t port, absl::string_view sni,
                                       bool& tls_socket_required, bool& raw_socket_allowed) {
-    const auto& policy = policy_map_->GetPolicyInstance(pod_ip, false);
+    const auto& policy = policy_map_->getPolicyInstance(pod_ip, false);
 
     auto port_policy = policy.findPortPolicy(ingress, port);
     const Envoy::Ssl::ContextConfig* config = nullptr;
@@ -190,7 +191,9 @@ protected:
     return TlsAllowed(false, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
   }
 
-  std::string updatesRejectedStatName() { return policy_map_->stats_.updates_rejected_.name(); }
+  std::string updatesRejectedStatName() {
+    return policy_map_->getImpl().stats_.updates_rejected_.name();
+  }
 
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;
   std::shared_ptr<NetworkPolicyMap> policy_map_;
@@ -202,7 +205,7 @@ TEST_F(CiliumNetworkPolicyTest, UpdatesRejectedStatName) {
 }
 
 TEST_F(CiliumNetworkPolicyTest, EmptyPolicyUpdate) {
-  EXPECT_TRUE(policy_map_->onConfigUpdate({}, "1").ok());
+  EXPECT_TRUE(policy_map_->getImpl().onConfigUpdate({}, "1").ok());
   EXPECT_FALSE(Validate("10.1.2.3", "")); // Policy not found
 }
 

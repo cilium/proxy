@@ -51,7 +51,7 @@ getSDSConfigFunc getSDSConfig = &getCiliumSDSConfig;
 void setSDSConfigFunc(getSDSConfigFunc func) { getSDSConfig = func; }
 void resetSDSConfigFunc() { getSDSConfig = &getCiliumSDSConfig; }
 
-SecretWatcher::SecretWatcher(const NetworkPolicyMap& parent, const std::string& sds_name)
+SecretWatcher::SecretWatcher(const NetworkPolicyMapImpl& parent, const std::string& sds_name)
     : parent_(parent), name_(sds_name),
       secret_provider_(secretProvider(parent.transportFactoryContext(), sds_name)),
       update_secret_(readAndWatchSecret()) {}
@@ -89,7 +89,7 @@ absl::Status SecretWatcher::store() {
 
 const std::string* SecretWatcher::load() const { return ptr_.load(std::memory_order_acquire); }
 
-TLSContext::TLSContext(const NetworkPolicyMap& parent, const std::string& name)
+TLSContext::TLSContext(const NetworkPolicyMapImpl& parent, const std::string& name)
     : manager_(parent.transportFactoryContext().sslContextManager()),
       scope_(parent.transportFactoryContext().serverFactoryContext().serverScope()),
       init_target_(fmt::format("TLS Context {} secret", name), []() {}) {}
@@ -134,7 +134,7 @@ void setCommonConfig(const cilium::TLSContext config,
 
 } // namespace
 
-DownstreamTLSContext::DownstreamTLSContext(const NetworkPolicyMap& parent,
+DownstreamTLSContext::DownstreamTLSContext(const NetworkPolicyMapImpl& parent,
                                            const cilium::TLSContext config)
     : TLSContext(parent, "server") {
   // Server config always needs the TLS certificate to present to the client
@@ -180,7 +180,8 @@ DownstreamTLSContext::DownstreamTLSContext(const NetworkPolicyMap& parent,
     parent.transportFactoryContext().initManager().add(init_target_);
 }
 
-UpstreamTLSContext::UpstreamTLSContext(const NetworkPolicyMap& parent, cilium::TLSContext config)
+UpstreamTLSContext::UpstreamTLSContext(const NetworkPolicyMapImpl& parent,
+                                       cilium::TLSContext config)
     : TLSContext(parent, "client") {
   // Client context always needs the trusted CA for server certificate validation
   // TODO: Default to system default trusted CAs?
