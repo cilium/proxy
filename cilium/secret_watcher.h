@@ -33,7 +33,7 @@ void resetSDSConfigFunc();
 
 class SecretWatcher : public Logger::Loggable<Logger::Id::config> {
 public:
-  SecretWatcher(const NetworkPolicyMap& parent, const std::string& sds_name);
+  SecretWatcher(const NetworkPolicyMapImpl& parent, const std::string& sds_name);
   ~SecretWatcher();
 
   const std::string& name() const { return name_; }
@@ -44,7 +44,7 @@ private:
   absl::Status store();
   const std::string* load() const;
 
-  const NetworkPolicyMap& parent_;
+  const NetworkPolicyMapImpl& parent_;
   const std::string name_;
   std::atomic<std::string*> ptr_{nullptr};
   Secret::GenericSecretConfigProviderSharedPtr secret_provider_;
@@ -58,7 +58,7 @@ public:
   TLSContext() = delete;
 
 protected:
-  TLSContext(const NetworkPolicyMap& parent, const std::string& name);
+  TLSContext(const NetworkPolicyMapImpl& parent, const std::string& name);
 
   Envoy::Ssl::ContextManager& manager_;
   Stats::Scope& scope_;
@@ -68,7 +68,7 @@ protected:
 
 class DownstreamTLSContext : protected TLSContext {
 public:
-  DownstreamTLSContext(const NetworkPolicyMap& parent, const cilium::TLSContext config);
+  DownstreamTLSContext(const NetworkPolicyMapImpl& parent, const cilium::TLSContext config);
   ~DownstreamTLSContext() { manager_.removeContext(server_context_); }
 
   const Ssl::ContextConfig& getTlsContextConfig() const { return *server_config_; }
@@ -87,7 +87,7 @@ using DownstreamTLSContextPtr = std::unique_ptr<DownstreamTLSContext>;
 
 class UpstreamTLSContext : protected TLSContext {
 public:
-  UpstreamTLSContext(const NetworkPolicyMap& parent, cilium::TLSContext config);
+  UpstreamTLSContext(const NetworkPolicyMapImpl& parent, cilium::TLSContext config);
   ~UpstreamTLSContext() { manager_.removeContext(client_context_); }
 
   const Ssl::ContextConfig& getTlsContextConfig() const { return *client_config_; }

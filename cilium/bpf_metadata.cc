@@ -190,11 +190,8 @@ createHostMap(Server::Configuration::ListenerFactoryContext& context) {
 std::shared_ptr<const Cilium::NetworkPolicyMap>
 createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, &ct] {
-        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context, ct);
-        map->startSubscription();
-        return map;
-      });
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
+      [&context, &ct] { return std::make_shared<Cilium::NetworkPolicyMap>(context, ct); });
 }
 
 } // namespace
@@ -530,7 +527,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(ingress_policy_name), std::move(src_address),
       std::move(source_addresses.ipv4_), std::move(source_addresses.ipv6_), std::move(dst_address),
-      weak_from_this(), proxy_id_, std::move(proxylib_l7proto), sni)};
+      shared_from_this(), proxy_id_, std::move(proxylib_l7proto), sni)};
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
