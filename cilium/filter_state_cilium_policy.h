@@ -27,6 +27,7 @@ public:
 
   virtual uint32_t resolvePolicyId(const Network::Address::Ip*) const PURE;
   virtual const PolicyInstance& getPolicy(const std::string&) const PURE;
+  virtual bool exists(const std::string&) const PURE;
 };
 
 // FilterState that holds relevant connection & policy information that can be retrieved
@@ -55,7 +56,7 @@ public:
     if (resolver) {
       return resolver->resolvePolicyId(ip);
     }
-    return Cilium::ID::WORLD; // default to WORLD policy ID if resolver is no longer available
+    return Cilium::ID::World; // default to WORLD policy ID if resolver is no longer available
   }
 
   const PolicyInstance& getPolicy() const {

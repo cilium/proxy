@@ -154,7 +154,7 @@ public:
           return it->second;
         }
       }
-      return ID::UNKNOWN;
+      return ID::Unknown;
     }
 
     uint64_t resolve(absl::uint128 addr6) const {
@@ -164,7 +164,7 @@ public:
           return it->second;
         }
       }
-      return ID::UNKNOWN;
+      return ID::Unknown;
     }
 
     uint64_t resolve(const Network::Address::Ip* addr) const {
@@ -176,7 +176,7 @@ public:
       if (ipv6) {
         return resolve(ipv6->address());
       }
-      return ID::WORLD;
+      return ID::World;
     }
 
   protected:
@@ -195,7 +195,7 @@ public:
 
   uint64_t resolve(const Network::Address::Ip* addr) const {
     const ThreadLocalHostMap* hostmap = getHostMap();
-    return (hostmap != nullptr) ? hostmap->resolve(addr) : ID::UNKNOWN;
+    return (hostmap != nullptr) ? hostmap->resolve(addr) : ID::Unknown;
   }
 
   void logmaps(const std::string& msg) {
