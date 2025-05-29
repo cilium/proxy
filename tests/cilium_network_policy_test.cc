@@ -81,8 +81,9 @@ protected:
     NetworkPolicyDecoder network_policy_decoder;
     const auto decoded_resources = Config::DecodedResourcesWrapper(
         network_policy_decoder, message.resources(), message.version_info());
-    EXPECT_TRUE(
-        policy_map_->onConfigUpdate(decoded_resources.refvec_, message.version_info()).ok());
+    EXPECT_TRUE(policy_map_->getImpl()
+                    .onConfigUpdate(decoded_resources.refvec_, message.version_info())
+                    .ok());
     return message.version_info();
   }
 
@@ -190,7 +191,9 @@ protected:
     return TlsAllowed(false, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
   }
 
-  std::string updatesRejectedStatName() { return policy_map_->stats_.updates_rejected_.name(); }
+  std::string updatesRejectedStatName() {
+    return policy_map_->getImpl().stats_.updates_rejected_.name();
+  }
 
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;
   std::shared_ptr<NetworkPolicyMap> policy_map_;
@@ -202,7 +205,7 @@ TEST_F(CiliumNetworkPolicyTest, UpdatesRejectedStatName) {
 }
 
 TEST_F(CiliumNetworkPolicyTest, EmptyPolicyUpdate) {
-  EXPECT_TRUE(policy_map_->onConfigUpdate({}, "1").ok());
+  EXPECT_TRUE(policy_map_->getImpl().onConfigUpdate({}, "1").ok());
   EXPECT_FALSE(Validate("10.1.2.3", "")); // Policy not found
 }
 

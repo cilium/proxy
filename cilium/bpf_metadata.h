@@ -39,7 +39,7 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
                  Network::Address::InstanceConstSharedPtr source_address_ipv4,
                  Network::Address::InstanceConstSharedPtr source_address_ipv6,
                  Network::Address::InstanceConstSharedPtr original_dest_address,
-                 const std::weak_ptr<PolicyResolver>& policy_resolver, uint32_t proxy_id,
+                 const PolicyResolverSharedPtr& policy_resolver, uint32_t proxy_id,
                  std::string&& proxylib_l7_proto, absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
@@ -117,7 +117,7 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
   uint32_t proxy_id_;
   std::string proxylib_l7_proto_;
   std::string sni_;
-  std::weak_ptr<PolicyResolver> policy_resolver_;
+  const PolicyResolverSharedPtr policy_resolver_;
 
   uint32_t mark_;
 

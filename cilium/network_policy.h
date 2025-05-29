@@ -40,7 +40,6 @@
 
 #include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
@@ -213,39 +212,17 @@ struct PolicyStats {
 
 using RawPolicyMap = absl::flat_hash_map<std::string, std::shared_ptr<const PolicyInstanceImpl>>;
 
-class DenyAllPolicyInstanceImpl;
-class AllowAllEgressPolicyInstanceImpl;
-
-class NetworkPolicyMap : public Singleton::Instance,
-                         public Envoy::Config::SubscriptionCallbacks,
-                         public std::enable_shared_from_this<NetworkPolicyMap>,
-                         public Logger::Loggable<Logger::Id::config> {
+class NetworkPolicyMapImpl : public Envoy::Config::SubscriptionCallbacks,
+                             public Logger::Loggable<Logger::Id::config> {
 public:
-  NetworkPolicyMap(Server::Configuration::FactoryContext& context);
-  NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct);
-  ~NetworkPolicyMap();
+  NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context);
+  ~NetworkPolicyMapImpl();
 
-  // subscription_->start() calls onConfigUpdate(), which uses
-  // shared_from_this(), which cannot be called before a shared
-  // pointer is formed by the caller of the constructor, hence this
-  // can't be called from the constructor!
   void startSubscription();
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
     subscription_ = std::move(subscription);
-  }
-
-  const PolicyInstance& GetPolicyInstance(const std::string& endpoint_policy_name,
-                                          bool allow_egress) const;
-
-  static DenyAllPolicyInstanceImpl DenyAllPolicy;
-  static PolicyInstance& GetDenyAllPolicy();
-  static AllowAllEgressPolicyInstanceImpl AllowAllEgressPolicy;
-  static PolicyInstance& GetAllowAllEgressPolicy();
-
-  bool exists(const std::string& endpoint_policy_name) const {
-    return GetPolicyInstanceImpl(endpoint_policy_name) != nullptr;
   }
 
   // run the given function after all the threads have scheduled
@@ -270,7 +247,7 @@ public:
     return *transport_factory_context_;
   }
 
-  void tlsWrapperMissingPolicyInc() const { stats_.tls_wrapper_missing_policy_.inc(); }
+  void tlsWrapperMissingPolicyInc() const;
 
 private:
   // Helpers for atomic swap of the policy map pointer.
@@ -311,13 +288,11 @@ private:
     return map_ptr_.exchange(map, std::memory_order_release);
   }
 
-  const PolicyInstance* GetPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
+  const PolicyInstance* getPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
 
   void removeInitManager();
 
   bool isNewStream();
-
-  friend class CiliumNetworkPolicyTest;
 
   static uint64_t instance_id_;
 
@@ -331,16 +306,52 @@ private:
   std::shared_ptr<Server::Configuration::TransportSocketFactoryContextImpl>
       transport_factory_context_;
 
-  Cilium::CtMapSharedPtr ctmap_;
-  absl::flat_hash_set<std::string> ctmaps_to_be_closed_;
-
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
+
+protected:
+  friend class NetworkPolicyMap;
+  friend class CiliumNetworkPolicyTest;
+
+  void setConntrackMap(Cilium::CtMapSharedPtr& ct) { ctmap_ = ct; }
+
+  Cilium::CtMapSharedPtr ctmap_;
+  PolicyStats stats_;
+};
+
+class DenyAllPolicyInstanceImpl;
+class AllowAllEgressPolicyInstanceImpl;
+
+class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Logger::Id::config> {
+public:
+  NetworkPolicyMap(Server::Configuration::FactoryContext& context);
+  NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct);
+  ~NetworkPolicyMap() override;
+
+  // This is used for testing with a file-based subscription
+  void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
+    getImpl().startSubscription(std::move(subscription));
+  }
+
+  const PolicyInstance& getPolicyInstance(const std::string& endpoint_policy_name,
+                                          bool allow_egress) const;
+
+  static DenyAllPolicyInstanceImpl DenyAllPolicy;
+  static PolicyInstance& getDenyAllPolicy();
+  static AllowAllEgressPolicyInstanceImpl AllowAllEgressPolicy;
+  static PolicyInstance& getAllowAllEgressPolicy();
+
+  bool exists(const std::string& endpoint_policy_name) const {
+    return getImpl().getPolicyInstanceImpl(endpoint_policy_name) != nullptr;
+  }
+
+  NetworkPolicyMapImpl& getImpl() const { return *impl_; }
+
+private:
+  Server::Configuration::ServerFactoryContext& context_;
+  std::unique_ptr<NetworkPolicyMapImpl> impl_;
 
   ProtobufTypes::MessagePtr dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher);
   Server::ConfigTracker::EntryOwnerPtr config_tracker_entry_;
-
-protected:
-  PolicyStats stats_;
 };
 using NetworkPolicyMapSharedPtr = std::shared_ptr<const NetworkPolicyMap>;
 
