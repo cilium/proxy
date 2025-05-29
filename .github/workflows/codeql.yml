@@ -1,10 +1,7 @@
 name: CodeQL
 
 on: 
-  workflow_dispatch:
-  schedule:
-    # Run at the end of every day from Monday to Friday
-    - cron: '0 0 * * 1-5'
+  push
 
 jobs:
   analyze:
@@ -71,6 +68,7 @@ jobs:
           output: sarif-output-${{ matrix.config.language }}.sarif
       - name: Filter SARIF Results
         run: |
+          cat sarif-output-actions.sarif/actions.sarif | jq '.'
           REPO_URL="https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/"
           jq --arg baseUrl "$REPO_URL" '[.runs[].results[] |
             {
@@ -128,7 +126,8 @@ jobs:
           EOF
             )
 
-            curl -X POST -H "Authorization: Bearer $SEC_BOT_SLACK_WEBHOOK" \
-                  -H "Content-type: application/json" \
-                  --data-raw "$PAYLOAD" https://slack.com/api/chat.postMessage
+            # curl -X POST -H "Authorization: Bearer $SEC_BOT_SLACK_WEBHOOK" \
+            #       -H "Content-type: application/json" \
+            #       --data-raw "$PAYLOAD" https://slack.com/api/chat.postMessage
+            echo $PAYLOAD
           done
