@@ -529,7 +529,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(ingress_policy_name), std::move(src_address),
       std::move(source_addresses.ipv4_), std::move(source_addresses.ipv6_), std::move(dst_address),
-      weak_from_this(), proxy_id_, std::move(proxylib_l7proto), sni));
+      shared_from_this(), proxy_id_, std::move(proxylib_l7proto), sni));
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {

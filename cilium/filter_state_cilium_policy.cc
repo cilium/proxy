@@ -22,19 +22,12 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
                                                    /* OUT */ bool& use_proxy_lib,
                                                    /* OUT */ std::string& l7_proto,
                                                    /* INOUT */ AccessLog::Entry& log_entry) const {
-  const auto resolver = policy_resolver_.lock();
   use_proxy_lib = false;
   l7_proto = "";
 
-  if (!resolver) {
-    // No policy resolver
-    ENVOY_CONN_LOG(debug, "No policy resolver", conn);
-    return false;
-  }
-
   // enforce pod policy first, if any
   if (pod_ip_.length() > 0) {
-    const auto& policy = resolver->getPolicy(pod_ip_);
+    const auto& policy = policy_resolver_->getPolicy(pod_ip_);
     auto remote_id = ingress_ ? source_identity_ : destination_identity;
     auto port = ingress_ ? port_ : destination_port;
 
@@ -53,7 +46,7 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
   // enforce Ingress policy 2nd, if any
   if (ingress_policy_name_.length() > 0) {
     log_entry.entry_.set_policy_name(ingress_policy_name_);
-    const auto& policy = resolver->getPolicy(ingress_policy_name_);
+    const auto& policy = policy_resolver_->getPolicy(ingress_policy_name_);
 
     // Enforce ingress policy for Ingress, on the original destination port
     if (ingress_source_identity_ != 0) {
@@ -87,14 +80,6 @@ bool CiliumPolicyFilterState::enforceHTTPPolicy(const Network::Connection& conn,
                                                 uint16_t destination_port,
                                                 /* INOUT */ Http::RequestHeaderMap& headers,
                                                 /* INOUT */ AccessLog::Entry& log_entry) const {
-  const auto resolver = policy_resolver_.lock();
-
-  if (!resolver) {
-    // No policy resolver
-    ENVOY_CONN_LOG(debug, "No policy resolver", conn);
-    return false;
-  }
-
   // enforce pod policy first, if any.
   // - ingress enforcement in downstream
   // - egress enforcement in upstream
@@ -103,7 +88,7 @@ bool CiliumPolicyFilterState::enforceHTTPPolicy(const Network::Connection& conn,
   // - is_l7lb_: ingress_ == is_downstream
   // - !is_l7lb_: is_downstream
   if (pod_ip_.length() > 0 && (is_l7lb_ ? is_downstream == ingress_ : is_downstream)) {
-    const auto& policy = resolver->getPolicy(pod_ip_);
+    const auto& policy = policy_resolver_->getPolicy(pod_ip_);
     auto remote_id = ingress_ ? source_identity_ : destination_identity;
     auto port = ingress_ ? port_ : destination_port;
     if (!policy.allowed(ingress_, remote_id, port, headers, log_entry)) {
@@ -115,7 +100,7 @@ bool CiliumPolicyFilterState::enforceHTTPPolicy(const Network::Connection& conn,
   // enforce Ingress policy 2nd, if any, always on the upstream
   if (!is_downstream && ingress_policy_name_.length() > 0) {
     log_entry.entry_.set_policy_name(ingress_policy_name_);
-    const auto& policy = resolver->getPolicy(ingress_policy_name_);
+    const auto& policy = policy_resolver_->getPolicy(ingress_policy_name_);
 
     // Enforce ingress policy for Ingress, on the original destination port
     if (ingress_source_identity_ != 0) {
