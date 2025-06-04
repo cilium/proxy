@@ -169,8 +169,7 @@ private:
   uint32_t resolveSourceIdentity(const PolicyInstance& policy, const Network::Address::Ip* sip,
                                  const Network::Address::Ip* dip, bool ingress, bool isL7LB);
 
-  IPAddressPair getIPAddressPairFrom(const Network::Address::InstanceConstSharedPtr sourceAddress,
-                                     const IPAddressPair& addresses);
+  IPAddressPair getIpAddressPairWithPort(uint16_t port, const IPAddressPair& addresses);
 
   const Network::Address::Ip* selectIPVersion(const Network::Address::IpVersion version,
                                               const IPAddressPair& sourceAddresses);
