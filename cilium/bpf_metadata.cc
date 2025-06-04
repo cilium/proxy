@@ -304,30 +304,19 @@ uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
   return source_identity;
 }
 
-// Returns a new IpAddressPair that keeps the source address and fills in the other address version
-// from the given IpAddressPair.
-IpAddressPair
-Config::getIpAddressPairFrom(const Network::Address::InstanceConstSharedPtr source_address,
-                             const IpAddressPair& addresses) {
+// Returns a new IpAddressPair that fills the port from 'source_address'.
+IpAddressPair Config::getIpAddressPairWithPort(uint16_t port, const IpAddressPair& addresses) {
   auto address_pair = IpAddressPair();
 
-  switch (source_address->ip()->version()) {
-  case Network::Address::IpVersion::v4:
-    address_pair.ipv4_ = source_address;
-    if (addresses.ipv6_) {
-      sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(addresses.ipv6_->sockAddr());
-      sa6.sin6_port = htons(source_address->ip()->port());
-      address_pair.ipv6_ = std::make_shared<Network::Address::Ipv6Instance>(sa6);
-    }
-    break;
-  case Network::Address::IpVersion::v6:
-    address_pair.ipv6_ = source_address;
-    if (addresses.ipv4_) {
-      sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(addresses.ipv4_->sockAddr());
-      sa4.sin_port = htons(source_address->ip()->port());
-      address_pair.ipv4_ = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
-    }
-    break;
+  if (addresses.ipv6_) {
+    sockaddr_in6 sa6 = *reinterpret_cast<const sockaddr_in6*>(addresses.ipv6_->sockAddr());
+    sa6.sin6_port = htons(port);
+    address_pair.ipv6_ = std::make_shared<Network::Address::Ipv6Instance>(sa6);
+  }
+  if (addresses.ipv4_) {
+    sockaddr_in sa4 = *reinterpret_cast<const sockaddr_in*>(addresses.ipv4_->sockAddr());
+    sa4.sin_port = htons(port);
+    address_pair.ipv4_ = std::make_shared<Network::Address::Ipv4Instance>(&sa4);
   }
 
   return address_pair;
@@ -429,16 +418,10 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
                 pod_ip);
       return absl::nullopt;
     }
-
     // Use original source address with L7 LB for local endpoint sources if requested, as policy
     // enforcement after the proxy depends on it (i.e., for "east/west" LB).
-    // Keep the original source address for the matching IP version, create a new source IP for
-    // the other version (with the same source port number) in case an upstream of a different
-    // IP version is chosen.
-    source_addresses = getIpAddressPairFrom(src_address, policy->getEndpointIPs());
-
-    // Original source address is now in one of 'ipv[46]_source_address'
-    src_address = nullptr;
+    source_addresses =
+        getIpAddressPairWithPort(src_address->ip()->port(), policy->getEndpointIPs());
   } else if (is_l7lb_ && !use_original_source_address_ /* North/South L7 LB */) {
     // North/south L7 LB, assume the source security identity of the configured source addresses,
     // if any and policy for this identity exists.
