@@ -51,7 +51,7 @@ public:
             proto_config, context.messageValidationVisitor()),
         context);
     return [config](Network::FilterManager& filter_manager) mutable -> void {
-      filter_manager.addFilter(std::make_shared<Filter::CiliumL3::Instance>(config));
+      filter_manager.addReadFilter(std::make_shared<Filter::CiliumL3::Instance>(config));
     };
   }
 
@@ -221,11 +221,11 @@ Network::FilterStatus Instance::onData([[maybe_unused]] Buffer::Instance& data,
   return Network::FilterStatus::Continue;
 }
 
-Network::FilterStatus Instance::onWrite([[maybe_unused]] Buffer::Instance& data,
-                                        [[maybe_unused]] bool end_stream) {
+#if 0
+Network::FilterStatus Instance::onWrite([[maybe_unused]] Buffer::Instance& data, [[maybe_unused]] bool end_stream) {
   return Network::FilterStatus::Continue;
 }
-
+#endif
 } // namespace CiliumL3
 } // namespace Filter
 } // namespace Envoy
