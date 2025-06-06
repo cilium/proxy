@@ -64,6 +64,7 @@ private:
   uint32_t remote_id_ = 0;
   uint16_t destination_port_ = 0;
   Cilium::AccessLog::Entry log_entry_{};
+  bool accepted_ = false;
 };
 
 } // namespace CiliumL3

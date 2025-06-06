@@ -142,8 +142,8 @@ Network::FilterStatus Instance::onNewConnection() {
   callbacks_->addUpstreamCallback([this, policy_fs, dest_fs,
                                    sni](Upstream::HostDescriptionConstSharedPtr host,
                                         StreamInfo::StreamInfo& stream_info) -> bool {
-    // Skip enforcement or logging on shadows
-    if (stream_info.isShadow()) {
+    // Skip enforcement or logging on shadows, or if already accepted
+    if (accepted_ || stream_info.isShadow()) {
       return true;
     }
 
@@ -205,6 +205,7 @@ Network::FilterStatus Instance::onNewConnection() {
     ENVOY_LOG(debug, "cilium.network: policy ALLOW on id: {} port: {} sni: \"{}\"", remote_id_,
               destination_port_, sni);
 
+    accepted_ = true;
     return true;
   });
 
