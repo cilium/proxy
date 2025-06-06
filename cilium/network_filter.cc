@@ -235,12 +235,16 @@ Network::FilterStatus Instance::onNewConnection() {
   return Network::FilterStatus::Continue;
 }
 
-Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) {
+Network::FilterStatus Instance::onData([[maybe_unused]] Buffer::Instance& data,
+                                       [[maybe_unused]] bool end_stream) {
+#if 0
   auto& conn = callbacks_->connection();
-  ENVOY_CONN_LOG(trace, "cilium.network: onData {} bytes, end_stream: {}", conn, data.length(),
-                 end_stream);
-  const char* reason;
-
+  if (should_buffer_) {
+    ENVOY_CONN_LOG(trace, "cilium.network: onData {} bytes, end_stream: {}", conn, data.length(),
+                   end_stream);
+  }
+#endif
+#if 0  
   if (should_buffer_) {
     // Buffer data until upstream is selected and policy resolved
     buffer_.move(data);
@@ -250,6 +254,10 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
   if (buffer_.length() > 0) {
     data.prepend(buffer_);
   }
+#endif
+#if 0
+  const char* reason;
+
   if (go_parser_) {
     FilterResult res =
         go_parser_->onIo(false, data, end_stream); // 'false' marks original direction data
@@ -305,15 +313,18 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
       }
     }
   }
-
+#endif
   return Network::FilterStatus::Continue;
-
+#if 0
 drop_close:
   conn.close(Network::ConnectionCloseType::NoFlush, reason);
   return Network::FilterStatus::StopIteration;
+#endif
 }
 
-Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream) {
+Network::FilterStatus Instance::onWrite([[maybe_unused]] Buffer::Instance& data,
+                                        [[maybe_unused]] bool end_stream) {
+#if 0
   if (go_parser_) {
     FilterResult res =
         go_parser_->onIo(true, data, end_stream); // 'true' marks reverse direction data
@@ -331,7 +342,7 @@ Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream)
 
     go_parser_->setReplyEndStream(end_stream);
   }
-
+#endif
   return Network::FilterStatus::Continue;
 }
 
