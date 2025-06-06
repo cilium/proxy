@@ -90,7 +90,7 @@ void Config::log(Cilium::AccessLog::Entry& entry, ::cilium::EntryType type) {
 
 Network::FilterStatus Instance::onNewConnection() {
   auto& conn = callbacks_->connection();
-  ENVOY_CONN_LOG(debug, "cilium.network: onNewConnection", conn);
+  ENVOY_CONN_LOG(info, "cilium.network: onNewConnection", conn);
 
   const auto policy_fs =
       conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicyFilterState>(
@@ -148,7 +148,7 @@ Network::FilterStatus Instance::onNewConnection() {
         }
 
         auto& conn = callbacks_->connection();
-        ENVOY_CONN_LOG(trace, "cilium.network: in upstream callback", conn);
+        ENVOY_CONN_LOG(info, "cilium.network: in upstream callback", conn);
 
         // Resolve the destination security ID and port
         uint32_t destination_identity = 0;
