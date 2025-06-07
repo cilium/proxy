@@ -12,8 +12,8 @@ ENVOY_REPO = "envoy"
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.33.3
-ENVOY_SHA = "dfe02b93e0e43a08fa0d838bb9e4c2c9f44d3586"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.34.1
+ENVOY_SHA = "c435eeccd4201f8d6a200922b166f5dcee08272b"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -38,12 +38,12 @@ git_repository(
     patch_tool = "git",
     patches = [
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
-        "@//patches:0002-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch",
-        "@//patches:0003-listener-add-socket-options.patch",
-        "@//patches:0004-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
-        "@//patches:0005-tcp_proxy-Check-for-nullptr-in-watermark-ASSERTs.patch",
-        "@//patches:0006-thread_local-reset-slot-in-worker-threads-first.patch",
-        "@//patches:0007-http-header-expose-attribute.patch",
+        "@//patches:0002-listener-add-socket-options.patch",
+        "@//patches:0003-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
+        "@//patches:0004-tcp_proxy-Check-for-nullptr-in-watermark-ASSERTs.patch",
+        "@//patches:0005-thread_local-reset-slot-in-worker-threads-first.patch",
+        "@//patches:0006-http-header-expose-attribute.patch",
+        "@//patches:0007-liburing-arm-build.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
