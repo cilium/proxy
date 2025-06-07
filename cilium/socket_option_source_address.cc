@@ -1,6 +1,7 @@
 #include "cilium/socket_option_source_address.h"
 
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -52,6 +53,12 @@ bool SourceAddressSocketOption::setOption(
   }
 
   Network::Address::InstanceConstSharedPtr source_address = original_source_address_;
+
+  // Do not use source address of wrong IP version
+  if (source_address && source_address->ip() && source_address->ip()->version() != *ipVersion) {
+    source_address = nullptr;
+  }
+
   if (!source_address && (ipv4_source_address_ || ipv6_source_address_)) {
     // Select source address based on the socket address family
     source_address = ipv6_source_address_;
