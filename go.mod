@@ -2,7 +2,7 @@ module github.com/cilium/proxy
 
 go 1.23.0
 
-toolchain go1.24.3
+toolchain go1.24.4
 
 require (
 	github.com/cilium/checkmate v1.0.3
@@ -12,14 +12,14 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/sys v0.33.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20250528174236-200df99c418a
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a
-	google.golang.org/grpc v1.72.2
+	google.golang.org/genproto/googleapis/api v0.0.0-20250603155806-513f23925822
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822
+	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
 )
 
 require (
-	cel.dev/expr v0.20.0 // indirect
+	cel.dev/expr v0.23.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20250501225837-2ac532fd4443 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
