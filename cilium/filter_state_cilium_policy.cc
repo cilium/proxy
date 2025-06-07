@@ -43,7 +43,7 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
       return false;
     }
 
-    // populate l7proto_ if available
+    // populate l7proto if available
     use_proxy_lib = port_policy.useProxylib(proxy_id_, remote_id, l7_proto);
   }
 

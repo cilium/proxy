@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
 
 #include "envoy/buffer/buffer.h"
 #include "envoy/common/time.h"
@@ -10,13 +9,11 @@
 #include "envoy/network/filter.h"
 #include "envoy/server/factory_context.h"
 
-#include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
 
 #include "cilium/accesslog.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/network_filter.pb.h"
-#include "cilium/proxylib.h"
 
 namespace Envoy {
 namespace Filter {
@@ -35,7 +32,6 @@ public:
 
   void log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
 
-  Cilium::GoFilterSharedPtr proxylib_;
   TimeSource& time_source_;
 
 private:
@@ -47,7 +43,7 @@ using ConfigSharedPtr = std::shared_ptr<Config>;
 /**
  * Implementation of a Cilium network filter.
  */
-class Instance : public Network::Filter, Logger::Loggable<Logger::Id::filter> {
+class Instance : public Network::ReadFilter, Logger::Loggable<Logger::Id::filter> {
 public:
   Instance(const ConfigSharedPtr& config) : config_(config) {}
 
@@ -57,20 +53,18 @@ public:
   void initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) override {
     callbacks_ = &callbacks;
   }
-
+#if 0
   // Network::WriteFilter
   Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;
+#endif
 
 private:
   const ConfigSharedPtr config_;
   Network::ReadFilterCallbacks* callbacks_ = nullptr;
   uint32_t remote_id_ = 0;
   uint16_t destination_port_ = 0;
-  std::string l7proto_{};
-  bool should_buffer_ = false;
-  Buffer::OwnedImpl buffer_; // Buffer for initial connection data
-  Cilium::GoFilter::InstancePtr go_parser_{};
   Cilium::AccessLog::Entry log_entry_{};
+  bool accepted_ = false;
 };
 
 } // namespace CiliumL3
