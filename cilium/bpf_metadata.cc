@@ -239,27 +239,28 @@ Config::Config(const ::cilium::BpfMetadata& config,
           return std::make_shared<Cilium::CtMap>(bpf_root);
         });
 
+    if (bpf_root != ct_maps_->bpfRoot()) {
+      // bpf root may not change during runtime
+      throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
+    }
+
     std::string ipcache_name = "cilium_ipcache";
     if (config.ipcache_name().length() > 0) {
       ipcache_name = config.ipcache_name();
     }
     ipcache_ = IpCache::newIpCache(context.serverFactoryContext(),
                                    bpf_root + "/tc/globals/" + ipcache_name);
-
-    if (bpf_root != ct_maps_->bpfRoot()) {
-      // bpf root may not change during runtime
-      throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
-    }
-    // Only create the hosts map if ipcache can't be opened
-    if (ipcache_ == nullptr) {
-      hosts_ = createHostMap(context);
-    }
-
-    // Get the shared policy provider, or create it if not already created.
-    // Note that the API config source is assumed to be the same for all filter
-    // instances!
-    npmap_ = createPolicyMap(context, ct_maps_);
   }
+
+  // Only create the hosts map if ipcache can't be opened
+  if (ipcache_ == nullptr) {
+    hosts_ = createHostMap(context);
+  }
+
+  // Get the shared policy provider, or create it if not already created.
+  // Note that the API config source is assumed to be the same for all filter
+  // instances!
+  npmap_ = createPolicyMap(context, ct_maps_);
 }
 
 uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
