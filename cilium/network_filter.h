@@ -27,15 +27,16 @@ namespace CiliumL3 {
  */
 class Config : Logger::Loggable<Logger::Id::config> {
 public:
-  Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext& context);
-  Config(const Json::Object& config, Server::Configuration::FactoryContext& context);
+  Config(const ::cilium::NetworkFilter& config, bool is_upstream,
+         Server::Configuration::ServerFactoryContext& context);
 
   void log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
 
+  bool is_upstream_;
   TimeSource& time_source_;
 
 private:
-  Cilium::AccessLogSharedPtr access_log_;
+  Cilium::AccessLogSharedPtr access_log_{};
 };
 
 using ConfigSharedPtr = std::shared_ptr<Config>;
@@ -48,21 +49,17 @@ public:
   Instance(const ConfigSharedPtr& config) : config_(config) {}
 
   // Network::ReadFilter
-  Network::FilterStatus onData(Buffer::Instance&, bool end_stream) override;
+  bool allowConnect(Network::Connection& conn,
+                    const Network::Address::InstanceConstSharedPtr& destination_address,
+                    StreamInfo::StreamInfo& stream_info) override;
+  void initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) override;
+
   Network::FilterStatus onNewConnection() override;
-  void initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) override {
-    callbacks_ = &callbacks;
-  }
-#if 0
-  // Network::WriteFilter
-  Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;
-#endif
+  Network::FilterStatus onData(Buffer::Instance&, bool end_stream) override;
 
 private:
   const ConfigSharedPtr config_;
   Network::ReadFilterCallbacks* callbacks_ = nullptr;
-  uint32_t remote_id_ = 0;
-  uint16_t destination_port_ = 0;
   Cilium::AccessLog::Entry log_entry_{};
   absl::flat_hash_map<std::pair<uint32_t, uint16_t>, bool> policy_cache_;
 };
