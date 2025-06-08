@@ -183,6 +183,13 @@ Network::FilterStatus Instance::onNewConnection() {
           destination_identity = policy_fs->resolvePolicyId(dip);
         }
 
+        // Check it we already have a policy verdict for this destination and port?
+        auto target = std::make_pair(remote_id_, destination_port_);
+        auto const it = policy_cache_.find(target);
+        if (it != policy_cache_.cend()) {
+          return it->second;
+        }
+
         log_entry_.initFromConnection(policy_fs->pod_ip_, policy_fs->proxy_id_, policy_fs->ingress_,
                                       policy_fs->source_identity_,
                                       stream_info.downstreamAddressProvider().remoteAddress(),
@@ -195,6 +202,8 @@ Network::FilterStatus Instance::onNewConnection() {
           ENVOY_CONN_LOG(debug, "cilium.network: policy DENY on id: {} port: {} sni: \"{}\"", conn,
                          remote_id_, destination_port_, sni);
           config_->log(log_entry_, ::cilium::EntryType::Denied);
+          // cache the result
+          policy_cache_.emplace_hint(it, target, false);
           return false;
         }
         // Emit accesslog if north/south l7 lb, as in that case the traffic is not going back to bpf
@@ -205,6 +214,8 @@ Network::FilterStatus Instance::onNewConnection() {
         ENVOY_LOG(debug, "cilium.network: policy ALLOW on id: {} port: {} sni: \"{}\"", remote_id_,
                   destination_port_, sni);
 
+        // cache the result
+        policy_cache_.emplace_hint(it, target, true);
         return true;
       });
 
