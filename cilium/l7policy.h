@@ -111,7 +111,6 @@ private:
   ConfigSharedPtr config_;
   Http::StreamDecoderFilterCallbacks* callbacks_ = nullptr;
 
-  bool allowed_ = false;
   AccessLog::Entry* log_entry_ = nullptr;
 
   OptRef<Http::RequestHeaderMap> latched_headers_;
