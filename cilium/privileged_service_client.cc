@@ -22,6 +22,7 @@
 #include "envoy/api/os_sys_calls_common.h"
 
 #include "source/common/common/assert.h"
+#include "source/common/common/lock_guard.h"
 #include "source/common/common/logger.h"
 
 #include "starter/privileged_service_protocol.h"
@@ -30,8 +31,7 @@ namespace Envoy {
 namespace Cilium {
 namespace PrivilegedService {
 
-ProtocolClient::ProtocolClient()
-    : Protocol(CILIUM_PRIVILEGED_SERVICE_FD), call_mutex_(PTHREAD_MUTEX_INITIALIZER), seq_(0) {
+ProtocolClient::ProtocolClient() : Protocol(CILIUM_PRIVILEGED_SERVICE_FD), seq_(0) {
   // Check that the Envoy process isn't running with privileges.
   // The only exception is CAP_NET_BIND_SERVICE (if explicitly excluded from being dropped).
   RELEASE_ASSERT((get_capabilities(CAP_EFFECTIVE) & ~(1UL << CAP_NET_BIND_SERVICE)) == 0 &&
@@ -57,44 +57,104 @@ ProtocolClient::ProtocolClient()
 
 ssize_t ProtocolClient::transact(MessageHeader& req, size_t req_len, const void* data,
                                  size_t data_len, int* fd, Response& resp, void* buf,
-                                 size_t bufsize, bool assert) {
-  uint32_t expected_response_type = resp.hdr_.msg_type_;
+                                 size_t buf_size, bool assert) {
+  // header will get cleared, store the expected message type
+  auto expected_response_type = static_cast<MessageType>(resp.hdr_.msg_type_);
 
-  // Serialize calls to cilium privileged service
-  int rc = pthread_mutex_lock(&call_mutex_);
-  RELEASE_ASSERT(rc == 0, "pthread_mutex_lock");
+  RELEASE_ASSERT(buf_size <= RESPONSE_BUF_SIZE, "ProtocolClient::transact: invalid bufsize");
 
+  // get next atomic sequence number
   req.msg_seq_ = ++seq_;
+  // zero is reserved for "no response"
+  if (req.msg_seq_ == 0) {
+    req.msg_seq_ = ++seq_;
+  }
+
+  // Waiter must be inserted before we send the request, as another thread may receive it right
+  // after and at that point a waiter must be found.
+  // As the waiter is allocated in the stack, and is referenced via a pointer in the waiters_ map,
+  // it MUST be removed from 'waiters_' before returning!
+  Waiter waiter(&resp, buf, buf_size, fd);
+  waiters_.insert(req.msg_seq_, &waiter);
+
+  // send message without taking a lock
   ssize_t size = send_fd_msg(&req, req_len, data, data_len, *fd);
   if (!assert && size_t(size) != req_len + data_len) {
-    goto out;
+    // Only checkPrivilegedService() calls with assert=false, to support case where
+    // cilium-envoy is run directly for testing purposes.
+    // We get here if send fails due to privileged service not running.
+    waiters_.remove(req.msg_seq_);
+    return size;
   }
-  RELEASE_ASSERT(size != 0, "Cilium privileged service closed pipe");
-  RELEASE_ASSERT(size > 0, "Cilium privileged service send failed");
 
-  size = recv_fd_msg(&resp, sizeof(resp), buf, bufsize, fd);
-  if (!assert && size_t(size) < sizeof(resp)) {
-    goto out;
+  // We use RELEASE_ASSERTs to make cilium-envoy crash and restart in cases when the privileged
+  // service has become unresponsive, as that is the only way to recover from such failures.
+  RELEASE_ASSERT(size != 0, "Cilium privileged service closed pipe");
+  RELEASE_ASSERT(size_t(size) == req_len + data_len, "Cilium privileged service send failed");
+
+  // buffer for value to receive
+  char recv_buf[RESPONSE_BUF_SIZE];
+
+  while (true) {
+    // try become a receiver by taking the call_mutex_
+    if (call_mutex_.tryLock()) {
+      // Have to check if our response is already in to avoid entering the receive loop and never
+      // seeing our response.
+      size = waiters_.setReceiverActiveIfNoResponse(waiter, expected_response_type, req.msg_seq_);
+      if (size < 0) {
+        // Receive until we have a response or an error
+        while (true) {
+          size = recv_fd_msg(&resp, sizeof(resp), recv_buf, RESPONSE_BUF_SIZE, fd);
+          RELEASE_ASSERT(size != 0, "Cilium privileged service closed pipe");
+          if (size < 0) {
+            // privileged service failed
+            ENVOY_LOG(debug, "privileged service failed with {} (errno {})", size, errno);
+            break;
+          }
+          // Must have enough data to decode the response header
+          RELEASE_ASSERT(size_t(size) >= sizeof(resp),
+                         "Cilium privileged service truncated response");
+
+          // Is the response for us?
+          if (resp.hdr_.msg_seq_ == req.msg_seq_) {
+            RELEASE_ASSERT(resp.hdr_.msg_type_ == expected_response_type,
+                           "Cilium privileged service unexpected response type");
+            // Move data to our own 'buf'
+            size = waiter.updateValue(size, recv_buf);
+            break;
+          }
+          // The response is for one of the waiters, pass it on
+          waiters_.wakeUp(resp.hdr_.msg_seq_, size, resp, recv_buf, fd);
+        }
+      }
+      // Receive loop ended or not entered in the first place.
+      // At this point 'size' is the valid return value, and the received data is in the buffers
+      // given in the paramaters.
+      call_mutex_.unlock();
+      // Remove our waiter and pass receiver duties to one of the other waiters, if any.
+      waiters_.signalReceiverOpen(req.msg_seq_);
+      return size;
+    }
+    // tryLock failed, call_mutex_ not held.
+    // There already is an active receiver, wait for a response from it
+    // On succesful return the waiter is removed from `waiters_`.
+    size = waiters_.wait(waiter, expected_response_type, req.msg_seq_);
+    if (size != 0) {
+      // Response received and waiter removed, return
+      return size;
+    }
+    // Waiter woken up without a message.
+    // It is still in `waiters_`, ready to receive updates from active receivers.
+    // The active receiver may have returned, and we may need to become the next active receiver.
+    // Loop back to try to become the receiver.
   }
-  RELEASE_ASSERT(size != 0, "Cilium privileged service closed pipe");
-  RELEASE_ASSERT(size < 0 || size_t(size) >= sizeof(resp),
-                 "Cilium privileged service truncated response");
-  RELEASE_ASSERT(resp.hdr_.msg_seq_ == req.msg_seq_,
-                 "Cilium privileged service response out of sequence");
-  RELEASE_ASSERT(resp.hdr_.msg_type_ == expected_response_type,
-                 "Cilium privileged service unexpected response type");
-
-out:
-  rc = pthread_mutex_unlock(&call_mutex_);
-  RELEASE_ASSERT(rc == 0, "pthread_mutex_unlock");
-  return size;
 }
 
 bool ProtocolClient::checkPrivilegedService() {
   // Dump the effective capabilities of the privileged service process
   DumpRequest req;
   Response resp;
-  uint8_t buf[1024];
+  uint8_t buf[RESPONSE_BUF_SIZE];
   int fd = -1;
   ssize_t size = transact(req.hdr_, sizeof(req), nullptr, 0, &fd, resp, buf, sizeof(buf), false);
   if (size < ssize_t(sizeof(resp))) {
