@@ -7,7 +7,7 @@ package cilium;
 import "google/protobuf/duration.proto";
 
 message BpfMetadata {
-  // File system root for bpf. Defaults to "/sys/fs/bpf" if left empty.
+  // File system root for bpf. Bpf will not be used if left empty.
   string bpf_root = 1;
 
   // 'true' if the filter is on ingress listener, 'false' for egress listener.
@@ -67,5 +67,10 @@ message BpfMetadata {
 
   // Name of the pin file for opening bpf ipcache in "<bpf_root>/tc/globals/". If empty, defaults to
   // "cilium_ipcache" for backwards compatibility.
+  // Only used if 'bpf_root' is non-empty.
   string ipcache_name = 12;
+
+  // Use Network Policy Hosts xDS (NPHDS) protocol to sync IP/ID mappings if 'bpf_root' is empty.
+  // Network Policy xDS (NPDS) will only be used if 'bpf_root' is non-empty or this is 'true'.
+  bool use_nphds = 13;
 }

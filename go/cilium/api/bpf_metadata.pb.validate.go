@@ -106,6 +106,8 @@ func (m *BpfMetadata) validate(all bool) error {
 
 	// no validation rules for IpcacheName
 
+	// no validation rules for UseNphds
+
 	if m.OriginalSourceSoLingerTime != nil {
 		// no validation rules for OriginalSourceSoLingerTime
 	}
