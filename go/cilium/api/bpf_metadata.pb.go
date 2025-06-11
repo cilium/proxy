@@ -24,7 +24,7 @@ const (
 
 type BpfMetadata struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// File system root for bpf. Defaults to "/sys/fs/bpf" if left empty.
+	// File system root for bpf. Bpf will not be used if left empty.
 	BpfRoot string `protobuf:"bytes,1,opt,name=bpf_root,json=bpfRoot,proto3" json:"bpf_root,omitempty"`
 	// 'true' if the filter is on ingress listener, 'false' for egress listener.
 	IsIngress bool `protobuf:"varint,2,opt,name=is_ingress,json=isIngress,proto3" json:"is_ingress,omitempty"`
@@ -74,7 +74,11 @@ type BpfMetadata struct {
 	OriginalSourceSoLingerTime *uint32 `protobuf:"varint,11,opt,name=original_source_so_linger_time,json=originalSourceSoLingerTime,proto3,oneof" json:"original_source_so_linger_time,omitempty"`
 	// Name of the pin file for opening bpf ipcache in "<bpf_root>/tc/globals/". If empty, defaults to
 	// "cilium_ipcache" for backwards compatibility.
-	IpcacheName   string `protobuf:"bytes,12,opt,name=ipcache_name,json=ipcacheName,proto3" json:"ipcache_name,omitempty"`
+	// Only used if 'bpf_root' is non-empty.
+	IpcacheName string `protobuf:"bytes,12,opt,name=ipcache_name,json=ipcacheName,proto3" json:"ipcache_name,omitempty"`
+	// Use Network Policy Hosts xDS (NPHDS) protocol to sync IP/ID mappings if 'bpf_root' is empty.
+	// Network Policy xDS (NPDS) will only be used if 'bpf_root' is non-empty or this is 'true'.
+	UseNphds      bool `protobuf:"varint,13,opt,name=use_nphds,json=useNphds,proto3" json:"use_nphds,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -193,11 +197,18 @@ func (x *BpfMetadata) GetIpcacheName() string {
 	return ""
 }
 
+func (x *BpfMetadata) GetUseNphds() bool {
+	if x != nil {
+		return x.UseNphds
+	}
+	return false
+}
+
 var File_cilium_api_bpf_metadata_proto protoreflect.FileDescriptor
 
 const file_cilium_api_bpf_metadata_proto_rawDesc = "" +
 	"\n" +
-	"\x1dcilium/api/bpf_metadata.proto\x12\x06cilium\x1a\x1egoogle/protobuf/duration.proto\"\xe2\x04\n" +
+	"\x1dcilium/api/bpf_metadata.proto\x12\x06cilium\x1a\x1egoogle/protobuf/duration.proto\"\xff\x04\n" +
 	"\vBpfMetadata\x12\x19\n" +
 	"\bbpf_root\x18\x01 \x01(\tR\abpfRoot\x12\x1d\n" +
 	"\n" +
@@ -212,7 +223,8 @@ const file_cilium_api_bpf_metadata_proto_rawDesc = "" +
 	"\x10l7lb_policy_name\x18\n" +
 	" \x01(\tR\x0el7lbPolicyName\x12G\n" +
 	"\x1eoriginal_source_so_linger_time\x18\v \x01(\rH\x00R\x1aoriginalSourceSoLingerTime\x88\x01\x01\x12!\n" +
-	"\fipcache_name\x18\f \x01(\tR\vipcacheNameB!\n" +
+	"\fipcache_name\x18\f \x01(\tR\vipcacheName\x12\x1b\n" +
+	"\tuse_nphds\x18\r \x01(\bR\buseNphdsB!\n" +
 	"\x1f_original_source_so_linger_timeB.Z,github.com/cilium/proxy/go/cilium/api;ciliumb\x06proto3"
 
 var (
