@@ -359,6 +359,7 @@ envoy_cc_library(
     deps = [
         "//starter:privileged_service_protocol",
         "@envoy//envoy/api:os_sys_calls_interface",
+        "@envoy//source/common/common:thread_lib",
         "@envoy//source/common/singleton:threadsafe_singleton",
     ],
 )
