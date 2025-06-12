@@ -56,16 +56,21 @@ public:
 
   const PolicyInstance& getPolicy() const { return policy_resolver_->getPolicy(pod_ip_); }
 
-  bool enforceNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
-                            uint16_t destination_port, const absl::string_view sni,
-                            /* OUT */ bool& use_proxy_lib,
-                            /* OUT */ std::string& l7_proto,
+  bool enforcePodNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
+                               uint16_t destination_port, const absl::string_view sni) const;
+
+  bool enforceIngressNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
+                                   uint16_t destination_port, const absl::string_view sni) const;
+
+  bool enforcePodHTTPPolicy(const Network::Connection& conn, uint32_t destination_identity,
+                            uint16_t destination_port,
+                            /* INOUT */ Http::RequestHeaderMap& headers,
                             /* INOUT */ AccessLog::Entry& log_entry) const;
 
-  bool enforceHTTPPolicy(const Network::Connection& conn, bool is_downstream,
-                         uint32_t destination_identity, uint16_t destination_port,
-                         /* INOUT */ Http::RequestHeaderMap& headers,
-                         /* INOUT */ AccessLog::Entry& log_entry) const;
+  bool enforceIngressHTTPPolicy(const Network::Connection& conn, uint32_t destination_identity,
+                                uint16_t destination_port,
+                                /* INOUT */ Http::RequestHeaderMap& headers,
+                                /* INOUT */ AccessLog::Entry& log_entry) const;
 
   // policyUseUpstreamDestinationAddress returns 'true' if policy enforcement should be done on the
   // basis of the upstream destination address.

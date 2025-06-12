@@ -83,6 +83,8 @@ void AccessLog::Entry::initFromConnection(
     const std::string& policy_name, uint32_t proxy_id, bool ingress, uint32_t source_identity,
     const Network::Address::InstanceConstSharedPtr& source_address, uint32_t destination_identity,
     const Network::Address::InstanceConstSharedPtr& destination_address, TimeSource* time_source) {
+  request_logged_ = false;
+
   entry_.set_policy_name(policy_name);
   entry_.set_proxy_id(proxy_id);
   entry_.set_is_ingress(ingress);

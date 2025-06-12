@@ -1,0 +1,527 @@
+From fe7bd94a75f81c12e370af53c46000c0ef5c07a2 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Sun, 8 Jun 2025 18:57:23 +0200
+Subject: [PATCH] connection: Add upstream filter allowConnection method
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ .../network/source/router/router_impl.cc      |  1 +
+ envoy/common/conn_pool.h                      |  2 ++
+ envoy/http/stream_reset_handler.h             |  2 ++
+ envoy/network/connection.h                    |  1 +
+ envoy/network/filter.h                        | 11 ++++++++++
+ envoy/upstream/upstream.h                     |  1 +
+ source/common/conn_pool/conn_pool_base.cc     |  5 ++++-
+ source/common/http/codec_client.cc            | 11 ++++++----
+ source/common/http/conn_pool_base.cc          |  3 +++
+ source/common/http/conn_pool_base.h           |  2 +-
+ source/common/http/utility.cc                 |  2 ++
+ source/common/network/connection_impl.cc      | 20 ++++++++++++++++++-
+ source/common/network/filter_manager_impl.cc  | 11 ++++++++++
+ source/common/network/filter_manager_impl.h   |  3 +++
+ .../network/multi_connection_base_impl.cc     |  1 +
+ source/common/quic/envoy_quic_utils.cc        |  1 +
+ source/common/router/router.cc                | 19 ++++++++++++------
+ source/common/router/upstream_request.cc      |  2 ++
+ source/common/tcp_proxy/tcp_proxy.cc          |  6 +++++-
+ source/common/upstream/upstream_impl.cc       |  1 +
+ .../network/dubbo_proxy/router/router_impl.cc |  6 ++++++
+ .../network/thrift_proxy/router/router.h      |  4 ++++
+ .../thrift_proxy/router/upstream_request.cc   |  8 ++++++++
+ .../filters/network/thrift_proxy/thrift.h     |  3 +++
+ .../filters/udp/udp_proxy/udp_proxy_filter.cc |  1 +
+ 25 files changed, 113 insertions(+), 14 deletions(-)
+
+diff --git a/contrib/sip_proxy/filters/network/source/router/router_impl.cc b/contrib/sip_proxy/filters/network/source/router/router_impl.cc
+index 74f8784dec..2248827f23 100644
+--- a/contrib/sip_proxy/filters/network/source/router/router_impl.cc
++++ b/contrib/sip_proxy/filters/network/source/router/router_impl.cc
+@@ -639,6 +639,7 @@ void UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
+     break;
+   case ConnectionPool::PoolFailureReason::RemoteConnectionFailure:
+   case ConnectionPool::PoolFailureReason::Timeout:
++  case ConnectionPool::PoolFailureReason::LocalAccessDenied:
+     // TODO(zuercher): distinguish between these cases where appropriate (particularly timeout)
+     // if (!response_started_) {
+     //  callbacks_->sendLocalReply(
+diff --git a/envoy/common/conn_pool.h b/envoy/common/conn_pool.h
+index 8fd7f1061b..6a636ced5f 100644
+--- a/envoy/common/conn_pool.h
++++ b/envoy/common/conn_pool.h
+@@ -102,6 +102,8 @@ enum class PoolFailureReason {
+   RemoteConnectionFailure,
+   // A timeout occurred while creating a new connection.
+   Timeout,
++  // Policy prevented connections to the selected host
++  LocalAccessDenied,
+ };
+ 
+ } // namespace ConnectionPool
+diff --git a/envoy/http/stream_reset_handler.h b/envoy/http/stream_reset_handler.h
+index 09e3b1dd80..95e0c7dd7d 100644
+--- a/envoy/http/stream_reset_handler.h
++++ b/envoy/http/stream_reset_handler.h
+@@ -39,6 +39,8 @@ enum class StreamResetReason {
+   OverloadManager,
+   // If stream was locally reset due to HTTP/1 upstream half closing before downstream.
+   Http1PrematureUpstreamHalfClose,
++  // If the connection was denied by an upstream filter
++  LocalAccessDenied,
+ };
+ 
+ /**
+diff --git a/envoy/network/connection.h b/envoy/network/connection.h
+index 340ce317c2..e1ec5ac6ac 100644
+--- a/envoy/network/connection.h
++++ b/envoy/network/connection.h
+@@ -31,6 +31,7 @@ enum class ConnectionEvent {
+   LocalClose,
+   Connected,
+   ConnectedZeroRtt,
++  LocalAccessDenied,
+ };
+ 
+ /**
+diff --git a/envoy/network/filter.h b/envoy/network/filter.h
+index 590a2ff7fa..b3c96d3287 100644
+--- a/envoy/network/filter.h
++++ b/envoy/network/filter.h
+@@ -242,6 +242,17 @@ public:
+    */
+   virtual void initializeReadFilterCallbacks(ReadFilterCallbacks& callbacks) PURE;
+ 
++  /**
++   * Called before an upstream connection is connected. Not called for downstream filters.
++   * @param destination_address is the address the connection will be made to, if allowed.
++   * @param stream_info is the StreamInfo of the client connection.
++   * @return 'false' if the connection is not allowed, 'true' otherwise.
++   */
++  virtual bool allowConnect(Connection&, const Address::InstanceConstSharedPtr&,
++                            StreamInfo::StreamInfo&) {
++    return true;
++  }
++
+   /**
+    * Method is called by the filter manager to convert upstream's connection transport socket
+    * from non-secure mode to secure mode. Only terminal filters are aware of upstream connection and
+diff --git a/envoy/upstream/upstream.h b/envoy/upstream/upstream.h
+index c3efc41f38..cd66754c4b 100644
+--- a/envoy/upstream/upstream.h
++++ b/envoy/upstream/upstream.h
+@@ -739,6 +739,7 @@ public:
+   COUNTER(upstream_rq_retry_success)                                                               \
+   COUNTER(upstream_rq_rx_reset)                                                                    \
+   COUNTER(upstream_rq_timeout)                                                                     \
++  COUNTER(upstream_rq_local_access_denied)                                                         \
+   COUNTER(upstream_rq_total)                                                                       \
+   COUNTER(upstream_rq_tx_reset)                                                                    \
+   COUNTER(upstream_http3_broken)                                                                   \
+diff --git a/source/common/conn_pool/conn_pool_base.cc b/source/common/conn_pool/conn_pool_base.cc
+index bae03d93eb..8d7b437894 100644
+--- a/source/common/conn_pool/conn_pool_base.cc
++++ b/source/common/conn_pool/conn_pool_base.cc
+@@ -73,6 +73,8 @@ void ConnPoolImplBase::destructAllConnections() {
+ bool ConnPoolImplBase::shouldConnect(size_t pending_streams, size_t active_streams,
+                                      int64_t connecting_and_connected_capacity,
+                                      float preconnect_ratio, bool anticipate_incoming_stream) {
++  // insert interateUpstreamCallbacks() policy check here!
++    
+   // This is set to true any time global preconnect is being calculated.
+   // ClusterManagerImpl::maybePreconnect is called directly before a stream is created, so the
+   // stream must be anticipated.
+@@ -518,6 +520,7 @@ void ConnPoolImplBase::onConnectionEvent(ActiveClient& client, absl::string_view
+                                          Network::ConnectionEvent event) {
+   switch (event) {
+   case Network::ConnectionEvent::RemoteClose:
++  case Network::ConnectionEvent::LocalAccessDenied:
+   case Network::ConnectionEvent::LocalClose: {
+     if (client.connect_timer_) {
+       ASSERT(!client.has_handshake_completed_);
+@@ -629,7 +632,7 @@ void ConnPoolImplBase::onConnectionEvent(ActiveClient& client, absl::string_view
+           [&client]() { client.onConnectionDurationTimeout(); });
+       client.connection_duration_timer_->enableTimer(max_connection_duration.value());
+     }
+-    // Initialize client read filters
++    // Initialize client read filters XXX
+     client.initializeReadFilters();
+ 
+     // At this point, for the mixed ALPN pool, the client may be deleted. Do not
+diff --git a/source/common/http/codec_client.cc b/source/common/http/codec_client.cc
+index 77fb57a814..43ca2c3c59 100644
+--- a/source/common/http/codec_client.cc
++++ b/source/common/http/codec_client.cc
+@@ -102,14 +102,17 @@ void CodecClient::onEvent(Network::ConnectionEvent event) {
+   }
+ 
+   if (event == Network::ConnectionEvent::RemoteClose ||
+-      event == Network::ConnectionEvent::LocalClose) {
++      event == Network::ConnectionEvent::LocalClose ||
++      event == Network::ConnectionEvent::LocalAccessDenied) {
+     ENVOY_CONN_LOG(debug, "disconnect. resetting {} pending requests", *connection_,
+                    active_requests_.size());
+     disableIdleTimer();
+     idle_timer_.reset();
+-    StreamResetReason reason = event == Network::ConnectionEvent::RemoteClose
+-                                   ? StreamResetReason::RemoteConnectionFailure
+-                                   : StreamResetReason::LocalConnectionFailure;
++    StreamResetReason reason = event == Network::ConnectionEvent::LocalAccessDenied
++                                   ? StreamResetReason::LocalAccessDenied
++                                   : event == Network::ConnectionEvent::RemoteClose
++                                     ? StreamResetReason::RemoteConnectionFailure
++                                     : StreamResetReason::LocalConnectionFailure;
+     if (connected_) {
+       reason = StreamResetReason::ConnectionTermination;
+       if (protocol_error_) {
+diff --git a/source/common/http/conn_pool_base.cc b/source/common/http/conn_pool_base.cc
+index f65427fbcc..ef5b3b6b49 100644
+--- a/source/common/http/conn_pool_base.cc
++++ b/source/common/http/conn_pool_base.cc
+@@ -179,6 +179,9 @@ void MultiplexedActiveClientBase::onStreamReset(Http::StreamResetReason reason)
+   case StreamResetReason::ConnectError:
+   case StreamResetReason::Http1PrematureUpstreamHalfClose:
+     break;
++  case Http::StreamResetReason::LocalAccessDenied:
++    parent_.host()->cluster().trafficStats()->upstream_rq_local_access_denied_.inc();
++    break;
+   }
+ }
+ 
+diff --git a/source/common/http/conn_pool_base.h b/source/common/http/conn_pool_base.h
+index 4facd3c82d..7a3a48aca9 100644
+--- a/source/common/http/conn_pool_base.h
++++ b/source/common/http/conn_pool_base.h
+@@ -126,7 +126,7 @@ public:
+ 
+   void initialize(Upstream::Host::CreateConnectionData& data, HttpConnPoolImplBase& parent) {
+     real_host_description_ = data.host_description_;
+-    codec_client_ = parent.createCodecClient(data);
++    codec_client_ = parent.createCodecClient(data); // XXX calls connect()
+     codec_client_->addConnectionCallbacks(*this);
+     Upstream::ClusterTrafficStats& traffic_stats = *parent_.host()->cluster().trafficStats();
+     codec_client_->setConnectionStats(
+diff --git a/source/common/http/utility.cc b/source/common/http/utility.cc
+index 4b37d158f5..f4f3e70bb4 100644
+--- a/source/common/http/utility.cc
++++ b/source/common/http/utility.cc
+@@ -1098,6 +1098,8 @@ const std::string Utility::resetReasonToString(const Http::StreamResetReason res
+     return "overload manager reset";
+   case Http::StreamResetReason::Http1PrematureUpstreamHalfClose:
+     return "HTTP/1 premature upstream half close";
++  case Http::StreamResetReason::LocalAccessDenied:
++    return "local access denied";
+   }
+ 
+   return "";
+diff --git a/source/common/network/connection_impl.cc b/source/common/network/connection_impl.cc
+index 39cc345382..120e9f3036 100644
+--- a/source/common/network/connection_impl.cc
++++ b/source/common/network/connection_impl.cc
+@@ -613,7 +613,8 @@ void ConnectionImpl::onFileEvent(uint32_t events) {
+   ScopeTrackerScopeState scope(this, this->dispatcher_);
+   ENVOY_CONN_LOG(trace, "socket event: {}", *this, events);
+ 
+-  if (immediate_error_event_ == ConnectionEvent::LocalClose ||
++  if (immediate_error_event_ == ConnectionEvent::LocalAccessDenied ||
++      immediate_error_event_ == ConnectionEvent::LocalClose ||
+       immediate_error_event_ == ConnectionEvent::RemoteClose) {
+     if (bind_error_) {
+       ENVOY_CONN_LOG(debug, "raising bind error", *this);
+@@ -910,6 +911,7 @@ void ServerConnectionImpl::raiseEvent(ConnectionEvent event) {
+   case ConnectionEvent::Connected:
+   case ConnectionEvent::RemoteClose:
+   case ConnectionEvent::LocalClose:
++  case ConnectionEvent::LocalAccessDenied:
+     transport_connect_pending_ = false;
+     transport_socket_connect_timer_.reset();
+   }
+@@ -1013,6 +1015,22 @@ ClientConnectionImpl::ClientConnectionImpl(
+ }
+ 
+ void ClientConnectionImpl::connect() {
++  if (!filter_manager_.allowConnect(*this, socket_->connectionInfoProvider().remoteAddress(),
++                                    stream_info_)) {
++    connecting_ = false;
++    // Set a special error state to ensure asynchronous close to give the owner of the
++    // ConnectionImpl a chance to add callbacks and detect the "disconnect".
++    immediate_error_event_ = ConnectionEvent::LocalAccessDenied;
++
++    setFailureReason(absl::StrCat(
++        "filter denied connection|remote address:",
++	socket_->connectionInfoProvider().remoteAddress()->asString()));
++    ENVOY_CONN_LOG_EVENT(debug, "connection_denied", "{}", *this, failureReason());
++
++    // Trigger a write event to close this connection out-of-band.
++    ioHandle().activateFileEvents(Event::FileReadyType::Write);
++    return;
++  }
+   ENVOY_CONN_LOG_EVENT(debug, "client_connection", "connecting to {}", *this,
+                        socket_->connectionInfoProvider().remoteAddress()->asString());
+   const Api::SysCallIntResult result = transport_socket_->connect(*socket_);
+diff --git a/source/common/network/filter_manager_impl.cc b/source/common/network/filter_manager_impl.cc
+index bc621a3613..4fa35320b4 100644
+--- a/source/common/network/filter_manager_impl.cc
++++ b/source/common/network/filter_manager_impl.cc
+@@ -59,6 +59,17 @@ bool FilterManagerImpl::initializeReadFilters() {
+   return true;
+ }
+ 
++bool FilterManagerImpl::allowConnect(Connection& conn,
++                                     const Address::InstanceConstSharedPtr& destination_address,
++                                     StreamInfo::StreamInfo& stream_info) {
++  for (auto& entry : upstream_filters_) {
++    if (entry->filter_ && !entry->filter_->allowConnect(conn, destination_address, stream_info)) {
++      return false;
++    }
++  }
++  return true;
++}
++
+ void FilterManagerImpl::onContinueReading(ActiveReadFilter* filter,
+                                           ReadBufferSource& buffer_source) {
+   // Filter could return status == FilterStatus::StopIteration immediately, close the connection and
+diff --git a/source/common/network/filter_manager_impl.h b/source/common/network/filter_manager_impl.h
+index 0c33be97d1..295ad0c487 100644
+--- a/source/common/network/filter_manager_impl.h
++++ b/source/common/network/filter_manager_impl.h
+@@ -112,6 +112,9 @@ public:
+   void onRead();
+   FilterStatus onWrite();
+   bool startUpstreamSecureTransport();
++  bool allowConnect(Connection& connection,
++                    const Address::InstanceConstSharedPtr& destination_address,
++                    StreamInfo::StreamInfo& stream_info);
+ 
+ private:
+   struct ActiveReadFilter : public ReadFilterCallbacks, LinkedObject<ActiveReadFilter> {
+diff --git a/source/common/network/multi_connection_base_impl.cc b/source/common/network/multi_connection_base_impl.cc
+index 55ab41e973..00646ea585 100644
+--- a/source/common/network/multi_connection_base_impl.cc
++++ b/source/common/network/multi_connection_base_impl.cc
+@@ -460,6 +460,7 @@ void MultiConnectionBaseImpl::onEvent(ConnectionEvent event, ConnectionCallbacks
+                          connection_provider_->nextConnection());
+     break;
+   }
++  case ConnectionEvent::LocalAccessDenied:
+   case ConnectionEvent::LocalClose:
+   case ConnectionEvent::RemoteClose: {
+     ENVOY_CONN_LOG_EVENT(debug, "multi_connection_cx_attempt_failed", "connection={}", *this,
+diff --git a/source/common/quic/envoy_quic_utils.cc b/source/common/quic/envoy_quic_utils.cc
+index 6effadc1d5..f2ecd5f0af 100644
+--- a/source/common/quic/envoy_quic_utils.cc
++++ b/source/common/quic/envoy_quic_utils.cc
+@@ -93,6 +93,7 @@ quic::QuicRstStreamErrorCode envoyResetReasonToQuicRstError(Http::StreamResetRea
+   case Http::StreamResetReason::ConnectError:
+     return quic::QUIC_STREAM_CONNECT_ERROR;
+   case Http::StreamResetReason::LocalReset:
++  case Http::StreamResetReason::LocalAccessDenied:
+     return quic::QUIC_STREAM_REQUEST_REJECTED;
+   case Http::StreamResetReason::OverloadManager:
+     return quic::QUIC_STREAM_CANCELLED;
+diff --git a/source/common/router/router.cc b/source/common/router/router.cc
+index 37dadeb999..12a939dd13 100644
+--- a/source/common/router/router.cc
++++ b/source/common/router/router.cc
+@@ -1346,7 +1346,9 @@ bool Filter::maybeRetryReset(Http::StreamResetReason reset_reason,
+   // We don't retry if we already started the response, don't have a retry policy defined,
+   // or if we've already retried this upstream request (currently only possible if a per
+   // try timeout occurred and hedge_on_per_try_timeout is enabled).
+-  if (downstream_response_started_ || !retry_state_ || upstream_request.retried()) {
++  // Also not retrying for policy denies.
++  if (downstream_response_started_ || !retry_state_ || upstream_request.retried() ||
++      reset_reason == Http::StreamResetReason::LocalAccessDenied) {
+     return false;
+   }
+   RetryState::Http3Used was_using_http3 = RetryState::Http3Used::Unknown;
+@@ -1424,9 +1426,11 @@ void Filter::onUpstreamReset(Http::StreamResetReason reset_reason,
+     return;
+   }
+ 
+-  const Http::Code error_code = (reset_reason == Http::StreamResetReason::ProtocolError)
+-                                    ? Http::Code::BadGateway
+-                                    : Http::Code::ServiceUnavailable;
++  const Http::Code error_code = (reset_reason == Http::StreamResetReason::LocalAccessDenied)
++                                    ? Http::Code::Forbidden
++                                    : (reset_reason == Http::StreamResetReason::ProtocolError)
++                                      ? Http::Code::BadGateway
++                                      : Http::Code::ServiceUnavailable;
+   chargeUpstreamAbort(error_code, dropped, upstream_request);
+   auto request_ptr = upstream_request.removeFromList(upstream_requests_);
+   callbacks_->dispatcher().deferredDelete(std::move(request_ptr));
+@@ -1439,8 +1443,9 @@ void Filter::onUpstreamReset(Http::StreamResetReason reset_reason,
+ 
+   const StreamInfo::CoreResponseFlag response_flags = streamResetReasonToResponseFlag(reset_reason);
+ 
+-  const std::string body =
+-      absl::StrCat("upstream connect error or disconnect/reset before headers. ",
++  const std::string body = (reset_reason == Http::StreamResetReason::LocalAccessDenied)
++    ? "access denied\r\n"
++    : absl::StrCat("upstream connect error or disconnect/reset before headers. ",
+                    (is_retry_ ? "retried and the latest " : ""),
+                    "reset reason: ", Http::Utility::resetReasonToString(reset_reason),
+                    !transport_failure_reason.empty() ? ", transport failure reason: " : "",
+@@ -1501,6 +1506,8 @@ Filter::streamResetReasonToResponseFlag(Http::StreamResetReason reset_reason) {
+     return StreamInfo::CoreResponseFlag::UpstreamProtocolError;
+   case Http::StreamResetReason::OverloadManager:
+     return StreamInfo::CoreResponseFlag::OverloadManager;
++  case Http::StreamResetReason::LocalAccessDenied:
++    return StreamInfo::CoreResponseFlag::UnauthorizedExternalService;
+   }
+ 
+   PANIC_DUE_TO_CORRUPT_ENUM;
+diff --git a/source/common/router/upstream_request.cc b/source/common/router/upstream_request.cc
+index 9fbfe4be5f..f3f8c58281 100644
+--- a/source/common/router/upstream_request.cc
++++ b/source/common/router/upstream_request.cc
+@@ -567,6 +567,8 @@ void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason,
+       return Http::StreamResetReason::LocalConnectionFailure;
+     case ConnectionPool::PoolFailureReason::Timeout:
+       return Http::StreamResetReason::ConnectionTimeout;
++    case ConnectionPool::PoolFailureReason::LocalAccessDenied:
++      return Http::StreamResetReason::LocalAccessDenied;
+     }
+     PANIC_DUE_TO_CORRUPT_ENUM;
+   }(reason);
+diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
+index e11bed4430..fb539aa816 100644
+--- a/source/common/tcp_proxy/tcp_proxy.cc
++++ b/source/common/tcp_proxy/tcp_proxy.cc
+@@ -633,6 +633,9 @@ void Filter::onGenericPoolFailure(ConnectionPool::PoolFailureReason reason,
+   case ConnectionPool::PoolFailureReason::LocalConnectionFailure:
+     upstream_callbacks_->onEvent(Network::ConnectionEvent::LocalClose);
+     break;
++  case ConnectionPool::PoolFailureReason::LocalAccessDenied:
++    upstream_callbacks_->onEvent(Network::ConnectionEvent::LocalAccessDenied);
++    break;
+   case ConnectionPool::PoolFailureReason::RemoteConnectionFailure:
+     upstream_callbacks_->onEvent(Network::ConnectionEvent::RemoteClose);
+     break;
+@@ -882,7 +885,8 @@ void Filter::onUpstreamEvent(Network::ConnectionEvent event) {
+   bool connecting = connecting_;
+   connecting_ = false;
+ 
+-  if (event == Network::ConnectionEvent::RemoteClose ||
++  if (event == Network::ConnectionEvent::LocalAccessDenied ||
++      event == Network::ConnectionEvent::RemoteClose ||
+       event == Network::ConnectionEvent::LocalClose) {
+     if (Runtime::runtimeFeatureEnabled(
+             "envoy.restart_features.upstream_http_filters_with_tcp_proxy")) {
+diff --git a/source/common/upstream/upstream_impl.cc b/source/common/upstream/upstream_impl.cc
+index 8227127999..9e2b743c41 100644
+--- a/source/common/upstream/upstream_impl.cc
++++ b/source/common/upstream/upstream_impl.cc
+@@ -639,6 +639,7 @@ Host::CreateConnectionData HostImplBase::createConnection(
+     upstream_info->setUpstreamHost(host);
+   }
+   cluster.createNetworkFilterChain(*connection);
++  // XXX call beforeConnect callback 
+   return {std::move(connection), std::move(host)};
+ }
+ 
+diff --git a/source/extensions/filters/network/dubbo_proxy/router/router_impl.cc b/source/extensions/filters/network/dubbo_proxy/router/router_impl.cc
+index 15bb35a9c3..723a9cbcec 100644
+--- a/source/extensions/filters/network/dubbo_proxy/router/router_impl.cc
++++ b/source/extensions/filters/network/dubbo_proxy/router/router_impl.cc
+@@ -390,6 +390,12 @@ void Router::UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason re
+   // When the filter's callback does not end, the sendLocalReply function call
+   // triggers the release of the current stream at the end of the filter's callback.
+   switch (reason) {
++  case ConnectionPool::PoolFailureReason::LocalAccessDenied:
++    parent_.callbacks_->sendLocalReply(
++        AppException(ResponseStatus::ServerError,
++                     fmt::format("dubbo upstream request: local access denied")),
++        false);
++    break;
+   case ConnectionPool::PoolFailureReason::Overflow:
+     parent_.callbacks_->sendLocalReply(
+         AppException(ResponseStatus::ServerError,
+diff --git a/source/extensions/filters/network/thrift_proxy/router/router.h b/source/extensions/filters/network/thrift_proxy/router/router.h
+index 851f04ccc0..4fba2d99ff 100644
+--- a/source/extensions/filters/network/thrift_proxy/router/router.h
++++ b/source/extensions/filters/network/thrift_proxy/router/router.h
+@@ -266,6 +266,9 @@ public:
+ 
+     if (reason.has_value()) {
+       switch (reason.value()) {
++      case ConnectionPool::PoolFailureReason::LocalAccessDenied:
++        incClusterScopeCounter(cluster, nullptr, upstream_resp_exception_local_access_denied_);
++        break;
+       case ConnectionPool::PoolFailureReason::Overflow:
+         incClusterScopeCounter(cluster, nullptr, upstream_resp_exception_local_overflow_);
+         break;
+@@ -399,6 +402,7 @@ private:
+   const Stats::StatName upstream_resp_exception_;
+   const Stats::StatName upstream_resp_exception_local_;
+   const Stats::StatName upstream_resp_exception_local_overflow_;
++  const Stats::StatName upstream_resp_exception_local_access_denied_;
+   const Stats::StatName upstream_resp_exception_local_local_connection_failure_;
+   const Stats::StatName upstream_resp_exception_local_remote_connection_failure_;
+   const Stats::StatName upstream_resp_exception_local_timeout_;
+diff --git a/source/extensions/filters/network/thrift_proxy/router/upstream_request.cc b/source/extensions/filters/network/thrift_proxy/router/upstream_request.cc
+index 436c9d2463..44cd6d2cab 100644
+--- a/source/extensions/filters/network/thrift_proxy/router/upstream_request.cc
++++ b/source/extensions/filters/network/thrift_proxy/router/upstream_request.cc
+@@ -226,6 +226,10 @@ void UpstreamRequest::onEvent(Network::ConnectionEvent event) {
+     ENVOY_LOG(debug, "upstream local close");
+     end_downstream = onResetStream(ConnectionPool::PoolFailureReason::LocalConnectionFailure);
+     break;
++  case Network::ConnectionEvent::LocalAccessDenied:
++    ENVOY_LOG(debug, "upstream access denied");
++    end_downstream = onResetStream(ConnectionPool::PoolFailureReason::LocalAccessDenied);
++    break;
+   case Network::ConnectionEvent::Connected:
+   case Network::ConnectionEvent::ConnectedZeroRtt:
+     // Connected is consumed by the connection pool.
+@@ -291,6 +295,8 @@ poolFailureReasonToResult(ConnectionPool::PoolFailureReason reason) {
+   case ConnectionPool::PoolFailureReason::RemoteConnectionFailure:
+     FALLTHRU;
+   case ConnectionPool::PoolFailureReason::Overflow:
++    FALLTHRU;
++  case ConnectionPool::PoolFailureReason::LocalAccessDenied:
+     return Upstream::Outlier::Result::LocalOriginConnectFailed;
+   case ConnectionPool::PoolFailureReason::Timeout:
+     return Upstream::Outlier::Result::LocalOriginTimeout;
+@@ -315,6 +321,8 @@ bool UpstreamRequest::onResetStream(ConnectionPool::PoolFailureReason reason) {
+   case ConnectionPool::PoolFailureReason::RemoteConnectionFailure:
+     FALLTHRU;
+   case ConnectionPool::PoolFailureReason::Timeout:
++    FALLTHRU;
++  case ConnectionPool::PoolFailureReason::LocalAccessDenied:
+     upstream_host_->outlierDetector().putResult(poolFailureReasonToResult(reason));
+ 
+     // Error occurred after an underflow response, propagate the reset to the downstream.
+diff --git a/source/extensions/filters/network/thrift_proxy/thrift.h b/source/extensions/filters/network/thrift_proxy/thrift.h
+index a5bd2e892f..c4db615d1b 100644
+--- a/source/extensions/filters/network/thrift_proxy/thrift.h
++++ b/source/extensions/filters/network/thrift_proxy/thrift.h
+@@ -276,6 +276,7 @@ enum class AppExceptionType {
+  */
+ class PoolFailureReasonNameValues {
+ public:
++  const std::string LOCAL_ACCESS_DENIED_NAME = "local access denied";
+   const std::string OVERFLOW_NAME = "overflow";
+   const std::string LOCAL_CONNECTION_FAILURE_NAME = "local connection failure";
+   const std::string REMOTE_CONNECTION_FAILURE_NAME = "remote connection failure";
+@@ -283,6 +284,8 @@ public:
+ 
+   const std::string& fromReason(ConnectionPool::PoolFailureReason reason) const {
+     switch (reason) {
++    case ConnectionPool::PoolFailureReason::LocalAccessDenied:
++      return LOCAL_ACCESS_DENIED_NAME;
+     case ConnectionPool::PoolFailureReason::LocalConnectionFailure:
+       return LOCAL_CONNECTION_FAILURE_NAME;
+     case ConnectionPool::PoolFailureReason::RemoteConnectionFailure:
+diff --git a/source/extensions/filters/udp/udp_proxy/udp_proxy_filter.cc b/source/extensions/filters/udp/udp_proxy/udp_proxy_filter.cc
+index 190ab03d86..b0d5ac9978 100644
+--- a/source/extensions/filters/udp/udp_proxy/udp_proxy_filter.cc
++++ b/source/extensions/filters/udp/udp_proxy/udp_proxy_filter.cc
+@@ -1041,6 +1041,7 @@ void UdpProxyFilter::TunnelingActiveSession::onStreamFailure(
+   switch (reason) {
+   case ConnectionPool::PoolFailureReason::Overflow:
+   case ConnectionPool::PoolFailureReason::LocalConnectionFailure:
++  case ConnectionPool::PoolFailureReason::LocalAccessDenied:
+     onUpstreamEvent(Network::ConnectionEvent::LocalClose);
+     break;
+   case ConnectionPool::PoolFailureReason::Timeout:
+-- 
+2.49.0
+
