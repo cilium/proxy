@@ -4,20 +4,18 @@
 
 #include "starter/privileged_service_protocol.h"
 
-#include <errno.h>
-#include <sys/syscall.h>
-#include <sys/unistd.h>
 #include <asm-generic/socket.h>
 #include <bits/types/struct_iovec.h>
+#include <cerrno>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <linux/capability.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stdio.h>	// NOLINT
+#include <stdlib.h>	// NOLINT
 #include <sys/socket.h>
-#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/unistd.h>	// NOLINT
+#include <unistd.h>	// NOLINT
 
 namespace Envoy {
 namespace Cilium {
@@ -92,7 +90,7 @@ static const char* cap_names[64] = {
 };
 
 // Get a 64-bit set of capabilities of the given kind
-uint64_t get_capabilities(cap_flag_t kind) {
+uint64_t getCapabilities(cap_flag_t kind) {
   struct __user_cap_header_struct hdr{_LINUX_CAPABILITY_VERSION_3, 0};
   struct __user_cap_data_struct data[2];
   memset(&data, 0, sizeof(data));
@@ -111,15 +109,15 @@ uint64_t get_capabilities(cap_flag_t kind) {
   if (kind == CAP_EFFECTIVE) {
     return data[0].effective | uint64_t(data[1].effective) << 32;
   }
-  fprintf(stderr, "get_capabilities: invalid kind: %d\n", kind);
+  fprintf(stderr, "getCapabilities: invalid kind: %d\n", kind);
   ::abort();
   return 0;
 }
 
 // dumpCaps returns the capabilities of the given kind in string form.
-size_t dump_capabilities(cap_flag_t kind, char* buf, size_t buf_size) {
+size_t dumpCapabilities(cap_flag_t kind, char* buf, size_t buf_size) {
   size_t remaining = buf_size;
-  uint64_t caps = get_capabilities(kind);
+  uint64_t caps = getCapabilities(kind);
 
   auto append = [&](const char* str) {
     auto len = strlen(str);
@@ -132,8 +130,9 @@ size_t dump_capabilities(cap_flag_t kind, char* buf, size_t buf_size) {
 
   for (int i = 0, n = 0; i < 64; i++) {
     if (caps & (1UL << i)) {
-      if (n > 0)
+      if (n > 0) {
         append(", ");
+      }
       append(cap_names[i]);
       n++;
     }
@@ -155,8 +154,8 @@ void Protocol::close() {
 
 namespace {
 
-static inline struct msghdr init_iov(struct iovec iov[2], const void* header, ssize_t headerlen,
-                                     const void* data, ssize_t datalen) {
+static inline struct msghdr initIov(struct iovec iov[2], const void* header, ssize_t headerlen,
+                                    const void* data, ssize_t datalen) {
   struct msghdr msg{};
   msg.msg_iov = iov;
   msg.msg_iovlen = 1;
@@ -172,10 +171,10 @@ static inline struct msghdr init_iov(struct iovec iov[2], const void* header, ss
 
 } // namespace
 
-ssize_t Protocol::send_fd_msg(const void* header, ssize_t headerlen, const void* data,
+ssize_t Protocol::sendFdMsg(const void* header, ssize_t headerlen, const void* data,
                               ssize_t datalen, int fd) {
   struct iovec iov[2];
-  struct msghdr msg = init_iov(iov, header, headerlen, data, datalen);
+  struct msghdr msg = initIov(iov, header, headerlen, data, datalen);
   union {
     struct cmsghdr cmsghdr;
     char control[CMSG_SPACE(sizeof(int))];
@@ -205,10 +204,10 @@ ssize_t Protocol::send_fd_msg(const void* header, ssize_t headerlen, const void*
   return size;
 }
 
-ssize_t Protocol::recv_fd_msg(const void* header, ssize_t headersize, const void* data,
+ssize_t Protocol::recvFdMsg(const void* header, ssize_t headersize, const void* data,
                               ssize_t datasize, int* fd) {
   struct iovec iov[2];
-  struct msghdr msg = init_iov(iov, header, headersize, data, datasize);
+  struct msghdr msg = initIov(iov, header, headersize, data, datasize);
   union {
     struct cmsghdr cmsghdr;
     char control[CMSG_SPACE(sizeof(int))];

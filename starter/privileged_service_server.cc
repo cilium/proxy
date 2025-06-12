@@ -4,16 +4,15 @@
 
 #include "starter/privileged_service_server.h"
 
-#include <errno.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <syscall.h>
 #include <unistd.h>
 #include <algorithm>
+#include <cerrno>
 #include <climits>
 #include <cstdint>
-#include <stdio.h>
+#include <cstring>
+#include <stdio.h> // NOLINT
+#include <sys/wait.h>
+#include <sys/syscall.h> // NOLINT
 
 #include "starter/privileged_service_protocol.h"
 
@@ -42,7 +41,7 @@ void ProtocolServer::serve() {
     // wait for message
     int fd_in;
     // Leave one byte to the end of the buffer so that we can always zero-terminate string data.
-    ssize_t size = recv_fd_msg(&msg, sizeof(msg) - 1, nullptr, 0, &fd_in);
+    ssize_t size = recvFdMsg(&msg, sizeof(msg) - 1, nullptr, 0, &fd_in);
     if (size < 0) {
       perror("recvmsg");
       if (errno == EPIPE || errno == EPERM) {
@@ -69,10 +68,10 @@ void ProtocolServer::serve() {
     int fd_out = -1; // set below when 'rc' is a file descriptor
 
     switch (msg.hdr.msg_type_) {
-    case TYPE_DUMP_REQUEST: // msg size == header size
-      value_len = dump_capabilities(CAP_EFFECTIVE, buf, buf_size);
+    case TypeDumpRequest: // msg size == header size
+      value_len = dumpCapabilities(CAP_EFFECTIVE, buf, buf_size);
       break;
-    case TYPE_BPF_OPEN_REQUEST: // msg size == header size + path length
+    case TypeBpfOpenRequest: // msg size == header size + path length
       // zero terminate path name
       msg.bpf_open_req.path_[msg_len - sizeof(msg.bpf_open_req)] = '\0';
       {
@@ -81,7 +80,7 @@ void ProtocolServer::serve() {
         fd_out = rc = ::syscall(__NR_bpf, BPF_OBJ_GET, &attr, sizeof(attr));
       }
       break;
-    case TYPE_BPF_LOOKUP_REQUEST: // key_size = msg_len - sizeof msg.bpf_lookup_req
+    case TypeBpfLookupRequest: // key_size = msg_len - sizeof msg.bpf_lookup_req
       // require at least one byte key
       if (msg_len < sizeof(msg.bpf_lookup_req) + 1) {
         fprintf(stderr, "received truncated bpf lookup request (%zd bytes), skipping\n", msg_len);
@@ -105,7 +104,7 @@ void ProtocolServer::serve() {
         value_len = 0;
       }
       break;
-    case TYPE_SETSOCKOPT32_REQUEST: // msg_len == sizeof msg.setsockopt_req
+    case TypeSetSockOpt32Request: // msg_len == sizeof msg.setsockopt_req
       if (msg_len < sizeof(msg.setsockopt_req)) {
         fprintf(stderr, "received truncated setsockopt request (%zd bytes), skipping\n", msg_len);
         rc = -1;
@@ -127,7 +126,7 @@ void ProtocolServer::serve() {
     }
 
     // Form the response in place
-    msg.response.hdr_.msg_type_ = TYPE_RESPONSE;
+    msg.response.hdr_.msg_type_ = TypeResponse;
     if (fd_out != -1) {
       // Pass a positive but invalid fd in return_value_, to be replaced with the passed
       // fd by the receiver.
@@ -137,7 +136,7 @@ void ProtocolServer::serve() {
       msg.response.return_value_ = rc;
       msg.response.errno_ = rc != -1 ? 0 : errno;
     }
-    size = send_fd_msg(&msg, sizeof(msg.response), buf, value_len, fd_out);
+    size = sendFdMsg(&msg, sizeof(msg.response), buf, value_len, fd_out);
     if (size < ssize_t(sizeof(msg.response) + value_len)) {
       perror("sendmsg");
     }
