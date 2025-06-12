@@ -2,18 +2,15 @@
 #error "Linux platform file is part of non-Linux build."
 #endif
 
+#include <cerrno>
 #include <cstring>
-#include <errno.h>
 #include <sys/prctl.h>
-#include <sys/types.h>
 #include <sys/wait.h>
-#include <syscall.h>
 #include <unistd.h>
 #include <vector>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 
@@ -57,7 +54,7 @@ int main(int argc, char** argv) {
   }
 
   // Check that we have the required capabilities
-  uint64_t caps = Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE);
+  uint64_t caps = Envoy::Cilium::PrivilegedService::getCapabilities(CAP_EFFECTIVE);
   if ((caps & (1UL << CAP_NET_ADMIN)) == 0 ||
       (caps & (1UL << CAP_SYS_ADMIN | 1UL << CAP_BPF)) == 0) {
     fprintf(stderr, "CAP_NET_ADMIN and either CAP_SYS_ADMIN or CAP_BPF capabilities are needed for "
@@ -151,9 +148,9 @@ int main(int argc, char** argv) {
       exp_perm_cap = (1UL << CAP_NET_BIND_SERVICE);
     }
     RELEASE_ASSERT(
-        Envoy::Cilium::PrivilegedService::get_capabilities(CAP_EFFECTIVE) == exp_eff_cap &&
-            Envoy::Cilium::PrivilegedService::get_capabilities(CAP_PERMITTED) == exp_perm_cap &&
-            Envoy::Cilium::PrivilegedService::get_capabilities(CAP_INHERITABLE) == 0,
+        Envoy::Cilium::PrivilegedService::getCapabilities(CAP_EFFECTIVE) == exp_eff_cap &&
+            Envoy::Cilium::PrivilegedService::getCapabilities(CAP_PERMITTED) == exp_perm_cap &&
+            Envoy::Cilium::PrivilegedService::getCapabilities(CAP_INHERITABLE) == 0,
         "Failed dropping privileges");
 
     // Dup the client end to CILIUM_PRIVILEGED_SERVICE_FD
