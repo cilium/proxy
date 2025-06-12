@@ -5,12 +5,11 @@
 #endif
 
 #include <linux/capability.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstring>
+#include <stdio.h>	// NOLINT
+#include <stdlib.h>	// NOLINT
 #include <sys/socket.h>
-#include <sys/types.h>
 
 // Use Envoy version of this if defined, otherwise roll a simple stderr one without further
 // dependencies
@@ -33,10 +32,10 @@
 #ifndef _SYS_CAPABILITY_H
 // These are normally defined in <sys/capability.h> added in libcap-dev package. Define these here
 // to avoid that dependency due to complications in cross-compilation for Intel/Arm.
-typedef enum {
-  CAP_EFFECTIVE = 0,  /* Specifies the effective flag */
-  CAP_PERMITTED = 1,  /* Specifies the permitted flag */
-  CAP_INHERITABLE = 2 /* Specifies the inheritable flag */
+typedef enum {                                             // NOLINT(modernize-use-using)
+  CAP_EFFECTIVE = 0,  /* Specifies the effective flag */   // NOLINT(readability-identifier-naming)
+  CAP_PERMITTED = 1,  /* Specifies the permitted flag */   // NOLINT(readability-identifier-naming)
+  CAP_INHERITABLE = 2 /* Specifies the inheritable flag */ // NOLINT(readability-identifier-naming)
 } cap_flag_t;
 #endif
 
@@ -44,8 +43,8 @@ namespace Envoy {
 namespace Cilium {
 namespace PrivilegedService {
 
-uint64_t get_capabilities(cap_flag_t kind);
-size_t dump_capabilities(cap_flag_t kind, char* buf, size_t buf_size);
+uint64_t getCapabilities(cap_flag_t kind);
+size_t dumpCapabilities(cap_flag_t kind, char* buf, size_t buf_size);
 
 #define CILIUM_PRIVILEGED_SERVICE_FD 3
 
@@ -56,13 +55,13 @@ size_t dump_capabilities(cap_flag_t kind, char* buf, size_t buf_size);
 // which are followed by message type specific variable length data.
 
 // Supported message types
-typedef enum {
-  TYPE_RESPONSE = 1,
-  TYPE_DUMP_REQUEST = 2,
-  TYPE_BPF_OPEN_REQUEST = 3,
-  TYPE_BPF_LOOKUP_REQUEST = 4,
-  TYPE_SETSOCKOPT32_REQUEST = 5,
-} MessageType;
+using MessageType = enum {
+  TypeResponse = 1,
+  TypeDumpRequest = 2,
+  TypeBpfOpenRequest = 3,
+  TypeBpfLookupRequest = 4,
+  TypeSetSockOpt32Request = 5,
+};
 
 // Common message header
 // Note that C++ inheritance can not be used as all the data members need to be on the same struct
@@ -72,7 +71,7 @@ struct MessageHeader {
   uint32_t msg_type_ = 0;
   uint32_t msg_seq_ = 0; // reflected in response
 
-  MessageHeader() {}
+  MessageHeader() = default;
   MessageHeader(MessageType t) : msg_type_(t) {}
 };
 
@@ -80,7 +79,7 @@ struct MessageHeader {
 // data depending on the request type. Note that file descriptor return value is passed using the
 // message control channel (ref. man 2 recvmsg).
 struct Response {
-  Response() : hdr_(TYPE_RESPONSE) {}
+  Response() : hdr_(TypeResponse) {}
 
   struct MessageHeader hdr_;
   int return_value_;
@@ -91,7 +90,7 @@ struct Response {
 // Dump requests consists only of the message header, but with the TYPE_DUMP_REQUEST.
 // Response contains the effective capabilitites in a string form.
 struct DumpRequest {
-  DumpRequest() : hdr_(TYPE_DUMP_REQUEST) {}
+  DumpRequest() : hdr_(TypeDumpRequest) {}
 
   struct MessageHeader hdr_;
 };
@@ -101,7 +100,7 @@ struct DumpRequest {
 // Response must be a SyscallResponse. The file descriptor is returned in the message control
 // channel (see man 2 recvmsg).
 struct BpfOpenRequest {
-  BpfOpenRequest() : hdr_(TYPE_BPF_OPEN_REQUEST) {}
+  BpfOpenRequest() : hdr_(TypeBpfOpenRequest) {}
 
   struct MessageHeader hdr_;
   char path_[];
@@ -111,7 +110,7 @@ struct BpfOpenRequest {
 // Key size is not explicitly passed, as it is deduced from the message length.
 // In a successful case the response contains the value returned by the bpf map lookup.
 struct BpfLookupRequest {
-  BpfLookupRequest(uint32_t value_size) : hdr_(TYPE_BPF_LOOKUP_REQUEST), value_size_(value_size) {}
+  BpfLookupRequest(uint32_t value_size) : hdr_(TypeBpfLookupRequest), value_size_(value_size) {}
 
   struct MessageHeader hdr_;
   uint32_t value_size_;
@@ -122,7 +121,7 @@ struct BpfLookupRequest {
 // Response is SyscallResponse.
 struct SetSockOptRequest {
   SetSockOptRequest(int level, int optname, const void* optval, socklen_t optlen)
-      : hdr_(TYPE_SETSOCKOPT32_REQUEST), level_(level), optname_(optname) {
+      : hdr_(TypeSetSockOpt32Request), level_(level), optname_(optname) {
     RELEASE_ASSERT(optlen == sizeof(uint32_t), "optlen must be 4 bytes");
     memcpy(&optval_, optval, optlen);
   }
@@ -140,11 +139,11 @@ public:
   ~Protocol();
 
   void close();
-  bool is_open() const { return fd_ != -1; }
+  bool isOpen() const { return fd_ != -1; }
 
-  ssize_t send_fd_msg(const void* header, ssize_t headerlen, const void* data = nullptr,
+  ssize_t sendFdMsg(const void* header, ssize_t headerlen, const void* data = nullptr,
                       ssize_t datalen = 0, int fd = -1);
-  ssize_t recv_fd_msg(const void* header, ssize_t headersize, const void* data = nullptr,
+  ssize_t recvFdMsg(const void* header, ssize_t headersize, const void* data = nullptr,
                       ssize_t datasize = 0, int* fd = nullptr);
 
 protected:

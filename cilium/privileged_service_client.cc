@@ -34,8 +34,8 @@ ProtocolClient::ProtocolClient()
     : Protocol(CILIUM_PRIVILEGED_SERVICE_FD), call_mutex_(PTHREAD_MUTEX_INITIALIZER), seq_(0) {
   // Check that the Envoy process isn't running with privileges.
   // The only exception is CAP_NET_BIND_SERVICE (if explicitly excluded from being dropped).
-  RELEASE_ASSERT((get_capabilities(CAP_EFFECTIVE) & ~(1UL << CAP_NET_BIND_SERVICE)) == 0 &&
-                     (get_capabilities(CAP_PERMITTED) & ~(1UL << CAP_NET_BIND_SERVICE)) == 0,
+  RELEASE_ASSERT((getCapabilities(CAP_EFFECTIVE) & ~(1UL << CAP_NET_BIND_SERVICE)) == 0 &&
+                     (getCapabilities(CAP_PERMITTED) & ~(1UL << CAP_NET_BIND_SERVICE)) == 0,
                  "cilium-envoy running with privileges, exiting");
 
   if (!checkPrivilegedService()) {
@@ -65,14 +65,14 @@ ssize_t ProtocolClient::transact(MessageHeader& req, size_t req_len, const void*
   RELEASE_ASSERT(rc == 0, "pthread_mutex_lock");
 
   req.msg_seq_ = ++seq_;
-  ssize_t size = send_fd_msg(&req, req_len, data, data_len, *fd);
+  ssize_t size = sendFdMsg(&req, req_len, data, data_len, *fd);
   if (!assert && size_t(size) != req_len + data_len) {
     goto out;
   }
   RELEASE_ASSERT(size != 0, "Cilium privileged service closed pipe");
   RELEASE_ASSERT(size > 0, "Cilium privileged service send failed");
 
-  size = recv_fd_msg(&resp, sizeof(resp), buf, bufsize, fd);
+  size = recvFdMsg(&resp, sizeof(resp), buf, bufsize, fd);
   if (!assert && size_t(size) < sizeof(resp)) {
     goto out;
   }

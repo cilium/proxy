@@ -45,7 +45,7 @@ protected:
 
 private:
   bool checkPrivilegedService();
-  bool haveCiliumPrivilegedService() const { return is_open(); }
+  bool haveCiliumPrivilegedService() const { return isOpen(); }
 
   ssize_t transact(MessageHeader& req, size_t req_len, const void* data, size_t datalen, int* fd,
                    Response& resp, void* buf = nullptr, size_t bufsize = 0, bool assert = true);
