@@ -31,6 +31,8 @@ namespace Envoy {
 namespace Cilium {
 namespace BpfMetadata {
 
+#define DEFAULT_CACHE_ENTRY_LIFETIME 3
+
 struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
   SocketMetadata(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
                  bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
