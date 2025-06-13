@@ -138,22 +138,6 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
                                                       bool end_stream) {
   StreamInfo::StreamInfo& stream_info = callbacks_->streamInfo();
 
-  // Pause upstream decoding until connection has been established
-  if (config_->is_upstream_) {
-    // Skip enforcement or logging on shadows
-    if (stream_info.isShadow()) {
-      return Http::FilterHeadersStatus::Continue;
-    }
-
-    ASSERT(callbacks_->upstreamCallbacks());
-    if (!callbacks_->upstreamCallbacks()->upstream()) {
-      latched_headers_ = headers;
-      latched_end_stream_ = end_stream;
-      ENVOY_LOG(debug, "cilium.l7policy: PAUSING until upstream connection has been established");
-      return Http::FilterHeadersStatus::StopAllIterationAndWatermark;
-    }
-  }
-
   const auto& conn = callbacks_->connection();
 
   if (!conn) {
@@ -161,8 +145,10 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     return Http::FilterHeadersStatus::StopIteration;
   }
 
-  ENVOY_CONN_LOG(debug, "cilium.l7policy: {} decodeHeaders()", conn.ref(),
-                 config_->is_upstream_ ? "upstream" : "downstream");
+  if (log_entry_ == nullptr) {
+    sendLocalError("cilium.l7policy: No log entry");
+    return Http::FilterHeadersStatus::StopIteration;
+  }
 
   const auto policy_fs =
       conn->streamInfo().filterState().getDataReadOnly<Cilium::CiliumPolicyFilterState>(
@@ -173,70 +159,133 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     return Http::FilterHeadersStatus::StopIteration;
   }
 
-  // Destination may have changed due to upstream routing and load balancing.
-  // Use original destination address for policy enforcement when not L7 LB, even if the actual
-  // destination may have changed. This can happen with custom Envoy Listeners.
-  const Network::Address::InstanceConstSharedPtr& dst_address =
-      config_->is_upstream_ ? stream_info.upstreamInfo()->upstreamHost()->address()
-                            : stream_info.downstreamAddressProvider().localAddress();
+  ENVOY_CONN_LOG(debug, "cilium.l7policy: {} decodeHeaders()", conn.ref(),
+                 config_->is_upstream_ ? "upstream" : "downstream");
 
-  if (nullptr == dst_address) {
-    sendLocalError("cilium.l7policy: No destination address");
-    return Http::FilterHeadersStatus::StopIteration;
-  }
-
-  const auto dip = dst_address->ip();
-  if (!dip) {
-    sendLocalError(
-        fmt::format("cilium.l7policy: Non-IP destination address: {}", dst_address->asString()));
-    return Http::FilterHeadersStatus::StopIteration;
-  }
-
-  if (log_entry_ == nullptr) {
-    sendLocalError("cilium.l7policy: No log entry");
-    return Http::FilterHeadersStatus::StopIteration;
-  }
-
-  uint32_t destination_identity = policy_fs->resolvePolicyId(dip);
-  uint16_t destination_port = dip->port();
-
-  // Initialize log entry in the beginning of downstream processing
+  // Handle downstream case first
   if (!config_->is_upstream_) {
+    const auto& dst_address = stream_info.downstreamAddressProvider().localAddress();
+    const auto dip = dst_address->ip();
+    uint32_t destination_identity =
+        policy_fs->ingress_ ? policy_fs->source_identity_ : policy_fs->resolvePolicyId(dip);
+    uint16_t destination_port = dip->port();
+
+    // Initialize log entry in the beginning of downstream processing
     log_entry_->initFromRequest(
         policy_fs->pod_ip_, policy_fs->proxy_id_, policy_fs->ingress_, policy_fs->source_identity_,
-        callbacks_->streamInfo().downstreamAddressProvider().remoteAddress(), 0,
-        callbacks_->streamInfo().downstreamAddressProvider().localAddress(),
-        callbacks_->streamInfo(), headers);
+        callbacks_->streamInfo().downstreamAddressProvider().remoteAddress(), destination_identity,
+        dst_address, stream_info, headers);
+
+    // Enforce pod policy only for local pods without L7 LB
+    if (!policy_fs->policyUseUpstreamDestinationAddress() && policy_fs->pod_ip_.length() > 0) {
+      bool allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), destination_identity,
+                                                     destination_port, headers, *log_entry_);
+
+      // Update the log entry with current headers, as the policy may have altered them.
+      log_entry_->updateFromRequest(destination_identity, dst_address, headers);
+
+      if (!allowed) {
+        config_->log(*log_entry_, ::cilium::EntryType::Denied);
+        callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr,
+                                   absl::nullopt, absl::string_view());
+        return Http::FilterHeadersStatus::StopIteration;
+      }
+
+      // Log as a forwarded request
+      config_->log(*log_entry_, ::cilium::EntryType::Request);
+    }
+
+  } else { // is_upstream_
+
+    // Skip enforcement or logging on shadows and ingress direction
+    if (stream_info.isShadow()) {
+      return Http::FilterHeadersStatus::Continue;
+    }
+
+    // Skip enforcement for non L7LB (which is always egress).
+    // TODO: Drop and warn when Cilium Agent no longer mistakenly configures upstream enforcement or
+    // non-L7LB
+    if (!policy_fs->policyUseUpstreamDestinationAddress()) {
+      ENVOY_CONN_LOG(debug, "cilium.l7policy: upstream enforcement configured for non L7 LB",
+                     conn.ref());
+      return Http::FilterHeadersStatus::Continue;
+    }
+    if (policy_fs->ingress_) {
+      ENVOY_CONN_LOG(
+          debug, "cilium.l7policy: upstream enforcement configured for ingress traffic direction",
+          conn.ref());
+      return Http::FilterHeadersStatus::Continue;
+    }
+
+    // must have a policy configured
+    // This is safe as the upstream filter was introduced at Cilium 1.16 and
+    // bpf_metadata config has had 'enforce_policy_on_l7lb' set since Cilium 1.15.
+    if (policy_fs->pod_ip_.length() == 0 && policy_fs->ingress_policy_name_.length() == 0) {
+      ENVOY_CONN_LOG(warn, "cilium.network: no policy configured", conn.ref());
+      return Http::FilterHeadersStatus::StopIteration;
+    }
+
+    // Pause upstream decoding until connection has been established
+    ASSERT(callbacks_->upstreamCallbacks());
+    if (!callbacks_->upstreamCallbacks()->upstream()) {
+      latched_headers_ = headers;
+      latched_end_stream_ = end_stream;
+      ENVOY_CONN_LOG(debug,
+                     "cilium.l7policy: PAUSING until upstream connection has been established",
+                     conn.ref());
+      return Http::FilterHeadersStatus::StopAllIterationAndWatermark;
+    }
+
+    const auto& dst_address = stream_info.upstreamInfo()->upstreamHost()->address();
+    if (nullptr == dst_address) {
+      sendLocalError("cilium.l7policy: No destination address");
+      return Http::FilterHeadersStatus::StopIteration;
+    }
+    const auto dip = dst_address->ip();
+    if (!dip) {
+      sendLocalError(
+          fmt::format("cilium.l7policy: Non-IP destination address: {}", dst_address->asString()));
+      return Http::FilterHeadersStatus::StopIteration;
+    }
+
+    uint32_t destination_identity = policy_fs->resolvePolicyId(dip);
+    uint16_t destination_port = dip->port();
+    bool allowed;
+
+    // Is there a pod egress policy?
+    if (policy_fs->pod_ip_.length() > 0) {
+      allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), destination_identity, destination_port,
+                                                headers, *log_entry_);
+
+      // Update the log entry with current headers, as the policy may have altered them.
+      log_entry_->updateFromRequest(destination_identity, dst_address, headers);
+
+      if (!allowed) {
+        config_->log(*log_entry_, ::cilium::EntryType::Denied);
+        callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr,
+                                   absl::nullopt, absl::string_view());
+        return Http::FilterHeadersStatus::StopIteration;
+      }
+    }
+
+    // Is there an Ingress policy?
+    if (policy_fs->ingress_policy_name_.length() > 0) {
+      allowed = policy_fs->enforceIngressHTTPPolicy(conn.ref(), destination_identity,
+                                                    destination_port, headers, *log_entry_);
+
+      // Update the log entry with current headers, as the policy may have altered them.
+      log_entry_->updateFromRequest(destination_identity, dst_address, headers);
+
+      if (!allowed) {
+        config_->log(*log_entry_, ::cilium::EntryType::Denied);
+        callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr,
+                                   absl::nullopt, absl::string_view());
+        return Http::FilterHeadersStatus::StopIteration;
+      }
+    }
+    // Log as a forwarded request
+    config_->log(*log_entry_, ::cilium::EntryType::Request);
   }
-
-  allowed_ = policy_fs->enforceHTTPPolicy(conn.ref(), !config_->is_upstream_, destination_identity,
-                                          destination_port, headers, *log_entry_);
-
-  ENVOY_CONN_LOG(
-      debug, "cilium.l7policy: {} ({}->{}) {} policy lookup for endpoint {} for port {}: {}",
-      conn.ref(), policy_fs->ingress_ ? "ingress" : "egress", policy_fs->source_identity_,
-      destination_identity, config_->is_upstream_ ? "upstream" : "downstream", policy_fs->pod_ip_,
-      destination_port, allowed_ ? "ALLOW" : "DENY");
-
-  // Downstream filter leaves L7 LB enforcement and access logging to the upstream
-  // filter
-  if (!config_->is_upstream_ && allowed_ && policy_fs->is_l7lb_) {
-    return Http::FilterHeadersStatus::Continue;
-  }
-
-  // Update the log entry with the chosen destination address and current headers, as remaining
-  // filters, upstream, and/or policy may have altered headers.
-  log_entry_->updateFromRequest(destination_identity, dst_address, headers);
-
-  if (!allowed_) {
-    config_->log(*log_entry_, ::cilium::EntryType::Denied);
-    callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr,
-                               absl::nullopt, absl::string_view());
-    return Http::FilterHeadersStatus::StopIteration;
-  }
-
-  // Log as a forwarded request
-  config_->log(*log_entry_, ::cilium::EntryType::Request);
   return Http::FilterHeadersStatus::Continue;
 }
 
