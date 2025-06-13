@@ -262,6 +262,7 @@ static_resources:
       - name: cilium.network
         typed_config:
           "@type": type.googleapis.com/cilium.NetworkFilter
+          access_log_path: "{{ test_udsdir }}/access_log.sock"
       - name: envoy.http_connection_manager
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
@@ -342,6 +343,18 @@ public:
 
     EXPECT_TRUE(response->complete());
     EXPECT_EQ("403", response->headers().getStatusValue());
+    cleanupUpstreamAndDownstream();
+  }
+
+  void deniedL3(Http::TestRequestHeaderMapImpl&& headers) {
+    initialize();
+    codec_client_ = makeHttpConnection(lookupPort("http"));
+    auto response = codec_client_->makeHeaderOnlyRequest(headers);
+    ASSERT_TRUE(codec_client_->waitForDisconnect());
+
+    // Validate that request access log message is logged
+    absl::optional<std::string> maybe_x_request_id;
+    EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry&) { return true; }));
     cleanupUpstreamAndDownstream();
   }
 
@@ -987,12 +1000,8 @@ TEST_P(CiliumIntegrationPortRangeTest, InvalidRange) {
   Http::TestRequestHeaderMapImpl headers = {
       {":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}};
   codec_client_ = makeHttpConnection(lookupPort("http"));
-  auto response = codec_client_->makeHeaderOnlyRequest(headers);
-  ASSERT_TRUE(response->waitForEndStream());
-
-  uint64_t status;
-  ASSERT_TRUE(absl::SimpleAtoi(response->headers().Status()->value().getStringView(), &status));
-  EXPECT_EQ(403, status);
+  ASSERT_TRUE(codec_client_->waitForDisconnect());
+  cleanupUpstreamAndDownstream();
 }
 
 class CiliumIntegrationEgressTest : public CiliumIntegrationTest {
@@ -1052,6 +1061,7 @@ TEST_P(CiliumIntegrationEgressTest, L3DeniedPath) {
   denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
 }
 
+// This policy has no HTTP rules, and allows all traffic to identity 42
 const std::string L34_POLICY_fmt = R"EOF(version_info: "0"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
@@ -1078,11 +1088,11 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumIntegrationEgressL34Test,
                          testing::ValuesIn(TestEnvironment::getIpVersionsForTest()));
 
 TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix) {
-  denied({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
+  deniedL3({{":method", "GET"}, {":path", "/prefix"}, {":authority", "host"}});
 }
 
 TEST_P(CiliumIntegrationEgressL34Test, DeniedPathPrefix2) {
-  denied({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
+  deniedL3({{":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}});
 }
 
 const std::string HEADER_ACTION_MISSING_SDS_POLICY_fmt = R"EOF(version_info: "1"

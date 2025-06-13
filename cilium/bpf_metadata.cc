@@ -248,8 +248,10 @@ Config::Config(const ::cilium::BpfMetadata& config,
     if (config.ipcache_name().length() > 0) {
       ipcache_name = config.ipcache_name();
     }
-    ipcache_ = IpCache::newIpCache(context.serverFactoryContext(),
-                                   bpf_root + "/tc/globals/" + ipcache_name);
+    ipcache_ = IpCache::newIpCache(
+        context.serverFactoryContext(), bpf_root + "/tc/globals/" + ipcache_name,
+        std::chrono::milliseconds(PROTOBUF_GET_MS_OR_DEFAULT(config, cache_entry_lifetime,
+                                                             DEFAULT_CACHE_ENTRY_LIFETIME)));
   } else if (config.use_nphds()) {
     hosts_ = createHostMap(context);
   }

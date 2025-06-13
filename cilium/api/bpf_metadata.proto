@@ -73,4 +73,9 @@ message BpfMetadata {
   // Use Network Policy Hosts xDS (NPHDS) protocol to sync IP/ID mappings if 'bpf_root' is empty.
   // Network Policy xDS (NPDS) will only be used if 'bpf_root' is non-empty or this is 'true'.
   bool use_nphds = 13;
+
+  // Duration to reuse ipcache results until the entry is looked up from bpf ipcache again.
+  // Defaults to 3 milliseconds.
+  // Cache is garbage collected at interval 10 times the lifetime (default 30 ms).
+  google.protobuf.Duration cache_entry_lifetime = 14;
 }
