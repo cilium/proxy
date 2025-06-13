@@ -113,7 +113,8 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
   bool ingress_;
   bool is_l7lb_;
   uint16_t port_;
-  std::string pod_ip_;              // pod policy to enforce, if any
+  std::string pod_ip_; // pod policy to enforce, if any; empty only when there is no local pod (i.e.
+                       // north/south l7lb)
   std::string ingress_policy_name_; // Ingress policy to enforce, if any
   uint32_t proxy_id_;
   std::string proxylib_l7_proto_;
