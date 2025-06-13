@@ -39,7 +39,7 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
 
     if (!port_policy.allowed(proxy_id_, remote_id, sni)) {
       ENVOY_CONN_LOG(debug, "Pod policy DENY on proxy_id: {} id: {} port: {} sni: \"{}\"", conn,
-                     proxy_id_, remote_id, destination_port, sni);
+                     proxy_id_, remote_id, port, sni);
       return false;
     }
 
@@ -59,8 +59,7 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
         ENVOY_CONN_LOG(debug,
                        "Ingress network policy {} DROP for source identity and destination "
                        "reserved ingress identity: {} proxy_id: {} port: {} sni: \"{}\"",
-                       conn, ingress_policy_name_, ingress_source_identity_, proxy_id_,
-                       destination_port, sni);
+                       conn, ingress_policy_name_, ingress_source_identity_, proxy_id_, port_, sni);
         return false;
       }
     }
@@ -81,55 +80,57 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
   return true;
 }
 
-bool CiliumPolicyFilterState::enforceHTTPPolicy(const Network::Connection& conn, bool is_downstream,
-                                                uint32_t destination_identity,
-                                                uint16_t destination_port,
-                                                /* INOUT */ Http::RequestHeaderMap& headers,
-                                                /* INOUT */ AccessLog::Entry& log_entry) const {
-  // enforce pod policy first, if any.
-  // - ingress enforcement in downstream
-  // - egress enforcement in upstream
-  // - unless !L7LB, where both are done on downstream filter (only)
-  // =>
-  // - is_l7lb_: ingress_ == is_downstream
-  // - !is_l7lb_: is_downstream
-  if (pod_ip_.length() > 0 && (is_l7lb_ ? is_downstream == ingress_ : is_downstream)) {
-    const auto& policy = policy_resolver_->getPolicy(pod_ip_);
-    auto remote_id = ingress_ ? source_identity_ : destination_identity;
-    auto port = ingress_ ? port_ : destination_port;
-    if (!policy.allowed(ingress_, proxy_id_, remote_id, port, headers, log_entry)) {
-      ENVOY_CONN_LOG(debug, "Pod HTTP policy DENY on proxy_id: {} id: {} port: {}", conn, proxy_id_,
-                     remote_id, port);
-      return false;
-    }
-  }
-
-  // enforce Ingress policy 2nd, if any, always on the upstream
-  if (!is_downstream && ingress_policy_name_.length() > 0) {
-    log_entry.entry_.set_policy_name(ingress_policy_name_);
-    const auto& policy = policy_resolver_->getPolicy(ingress_policy_name_);
-
-    // Enforce ingress policy for Ingress, on the original destination port
-    if (ingress_source_identity_ != 0) {
-      if (!policy.allowed(true, proxy_id_, ingress_source_identity_, port_, headers, log_entry)) {
-        ENVOY_CONN_LOG(debug,
-                       "Ingress HTTP policy {} DROP for source identity: {} proxy_id: {} port: {}",
-                       conn, ingress_policy_name_, ingress_source_identity_, proxy_id_, port_);
-        return false;
-      }
-    }
-
-    // Enforce egress policy for Ingress
-    if (!policy.allowed(false, proxy_id_, destination_identity, destination_port, headers,
-                        log_entry)) {
-      ENVOY_CONN_LOG(
-          debug, "Egress HTTP policy {} DROP for destination identity: {} proxy_id: {} port: {}",
-          conn, ingress_policy_name_, destination_identity, proxy_id_, destination_port);
-      return false;
-    }
+bool CiliumPolicyFilterState::enforcePodHTTPPolicy(const Network::Connection& conn,
+                                                   uint32_t destination_identity,
+                                                   uint16_t destination_port,
+                                                   /* INOUT */ Http::RequestHeaderMap& headers,
+                                                   /* INOUT */ AccessLog::Entry& log_entry) const {
+  const auto& policy = policy_resolver_->getPolicy(pod_ip_);
+  auto remote_id = ingress_ ? source_identity_ : destination_identity;
+  auto port = ingress_ ? port_ : destination_port;
+  if (!policy.allowed(ingress_, proxy_id_, remote_id, port, headers, log_entry)) {
+    ENVOY_CONN_LOG(debug,
+                   "cilium.l7policy: Pod {} HTTP {} policy DENY on proxy_id: {} id: {} port: {}",
+                   conn, pod_ip_, ingress_ ? "ingress" : "egress", proxy_id_, remote_id, port);
+    return false;
   }
 
   // Connection allowed by policy
+  ENVOY_CONN_LOG(debug,
+                 "cilium.l7policy: Pod {} HTTP {} policy ALLOW on proxy_id: {} id: {} port: {}",
+                 conn, pod_ip_, ingress_ ? "ingress" : "egress", proxy_id_, remote_id, port);
+  return true;
+}
+
+bool CiliumPolicyFilterState::enforceIngressHTTPPolicy(
+    const Network::Connection& conn, uint32_t destination_identity, uint16_t destination_port,
+    /* INOUT */ Http::RequestHeaderMap& headers,
+    /* INOUT */ AccessLog::Entry& log_entry) const {
+  log_entry.entry_.set_policy_name(ingress_policy_name_);
+  log_entry.request_logged_ = false; // we reuse the same entry we used for the pod policy
+
+  const auto& policy = policy_resolver_->getPolicy(ingress_policy_name_);
+
+  // Enforce ingress policy for Ingress, on the original destination port
+  if (ingress_source_identity_ != 0) {
+    if (!policy.allowed(true, proxy_id_, ingress_source_identity_, port_, headers, log_entry)) {
+      ENVOY_CONN_LOG(debug, "Ingress {} HTTP ingress policy DROP on proxy_id: {} id: {} port: {}",
+                     conn, ingress_policy_name_, proxy_id_, ingress_source_identity_, port_);
+      return false;
+    }
+  }
+
+  // Enforce egress policy for Ingress
+  if (!policy.allowed(false, proxy_id_, destination_identity, destination_port, headers,
+                      log_entry)) {
+    ENVOY_CONN_LOG(debug, "Ingress {} HTTP egress policy DROP on proxy_id: {} id: {}  port: {}",
+                   conn, ingress_policy_name_, proxy_id_, destination_identity, destination_port);
+    return false;
+  }
+
+  // Connection allowed by policy
+  ENVOY_CONN_LOG(debug, "Ingress {} HTTP policy ALLOW on proxy_id: {} id: {}  port: {}", conn,
+                 ingress_policy_name_, proxy_id_, destination_identity, destination_port);
   return true;
 }
 
