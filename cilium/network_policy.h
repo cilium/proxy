@@ -87,6 +87,10 @@ protected:
   PortPolicy(const PolicyMap& map, const RulesList& wildcard_rules, uint16_t port);
 
 public:
+  // If hasHttpRules() returns false, then HTTP policy enforcement can be skipped,
+  // given that Network layer policy has already been enforced.
+  bool hasHttpRules() const { return has_http_rules_; }
+
   // useProxylib returns true if a proxylib parser should be used.
   // 'l7_proto' is set to the parser name in that case.
   bool useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const;
@@ -119,9 +123,13 @@ private:
   bool forRange(std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const;
   bool forFirstRange(std::function<bool(const PortNetworkPolicyRules&)> f) const;
 
+  static bool hasHttpRules(const PolicyMap& map, const RulesList& wildcard_rules,
+                           const PolicyMap::const_iterator port_rules);
+
   const PolicyMap& map_;
   const RulesList& wildcard_rules_;
   const PolicyMap::const_iterator port_rules_; // iterator to 'map_'
+  const bool has_http_rules_;
 };
 
 class IpAddressPair {

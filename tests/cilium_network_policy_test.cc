@@ -104,6 +104,10 @@ protected:
   testing::AssertionResult allowed(bool ingress, const std::string& pod_ip, uint64_t remote_id,
                                    uint16_t port, Http::TestRequestHeaderMapImpl&& headers) {
     const auto& policy = policy_map_->getPolicyInstance(pod_ip, false);
+    // test network layer policy first
+    if (!policy.allowed(ingress, proxy_id_, remote_id, "", port)) {
+      return testing::AssertionFailure();
+    }
     Cilium::AccessLog::Entry log_entry;
     return policy.allowed(ingress, proxy_id_, remote_id, port, headers, log_entry)
                ? testing::AssertionSuccess()
