@@ -632,6 +632,8 @@ public:
     }
   }
 
+  bool hasHttpRules() const { return !http_rules_.empty(); }
+
   std::string name_;
   DownstreamTLSContextPtr server_context_;
   UpstreamTLSContextPtr client_context_;
@@ -783,13 +785,40 @@ public:
     }
   }
 
+  bool hasHttpRules() const {
+    for (const auto& rule : rules_) {
+      if (rule->hasHttpRules()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   std::vector<PortNetworkPolicyRuleConstSharedPtr> rules_; // Allowed if empty.
   bool can_short_circuit_{true};
 };
 
 // end port is zero on lookup!
 PortPolicy::PortPolicy(const PolicyMap& map, const RulesList& wildcard_rules, uint16_t port)
-    : map_(map), wildcard_rules_(wildcard_rules), port_rules_(map_.find({port, port})) {}
+    : map_(map), wildcard_rules_(wildcard_rules), port_rules_(map_.find({port, port})),
+      has_http_rules_(hasHttpRules(map_, wildcard_rules_, port_rules_)) {}
+
+bool PortPolicy::hasHttpRules(const PolicyMap& map, const RulesList& wildcard_rules,
+                              const PolicyMap::const_iterator port_rules) {
+  if (port_rules != map.end()) {
+    for (auto& rules : port_rules->second) {
+      if (rules.hasHttpRules()) {
+        return true;
+      }
+    }
+  }
+  for (auto& rules : wildcard_rules) {
+    if (rules.hasHttpRules()) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // forRange is used for policy lookups, so it will need to check both port-specific and
 // wildcard-port rules, as either of them could contain rules that must be evaluated (i.e., deny
@@ -858,6 +887,11 @@ bool PortPolicy::useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string&
 bool PortPolicy::allowed(uint32_t proxy_id, uint32_t remote_id,
                          Envoy::Http::RequestHeaderMap& headers,
                          Cilium::AccessLog::Entry& log_entry) const {
+  // Network layer policy has already been enforced. If there are no http rules, then there is
+  // nothing to do.
+  if (!has_http_rules_) {
+    return true;
+  }
   return forRange([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
     return rules.allowed(proxy_id, remote_id, headers, log_entry, denied);
   });
@@ -1106,6 +1140,7 @@ public:
 
   PolicyMap rules_;
   RulesList wildcard_rules_{};
+  bool has_http_rules_ = false;
 };
 
 // Construction is single-threaded, but all other use is from multiple worker threads using const
@@ -1123,6 +1158,9 @@ public:
                Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const override {
     const auto port_policy = findPortPolicy(ingress, port);
+    if (!port_policy.hasHttpRules()) {
+      return true;
+    }
     return port_policy.allowed(proxy_id, remote_id, headers, log_entry);
   }
 
