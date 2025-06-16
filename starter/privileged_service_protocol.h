@@ -75,16 +75,13 @@ struct MessageHeader {
   MessageHeader(MessageType t) : msg_type_(t) {}
 };
 
-// Response passes the return value and errno code from the system call, followed by optional
-// data depending on the request type. Note that file descriptor return value is passed using the
-// message control channel (ref. man 2 recvmsg).
+// Response passes the return value and errno code from the system call.
+// Note that file descriptor return value is passed using the message control channel (ref. man 2
+// recvmsg).
 struct Response {
-  Response() : hdr_(TypeResponse) {}
-
-  struct MessageHeader hdr_;
-  int return_value_;
-  int errno_;
-  uint8_t data_[];
+  struct MessageHeader hdr_{};
+  int return_value_ = 0;
+  int errno_ = 0;
 };
 
 // Dump requests consists only of the message header, but with the TYPE_DUMP_REQUEST.
