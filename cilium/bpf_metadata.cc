@@ -227,6 +227,11 @@ Config::Config(const ::cilium::BpfMetadata& config,
         fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}",
                     config.ipv6_source_address()));
   }
+
+  if (config.use_nphds()) {
+    hosts_ = createHostMap(context);
+  }
+
   // Note: all instances use the bpf root of the first filter with non-empty
   // bpf_root instantiated! Only try opening bpf maps if bpf root is explicitly
   // configured
@@ -244,14 +249,14 @@ Config::Config(const ::cilium::BpfMetadata& config,
       throw EnvoyException(fmt::format("cilium.bpf_metadata: Invalid bpf_root: {}", bpf_root));
     }
 
-    std::string ipcache_name = "cilium_ipcache";
-    if (config.ipcache_name().length() > 0) {
-      ipcache_name = config.ipcache_name();
+    if (!hosts_) {
+      std::string ipcache_name = "cilium_ipcache";
+      if (config.ipcache_name().length() > 0) {
+        ipcache_name = config.ipcache_name();
+      }
+      ipcache_ = IpCache::newIpCache(context.serverFactoryContext(),
+                                     bpf_root + "/tc/globals/" + ipcache_name);
     }
-    ipcache_ = IpCache::newIpCache(context.serverFactoryContext(),
-                                   bpf_root + "/tc/globals/" + ipcache_name);
-  } else if (config.use_nphds()) {
-    hosts_ = createHostMap(context);
   }
 
   // Get the shared policy provider, or create it if not already created.
@@ -266,10 +271,10 @@ Config::Config(const ::cilium::BpfMetadata& config,
 uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
   uint32_t id = 0;
 
-  if (ipcache_ != nullptr) {
-    id = ipcache_->resolve(ip);
-  } else if (hosts_ != nullptr) {
+  if (hosts_ != nullptr) {
     id = hosts_->resolve(ip);
+  } else if (ipcache_ != nullptr) {
+    id = ipcache_->resolve(ip);
   }
 
   // default destination identity to the world if needed
