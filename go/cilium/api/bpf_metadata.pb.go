@@ -74,10 +74,11 @@ type BpfMetadata struct {
 	OriginalSourceSoLingerTime *uint32 `protobuf:"varint,11,opt,name=original_source_so_linger_time,json=originalSourceSoLingerTime,proto3,oneof" json:"original_source_so_linger_time,omitempty"`
 	// Name of the pin file for opening bpf ipcache in "<bpf_root>/tc/globals/". If empty, defaults to
 	// "cilium_ipcache" for backwards compatibility.
-	// Only used if 'bpf_root' is non-empty.
+	// Only used if 'bpf_root' is non-empty and 'use_nphds' is 'false'.
 	IpcacheName string `protobuf:"bytes,12,opt,name=ipcache_name,json=ipcacheName,proto3" json:"ipcache_name,omitempty"`
-	// Use Network Policy Hosts xDS (NPHDS) protocol to sync IP/ID mappings if 'bpf_root' is empty.
-	// Network Policy xDS (NPDS) will only be used if 'bpf_root' is non-empty or this is 'true'.
+	// Use Network Policy Hosts xDS (NPHDS) protocol to sync IP/ID mappings.
+	// Network Policy xDS (NPDS) will only be used if this is 'true' or 'bpf_root' is non-empty.
+	// If 'use_nphds' is 'false' ipcache named by 'ipcache_name' is used instead.
 	UseNphds      bool `protobuf:"varint,13,opt,name=use_nphds,json=useNphds,proto3" json:"use_nphds,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
