@@ -1,13 +1,14 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "envoy/api/io_error.h"
+#include "envoy/common/random_generator.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/network/listener_filter_buffer.h"
@@ -30,6 +31,8 @@
 namespace Envoy {
 namespace Cilium {
 namespace BpfMetadata {
+
+#define DEFAULT_CACHE_ENTRY_TTL_MS 3
 
 struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
   SocketMetadata(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
@@ -161,6 +164,8 @@ public:
   Network::Address::InstanceConstSharedPtr ipv6_source_address_;
   bool enforce_policy_on_l7lb_;
   std::string l7lb_policy_name_;
+  std::chrono::milliseconds ipcache_entry_ttl_;
+  Random::RandomGenerator& random_;
 
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
   Cilium::CtMapSharedPtr ct_maps_{};
