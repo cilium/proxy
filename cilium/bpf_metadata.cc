@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -209,7 +210,10 @@ Config::Config(const ::cilium::BpfMetadata& config,
       ipv6_source_address_(
           Network::Utility::parseInternetAddressNoThrow(config.ipv6_source_address())),
       enforce_policy_on_l7lb_(config.enforce_policy_on_l7lb()),
-      l7lb_policy_name_(config.l7lb_policy_name()) {
+      l7lb_policy_name_(config.l7lb_policy_name()),
+      ipcache_entry_ttl_(
+          PROTOBUF_GET_MS_OR_DEFAULT(config, cache_entry_ttl, DEFAULT_CACHE_ENTRY_TTL_MS)),
+      random_(context.serverFactoryContext().api().randomGenerator()) {
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -254,8 +258,10 @@ Config::Config(const ::cilium::BpfMetadata& config,
       if (config.ipcache_name().length() > 0) {
         ipcache_name = config.ipcache_name();
       }
-      ipcache_ = IpCache::newIpCache(context.serverFactoryContext(),
-                                     bpf_root + "/tc/globals/" + ipcache_name);
+      ipcache_ = IpCache::newIpCache(
+          context.serverFactoryContext(), bpf_root + "/tc/globals/" + ipcache_name,
+          std::chrono::milliseconds(PROTOBUF_GET_MS_OR_DEFAULT(config, cache_gc_interval,
+                                                               10 * DEFAULT_CACHE_ENTRY_TTL_MS)));
     }
   }
 
@@ -274,7 +280,12 @@ uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
   if (hosts_ != nullptr) {
     id = hosts_->resolve(ip);
   } else if (ipcache_ != nullptr) {
-    id = ipcache_->resolve(ip);
+    std::chrono::microseconds ttl = ipcache_entry_ttl_;
+    // subtract random jitter (0-1ms) if configured as at least 1ms
+    if (ttl >= std::chrono::milliseconds(1)) {
+      ttl -= std::chrono::microseconds(random_.random() % 1000);
+    }
+    id = ipcache_->resolve(ip, ttl);
   }
 
   // default destination identity to the world if needed

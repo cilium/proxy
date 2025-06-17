@@ -74,4 +74,11 @@ message BpfMetadata {
   // Network Policy xDS (NPDS) will only be used if this is 'true' or 'bpf_root' is non-empty.
   // If 'use_nphds' is 'false' ipcache named by 'ipcache_name' is used instead.
   bool use_nphds = 13;
+
+  // Duration to reuse ipcache results until the entry is looked up from bpf ipcache again.
+  // Defaults to 3 milliseconds.
+  google.protobuf.Duration cache_entry_ttl = 14;
+
+  // Cache is garbage collected at interval 10 times the ttl (default 30 ms).
+  google.protobuf.Duration cache_gc_interval = 15;
 }

@@ -79,9 +79,14 @@ type BpfMetadata struct {
 	// Use Network Policy Hosts xDS (NPHDS) protocol to sync IP/ID mappings.
 	// Network Policy xDS (NPDS) will only be used if this is 'true' or 'bpf_root' is non-empty.
 	// If 'use_nphds' is 'false' ipcache named by 'ipcache_name' is used instead.
-	UseNphds      bool `protobuf:"varint,13,opt,name=use_nphds,json=useNphds,proto3" json:"use_nphds,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	UseNphds bool `protobuf:"varint,13,opt,name=use_nphds,json=useNphds,proto3" json:"use_nphds,omitempty"`
+	// Duration to reuse ipcache results until the entry is looked up from bpf ipcache again.
+	// Defaults to 3 milliseconds.
+	CacheEntryTtl *durationpb.Duration `protobuf:"bytes,14,opt,name=cache_entry_ttl,json=cacheEntryTtl,proto3" json:"cache_entry_ttl,omitempty"`
+	// Cache is garbage collected at interval 10 times the ttl (default 30 ms).
+	CacheGcInterval *durationpb.Duration `protobuf:"bytes,15,opt,name=cache_gc_interval,json=cacheGcInterval,proto3" json:"cache_gc_interval,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *BpfMetadata) Reset() {
@@ -205,11 +210,25 @@ func (x *BpfMetadata) GetUseNphds() bool {
 	return false
 }
 
+func (x *BpfMetadata) GetCacheEntryTtl() *durationpb.Duration {
+	if x != nil {
+		return x.CacheEntryTtl
+	}
+	return nil
+}
+
+func (x *BpfMetadata) GetCacheGcInterval() *durationpb.Duration {
+	if x != nil {
+		return x.CacheGcInterval
+	}
+	return nil
+}
+
 var File_cilium_api_bpf_metadata_proto protoreflect.FileDescriptor
 
 const file_cilium_api_bpf_metadata_proto_rawDesc = "" +
 	"\n" +
-	"\x1dcilium/api/bpf_metadata.proto\x12\x06cilium\x1a\x1egoogle/protobuf/duration.proto\"\xff\x04\n" +
+	"\x1dcilium/api/bpf_metadata.proto\x12\x06cilium\x1a\x1egoogle/protobuf/duration.proto\"\x89\x06\n" +
 	"\vBpfMetadata\x12\x19\n" +
 	"\bbpf_root\x18\x01 \x01(\tR\abpfRoot\x12\x1d\n" +
 	"\n" +
@@ -225,7 +244,9 @@ const file_cilium_api_bpf_metadata_proto_rawDesc = "" +
 	" \x01(\tR\x0el7lbPolicyName\x12G\n" +
 	"\x1eoriginal_source_so_linger_time\x18\v \x01(\rH\x00R\x1aoriginalSourceSoLingerTime\x88\x01\x01\x12!\n" +
 	"\fipcache_name\x18\f \x01(\tR\vipcacheName\x12\x1b\n" +
-	"\tuse_nphds\x18\r \x01(\bR\buseNphdsB!\n" +
+	"\tuse_nphds\x18\r \x01(\bR\buseNphds\x12A\n" +
+	"\x0fcache_entry_ttl\x18\x0e \x01(\v2\x19.google.protobuf.DurationR\rcacheEntryTtl\x12E\n" +
+	"\x11cache_gc_interval\x18\x0f \x01(\v2\x19.google.protobuf.DurationR\x0fcacheGcIntervalB!\n" +
 	"\x1f_original_source_so_linger_timeB.Z,github.com/cilium/proxy/go/cilium/api;ciliumb\x06proto3"
 
 var (
@@ -247,11 +268,13 @@ var file_cilium_api_bpf_metadata_proto_goTypes = []any{
 }
 var file_cilium_api_bpf_metadata_proto_depIdxs = []int32{
 	1, // 0: cilium.BpfMetadata.policy_update_warning_limit:type_name -> google.protobuf.Duration
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	1, // 1: cilium.BpfMetadata.cache_entry_ttl:type_name -> google.protobuf.Duration
+	1, // 2: cilium.BpfMetadata.cache_gc_interval:type_name -> google.protobuf.Duration
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_cilium_api_bpf_metadata_proto_init() }
