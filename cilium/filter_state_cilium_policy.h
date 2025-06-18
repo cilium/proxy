@@ -34,15 +34,13 @@ using PolicyResolverSharedPtr = std::shared_ptr<PolicyResolver>;
 class CiliumPolicyFilterState : public StreamInfo::FilterState::Object,
                                 public Logger::Loggable<Logger::Id::filter> {
 public:
-  CiliumPolicyFilterState(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
-                          bool l7lb, uint16_t port, std::string&& pod_ip,
-                          std::string&& ingress_policy_name,
+  CiliumPolicyFilterState(uint32_t source_identity, bool ingress, bool l7lb, uint16_t port,
+                          std::string&& pod_ip, std::string&& ingress_policy_name,
                           const PolicyResolverSharedPtr& policy_resolver, uint32_t proxy_id,
                           absl::string_view sni)
-      : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
-        ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
-        ingress_policy_name_(std::move(ingress_policy_name)), proxy_id_(proxy_id), sni_(sni),
-        policy_resolver_(policy_resolver) {
+      : source_identity_(source_identity), ingress_(ingress), is_l7lb_(l7lb), port_(port),
+        pod_ip_(std::move(pod_ip)), ingress_policy_name_(std::move(ingress_policy_name)),
+        proxy_id_(proxy_id), sni_(sni), policy_resolver_(policy_resolver) {
     ENVOY_LOG(
         debug,
         "Cilium CiliumPolicyFilterState(): source_identity: {}, "
@@ -79,7 +77,6 @@ public:
   static const std::string& key();
 
   // Additional ingress policy enforcement is performed if ingress_source_identity is non-zero
-  uint32_t ingress_source_identity_;
   uint32_t source_identity_;
   bool ingress_;
   bool is_l7lb_;

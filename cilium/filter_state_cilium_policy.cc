@@ -53,15 +53,13 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
     const auto& policy = policy_resolver_->getPolicy(ingress_policy_name_);
 
     // Enforce ingress policy for Ingress, on the original destination port
-    if (ingress_source_identity_ != 0) {
-      auto ingress_port_policy = policy.findPortPolicy(true, port_);
-      if (!ingress_port_policy.allowed(proxy_id_, ingress_source_identity_, sni)) {
-        ENVOY_CONN_LOG(debug,
-                       "Ingress network policy {} DROP for source identity and destination "
-                       "reserved ingress identity: {} proxy_id: {} port: {} sni: \"{}\"",
-                       conn, ingress_policy_name_, ingress_source_identity_, proxy_id_, port_, sni);
-        return false;
-      }
+    auto ingress_port_policy = policy.findPortPolicy(true, port_);
+    if (!ingress_port_policy.allowed(proxy_id_, source_identity_, sni)) {
+      ENVOY_CONN_LOG(debug,
+                     "Ingress network policy {} DROP for source identity and destination "
+                     "reserved ingress identity: {} proxy_id: {} port: {} sni: \"{}\"",
+                     conn, ingress_policy_name_, source_identity_, proxy_id_, port_, sni);
+      return false;
     }
 
     // Enforce egress policy for Ingress
@@ -122,28 +120,26 @@ bool CiliumPolicyFilterState::enforceIngressHTTPPolicy(
   const auto& policy = policy_resolver_->getPolicy(ingress_policy_name_);
 
   // Enforce ingress policy for Ingress, on the original destination port
-  if (ingress_source_identity_ != 0) {
-    const auto port_policy = policy.findPortPolicy(true, port_);
-    if (!port_policy.hasHttpRules()) {
-      ENVOY_CONN_LOG(debug,
-                     "cilium.l7policy: Ingress {} HTTP ingress policy enforcement skipped (no HTTP "
-                     "rules) on proxy_id: {} id: {} port: {}",
-                     conn, ingress_policy_name_, proxy_id_, ingress_source_identity_, port_);
-      return true;
-    }
+  const auto ingress_policy = policy.findPortPolicy(true, port_);
+  if (!ingress_policy.hasHttpRules()) {
+    ENVOY_CONN_LOG(debug,
+                   "cilium.l7policy: Ingress {} HTTP ingress policy enforcement skipped (no HTTP "
+                   "rules) on proxy_id: {} id: {} port: {}",
+                   conn, ingress_policy_name_, proxy_id_, source_identity_, port_);
+    return true;
+  }
 
-    if (!port_policy.allowed(proxy_id_, ingress_source_identity_, headers, log_entry)) {
-      ENVOY_CONN_LOG(
-          debug,
-          "cilium.l7policy: Ingress {} HTTP ingress policy DROP on proxy_id: {} id: {} port: {}",
-          conn, ingress_policy_name_, proxy_id_, ingress_source_identity_, port_);
-      return false;
-    }
+  if (!ingress_policy.allowed(proxy_id_, source_identity_, headers, log_entry)) {
+    ENVOY_CONN_LOG(
+        debug,
+        "cilium.l7policy: Ingress {} HTTP ingress policy DROP on proxy_id: {} id: {} port: {}",
+        conn, ingress_policy_name_, proxy_id_, source_identity_, port_);
+    return false;
   }
 
   // Enforce egress policy for Ingress on the upstream destination identity and port
-  const auto port_policy = policy.findPortPolicy(false, destination_port);
-  if (!port_policy.hasHttpRules()) {
+  const auto egress_policy = policy.findPortPolicy(false, destination_port);
+  if (!egress_policy.hasHttpRules()) {
     ENVOY_CONN_LOG(debug,
                    "cilium.l7policy: Ingress {} HTTP egress policy enforcement skipped (no HTTP "
                    "rules) on proxy_id: {} id: {} port: {}",
@@ -151,7 +147,7 @@ bool CiliumPolicyFilterState::enforceIngressHTTPPolicy(
     return true;
   }
 
-  if (!port_policy.allowed(proxy_id_, destination_identity, headers, log_entry)) {
+  if (!egress_policy.allowed(proxy_id_, destination_identity, headers, log_entry)) {
     ENVOY_CONN_LOG(
         debug,
         "cilium.l7policy: Ingress {} HTTP egress policy DROP on proxy_id: {} id: {}  port: {}",

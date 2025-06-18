@@ -300,13 +300,12 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
   auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
   EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(12345678, policy_fs->source_identity_);
   EXPECT_EQ(false, policy_fs->ingress_);
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
   EXPECT_EQ("", policy_fs->pod_ip_);
   EXPECT_EQ("", policy_fs->ingress_policy_name_);
-  EXPECT_EQ(0, policy_fs->ingress_source_identity_);
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
   EXPECT_NE(nullptr, source_addresses_socket_option);
@@ -341,13 +340,12 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
   EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(12345678, policy_fs->source_identity_);
   EXPECT_EQ(false, policy_fs->ingress_);
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
   EXPECT_EQ("", policy_fs->pod_ip_);
   EXPECT_EQ("10.1.1.42", policy_fs->ingress_policy_name_);
-  EXPECT_EQ(12345678, policy_fs->ingress_source_identity_);
 
   AccessLog::Entry log_entry;
   log_entry.entry_.set_policy_name("pod");
@@ -411,13 +409,12 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbPodAndIngressEnforcedMetadata) {
   auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
   EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(9999, policy_fs->source_identity_);
   EXPECT_EQ(false, policy_fs->ingress_);
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
   EXPECT_EQ("192.168.1.1", policy_fs->pod_ip_);
   EXPECT_EQ("10.1.1.42", policy_fs->ingress_policy_name_);
-  EXPECT_EQ(9999, policy_fs->ingress_source_identity_);
 
   AccessLog::Entry log_entry;
   log_entry.entry_.set_policy_name("pod");
@@ -482,13 +479,12 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
   EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(2, policy_fs->source_identity_);
   EXPECT_EQ(false, policy_fs->ingress_);
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
   EXPECT_EQ("", policy_fs->pod_ip_);
   EXPECT_EQ("10.1.1.42", policy_fs->ingress_policy_name_);
-  EXPECT_EQ(2, policy_fs->ingress_source_identity_);
 
   AccessLog::Entry log_entry;
   log_entry.entry_.set_policy_name("pod");
@@ -590,13 +586,12 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
   EXPECT_NE(nullptr, policy_fs);
 
-  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(111, policy_fs->source_identity_);
   EXPECT_EQ(false, policy_fs->ingress_);
   EXPECT_EQ(true, policy_fs->is_l7lb_);
   EXPECT_EQ(80, policy_fs->port_);
   EXPECT_EQ("10.1.1.1", policy_fs->pod_ip_);
   EXPECT_EQ("", policy_fs->ingress_policy_name_);
-  EXPECT_EQ(0, policy_fs->ingress_source_identity_);
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
   EXPECT_NE(nullptr, source_addresses_socket_option);
