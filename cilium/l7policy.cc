@@ -269,7 +269,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     }
 
     // Is there an Ingress policy?
-    if (policy_fs->ingress_policy_name_.length() > 0) {
+    if (!policy_fs->ingress_policy_name_.empty()) {
       allowed = policy_fs->enforceIngressHTTPPolicy(conn.ref(), destination_identity,
                                                     destination_port, headers, *log_entry_);
 

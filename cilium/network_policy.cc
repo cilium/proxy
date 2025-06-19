@@ -4,7 +4,6 @@
 #include <openssl/mem.h>
 
 #include <algorithm>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
