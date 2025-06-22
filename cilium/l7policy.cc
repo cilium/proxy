@@ -138,6 +138,11 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
                                                       bool end_stream) {
   StreamInfo::StreamInfo& stream_info = callbacks_->streamInfo();
 
+  // Skip enforcement or logging on shadows and ingress direction
+  if (stream_info.isShadow()) {
+    return Http::FilterHeadersStatus::Continue;
+  }
+
   const auto& conn = callbacks_->connection();
 
   if (!conn) {
@@ -196,12 +201,6 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     }
 
   } else { // is_upstream_
-
-    // Skip enforcement or logging on shadows and ingress direction
-    if (stream_info.isShadow()) {
-      return Http::FilterHeadersStatus::Continue;
-    }
-
     // Skip enforcement for non L7LB (which is always egress).
     // TODO: Drop and warn when Cilium Agent no longer mistakenly configures upstream enforcement or
     // non-L7LB
