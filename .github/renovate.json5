@@ -27,7 +27,7 @@
   pruneStaleBranches: true,
   baseBranches: [
     'main',
-    'v1.32',
+    'v1.33',
   ],
   labels: [
     'kind/enhancement',
@@ -64,7 +64,7 @@
       ],
       allowedVersions: '<1.25',
       matchBaseBranches: [
-        'v1.32',
+        'v1.33',
       ],
     },
     {
@@ -87,7 +87,7 @@
       ],
       matchBaseBranches: [
         'main',
-        'v1.32',
+        'v1.33',
       ],
     },
     {
@@ -106,7 +106,7 @@
       ],
       matchBaseBranches: [
         'main',
-        'v1.32',
+        'v1.33',
       ],
     },
     {
@@ -119,20 +119,7 @@
       allowedVersions: '24.04',
       matchBaseBranches: [
         'main',
-        'v1.32',
-      ],
-    },
-    {
-      matchFileNames: [
-        'Dockerfile.builder',
-      ],
-      matchPackageNames: [
-        'docker.io/library/ubuntu',
-      ],
-      allowedVersions: '22.04',
-      matchBaseBranches: [
-        'main',
-        'v1.32',
+        'v1.33',
       ],
     },
     {
@@ -152,24 +139,24 @@
       matchPackageNames: [
         'go',
       ],
-      allowedVersions: '<=1.23',
+      allowedVersions: '<=1.24',
       matchBaseBranches: [
         'main',
-        'v1.32',
-      ],
-    },
-    {
-      groupName: 'envoy 1.32.x',
-      matchDepNames: [
-        'envoyproxy/envoy',
-      ],
-      allowedVersions: '<=1.32',
-      matchBaseBranches: [
-        'v1.32',
+        'v1.33',
       ],
     },
     {
       groupName: 'envoy 1.33.x',
+      matchDepNames: [
+        'envoyproxy/envoy',
+      ],
+      allowedVersions: '<=1.33',
+      matchBaseBranches: [
+        'v1.33',
+      ],
+    },
+    {
+      groupName: 'envoy 1.34.x',
       matchDepNames: [
         'envoyproxy/envoy',
       ],
