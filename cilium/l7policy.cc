@@ -171,8 +171,8 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   if (!config_->is_upstream_) {
     const auto& dst_address = stream_info.downstreamAddressProvider().localAddress();
     const auto dip = dst_address->ip();
-    uint32_t destination_identity =
-        policy_fs->ingress_ ? policy_fs->source_identity_ : policy_fs->resolvePolicyId(dip);
+    // destination identity should be reported as 0 for an ingress policy
+    uint32_t destination_identity = policy_fs->ingress_ ? 0 : policy_fs->resolvePolicyId(dip);
     uint16_t destination_port = dip->port();
 
     // Initialize log entry in the beginning of downstream processing
