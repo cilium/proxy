@@ -106,7 +106,16 @@ bool CiliumPolicyFilterState::enforcePodHTTPPolicy(const Network::Connection& co
                      conn, pod_ip_, ingress_ ? "ingress" : "egress", verdict ? "ALLOW" : "DENY",
                      proxy_id_, remote_id, port);
       return verdict;
+    } else {
+      ENVOY_CONN_LOG(debug,
+                     "cilium.l7policy: Pod {} HTTP {} policy cache MISS "
+                     "(version: {}/{}, id: {}/{}, port: {}/{}), not skipping.",
+                     conn, pod_ip_, ingress_ ? "ingress" : "egress", version, policy_cache.version_,
+                     remote_id, policy_cache.identity_, port, policy_cache.port_);
     }
+  } else {
+    ENVOY_CONN_LOG(debug, "cilium.l7policy: Pod {} HTTP {} policy has HTTP rules, not skipping.",
+                   conn, pod_ip_, ingress_ ? "ingress" : "egress");
   }
 
   bool verdict = port_policy.allowed(proxy_id_, remote_id, headers, log_entry);
