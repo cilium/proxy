@@ -41,7 +41,7 @@ PACKED_STRUCT(struct IpCacheKey {
   std::string asString() const {
     if (family == ENDPOINT_KEY_IPV4) {
       auto ip = ntohl(ip4);
-      return fmt::format("%d.%d.%d.%d/%d", uint8_t(ip >> 24), uint8_t(ip >> 16), uint8_t(ip >> 8),
+      return fmt::format("{}.{}.{}.{}/{}", uint8_t(ip >> 24), uint8_t(ip >> 16), uint8_t(ip >> 8),
                          uint8_t(ip), lpm_key.prefixlen - 32);
     } else if (family == ENDPOINT_KEY_IPV6) {
       return fmt::format("{:x}:{:x}:{:x}:{:x}/{}", ntohl(ip6[0]), ntohl(ip6[1]), ntohl(ip6[2]),
