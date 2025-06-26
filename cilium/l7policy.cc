@@ -81,6 +81,7 @@ Config::Config(const std::string& access_log_path, const std::string& denied_403
   if (len < 2 || denied_403_body_[len - 2] != '\r' || denied_403_body_[len - 1] != '\n') {
     denied_403_body_.append("\r\n");
   }
+  ENVOY_LOG(debug, "cilium.l7policy: Config created");
 }
 
 Config::Config(const ::cilium::L7Policy& config, TimeSource& time_source, Stats::Scope& scope,
