@@ -71,10 +71,10 @@ Config::Config(const std::string& access_log_path, const std::string& denied_403
                TimeSource& time_source, Stats::Scope& scope, bool is_upstream)
     : time_source_(time_source), stats_{ALL_CILIUM_STATS(POOL_COUNTER_PREFIX(scope, "cilium"))},
       denied_403_body_(denied_403_body), is_upstream_(is_upstream), access_log_(nullptr) {
-  if (access_log_path.length()) {
+  if (!access_log_path.empty()) {
     access_log_ = AccessLog::open(access_log_path, time_source);
   }
-  if (denied_403_body_.length() == 0) {
+  if (denied_403_body_.empty()) {
     denied_403_body_ = "Access denied";
   }
   size_t len = denied_403_body_.length();
@@ -182,7 +182,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
         dst_address, stream_info, headers);
 
     // Enforce pod policy only for local pods without L7 LB
-    if (!policy_fs->policyUseUpstreamDestinationAddress() && policy_fs->pod_ip_.length() > 0) {
+    if (!policy_fs->policyUseUpstreamDestinationAddress() && !policy_fs->pod_ip_.empty()) {
       bool allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), destination_identity,
                                                      destination_port, headers, *log_entry_);
 
@@ -219,7 +219,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     // must have a policy configured
     // This is safe as the upstream filter was introduced at Cilium 1.16 and
     // bpf_metadata config has had 'enforce_policy_on_l7lb' set since Cilium 1.15.
-    if (policy_fs->pod_ip_.length() == 0 && policy_fs->ingress_policy_name_.length() == 0) {
+    if (policy_fs->pod_ip_.empty() && policy_fs->ingress_policy_name_.empty()) {
       ENVOY_CONN_LOG(warn, "cilium.network: no policy configured", conn.ref());
       return Http::FilterHeadersStatus::StopIteration;
     }
@@ -252,7 +252,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     bool allowed;
 
     // Is there a pod egress policy?
-    if (policy_fs->pod_ip_.length() > 0) {
+    if (!policy_fs->pod_ip_.empty()) {
       allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), destination_identity, destination_port,
                                                 headers, *log_entry_);
 
@@ -268,7 +268,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     }
 
     // Is there an Ingress policy?
-    if (policy_fs->ingress_policy_name_.length() > 0) {
+    if (!policy_fs->ingress_policy_name_.empty()) {
       allowed = policy_fs->enforceIngressHTTPPolicy(conn.ref(), destination_identity,
                                                     destination_port, headers, *log_entry_);
 
