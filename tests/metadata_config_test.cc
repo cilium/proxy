@@ -553,7 +553,7 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadata) {
   EXPECT_NE(nullptr, source_addresses_socket_option);
   EXPECT_EQ(1, source_addresses_socket_option->linger_time_);
 
-  EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
+  EXPECT_EQ("10.1.1.1:41234", source_addresses_socket_option->original_source_address_->asString());
   EXPECT_EQ("10.1.1.1:41234", source_addresses_socket_option->ipv4_source_address_->asString());
   EXPECT_EQ("[face::1:1:1]:41234",
             source_addresses_socket_option->ipv6_source_address_->asString());
