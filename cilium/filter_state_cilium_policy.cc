@@ -10,6 +10,7 @@
 #include "source/common/common/macros.h"
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/accesslog.h"
 
 namespace Envoy {
@@ -84,55 +85,85 @@ bool CiliumPolicyFilterState::enforcePodHTTPPolicy(const Network::Connection& co
                                                    uint32_t destination_identity,
                                                    uint16_t destination_port,
                                                    /* INOUT */ Http::RequestHeaderMap& headers,
+                                                   /* INOUT */ LastNetworkPolicyCache& policy_cache,
                                                    /* INOUT */ AccessLog::Entry& log_entry) const {
   const auto& policy = policy_resolver_->getPolicy(pod_ip_);
   auto remote_id = ingress_ ? source_identity_ : destination_identity;
   auto port = ingress_ ? port_ : destination_port;
 
+  uint64_t version = policy.version();
   const auto port_policy = policy.findPortPolicy(ingress_, port);
-  if (!port_policy.hasHttpRules()) {
-    ENVOY_CONN_LOG(debug,
-                   "cilium.l7policy: Pod {} HTTP {} policy enforcement skipped (no HTTP rules) on "
-                   "proxy_id: {} id: {} port: {}",
-                   conn, pod_ip_, ingress_ ? "ingress" : "egress", proxy_id_, remote_id, port);
-    return true;
+  bool has_http_rules = port_policy.hasHttpRules();
+
+  if (!has_http_rules) {
+    absl::optional<bool> opt = policy_cache.previousVerdict(version, remote_id, port);
+    if (opt.has_value()) {
+      bool verdict = opt.value();
+      ENVOY_CONN_LOG(debug,
+                     "cilium.l7policy: Pod {} HTTP {} policy enforcement using cached verdict {} "
+                     "(no HTTP rules) on "
+                     "proxy_id: {} id: {} port: {}",
+                     conn, pod_ip_, ingress_ ? "ingress" : "egress", verdict ? "ALLOW" : "DENY",
+                     proxy_id_, remote_id, port);
+      return verdict;
+    }
   }
 
-  if (!port_policy.allowed(proxy_id_, remote_id, headers, log_entry)) {
+  bool verdict = port_policy.allowed(proxy_id_, remote_id, headers, log_entry);
+  if (!has_http_rules) {
+    policy_cache.update(version, remote_id, port, verdict);
+  }
+  if (verdict == false) {
     ENVOY_CONN_LOG(debug,
                    "cilium.l7policy: Pod {} HTTP {} policy DENY on proxy_id: {} id: {} port: {}",
                    conn, pod_ip_, ingress_ ? "ingress" : "egress", proxy_id_, remote_id, port);
-    return false;
+  } else {
+    ENVOY_CONN_LOG(debug,
+                   "cilium.l7policy: Pod {} HTTP {} policy ALLOW on proxy_id: {} id: {} port: {}",
+                   conn, pod_ip_, ingress_ ? "ingress" : "egress", proxy_id_, remote_id, port);
   }
-
-  // Connection allowed by policy
-  ENVOY_CONN_LOG(debug,
-                 "cilium.l7policy: Pod {} HTTP {} policy ALLOW on proxy_id: {} id: {} port: {}",
-                 conn, pod_ip_, ingress_ ? "ingress" : "egress", proxy_id_, remote_id, port);
-  return true;
+  return verdict;
 }
 
 bool CiliumPolicyFilterState::enforceIngressHTTPPolicy(
     const Network::Connection& conn, uint32_t destination_identity, uint16_t destination_port,
     /* INOUT */ Http::RequestHeaderMap& headers,
+    /* INOUT */ LastNetworkPolicyCache policy_cache[2],
     /* INOUT */ AccessLog::Entry& log_entry) const {
   log_entry.entry_.set_policy_name(ingress_policy_name_);
   log_entry.request_logged_ = false; // we reuse the same entry we used for the pod policy
 
   const auto& policy = policy_resolver_->getPolicy(ingress_policy_name_);
+  uint64_t version = policy.version();
 
   // Enforce ingress policy for Ingress, on the original destination port
   if (ingress_source_identity_ != 0) {
     const auto port_policy = policy.findPortPolicy(true, port_);
-    if (!port_policy.hasHttpRules()) {
-      ENVOY_CONN_LOG(debug,
-                     "cilium.l7policy: Ingress {} HTTP ingress policy enforcement skipped (no HTTP "
-                     "rules) on proxy_id: {} id: {} port: {}",
-                     conn, ingress_policy_name_, proxy_id_, ingress_source_identity_, port_);
-      return true;
+    bool has_http_rules = port_policy.hasHttpRules();
+
+    bool have_verdict = false;
+    bool verdict;
+    if (!has_http_rules) {
+      absl::optional<bool> opt =
+          policy_cache[0].previousVerdict(version, ingress_source_identity_, port_);
+      if (opt.has_value()) {
+        have_verdict = true;
+        verdict = opt.value();
+        ENVOY_CONN_LOG(debug,
+                       "cilium.l7policy: Ingress {} HTTP ingress policy enforcement using using "
+                       "cached verdict (no HTTP rules)",
+                       conn, ingress_policy_name_);
+      }
     }
 
-    if (!port_policy.allowed(proxy_id_, ingress_source_identity_, headers, log_entry)) {
+    if (!have_verdict) {
+      verdict = port_policy.allowed(proxy_id_, ingress_source_identity_, headers, log_entry);
+      if (!has_http_rules) {
+        policy_cache[0].update(version, ingress_source_identity_, port_, verdict);
+      }
+    }
+
+    if (verdict == false) {
       ENVOY_CONN_LOG(
           debug,
           "cilium.l7policy: Ingress {} HTTP ingress policy DROP on proxy_id: {} id: {} port: {}",
@@ -143,15 +174,31 @@ bool CiliumPolicyFilterState::enforceIngressHTTPPolicy(
 
   // Enforce egress policy for Ingress on the upstream destination identity and port
   const auto port_policy = policy.findPortPolicy(false, destination_port);
-  if (!port_policy.hasHttpRules()) {
-    ENVOY_CONN_LOG(debug,
-                   "cilium.l7policy: Ingress {} HTTP egress policy enforcement skipped (no HTTP "
-                   "rules) on proxy_id: {} id: {} port: {}",
-                   conn, ingress_policy_name_, proxy_id_, destination_identity, destination_port);
-    return true;
+  bool has_http_rules = port_policy.hasHttpRules();
+
+  bool have_verdict = false;
+  bool verdict;
+  if (!has_http_rules) {
+    absl::optional<bool> opt =
+        policy_cache[1].previousVerdict(version, destination_identity, destination_port);
+    if (opt.has_value()) {
+      have_verdict = true;
+      verdict = opt.value();
+      ENVOY_CONN_LOG(debug,
+                     "cilium.l7policy: Ingress {} HTTP egress policy enforcement using using "
+                     "cached verdict (no HTTP rules)",
+                     conn, ingress_policy_name_);
+    }
   }
 
-  if (!port_policy.allowed(proxy_id_, destination_identity, headers, log_entry)) {
+  if (!have_verdict) {
+    verdict = port_policy.allowed(proxy_id_, destination_identity, headers, log_entry);
+    if (!has_http_rules) {
+      policy_cache[1].update(version, destination_identity, destination_port, verdict);
+    }
+  }
+
+  if (verdict == false) {
     ENVOY_CONN_LOG(
         debug,
         "cilium.l7policy: Ingress {} HTTP egress policy DROP on proxy_id: {} id: {}  port: {}",

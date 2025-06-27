@@ -183,8 +183,9 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
     // Enforce pod policy only for local pods without L7 LB
     if (!policy_fs->policyUseUpstreamDestinationAddress() && !policy_fs->pod_ip_.empty()) {
-      bool allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), destination_identity,
-                                                     destination_port, headers, *log_entry_);
+      bool allowed =
+          policy_fs->enforcePodHTTPPolicy(conn.ref(), destination_identity, destination_port,
+                                          headers, config_->pod_policy_cache_, *log_entry_);
 
       // Update the log entry with current headers, as the policy may have altered them.
       log_entry_->updateFromRequest(destination_identity, dst_address, headers);
@@ -254,7 +255,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
     // Is there a pod egress policy?
     if (!policy_fs->pod_ip_.empty()) {
       allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), destination_identity, destination_port,
-                                                headers, *log_entry_);
+                                                headers, config_->pod_policy_cache_, *log_entry_);
 
       // Update the log entry with current headers, as the policy may have altered them.
       log_entry_->updateFromRequest(destination_identity, dst_address, headers);
@@ -269,8 +270,9 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
     // Is there an Ingress policy?
     if (!policy_fs->ingress_policy_name_.empty()) {
-      allowed = policy_fs->enforceIngressHTTPPolicy(conn.ref(), destination_identity,
-                                                    destination_port, headers, *log_entry_);
+      allowed =
+          policy_fs->enforceIngressHTTPPolicy(conn.ref(), destination_identity, destination_port,
+                                              headers, config_->ingress_policy_cache_, *log_entry_);
 
       // Update the log entry with current headers, as the policy may have altered them.
       log_entry_->updateFromRequest(destination_identity, dst_address, headers);
