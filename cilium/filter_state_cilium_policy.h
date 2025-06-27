@@ -26,6 +26,7 @@ public:
 
   virtual uint32_t resolvePolicyId(const Network::Address::Ip*) const PURE;
   virtual const PolicyInstance& getPolicy(const std::string&) const PURE;
+  virtual bool exists(const std::string&) const PURE;
 };
 using PolicyResolverSharedPtr = std::shared_ptr<PolicyResolver>;
 

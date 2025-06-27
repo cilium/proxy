@@ -290,7 +290,7 @@ uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
 
   // default destination identity to the world if needed
   if (id == 0) {
-    id = Cilium::ID::WORLD;
+    id = Cilium::ID::World;
     ENVOY_LOG(trace, "bpf_metadata: Identity for IP defaults to WORLD", ip->addressAsString());
   }
 
@@ -369,6 +369,10 @@ const PolicyInstance& Config::getPolicy(const std::string& pod_ip) const {
   }
 
   return npmap_->getPolicyInstance(pod_ip, allow_egress);
+}
+
+bool Config::exists(const std::string& pod_ip) const {
+  return npmap_ != nullptr && npmap_->exists(pod_ip);
 }
 
 absl::optional<Cilium::BpfMetadata::SocketMetadata>
@@ -470,7 +474,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
     // Resolve source identity for the Ingress address
     source_identity = resolvePolicyId(ingress_ip);
-    if (source_identity == Cilium::ID::WORLD) {
+    if (source_identity == Cilium::ID::World) {
       // No security ID available for the configured source IP
       ENVOY_LOG(warn,
                 "cilium.bpf_metadata (north/south L7 LB): Unknown local Ingress IP source address "
@@ -481,7 +485,8 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
     // Original source address is never used for north/south LB
     src_address = nullptr;
-  } else if (!use_original_source_address_ || (npmap_ != nullptr && npmap_->exists(other_ip))) {
+  } else if (!use_original_source_address_ || destination_identity == Cilium::ID::Host ||
+             (npmap_ != nullptr && npmap_->exists(other_ip))) {
     // Otherwise only use the original source address if permitted and the destination is not
     // in the same node.
     //
