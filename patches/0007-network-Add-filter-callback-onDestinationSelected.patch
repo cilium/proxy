@@ -1,0 +1,375 @@
+From b965363ca76dbbc740d1ca92950b5c5891f98081 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Tue, 24 Jun 2025 22:15:24 +0200
+Subject: [PATCH 7/8] network: Add filter callback 'onDestinationSelected'
+
+Add a new upstream read filter callback 'onDestinationSelected' that is
+called after the upstream host has been selected, but before the network
+connection is attempted. Only called on upstream filters, as downstream
+filter already have a connected connection when created.
+
+Any upstream network filter returning 'StopIteration' from this callback
+causes the connection to not be made and a local reset event be
+raised. Http codec client translates this event to a new
+'StreamResetReason::LocalAccessDenied', which in turn results into
+'Http::Code::Forbidden' ('403') be returned.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ envoy/http/stream_reset_handler.h            |  2 ++
+ envoy/network/filter.h                       | 17 +++++++++++
+ envoy/stream_info/stream_info.h              |  1 +
+ envoy/upstream/upstream.h                    |  1 +
+ source/common/http/codec_client.cc           |  9 ++++--
+ source/common/http/conn_pool_base.cc         |  3 ++
+ source/common/http/utility.cc                |  2 ++
+ source/common/network/connection_impl.cc     | 32 ++++++++++++++++++++
+ source/common/network/connection_impl.h      |  2 ++
+ source/common/network/filter_manager_impl.cc | 18 +++++++++++
+ source/common/network/filter_manager_impl.h  | 14 +++++++++
+ source/common/quic/envoy_quic_utils.cc       |  1 +
+ source/common/router/retry_state_impl.cc     |  5 +--
+ source/common/router/router.cc               | 22 +++++++++-----
+ source/common/router/upstream_request.cc     |  9 +++++-
+ 15 files changed, 124 insertions(+), 14 deletions(-)
+
+diff --git a/envoy/http/stream_reset_handler.h b/envoy/http/stream_reset_handler.h
+index 09e3b1dd80..55b9094834 100644
+--- a/envoy/http/stream_reset_handler.h
++++ b/envoy/http/stream_reset_handler.h
+@@ -39,6 +39,8 @@ enum class StreamResetReason {
+   OverloadManager,
+   // If stream was locally reset due to HTTP/1 upstream half closing before downstream.
+   Http1PrematureUpstreamHalfClose,
++  // If the connection was denied by an upstream filter (no retries allowed)
++  LocalAccessDenied,
+ };
+ 
+ /**
+diff --git a/envoy/network/filter.h b/envoy/network/filter.h
+index 2ad394ffeb..156e461b62 100644
+--- a/envoy/network/filter.h
++++ b/envoy/network/filter.h
+@@ -250,6 +250,23 @@ public:
+    */
+   virtual FilterStatus onData(Buffer::Instance& data, bool end_stream) PURE;
+ 
++  /**
++   * Called before an upstream connection is connected, so before onNewConnection is called.
++   * At the time of the callback the upstream socket options have not been applied yet, nor
++   * has the source address been bound.
++   * Not called for downstream filters, which are created only after the connection has already
++   * been accepted.
++   * @param destination_address is the address the connection will be made to, if allowed.
++   * @param stream_info is the StreamInfo of the client connection.
++   * @return optional status used by the filter manager to manage further filter iteration. If any
++   *         filter returns StopIteration, the connection is not allowed and the iteration is
++   *         stopped without calling any callbacks on the remaining filters.
++   */
++  virtual absl::optional<FilterStatus> onDestinationSelected(const Address::InstanceConstSharedPtr&,
++                                                             StreamInfo::StreamInfo&) {
++    return absl::nullopt;
++  }
++
+   /**
+    * Called when a connection is first established. Filters should do one time long term processing
+    * that needs to be done when a connection is established. Filter chain iteration can be stopped
+diff --git a/envoy/stream_info/stream_info.h b/envoy/stream_info/stream_info.h
+index 6cb68573d2..fff7022203 100644
+--- a/envoy/stream_info/stream_info.h
++++ b/envoy/stream_info/stream_info.h
+@@ -280,6 +280,7 @@ struct LocalCloseReasonValues {
+       "closing_upstream_tcp_connection_due_to_downstream_reset_close";
+   const std::string NonPooledTcpConnectionHostHealthFailure =
+       "non_pooled_tcp_connection_host_health_failure";
++  const std::string AccessDenied = "access_denied";
+ };
+ 
+ using LocalCloseReasons = ConstSingleton<LocalCloseReasonValues>;
+diff --git a/envoy/upstream/upstream.h b/envoy/upstream/upstream.h
+index 5212183a5a..e9978df460 100644
+--- a/envoy/upstream/upstream.h
++++ b/envoy/upstream/upstream.h
+@@ -739,6 +739,7 @@ public:
+   COUNTER(upstream_rq_retry_success)                                                               \
+   COUNTER(upstream_rq_rx_reset)                                                                    \
+   COUNTER(upstream_rq_timeout)                                                                     \
++  COUNTER(upstream_rq_local_access_denied)                                                         \
+   COUNTER(upstream_rq_total)                                                                       \
+   COUNTER(upstream_rq_tx_reset)                                                                    \
+   COUNTER(upstream_http3_broken)                                                                   \
+diff --git a/source/common/http/codec_client.cc b/source/common/http/codec_client.cc
+index 4e437da158..3be7242246 100644
+--- a/source/common/http/codec_client.cc
++++ b/source/common/http/codec_client.cc
+@@ -107,9 +107,12 @@ void CodecClient::onEvent(Network::ConnectionEvent event) {
+                    active_requests_.size());
+     disableIdleTimer();
+     idle_timer_.reset();
+-    StreamResetReason reason = event == Network::ConnectionEvent::RemoteClose
+-                                   ? StreamResetReason::RemoteConnectionFailure
+-                                   : StreamResetReason::LocalConnectionFailure;
++    StreamResetReason reason =
++      event == Network::ConnectionEvent::RemoteClose
++      ? StreamResetReason::RemoteConnectionFailure
++      : (connection_->localCloseReason() == StreamInfo::LocalCloseReasons::get().AccessDenied
++         ? StreamResetReason::LocalAccessDenied
++         : StreamResetReason::LocalConnectionFailure);
+     if (connected_) {
+       reason = StreamResetReason::ConnectionTermination;
+       if (protocol_error_) {
+diff --git a/source/common/http/conn_pool_base.cc b/source/common/http/conn_pool_base.cc
+index f65427fbcc..4c2505eea1 100644
+--- a/source/common/http/conn_pool_base.cc
++++ b/source/common/http/conn_pool_base.cc
+@@ -179,6 +179,9 @@ void MultiplexedActiveClientBase::onStreamReset(Http::StreamResetReason reason)
+   case StreamResetReason::ConnectError:
+   case StreamResetReason::Http1PrematureUpstreamHalfClose:
+     break;
++  case StreamResetReason::LocalAccessDenied:
++    parent_.host()->cluster().trafficStats()->upstream_rq_local_access_denied_.inc();
++    break;
+   }
+ }
+ 
+diff --git a/source/common/http/utility.cc b/source/common/http/utility.cc
+index 747bd5d699..988a4643ee 100644
+--- a/source/common/http/utility.cc
++++ b/source/common/http/utility.cc
+@@ -1148,6 +1148,8 @@ const std::string Utility::resetReasonToString(const Http::StreamResetReason res
+     return "overload manager reset";
+   case Http::StreamResetReason::Http1PrematureUpstreamHalfClose:
+     return "HTTP/1 premature upstream half close";
++  case Http::StreamResetReason::LocalAccessDenied:
++    return "local access denied";
+   }
+ 
+   return "";
+diff --git a/source/common/network/connection_impl.cc b/source/common/network/connection_impl.cc
+index b1670c0fe8..b591e8ae28 100644
+--- a/source/common/network/connection_impl.cc
++++ b/source/common/network/connection_impl.cc
+@@ -1054,6 +1054,26 @@ ClientConnectionImpl::ClientConnectionImpl(
+   if (socket_->connectionInfoProviderSharedPtr()->remoteAddress()->ip() == nullptr) {
+     return;
+   }
++
++  // Check if any filter denies connect to the selected destination IP address.
++  // This is done at the end of construction so that the client connection is fully set up
++  // when calling the filters' onDestinationSelected() callback.
++  if (!isConnectAllowed(stream_info_)) {
++    setFailureReason(StreamInfo::LocalCloseReasons::get().AccessDenied);
++    ENVOY_CONN_LOG_EVENT(debug, "connect_denied", "{}", *this, failureReason());
++
++    // Set the reason for the local close
++    setLocalCloseReason(StreamInfo::LocalCloseReasons::get().AccessDenied);
++
++    // Set a special error state to ensure asynchronous close to give the owner of the
++    // ConnectionImpl a chance to add callbacks and detect the "disconnect".
++    immediate_error_event_ = ConnectionEvent::LocalClose;
++
++    // Trigger a write event to close this connection out-of-band.
++    ioHandle().activateFileEvents(Event::FileReadyType::Write);
++    return;
++  }
++
+   if (!Network::Socket::applyOptions(options, *socket_,
+                                      envoy::config::core::v3::SocketOption::STATE_PREBIND)) {
+     // Set a special error state to ensure asynchronous close to give the owner of the
+@@ -1087,6 +1107,18 @@ ClientConnectionImpl::ClientConnectionImpl(
+   }
+ }
+ 
++bool ConnectionImpl::isConnectAllowed(StreamInfo::StreamInfo& stream_info) const {
++  const auto& dst = socket_->connectionInfoProvider().remoteAddress();
++  if (dst->ip() == nullptr) {
++    return true;
++  }
++
++  // Ask upstream filters if the connection should be denied
++  auto status = filter_manager_.onDestinationSelected(dst, stream_info);
++
++  return !status.has_value() || status.value() == FilterStatus::Continue;
++}
++
+ void ClientConnectionImpl::connect() {
+   ENVOY_CONN_LOG_EVENT(debug, "client_connection", "connecting to {}", *this,
+                        socket_->connectionInfoProvider().remoteAddress()->asString());
+diff --git a/source/common/network/connection_impl.h b/source/common/network/connection_impl.h
+index cef15aea42..9e84a93feb 100644
+--- a/source/common/network/connection_impl.h
++++ b/source/common/network/connection_impl.h
+@@ -163,6 +163,8 @@ public:
+ 
+   DetectedCloseType detectedCloseType() const override { return detected_close_type_; }
+ 
++  bool isConnectAllowed(StreamInfo::StreamInfo& stream_info) const;
++
+ protected:
+   // A convenience function which returns true if
+   // 1) The read disable count is zero or
+diff --git a/source/common/network/filter_manager_impl.cc b/source/common/network/filter_manager_impl.cc
+index a1cf193961..0239eecec5 100644
+--- a/source/common/network/filter_manager_impl.cc
++++ b/source/common/network/filter_manager_impl.cc
+@@ -59,6 +59,24 @@ bool FilterManagerImpl::initializeReadFilters() {
+   return true;
+ }
+ 
++absl::optional<FilterStatus>
++FilterManagerImpl::onDestinationSelected(const Address::InstanceConstSharedPtr& destination_address,
++                                         StreamInfo::StreamInfo& stream_info) const {
++  absl::optional<FilterStatus> status;
++  for (auto& entry : upstream_filters_) {
++    if (entry->filter_) {
++      auto opt = entry->filter_->onDestinationSelected(destination_address, stream_info);
++      if (opt.has_value()) {
++	status = opt;
++	if (status.value() == FilterStatus::StopIteration) {
++	  return status;
++	}
++      }
++    }
++  }
++  return status;
++}
++
+ void FilterManagerImpl::onContinueReading(ActiveReadFilter* filter,
+                                           ReadBufferSource& buffer_source) {
+   // Filter could return status == FilterStatus::StopIteration immediately, close the connection and
+diff --git a/source/common/network/filter_manager_impl.h b/source/common/network/filter_manager_impl.h
+index 6453048610..aeba69876d 100644
+--- a/source/common/network/filter_manager_impl.h
++++ b/source/common/network/filter_manager_impl.h
+@@ -102,6 +102,8 @@ public:
+   virtual void closeConnection(ConnectionCloseAction action) PURE;
+ };
+ 
++class ConnectionImpl;
++
+ /**
+  * This is a filter manager for TCP (L4) filters. It is split out for ease of testing.
+  */
+@@ -134,6 +136,18 @@ protected:
+     bool local_close_pending_{false};
+   };
+ 
++  // onDestinationSelected calls onDestinationSelected callback on all read filters during
++  // ClientConnectionImpl construction, after the client connection has been set up, but before
++  // the socket options have been applied, source address is bound, or connect call is made.
++  // @param destination_address is already validated to be an IP address
++  // @return optional FilterStatus which is StopIteration if any upstream filter returned
++  //         StopIteration, Continue if any upstream filter returned Continue, but not
++  //         StopIteration, and absl::nullopt otherwise.
++  friend ConnectionImpl;
++  absl::optional<FilterStatus>
++  onDestinationSelected(const Address::InstanceConstSharedPtr& destination_address,
++                        StreamInfo::StreamInfo& stream_info) const;
++
+ private:
+   struct ActiveReadFilter : public ReadFilterCallbacks, LinkedObject<ActiveReadFilter> {
+     ActiveReadFilter(FilterManagerImpl& parent, ReadFilterSharedPtr filter)
+diff --git a/source/common/quic/envoy_quic_utils.cc b/source/common/quic/envoy_quic_utils.cc
+index d4ade8773f..f62a26cdef 100644
+--- a/source/common/quic/envoy_quic_utils.cc
++++ b/source/common/quic/envoy_quic_utils.cc
+@@ -93,6 +93,7 @@ quic::QuicRstStreamErrorCode envoyResetReasonToQuicRstError(Http::StreamResetRea
+   case Http::StreamResetReason::ConnectError:
+     return quic::QUIC_STREAM_CONNECT_ERROR;
+   case Http::StreamResetReason::LocalReset:
++  case Http::StreamResetReason::LocalAccessDenied:
+     return quic::QUIC_STREAM_REQUEST_REJECTED;
+   case Http::StreamResetReason::OverloadManager:
+     return quic::QUIC_STREAM_EXCESSIVE_LOAD;
+diff --git a/source/common/router/retry_state_impl.cc b/source/common/router/retry_state_impl.cc
+index 1dc0f96f17..48b1594b93 100644
+--- a/source/common/router/retry_state_impl.cc
++++ b/source/common/router/retry_state_impl.cc
+@@ -466,8 +466,9 @@ RetryStateImpl::wouldRetryFromReset(const Http::StreamResetReason reset_reason,
+                                     bool upstream_request_started) {
+   ASSERT(!disable_http3);
+   // First check "never retry" conditions so we can short circuit (we never
+-  // retry if the reset reason is overflow).
+-  if (reset_reason == Http::StreamResetReason::Overflow) {
++  // retry if the reset reason is overflow or local access denied).
++  if (reset_reason == Http::StreamResetReason::Overflow ||
++      reset_reason == Http::StreamResetReason::LocalAccessDenied) {
+     return RetryDecision::NoRetry;
+   }
+ 
+diff --git a/source/common/router/router.cc b/source/common/router/router.cc
+index 46b4aac132..fd94e46d42 100644
+--- a/source/common/router/router.cc
++++ b/source/common/router/router.cc
+@@ -1499,9 +1499,11 @@ void Filter::onUpstreamReset(Http::StreamResetReason reset_reason,
+     return;
+   }
+ 
+-  const Http::Code error_code = (reset_reason == Http::StreamResetReason::ProtocolError)
+-                                    ? Http::Code::BadGateway
+-                                    : Http::Code::ServiceUnavailable;
++  const Http::Code error_code = (reset_reason == Http::StreamResetReason::LocalAccessDenied)
++                                    ? Http::Code::Forbidden
++                                    : (reset_reason == Http::StreamResetReason::ProtocolError
++                                       ? Http::Code::BadGateway
++                                       : Http::Code::ServiceUnavailable);
+   chargeUpstreamAbort(error_code, dropped, upstream_request);
+   auto request_ptr = upstream_request.removeFromList(upstream_requests_);
+   callbacks_->dispatcher().deferredDelete(std::move(request_ptr));
+@@ -1515,11 +1517,13 @@ void Filter::onUpstreamReset(Http::StreamResetReason reset_reason,
+   const StreamInfo::CoreResponseFlag response_flags = streamResetReasonToResponseFlag(reset_reason);
+ 
+   const std::string body =
+-      absl::StrCat("upstream connect error or disconnect/reset before headers. ",
+-                   (is_retry_ ? "retried and the latest " : ""),
+-                   "reset reason: ", Http::Utility::resetReasonToString(reset_reason),
+-                   !transport_failure_reason.empty() ? ", transport failure reason: " : "",
+-                   transport_failure_reason);
++      (error_code == Http::Code::Forbidden)
++      ? "access denied\r\n"
++      : absl::StrCat("upstream connect error or disconnect/reset before headers. ",
++                     (is_retry_ ? "retried and the latest " : ""),
++                     "reset reason: ", Http::Utility::resetReasonToString(reset_reason),
++                     !transport_failure_reason.empty() ? ", transport failure reason: " : "",
++                     transport_failure_reason);
+   const std::string& basic_details =
+       downstream_response_started_ ? StreamInfo::ResponseCodeDetails::get().LateUpstreamReset
+                                    : StreamInfo::ResponseCodeDetails::get().EarlyUpstreamReset;
+@@ -1576,6 +1580,8 @@ Filter::streamResetReasonToResponseFlag(Http::StreamResetReason reset_reason) {
+     return StreamInfo::CoreResponseFlag::UpstreamProtocolError;
+   case Http::StreamResetReason::OverloadManager:
+     return StreamInfo::CoreResponseFlag::OverloadManager;
++  case Http::StreamResetReason::LocalAccessDenied:
++    return StreamInfo::CoreResponseFlag::UnauthorizedExternalService;
+   }
+ 
+   PANIC_DUE_TO_CORRUPT_ENUM;
+diff --git a/source/common/router/upstream_request.cc b/source/common/router/upstream_request.cc
+index c5de7a3789..e6ca24dc4d 100644
+--- a/source/common/router/upstream_request.cc
++++ b/source/common/router/upstream_request.cc
+@@ -560,13 +560,20 @@ void UpstreamRequest::onPoolFailure(ConnectionPool::PoolFailureReason reason,
+                                     absl::string_view transport_failure_reason,
+                                     Upstream::HostDescriptionConstSharedPtr host) {
+   recordConnectionPoolCallbackLatency();
+-  Http::StreamResetReason reset_reason = [](ConnectionPool::PoolFailureReason reason) {
++  Http::StreamResetReason reset_reason = [transport_failure_reason](ConnectionPool::PoolFailureReason reason) {
+     switch (reason) {
+     case ConnectionPool::PoolFailureReason::Overflow:
+       return Http::StreamResetReason::Overflow;
+     case ConnectionPool::PoolFailureReason::RemoteConnectionFailure:
+       return Http::StreamResetReason::RemoteConnectionFailure;
+     case ConnectionPool::PoolFailureReason::LocalConnectionFailure:
++      // Set LocalAccessDenied if transport failure reason is "access_denied".
++      // It would be more elegant to have a dedicated "LocalAccessDenied" PoolFailureReason, but
++      // that would have to be reflected on all switch statements on PoolFailureReason and is left
++      // for future enhancement.
++      if (transport_failure_reason == StreamInfo::LocalCloseReasons::get().AccessDenied) {
++        return Http::StreamResetReason::LocalAccessDenied;
++      }
+       return Http::StreamResetReason::LocalConnectionFailure;
+     case ConnectionPool::PoolFailureReason::Timeout:
+       return Http::StreamResetReason::ConnectionTimeout;
+-- 
+2.49.0
+

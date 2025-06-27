@@ -1,7 +1,7 @@
-From cd2352dcfd3ee27fbf115330524e5ecef59abfc1 Mon Sep 17 00:00:00 2001
+From 832d30991de452c513806f74f7d8f9934559005b Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 24 May 2024 18:27:28 +0200
-Subject: [PATCH 3/6] original_dst_cluster: Avoid multiple hosts for the same
+Subject: [PATCH 2/8] original_dst_cluster: Avoid multiple hosts for the same
  address
 
 Connection pool containers use HostSharedPtr as map keys, rather than the
@@ -25,9 +25,9 @@ map updates.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- .../original_dst/original_dst_cluster.cc      | 261 +++++++++++-------
+ .../original_dst/original_dst_cluster.cc      | 259 +++++++++++-------
  .../original_dst/original_dst_cluster.h       |  43 +--
- 2 files changed, 190 insertions(+), 114 deletions(-)
+ 2 files changed, 189 insertions(+), 113 deletions(-)
 
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.cc b/source/extensions/clusters/original_dst/original_dst_cluster.cc
 index 1e8b9ce0a5..01e739c6fb 100644
@@ -36,7 +36,7 @@ index 1e8b9ce0a5..01e739c6fb 100644
 @@ -29,6 +29,19 @@ OriginalDstClusterHandle::~OriginalDstClusterHandle() {
    dispatcher.post([cluster = std::move(cluster)]() mutable { cluster.reset(); });
  }
-
+ 
 +namespace {
 +HostConstSharedPtr findHost(const HostUseMap& map, const std::string& address) {
 +  auto it = map.find(address);
@@ -111,7 +111,7 @@ index 1e8b9ce0a5..01e739c6fb 100644
 @@ -216,47 +196,146 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
    cleanup_timer_->enableTimer(cleanup_interval_ms_);
  }
-
+ 
 -void OriginalDstCluster::addHost(HostSharedPtr& host) {
 -  std::string address = host->address()->asString();
 -  HostMultiMapSharedPtr new_host_map = std::make_shared<HostMultiMap>(*getCurrentHostMap());
@@ -127,9 +127,6 @@ index 1e8b9ce0a5..01e739c6fb 100644
 -    // The first worker that creates a host for the address defines the primary
 -    // host structure.
 -    new_host_map->emplace(address, std::make_shared<HostsForAddress>(host));
--  }
--  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
--  setHostMap(new_host_map);
 +// getHost returns the host for the address. A new host is created when needed.
 +// Called from the worker threads.
 +// When multiple worker threads call this at the same time the updates of the
@@ -243,8 +240,10 @@ index 1e8b9ce0a5..01e739c6fb 100644
 +    // Make available for load balancers
 +    host_map_ = new_host_map;
 +    updates_map_.swap(empty_map);
-+  }
-
+   }
+-  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
+-  setHostMap(new_host_map);
+ 
 -  // Given the current config, only EDS clusters support multiple priorities.
    ASSERT(priority_set_.hostSetsPerPriority().size() == 1);
    const auto& first_host_set = priority_set_.getOrCreateHostSet(0);
@@ -258,7 +257,7 @@ index 1e8b9ce0a5..01e739c6fb 100644
 -      {std::move(host)}, {}, random_.random(), absl::nullopt, absl::nullopt);
 +      {std::move(new_hosts)}, {}, random_.random(), absl::nullopt, absl::nullopt);
  }
-
+ 
  void OriginalDstCluster::cleanup() {
 -  HostVectorSharedPtr keeping_hosts(new HostVector);
 -  HostVector to_be_removed;
@@ -353,7 +352,7 @@ index 1e8b9ce0a5..01e739c6fb 100644
 -        0, HostSetImpl::partitionHosts(keeping_hosts, HostsPerLocalityImpl::empty()), {}, {},
 -        to_be_removed, false, absl::nullopt);
    }
-
+ 
    cleanup_timer_->enableTimer(cleanup_interval_ms_);
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.h b/source/extensions/clusters/original_dst/original_dst_cluster.h
 index df12c06b41..3152af8664 100644
@@ -362,14 +361,14 @@ index df12c06b41..3152af8664 100644
 @@ -22,25 +22,21 @@ namespace Upstream {
  class OriginalDstClusterFactory;
  class OriginalDstClusterTest;
-
+ 
 -struct HostsForAddress {
 -  HostsForAddress(HostSharedPtr& host) : host_(host), used_(true) {}
 +// HostUse tracks the recent use of a host to avoid clearing out a host
 +// which is not recorded as used in any connection pool.
 +struct HostUse {
 +  HostUse(HostSharedPtr& host) : host_(host), used_(true) {}
-
+ 
 -  // Primary host for the address. This is set by the first worker that posts
 -  // to the main to add a host. The field is read by all workers.
 +  // The host for an address.
@@ -382,7 +381,7 @@ index df12c06b41..3152af8664 100644
    // Marks as recently used by load balancers.
    std::atomic<bool> used_;
  };
-
+ 
 -using HostsForAddressSharedPtr = std::shared_ptr<HostsForAddress>;
 -using HostMultiMap = absl::flat_hash_map<std::string, HostsForAddressSharedPtr>;
 -using HostMultiMapSharedPtr = std::shared_ptr<HostMultiMap>;
@@ -391,9 +390,9 @@ index df12c06b41..3152af8664 100644
 +using HostUseMap = absl::flat_hash_map<std::string, HostUseSharedPtr>;
 +using HostUseMapUniquePtr = std::unique_ptr<HostUseMap>;
 +using HostUseMapConstSharedPtr = std::shared_ptr<const HostUseMap>;
-
+ 
  class OriginalDstCluster;
-
+ 
 @@ -65,7 +61,8 @@ using OriginalDstClusterHandleSharedPtr = std::shared_ptr<OriginalDstClusterHand
   * cleaned up after they have not seen traffic for a configurable cleanup interval time
   * ("cleanup_interval_ms").
@@ -411,12 +410,12 @@ index df12c06b41..3152af8664 100644
 -    HostMultiMapConstSharedPtr host_map_;
 +    HostUseMapConstSharedPtr host_map_;
    };
-
+ 
    const absl::optional<Http::LowerCaseString>& httpHeaderName() { return http_header_name_; }
 @@ -158,17 +155,23 @@ private:
      const OriginalDstClusterHandleSharedPtr cluster_;
    };
-
+ 
 -  HostMultiMapConstSharedPtr getCurrentHostMap() {
 +  const HostUseMap* getHostMap() {
 +    absl::ReaderMutexLock lock(&host_map_lock_);
@@ -427,22 +426,22 @@ index df12c06b41..3152af8664 100644
      absl::ReaderMutexLock lock(&host_map_lock_);
      return host_map_;
    }
-
+ 
 -  void setHostMap(const HostMultiMapConstSharedPtr& new_host_map) {
 +  void setHostMap(const HostUseMapConstSharedPtr& new_host_map) {
      absl::WriterMutexLock lock(&host_map_lock_);
      host_map_ = new_host_map;
    }
-
+ 
 -  void addHost(HostSharedPtr&);
 +  HostConstSharedPtr getHost(const Network::Address::Instance&);
 +  void updateHosts();
    void cleanup();
-
+ 
    // ClusterImplBase
 @@ -179,7 +182,9 @@ private:
    Event::TimerPtr cleanup_timer_;
-
+ 
    absl::Mutex host_map_lock_;
 -  HostMultiMapConstSharedPtr host_map_ ABSL_GUARDED_BY(host_map_lock_);
 +  HostUseMapConstSharedPtr host_map_ ABSL_GUARDED_BY(host_map_lock_);
@@ -451,6 +450,6 @@ index df12c06b41..3152af8664 100644
    absl::optional<Http::LowerCaseString> http_header_name_;
    absl::optional<Config::MetadataKey> metadata_key_;
    absl::optional<uint32_t> port_override_;
---
-2.34.1
+-- 
+2.49.0
 

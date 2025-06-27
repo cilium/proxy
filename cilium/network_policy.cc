@@ -1148,11 +1148,13 @@ public:
 class PolicyInstanceImpl : public PolicyInstance {
 public:
   PolicyInstanceImpl(const NetworkPolicyMapImpl& parent, uint64_t hash,
-                     const cilium::NetworkPolicy& proto)
+                     const cilium::NetworkPolicy& proto, uint64_t version)
       : conntrack_map_name_(proto.conntrack_map_name()), endpoint_id_(proto.endpoint_id()),
-        hash_(hash), policy_proto_(proto), endpoint_ips_(proto), parent_(parent),
+        hash_(hash), policy_proto_(proto), endpoint_ips_(proto), version_(version), parent_(parent),
         ingress_(parent, policy_proto_.ingress_per_port_policies()),
         egress_(parent, policy_proto_.egress_per_port_policies()) {}
+
+  uint64_t version() const override { return version_; }
 
   bool allowed(bool ingress, uint32_t proxy_id, uint32_t remote_id, uint16_t port,
                Envoy::Http::RequestHeaderMap& headers,
@@ -1205,6 +1207,7 @@ public:
   const IpAddressPair endpoint_ips_;
 
 private:
+  const uint64_t version_;
   const NetworkPolicyMapImpl& parent_;
   const PortNetworkPolicy ingress_;
   const PortNetworkPolicy egress_;
@@ -1347,7 +1350,11 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
       ipcache->open();
     }
   }
-
+  uint64_t version;
+  if (!absl::SimpleAtoi(version_info, &version)) {
+    throw EnvoyException(
+        fmt::format("Network Policy has invalid version_info format: {}", version_info));
+  }
   std::string version_name = fmt::format("NetworkPolicyMap version {}", version_info);
   Init::ManagerImpl version_init_manager(version_name);
   // Set the init manager to use via the transport factory context
@@ -1390,7 +1397,8 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
         }
 
         // May throw
-        auto new_policy = std::make_shared<const PolicyInstanceImpl>(*this, new_hash, config);
+        auto new_policy =
+            std::make_shared<const PolicyInstanceImpl>(*this, new_hash, config, version);
 
         for (const auto& endpoint_ip : config.endpoint_ips()) {
           ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", endpoint_ip);

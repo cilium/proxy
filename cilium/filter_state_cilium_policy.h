@@ -14,6 +14,7 @@
 #include "source/common/common/logger.h"
 
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/accesslog.h"
 #include "cilium/network_policy.h"
 
@@ -28,6 +29,29 @@ public:
   virtual const PolicyInstance& getPolicy(const std::string&) const PURE;
 };
 using PolicyResolverSharedPtr = std::shared_ptr<PolicyResolver>;
+
+// local cache for policy verdicts, which is only used when the policy has no HTTP rules.
+// This eliminates policy lookups when the destination identity and port remain the same
+struct LastNetworkPolicyCache {
+  absl::optional<bool> previousVerdict(uint64_t version, uint32_t identity, uint16_t port) const {
+    if (version == version_ && identity == identity_ && port == port_) {
+      return verdict_;
+    }
+    return absl::nullopt;
+  }
+
+  void update(uint64_t version, uint32_t identity, uint16_t port, bool verdict) {
+    version_ = version;
+    identity_ = identity;
+    port_ = port;
+    verdict_ = verdict;
+  }
+
+  uint64_t version_ = 0;
+  uint32_t identity_ = 0;
+  uint16_t port_ = 0;
+  bool verdict_ = false;
+};
 
 // FilterState that holds relevant connection & policy information that can be retrieved
 // by the Cilium network- and HTTP policy filters via filter state.
@@ -56,20 +80,24 @@ public:
 
   const PolicyInstance& getPolicy() const { return policy_resolver_->getPolicy(pod_ip_); }
 
-  bool enforceNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
-                            uint16_t destination_port, const absl::string_view sni,
-                            /* OUT */ bool& use_proxy_lib,
-                            /* OUT */ std::string& l7_proto,
-                            /* INOUT */ AccessLog::Entry& log_entry) const;
+  bool enforcePodNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
+                               uint16_t destination_port, const absl::string_view sni,
+                               /* OUT */ bool& use_proxy_lib,
+                               /* OUT */ std::string& l7_proto) const;
+
+  bool enforceIngressNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
+                                   uint16_t destination_port, const absl::string_view sni) const;
 
   bool enforcePodHTTPPolicy(const Network::Connection& conn, uint32_t destination_identity,
                             uint16_t destination_port,
                             /* INOUT */ Http::RequestHeaderMap& headers,
+                            /* INOUT */ LastNetworkPolicyCache& policy_cache,
                             /* INOUT */ AccessLog::Entry& log_entry) const;
 
   bool enforceIngressHTTPPolicy(const Network::Connection& conn, uint32_t destination_identity,
                                 uint16_t destination_port,
                                 /* INOUT */ Http::RequestHeaderMap& headers,
+                                /* INOUT */ LastNetworkPolicyCache ingress_cache[2],
                                 /* INOUT */ AccessLog::Entry& log_entry) const;
 
   // policyUseUpstreamDestinationAddress returns 'true' if policy enforcement should be done on the
