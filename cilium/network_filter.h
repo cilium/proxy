@@ -6,13 +6,16 @@
 
 #include "envoy/buffer/buffer.h"
 #include "envoy/common/time.h"
-#include "envoy/json/json_object.h"
+#include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/server/factory_context.h"
+#include "envoy/stream_info/stream_info.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/logger.h"
 
+#include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/network_filter.pb.h"
@@ -32,16 +35,17 @@ namespace CiliumL3 {
  */
 class Config : Logger::Loggable<Logger::Id::config> {
 public:
-  Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext& context);
-  Config(const Json::Object& config, Server::Configuration::FactoryContext& context);
+  Config(const ::cilium::NetworkFilter& config, bool is_upstream,
+         Server::Configuration::ServerFactoryContext& context);
 
   void log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
 
   Cilium::GoFilterSharedPtr proxylib_;
+  bool is_upstream_;
   TimeSource& time_source_;
 
 private:
-  Cilium::AccessLogSharedPtr access_log_;
+  Cilium::AccessLogSharedPtr access_log_{};
 };
 
 using ConfigSharedPtr = std::shared_ptr<Config>;
@@ -59,6 +63,9 @@ public:
   void initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) override {
     callbacks_ = &callbacks;
   }
+  absl::optional<Network::FilterStatus>
+  onDestinationSelected(const Network::Address::InstanceConstSharedPtr& destination_address,
+                        StreamInfo::StreamInfo& stream_info) override;
 
   // Network::WriteFilter
   Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;

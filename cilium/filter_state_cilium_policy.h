@@ -80,11 +80,13 @@ public:
 
   const PolicyInstance& getPolicy() const { return policy_resolver_->getPolicy(pod_ip_); }
 
-  bool enforceNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
-                            uint16_t destination_port, const absl::string_view sni,
-                            /* OUT */ bool& use_proxy_lib,
-                            /* OUT */ std::string& l7_proto,
-                            /* INOUT */ AccessLog::Entry& log_entry) const;
+  bool enforcePodNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
+                               uint16_t destination_port, const absl::string_view sni,
+                               /* OUT */ bool& use_proxy_lib,
+                               /* OUT */ std::string& l7_proto) const;
+
+  bool enforceIngressNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
+                                   uint16_t destination_port, const absl::string_view sni) const;
 
   bool enforcePodHTTPPolicy(const Network::Connection& conn, uint32_t destination_identity,
                             uint16_t destination_port,

@@ -1,7 +1,7 @@
-From 6d8d0c7dba595676d249a3c7fbba4ede3ebd19cd Mon Sep 17 00:00:00 2001
+From f09bb19055c30acadd887e3f844ab3eb20c8cb7e Mon Sep 17 00:00:00 2001
 From: Tam Mach <sayboras@yahoo.com>
 Date: Wed, 14 May 2025 11:27:14 +1000
-Subject: [PATCH 7/7] build: Fix arm build for liburing
+Subject: [PATCH 6/8] build: Fix arm build for liburing
 
 ---
  bazel/foreign_cc/BUILD | 14 ++++++++++++++
@@ -32,6 +32,6 @@ index f97ff45b55..96b07e3c83 100644
      lib_source = "@com_github_axboe_liburing//:all",
      tags = [
          "nocompdb",
---
-2.34.1
+-- 
+2.49.0
 

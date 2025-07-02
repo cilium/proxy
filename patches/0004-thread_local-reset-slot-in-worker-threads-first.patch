@@ -1,7 +1,7 @@
-From b13c64877b55c1a645d3b6b1d18a566930ef519c Mon Sep 17 00:00:00 2001
+From e669f3962e4bea69ad5c4deda0b2c6345555a729 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 23 Dec 2024 22:43:15 +0100
-Subject: [PATCH 8/8] thread_local: reset slot in worker threads first
+Subject: [PATCH 4/8] thread_local: reset slot in worker threads first
 
 Thread local slots refer to their data via shared pointers. Reset the
 shared pointer first in the worker threads, and last in the main thread
@@ -61,12 +61,12 @@ index 2a49789a09..e57b2fd70d 100644
 +  // worker thread.
 +  runOnAllWorkerThreads(cb, cb);
  }
-
+ 
  void InstanceImpl::runOnAllThreads(std::function<void()> cb) {
 @@ -208,6 +214,22 @@ void InstanceImpl::runOnAllThreads(std::function<void()> cb,
    }
  }
-
+ 
 +void InstanceImpl::runOnAllWorkerThreads(std::function<void()> cb,
 +                                         std::function<void()> worker_threads_complete_cb) const {
 +  ASSERT_IS_MAIN_OR_TEST_THREAD();
@@ -95,7 +95,7 @@ index 719418991e..685457afe5 100644
    Event::Dispatcher& dispatcher() override;
    bool isShutdown() const override { return shutdown_; }
 +  void runOnAllWorkerThreads(std::function<void()> worker_cb, std::function<void()> main_cb) const override;
-
+ 
  private:
    // On destruction returns the slot index to the deferred delete queue (detaches it). This allows
 diff --git a/test/mocks/thread_local/mocks.h b/test/mocks/thread_local/mocks.h
@@ -110,9 +110,9 @@ index 09dff23777..88d7cea1a9 100644
 +    worker_cb();
 +    main_cb();
 +  }
-
+ 
    SlotPtr allocateSlotMock() { return SlotPtr{new SlotImpl(*this, current_slot_++)}; }
    void runOnAllThreads1(std::function<void()> cb) { cb(); }
---
-2.34.1
+-- 
+2.49.0
 
