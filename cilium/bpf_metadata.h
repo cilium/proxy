@@ -69,10 +69,11 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
   };
 
   std::shared_ptr<Envoy::Cilium::SourceAddressSocketOption> buildSourceAddressSocketOption(
-      int linger_time, const std::shared_ptr<CiliumDestinationFilterState>& dest_fs = nullptr) {
+      int linger_time, const std::shared_ptr<CiliumDestinationFilterState>& dest_fs = nullptr,
+      const std::shared_ptr<CiliumPolicyFilterState>& policy_fs = nullptr) {
     return std::make_shared<Envoy::Cilium::SourceAddressSocketOption>(
         source_identity_, linger_time, original_source_address_, source_address_ipv4_,
-        source_address_ipv6_, dest_fs);
+        source_address_ipv6_, dest_fs, policy_fs);
   };
 
   // Add ProxyLib L7 protocol as requested application protocol on the socket.
@@ -148,6 +149,7 @@ public:
   // PolicyResolver
   uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
   const PolicyInstance& getPolicy(const std::string&) const override;
+  bool exists(const std::string&) const override;
 
   virtual absl::optional<SocketMetadata> extractSocketMetadata(Network::ConnectionSocket& socket);
 
