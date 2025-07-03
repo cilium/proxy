@@ -26,6 +26,7 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
+#include "source/common/http/header_utility.h"
 #include "source/extensions/filters/http/common/factory_base.h"
 
 #include "absl/status/statusor.h"
@@ -296,8 +297,10 @@ void AccessFilter::onStreamComplete() {
 }
 
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& headers, bool) {
+  const auto& stream_info = callbacks_->streamInfo();
+
   // Skip enforcement or logging on shadows
-  if (callbacks_->streamInfo().isShadow()) {
+  if (stream_info.isShadow()) {
     return Http::FilterHeadersStatus::Continue;
   }
 
@@ -307,6 +310,25 @@ Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& h
   // Nothing to do in the upstream filter
   if (config_->is_upstream_) {
     return Http::FilterHeadersStatus::Continue;
+  }
+
+  // check it "connection: close" header is present
+  if (stream_info.upstreamInfo().has_value() && stream_info.protocol().has_value() &&
+      Http::HeaderUtility::shouldCloseConnection(stream_info.protocol().value(), headers)) {
+    const auto& upstream_info = stream_info.upstreamInfo().ref();
+
+    // check if upstream and downstream connections have the same source and destination
+    // addresses, respectively (note: do not compare pointers!).
+    if (*upstream_info.upstreamRemoteAddress() ==
+            *stream_info.downstreamAddressProvider().localAddress() &&
+        *upstream_info.upstreamLocalAddress() ==
+            *stream_info.downstreamAddressProvider().remoteAddress()) {
+      ENVOY_CONN_LOG(debug,
+                     "cilium.l7policy: Upstream connection with same 5-tuple closed, passing "
+                     "connection close to downstream response",
+                     callbacks_->connection().ref());
+      callbacks_->streamInfo().setShouldDrainConnectionUponCompletion(true);
+    }
   }
 
   if (log_entry_ == nullptr) {
