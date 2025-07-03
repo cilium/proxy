@@ -26,6 +26,7 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
+#include "source/common/http/headers.h"
 #include "source/extensions/filters/http/common/factory_base.h"
 
 #include "absl/status/statusor.h"
@@ -299,8 +300,10 @@ void AccessFilter::onStreamComplete() {
 }
 
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& headers, bool) {
+  const auto& stream_info = callbacks_->streamInfo();
+
   // Skip enforcement or logging on shadows
-  if (callbacks_->streamInfo().isShadow()) {
+  if (stream_info.isShadow()) {
     return Http::FilterHeadersStatus::Continue;
   }
 
@@ -310,6 +313,33 @@ Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& h
   // Nothing to do in the upstream filter
   if (config_->is_upstream_) {
     return Http::FilterHeadersStatus::Continue;
+  }
+
+  // Propagate connection: close from upstream to downstream (if original source is preserved)
+  if (callbacks_->connection().has_value() && stream_info.upstreamInfo().has_value() &&
+      stream_info.hasResponseFlag(StreamInfo::UpstreamConnectionTermination)) {
+    // check if upstream and downstream connections have the same source and destination
+    // addresses, respectively
+    const auto& conn = callbacks_->connection().ref();
+    const auto& upstream_info = stream_info.upstreamInfo().ref();
+
+    if (upstream_info.upstreamRemoteAddress() == conn.connectionInfoProvider().localAddress() &&
+        upstream_info.upstreamLocalAddress() == conn.connectionInfoProvider().remoteAddress()) {
+      ENVOY_CONN_LOG(debug,
+                     "Upstream connection with same 5-tuple closed, passing connection close to "
+                     "downstream response",
+                     conn);
+
+      headers.setReferenceConnection(Http::Headers::get().ConnectionValues.Close);
+    } else {
+      ENVOY_CONN_LOG(debug,
+                     "Upstream connection closed, but it has different 5-tuple, downstream "
+                     "connection not closed (src: {}/{}, dst: {}/{})",
+                     conn, conn.connectionInfoProvider().remoteAddress()->asStringView(),
+                     upstream_info.upstreamLocalAddress()->asStringView(),
+                     conn.connectionInfoProvider().localAddress()->asStringView(),
+                     upstream_info.upstreamRemoteAddress()->asStringView());
+    }
   }
 
   if (log_entry_ == nullptr) {
