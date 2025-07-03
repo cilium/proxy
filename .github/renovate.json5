@@ -123,6 +123,19 @@
       ],
     },
     {
+      matchFileNames: [
+        'Dockerfile.builder',
+      ],
+      matchPackageNames: [
+        'docker.io/library/ubuntu',
+      ],
+      allowedVersions: '22.04',
+      matchBaseBranches: [
+        'main',
+        'v1.33',
+      ],
+    },
+    {
       enabled: false,
       matchFileNames: [
         'Dockerfile',
