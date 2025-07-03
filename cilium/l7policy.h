@@ -19,6 +19,7 @@
 #include "cilium/accesslog.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/l7policy.pb.h"
+#include "cilium/filter_state_cilium_policy.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -54,7 +55,12 @@ public:
   TimeSource& time_source_;
   FilterStats stats_;
   std::string denied_403_body_;
-  bool is_upstream_;
+  const bool is_upstream_;
+
+protected:
+  friend class AccessFilter;
+  LastNetworkPolicyCache pod_policy_cache_;
+  LastNetworkPolicyCache ingress_policy_cache_[2];
 
 private:
   Cilium::AccessLogSharedPtr access_log_;

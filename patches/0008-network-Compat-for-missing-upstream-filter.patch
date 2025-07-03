@@ -1,0 +1,90 @@
+From 05750d1510cdfe1a8ea23e460d974b8328704301 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Mon, 23 Jun 2025 14:08:09 +0200
+Subject: [PATCH 8/8] network: Compat for missing upstream filter
+
+Call the new 'onDestinationSelected' read filter callback on downstream
+filter if no upstream filters implement it. This is only done if
+Network::Cilium::DownstreamConnection filter state is present. Currently
+this is set up by the cilium.network filter.
+
+This is done for backwards compatibility with current Cilium agent
+releases that do not yet set up the upstream network filter. Once the
+oldest supported Cilium release does that, this patch can be removed.
+
+Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
+---
+ envoy/network/connection.h               | 16 ++++++++++++++++
+ source/common/network/connection_impl.cc | 22 ++++++++++++++++++++++
+ 2 files changed, 38 insertions(+)
+
+diff --git a/envoy/network/connection.h b/envoy/network/connection.h
+index c7a93e8327..ac43af2a13 100644
+--- a/envoy/network/connection.h
++++ b/envoy/network/connection.h
+@@ -23,6 +23,22 @@ class Dispatcher;
+ 
+ namespace Network {
+ 
++// Cilium backwards compat. Remove when Cilium 1.18 is the oldest supported release.
++class ConnectionImpl;
++
++namespace Cilium {
++
++class DownstreamConnection : public StreamInfo::FilterState::Object {
++public:
++  DownstreamConnection(Connection* connection) : connection_(connection) {}
++
++  static const std::string& key();
++
++  Connection* connection_;
++};
++
++} // namespace Cilium
++
+ /**
+  * Events that occur on a connection.
+  */
+diff --git a/source/common/network/connection_impl.cc b/source/common/network/connection_impl.cc
+index b591e8ae28..23137ea0a8 100644
+--- a/source/common/network/connection_impl.cc
++++ b/source/common/network/connection_impl.cc
+@@ -1107,6 +1107,14 @@ ClientConnectionImpl::ClientConnectionImpl(
+   }
+ }
+ 
++namespace Cilium {
++
++const std::string& DownstreamConnection::key()  {
++  CONSTRUCT_ON_FIRST_USE(std::string, "cilium.downstream_connection");
++}
++
++} // namespace Cilium
++
+ bool ConnectionImpl::isConnectAllowed(StreamInfo::StreamInfo& stream_info) const {
+   const auto& dst = socket_->connectionInfoProvider().remoteAddress();
+   if (dst->ip() == nullptr) {
+@@ -1116,6 +1124,20 @@ bool ConnectionImpl::isConnectAllowed(StreamInfo::StreamInfo& stream_info) const
+   // Ask upstream filters if the connection should be denied
+   auto status = filter_manager_.onDestinationSelected(dst, stream_info);
+ 
++  if (!status.has_value()) {
++    // No upstream filter returned a value, check also downstream filters, if available.
++    const auto downstream_connection_fs =
++        stream_info_.filterState()->getDataReadOnly<Cilium::DownstreamConnection>(
++            Cilium::DownstreamConnection::key());
++    if (downstream_connection_fs) {
++      const ConnectionImpl* conn = dynamic_cast<const ConnectionImpl*>(
++          downstream_connection_fs->connection_);
++      if (conn) {
++	status = conn->filter_manager_.onDestinationSelected(dst, stream_info);
++      }
++    }
++  }
++
+   return !status.has_value() || status.value() == FilterStatus::Continue;
+ }
+ 
+-- 
+2.49.0
+

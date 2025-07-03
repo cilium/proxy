@@ -153,6 +153,8 @@ public:
     }
   };
 
+  virtual uint64_t version() const { return 1; }
+
   virtual bool allowed(bool ingress, uint32_t proxy_id, uint32_t remote_id, uint16_t port,
                        Envoy::Http::RequestHeaderMap& headers,
                        Cilium::AccessLog::Entry& log_entry) const PURE;
