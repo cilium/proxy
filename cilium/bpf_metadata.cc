@@ -371,6 +371,8 @@ const PolicyInstance& Config::getPolicy(const std::string& pod_ip) const {
   return npmap_->getPolicyInstance(pod_ip, allow_egress);
 }
 
+bool Config::exists(const std::string& pod_ip) const { return npmap_->exists(pod_ip); }
+
 absl::optional<Cilium::BpfMetadata::SocketMetadata>
 Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr src_address =
@@ -550,8 +552,9 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
 
     // Make Cilium Policy data available to filters and upstream connection (Cilium TLS Wrapper) as
     // filter state.
+    const auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
     cb.filterState().setData(
-        Cilium::CiliumPolicyFilterState::key(), socket_metadata->buildCiliumPolicyFilterState(),
+        Cilium::CiliumPolicyFilterState::key(), policy_fs,
         StreamInfo::FilterState::StateType::ReadOnly, StreamInfo::FilterState::LifeSpan::Connection,
         StreamInfo::StreamSharingMayImpactPooling::SharedWithUpstreamConnection);
 
@@ -563,7 +566,7 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
 
     // Restoring original source address on the upstream socket
     socket_options->push_back(
-        socket_metadata->buildSourceAddressSocketOption(config_->so_linger_, dest_fs));
+        socket_metadata->buildSourceAddressSocketOption(config_->so_linger_, dest_fs, policy_fs));
 
     if (config_->addPrivilegedSocketOptions()) {
       // adding SO_MARK (Cilium mark) on the upstream socket

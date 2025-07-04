@@ -18,6 +18,7 @@
 
 #include "absl/numeric/int128.h"
 #include "cilium/filter_state_cilium_destination.h"
+#include "cilium/filter_state_cilium_policy.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -27,11 +28,13 @@ SourceAddressSocketOption::SourceAddressSocketOption(
     Network::Address::InstanceConstSharedPtr original_source_address,
     Network::Address::InstanceConstSharedPtr ipv4_source_address,
     Network::Address::InstanceConstSharedPtr ipv6_source_address,
-    std::shared_ptr<CiliumDestinationFilterState> dest_fs)
+    std::shared_ptr<CiliumDestinationFilterState> dest_fs,
+    std::shared_ptr<CiliumPolicyFilterState> policy_fs)
     : source_identity_(source_identity), linger_time_(linger_time),
       original_source_address_(std::move(original_source_address)),
       ipv4_source_address_(std::move(ipv4_source_address)),
-      ipv6_source_address_(std::move(ipv6_source_address)), dest_fs_(std::move(dest_fs)) {
+      ipv6_source_address_(std::move(ipv6_source_address)), dest_fs_(std::move(dest_fs)),
+      policy_fs_(std::move(policy_fs)) {
   ENVOY_LOG(debug,
             "Cilium SourceAddressSocketOption(): source_identity: {}, linger_time: {}, "
             "source_addresses: {}/{}/{}",
@@ -77,15 +80,23 @@ bool SourceAddressSocketOption::setOption(
     return true;
   }
 
-  if (source_address->ip() && dest_fs_->getDestinationAddress() &&
-      dest_fs_->getDestinationAddress()->ip() &&
-      source_address->ip()->addressAsString() ==
-          dest_fs_->getDestinationAddress()->ip()->addressAsString()) {
-    ENVOY_LOG(trace,
-              "Skipping restore of local address on socket: {} - source address is same as "
-              "destination address {}",
-              socket.ioHandle().fdDoNotUse(), source_address->ip()->addressAsString());
-    return true;
+  if (source_address->ip() && dest_fs_ && dest_fs_->getDestinationAddress() &&
+      dest_fs_->getDestinationAddress()->ip()) {
+    const auto& dst_addr = dest_fs_->getDestinationAddress()->ip()->addressAsString();
+    if (source_address->ip()->addressAsString() == dst_addr) {
+      ENVOY_LOG(trace,
+                "Skipping restore of local address on socket: {} - source address is same as "
+                "destination address {}",
+                socket.ioHandle().fdDoNotUse(), dst_addr);
+      return true;
+    }
+    // Also skip using the original source address if destination is local.
+    // Local destinations have a policy configured on their address.
+    if (policy_fs_ && policy_fs_->exists(dst_addr)) {
+      ENVOY_LOG(trace, "Skipping restore of local address on socket: {} - destination is local {}",
+                socket.ioHandle().fdDoNotUse(), dst_addr);
+      return true;
+    }
   }
 
   // Note: SO_LINGER option is set on the socket of the upstream connection.
