@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "envoy/config/core/v3/socket_option.pb.h"
@@ -29,7 +30,8 @@ public:
       Network::Address::InstanceConstSharedPtr original_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv4_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv6_source_address = nullptr,
-      std::shared_ptr<CiliumDestinationFilterState> dest_fs = nullptr);
+      std::shared_ptr<CiliumDestinationFilterState> dest_fs = nullptr,
+      std::shared_ptr<CiliumPolicyFilterState> policy_fs = nullptr);
 
   absl::optional<Network::Socket::Option::Details>
   getOptionDetails(const Network::Socket&,
@@ -55,6 +57,7 @@ public:
   Network::Address::InstanceConstSharedPtr ipv4_source_address_;
   Network::Address::InstanceConstSharedPtr ipv6_source_address_;
   std::shared_ptr<CiliumDestinationFilterState> dest_fs_;
+  std::shared_ptr<CiliumPolicyFilterState> policy_fs_;
 };
 
 } // namespace Cilium
