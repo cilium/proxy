@@ -461,7 +461,7 @@ EXTENSIONS = {
     # RBAC principals
     #
 
-    # "envoy.rbac.principals.mtls_authenticated":        "//source/extensions/filters/common/rbac/principals/mtls_authenticated:config",
+    "envoy.rbac.principals.mtls_authenticated": "//source/extensions/filters/common/rbac/principals/mtls_authenticated:config",
 
     #
     # DNS Resolver
