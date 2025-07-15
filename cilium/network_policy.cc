@@ -371,9 +371,6 @@ public:
                         const cilium::PortNetworkPolicyRule& rule)
       : name_(rule.name()), deny_(rule.deny()), proxy_id_(rule.proxy_id()),
         l7_proto_(rule.l7_proto()) {
-    // Deny rules can not be short circuited, i.e., if any deny rules are present, then all
-    // rules must be evaluated even if one would allow
-    can_short_circuit_ = !deny_;
     for (const auto& remote : rule.remote_policies()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} remote {} by rule: {}",
                 deny_ ? "Denying" : "Allowing", remote, name_);
@@ -394,7 +391,7 @@ public:
     if (rule.has_http_rules()) {
       for (const auto& http_rule : rule.http_rules().http_rules()) {
         if (http_rule.header_matches_size() > 0) {
-          can_short_circuit_ = false;
+          has_headermatches_ = true;
         }
         http_rules_.emplace_back(parent, http_rule);
       }
@@ -468,8 +465,8 @@ public:
       bool allowed = false;
       for (const auto& rule : http_rules_) {
         if (rule.allowed(headers)) {
-          // Return on the first match if no rules have header actions
-          if (can_short_circuit_) {
+          // Return on the first match if no rule has HeaderMatches
+          if (!has_headermatches_) {
             allowed = true;
             break;
           }
@@ -577,9 +574,6 @@ public:
     if (name_.length() > 0) {
       res.append(indent, ' ').append("name: \"").append(name_).append("\"\n");
     }
-    if (!can_short_circuit_) {
-      res.append(indent, ' ').append("can_short_circuit: false\n");
-    }
     if (deny_) {
       res.append(indent, ' ').append("deny: true\n");
     }
@@ -628,7 +622,7 @@ public:
   std::string name_;
   DownstreamTLSContextPtr server_context_;
   UpstreamTLSContextPtr client_context_;
-  bool can_short_circuit_{true};
+  bool has_headermatches_{false};
   bool deny_;
   uint32_t proxy_id_;
   absl::btree_set<uint32_t> remotes_;
@@ -656,7 +650,7 @@ public:
               const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
     for (const auto& it : rules) {
       rules_.emplace_back(std::make_shared<PortNetworkPolicyRule>(parent, it));
-      if (!rules_.back()->can_short_circuit_) {
+      if (rules_.back()->has_headermatches_) {
         can_short_circuit_ = false;
       }
     }
@@ -666,10 +660,17 @@ public:
                const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
     for (const auto& it : rules) {
       rules_.emplace(rules_.begin(), std::make_shared<PortNetworkPolicyRule>(parent, it));
-      if (!rules_.front()->can_short_circuit_) {
+      if (rules_.front()->has_headermatches_) {
         can_short_circuit_ = false;
       }
     }
+  }
+
+  // sort by descending precedence
+  void sort() {
+    std::sort(rules_.begin(), rules_.end(),
+              [](const PortNetworkPolicyRuleConstSharedPtr& a,
+                 const PortNetworkPolicyRuleConstSharedPtr& b) { return a->deny_ && !b->deny_; });
   }
 
   bool empty() const { return rules_.empty(); }
@@ -686,11 +687,13 @@ public:
       if (rule->allowed(proxy_id, remote_id, headers, log_entry, denied)) {
         ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): ALLOWED");
         allowed = true;
-        // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
-        // exist
+        // Short-circuit on the first match if no rules have HeaderMatches
         if (can_short_circuit_) {
           break;
         }
+      }
+      if (denied) {
+        break;
       }
     }
     ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRules(): returning {}", allowed && !denied);
@@ -707,11 +710,13 @@ public:
     for (const auto& rule : rules_) {
       if (rule->allowed(proxy_id, remote_id, sni, denied)) {
         allowed = true;
-        // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
-        // exist
+        // Short-circuit on the first match if no rules have HeaderMatches
         if (can_short_circuit_) {
           break;
         }
+      }
+      if (denied) {
+        break;
       }
     }
     return allowed && !denied;
@@ -719,16 +724,15 @@ public:
 
   bool useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
     bool denied = false;
-    bool use_proxylib = false;
     for (const auto& rule : rules_) {
       if (rule->useProxylib(proxy_id, remote_id, l7_proto, denied)) {
-        use_proxylib = true;
+        return true;
       }
       if (denied) {
-        break;
+        return false;
       }
     }
-    return use_proxylib && !denied;
+    return false;
   }
 
   bool allowed(uint32_t proxy_id, uint32_t remote_id,
@@ -742,11 +746,13 @@ public:
     for (const auto& rule : rules_) {
       if (rule->allowed(proxy_id, remote_id, metadata, denied)) {
         allowed = true;
-        // Short-circuit on the first match if no rules have HeaderMatches or if deny rules do not
-        // exist
+        // Short-circuit on the first match if no rules have HeaderMatches
         if (can_short_circuit_) {
           break;
         }
+      }
+      if (denied) {
+        break;
       }
     }
     return allowed && !denied;
@@ -757,19 +763,17 @@ public:
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const {
     bool denied = false;
-    Ssl::ContextSharedPtr tls_ctx = nullptr;
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr server_context =
           rule->getServerTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed, denied);
-      if (server_context) {
-        tls_ctx = server_context;
-      }
       if (denied) {
-        tls_ctx = nullptr;
-        break;
+        return nullptr;
+      }
+      if (server_context) {
+        return server_context;
       }
     }
-    return tls_ctx;
+    return nullptr;
   }
 
   Ssl::ContextSharedPtr getClientTlsContext(uint32_t proxy_id, uint32_t remote_id,
@@ -777,19 +781,17 @@ public:
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const {
     bool denied = false;
-    Ssl::ContextSharedPtr tls_ctx = nullptr;
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr client_context =
           rule->getClientTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed, denied);
-      if (client_context) {
-        tls_ctx = client_context;
-      }
       if (denied) {
-        tls_ctx = nullptr;
-        break;
+        return nullptr;
+      }
+      if (client_context) {
+        return client_context;
       }
     }
-    return tls_ctx;
+    return nullptr;
   }
 
   void toString(int indent, std::string& res) const {
@@ -811,6 +813,7 @@ public:
     return false;
   }
 
+  // ordered set of rules as a sorted vector
   std::vector<PortNetworkPolicyRuleConstSharedPtr> rules_; // Allowed if empty.
   bool can_short_circuit_{true};
 };
@@ -1099,6 +1102,11 @@ public:
       } else {
         ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicy(): NOT installing non-TCP policy");
       }
+    }
+
+    // sort rules into descending precedence
+    for (auto& pair : rules_) {
+      pair.second.sort();
     }
   }
 
