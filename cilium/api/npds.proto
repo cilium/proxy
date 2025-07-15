@@ -129,6 +129,11 @@ message TLSContext {
 message PortNetworkPolicyRule {
   reserved 1; // used in Cilium versions upto 1.14
 
+  // Precedence level for this rule. Rules with **higher** numeric values take
+  // precedence, even over deny rules of lower precedence level.
+  // The lowest precedence (zero) is used when not specified.
+  uint32 precedence = 10;
+
   // Traffic on this port is denied for all `remote_policies` if true
   bool deny = 8;
 
