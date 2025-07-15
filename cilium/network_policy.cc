@@ -486,8 +486,8 @@ public:
     return true;
   }
 
-  bool useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
-    bool denied = false;
+  bool useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto,
+                   bool& denied) const {
     if (!allowed(proxy_id, remote_id, denied)) {
       return false;
     }
@@ -538,8 +538,7 @@ public:
   Ssl::ContextSharedPtr getServerTlsContext(uint32_t proxy_id, uint32_t remote_id,
                                             absl::string_view sni,
                                             const Ssl::ContextConfig** config,
-                                            bool& raw_socket_allowed) const {
-    bool denied = false;
+                                            bool& raw_socket_allowed, bool& denied) const {
     if (allowed(proxy_id, remote_id, sni, denied)) {
       if (server_context_) {
         *config = &server_context_->getTlsContextConfig();
@@ -553,8 +552,7 @@ public:
   Ssl::ContextSharedPtr getClientTlsContext(uint32_t proxy_id, uint32_t remote_id,
                                             absl::string_view sni,
                                             const Ssl::ContextConfig** config,
-                                            bool& raw_socket_allowed) const {
-    bool denied = false;
+                                            bool& raw_socket_allowed, bool& denied) const {
     if (allowed(proxy_id, remote_id, sni, denied)) {
       if (client_context_) {
         *config = &client_context_->getTlsContextConfig();
@@ -711,12 +709,17 @@ public:
   }
 
   bool useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
+    bool denied = false;
+    bool use_proxylib = false;
     for (const auto& rule : rules_) {
-      if (rule->useProxylib(proxy_id, remote_id, l7_proto)) {
-        return true;
+      if (rule->useProxylib(proxy_id, remote_id, l7_proto, denied)) {
+        use_proxylib = true;
+      }
+      if (denied) {
+        break;
       }
     }
-    return false;
+    return use_proxylib && !denied;
   }
 
   bool allowed(uint32_t proxy_id, uint32_t remote_id,
@@ -744,28 +747,40 @@ public:
                                             absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const {
+    bool denied = false;
+    Ssl::ContextSharedPtr tls_ctx = nullptr;
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr server_context =
-          rule->getServerTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
+          rule->getServerTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed, denied);
       if (server_context) {
-        return server_context;
+        tls_ctx = server_context;
+      }
+      if (denied) {
+        tls_ctx = nullptr;
+        break;
       }
     }
-    return nullptr;
+    return tls_ctx;
   }
 
   Ssl::ContextSharedPtr getClientTlsContext(uint32_t proxy_id, uint32_t remote_id,
                                             absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const {
+    bool denied = false;
+    Ssl::ContextSharedPtr tls_ctx = nullptr;
     for (const auto& rule : rules_) {
       Ssl::ContextSharedPtr client_context =
-          rule->getClientTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
+          rule->getClientTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed, denied);
       if (client_context) {
-        return client_context;
+        tls_ctx = client_context;
+      }
+      if (denied) {
+        tls_ctx = nullptr;
+        break;
       }
     }
-    return nullptr;
+    return tls_ctx;
   }
 
   void toString(int indent, std::string& res) const {
