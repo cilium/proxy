@@ -41,9 +41,11 @@ The easiest way to do this is to apply the patches on top of `envoyproxy/envoy` 
 ```shell
 # Run `git am` command in `envoyproxy/envoy` repository with local patch files.
 $ git am ../../cilium/proxy/patches/0001-network-Add-callback-for-upstream-authorization.patch
-$ git am ../../cilium/proxy/patches/0002-upstream-Add-callback-for-upstream-authorization.patch
-$ git am ../../cilium/proxy/patches/0003-tcp_proxy-Add-filter-state-proxy_read_before_connect.patch
-$ git am ../../cilium/proxy/patches/0004-listener-add-socket-options.patch
+$ git am ../../cilium/proxy/patches/0002-listener-add-socket-options.patch
+$ git am ../../cilium/proxy/patches/0003-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch
+$ git am ../../cilium/proxy/patches/0004-thread_local-reset-slot-in-worker-threads-first.patch
+$ git am ../../cilium/proxy/patches/0005-http-header-expose-attribute.patch
+$ git am ../../cilium/proxy/patches/0006-liburing-arm-build.patch
 
 # Export all the patch file, assume that we are upgrading to v1.28.
 # Then you can copy these patch files to `cilium/proxy/patches` directory.
