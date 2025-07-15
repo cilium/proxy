@@ -1949,5 +1949,108 @@ TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   EXPECT_FALSE(wildcard_label.matches(""));
 }
 
+TEST_F(CiliumNetworkPolicyTest, OrderedRules) {
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    end_port: 8080
+    rules:
+    - remote_policies: [ 43 ]
+      precedence: 0
+      deny: true
+  - port: 4040
+    end_port: 9999
+    rules:
+    - remote_policies: [ 43 ]
+      precedence: 1
+)EOF"));
+
+  std::string expected = R"EOF(ingress:
+  rules:
+    [80-4039]:
+    - rules:
+      - remotes: [43]
+        deny: true
+    [4040-8080]:
+    - rules:
+      - remotes: [43]
+        precedence: 1
+      - remotes: [43]
+        deny: true
+    [8081-9999]:
+    - rules:
+      - remotes: [43]
+        precedence: 1
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected));
+
+  // Ingress from 43 is denied to ports 80-4039, but allowed on ports 4040-9999:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10000));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
+
+  // Same with policies added in reverse order
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 4040
+    end_port: 9999
+    rules:
+    - remote_policies: [ 43 ]
+      precedence: 1
+  - port: 80
+    end_port: 8080
+    rules:
+    - remote_policies: [ 43 ]
+      precedence: 0
+      deny: true
+)EOF"));
+
+  EXPECT_TRUE(validate("10.1.2.3", expected));
+
+  // Ingress from 43 is denied to ports 80-4039, but allowed on ports 4040-9999:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10000));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
+}
+
 } // namespace Cilium
 } // namespace Envoy
