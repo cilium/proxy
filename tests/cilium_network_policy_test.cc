@@ -277,10 +277,8 @@ resources:
     [92-92]:
     - rules:
       - remotes: []
-        can_short_circuit: false
         deny: true
       - remotes: [43]
-      can_short_circuit: false
     [93-99]:
     - rules:
       - remotes: [43]
@@ -843,21 +841,17 @@ resources:
   rules:
     [80-80]:
     - rules:
+      - remotes: []
+        deny: true
       - remotes: [43]
         http_rules:
         - headers:
           - name: ":path"
             value: "/allowed"
-      - remotes: []
-        can_short_circuit: false
-        deny: true
-      can_short_circuit: false
     [81-10000]:
     - rules:
       - remotes: []
-        can_short_circuit: false
         deny: true
-      can_short_circuit: false
 egress:
   rules:
     [80-80]:
