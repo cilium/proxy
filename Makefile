@@ -121,7 +121,7 @@ clang.bazelrc: bazel/setup_clang.sh
 .PHONY: bazel-bin/cilium-envoy
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
+	CARGO_BAZEL_REPIN=true $(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 cilium-envoy: bazel-bin/cilium-envoy
 	mv $< $@
@@ -129,7 +129,7 @@ cilium-envoy: bazel-bin/cilium-envoy
 .PHONY: bazel-bin/cilium-envoy-starter
 bazel-bin/cilium-envoy-starter: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-starter $(BAZEL_FILTER)
+	CARGO_BAZEL_REPIN=true $(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-starter $(BAZEL_FILTER)
 
 cilium-envoy-starter: bazel-bin/cilium-envoy-starter
 	mv $< $@
@@ -169,14 +169,14 @@ proxylib/libcilium.so:
 .PHONY: envoy-test-deps
 envoy-test-deps: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
 	@$(ECHO_BAZEL)
-	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
+	CARGO_BAZEL_REPIN=true $(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
 
 .PHONY: envoy-tests
 envoy-tests: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
 	@$(ECHO_BAZEL)
 	# Upstream tcp_proxy_integration_test included to validate that our custom patches
 	# didn't break anything
-	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
+	CARGO_BAZEL_REPIN=true $(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
 
 .PHONY: \
 	install \
