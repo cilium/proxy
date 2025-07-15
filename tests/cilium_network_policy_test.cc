@@ -260,15 +260,14 @@ resources:
   rules:
     [23-23]:
     - rules:
-      - remotes: [42]
       - remotes: [45]
+      - remotes: [42]
     [40-79]:
     - rules:
       - remotes: [43]
     [80-80]:
     - rules:
       - remotes: [44]
-    - rules:
       - remotes: [43]
     [81-91]:
     - rules:
@@ -278,16 +277,13 @@ resources:
       - remotes: []
         can_short_circuit: false
         deny: true
-      can_short_circuit: false
-    - rules:
       - remotes: [43]
+      can_short_circuit: false
     [93-99]:
     - rules:
       - remotes: [43]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -409,15 +405,12 @@ resources:
     [4040-8080]:
     - rules:
       - remotes: [43]
-    - rules:
       - remotes: [44]
     [8081-9999]:
     - rules:
       - remotes: [44]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -467,15 +460,12 @@ resources:
     [4040-8080]:
     - rules:
       - remotes: [44]
-    - rules:
       - remotes: [43]
     [8081-9999]:
     - rules:
       - remotes: [44]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -520,12 +510,9 @@ resources:
     [80-80]:
     - rules:
       - remotes: [43]
-    - rules:
       - remotes: [43]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -561,15 +548,12 @@ resources:
     [80-80]:
     - rules:
       - remotes: [43]
-    - rules:
       - remotes: [43]
     [81-8080]:
     - rules:
       - remotes: [43]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -670,10 +654,8 @@ resources:
     [4040-9999]:
     - rules:
       - remotes: [43]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -729,10 +711,8 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -789,7 +769,6 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-  wildcard_rules: []
 egress:
   rules:
     [80-80]:
@@ -799,7 +778,6 @@ egress:
         - headers:
           - name: ":path"
             regex: <hidden>
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -868,7 +846,6 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-    - rules:
       - remotes: []
         can_short_circuit: false
         deny: true
@@ -879,7 +856,6 @@ resources:
         can_short_circuit: false
         deny: true
       can_short_circuit: false
-  wildcard_rules: []
 egress:
   rules:
     [80-80]:
@@ -889,7 +865,6 @@ egress:
         - headers:
           - name: ":path"
             regex: <hidden>
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -958,14 +933,12 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-    - rules:
       - remotes: []
         proxy_id: 42
     [81-10000]:
     - rules:
       - remotes: []
         proxy_id: 42
-  wildcard_rules: []
 egress:
   rules:
     [80-80]:
@@ -975,7 +948,6 @@ egress:
         - headers:
           - name: ":path"
             regex: <hidden>
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1038,14 +1010,12 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-    - rules:
       - remotes: []
         proxy_id: 99
     [81-10000]:
     - rules:
       - remotes: []
         proxy_id: 99
-  wildcard_rules: []
 egress:
   rules:
     [80-80]:
@@ -1055,7 +1025,6 @@ egress:
         - headers:
           - name: ":path"
             regex: <hidden>
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1121,16 +1090,13 @@ resources:
         - headers:
           - name: ":method"
             value: "GET"
-    - rules:
       - remotes: [43]
         http_rules:
         - headers:
           - name: ":path"
             value: "/allowed"
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1193,7 +1159,6 @@ resources:
         - headers:
           - name: ":method"
             value: "GET"
-    - rules:
       - remotes: [43]
         http_rules:
         - headers:
@@ -1206,10 +1171,8 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1280,7 +1243,6 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-    - rules:
       - remotes: [43]
         http_rules:
         - headers:
@@ -1293,10 +1255,8 @@ resources:
         - headers:
           - name: ":method"
             value: "GET"
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1911,12 +1871,11 @@ resources:
 )EOF"));
 
   std::string expected = R"EOF(ingress:
-  rules: []
-  wildcard_rules:
-  - rules:
+  rules:
+    [0-0]:
+    - rules:
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));

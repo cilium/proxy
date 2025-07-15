@@ -68,12 +68,11 @@ struct PortRangeCompare {
 };
 
 class PortNetworkPolicyRules;
-using RulesList = std::list<PortNetworkPolicyRules>;
 
 // PolicyMap is keyed by port ranges, and contains a list of PortNetworkPolicyRules's applicable
 // to this range. A list is needed as rules may come from multiple sources (e.g., resulting from
 // use of named ports and numbered ports in Cilium Network Policy at the same time).
-using PolicyMap = absl::btree_map<PortRange, RulesList, PortRangeCompare>;
+using PolicyMap = absl::btree_map<PortRange, PortNetworkPolicyRules, PortRangeCompare>;
 
 // PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
 // Methods then iterate through the set to determine if policy allows or denies. This is needed to
@@ -84,7 +83,7 @@ protected:
   friend class PortNetworkPolicy;
   friend class DenyAllPolicyInstanceImpl;
   friend class AllowAllEgressPolicyInstanceImpl;
-  PortPolicy(const PolicyMap& map, const RulesList& wildcard_rules, uint16_t port);
+  PortPolicy(const PolicyMap& map, uint16_t port);
 
 public:
   // If hasHttpRules() returns false, then HTTP policy enforcement can be skipped,
@@ -123,12 +122,17 @@ private:
   bool forRange(std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const;
   bool forFirstRange(std::function<bool(const PortNetworkPolicyRules&)> f) const;
 
-  static bool hasHttpRules(const PolicyMap& map, const RulesList& wildcard_rules,
-                           const PolicyMap::const_iterator port_rules);
-
   const PolicyMap& map_;
-  const RulesList& wildcard_rules_;
-  const PolicyMap::const_iterator port_rules_; // iterator to 'map_'
+  // using raw pointers by design:
+  // - pointer to distinguish between no rules and empty rules
+  // - not using shared pointer to not allow a worker thread to hold the last reference to policy
+  //   rule(s), as they must be destructed from the main thread only.
+  // - lifetime on policy updates is managed explicitly by posting a lambda to all worker threads
+  //   before the old rules are deleted; worker thread drop references to policy rules before
+  //   returning to the event loop, so after the posted lambda executes it is safe to delete the old
+  //   rules.
+  const PortNetworkPolicyRules* wildcard_rules_;
+  const PortNetworkPolicyRules* port_rules_;
   const bool has_http_rules_;
 };
 
