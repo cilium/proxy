@@ -33,7 +33,7 @@ index 13ff7496ff..da982ccea5 100644
 +  virtual void runOnAllWorkerThreads(std::function<void()> worker_cb, std::function<void()> main_cb) const PURE;
 +
  };
- 
+
  } // namespace ThreadLocal
 diff --git a/source/common/thread_local/thread_local_impl.cc b/source/common/thread_local/thread_local_impl.cc
 index 2a49789a09..e57b2fd70d 100644
