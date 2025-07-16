@@ -127,6 +127,8 @@ message TLSContext {
 // If all the predicates of a rule match a flow, the flow is matched by the
 // rule.
 message PortNetworkPolicyRule {
+  reserved 1; // used in Cilium versions upto 1.14
+
   // Traffic on this port is denied for all `remote_policies` if true
   bool deny = 8;
 
@@ -143,9 +145,6 @@ message PortNetworkPolicyRule {
   // A flow is matched by this predicate if the identifier of the policy
   // applied on the flow's remote host is contained in this set.
   // Optional. If not specified, any remote host is matched by this predicate.
-  // This field is deprecated, use remote_policies instead.
-  // TODO: Remove when Cilium 1.14 no longer supported.
-  repeated uint64 deprecated_remote_policies_64 = 1;
   repeated uint32 remote_policies = 7;
 
   // Optional downstream TLS context. If present, the incoming connection must
