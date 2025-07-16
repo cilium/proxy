@@ -159,7 +159,7 @@ subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
   Envoy::Config::CustomConfigValidatorsPtr nop_config_validators =
       std::make_unique<NopConfigValidatorsImpl>();
   auto factory_or_error = Config::Utility::factoryForGrpcApiConfigSource(
-      cm.grpcAsyncClientManager(), api_config_source, scope, true, 0);
+      cm.grpcAsyncClientManager(), api_config_source, scope, true, 0, false);
   THROW_IF_NOT_OK_REF(factory_or_error.status());
 
   absl::StatusOr<Config::RateLimitSettings> rate_limit_settings_or_error =
