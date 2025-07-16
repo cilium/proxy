@@ -426,6 +426,9 @@ func (x *TLSContext) GetAlpnProtocols() []string {
 // rule.
 type PortNetworkPolicyRule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Precedence level for this rule. Rules with **higher** numeric values take
+	// precedence, even over deny rules of lower precedence level.
+	Precedence uint32 `protobuf:"varint,10,opt,name=precedence,proto3" json:"precedence,omitempty"`
 	// Traffic on this port is denied for all `remote_policies` if true
 	Deny bool `protobuf:"varint,8,opt,name=deny,proto3" json:"deny,omitempty"`
 	// ProxyID is non-zero if the rule was an allow rule with an explicit listener reference.
@@ -493,6 +496,13 @@ func (x *PortNetworkPolicyRule) ProtoReflect() protoreflect.Message {
 // Deprecated: Use PortNetworkPolicyRule.ProtoReflect.Descriptor instead.
 func (*PortNetworkPolicyRule) Descriptor() ([]byte, []int) {
 	return file_cilium_api_npds_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *PortNetworkPolicyRule) GetPrecedence() uint32 {
+	if x != nil {
+		return x.Precedence
+	}
+	return 0
 }
 
 func (x *PortNetworkPolicyRule) GetDeny() bool {
@@ -1153,8 +1163,12 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\fserver_names\x18\x04 \x03(\tR\vserverNames\x12A\n" +
 	"\x1dvalidation_context_sds_secret\x18\x05 \x01(\tR\x1avalidationContextSdsSecret\x12$\n" +
 	"\x0etls_sds_secret\x18\x06 \x01(\tR\ftlsSdsSecret\x12%\n" +
-	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\x9d\x04\n" +
-	"\x15PortNetworkPolicyRule\x12\x12\n" +
+	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\xbd\x04\n" +
+	"\x15PortNetworkPolicyRule\x12\x1e\n" +
+	"\n" +
+	"precedence\x18\n" +
+	" \x01(\rR\n" +
+	"precedence\x12\x12\n" +
 	"\x04deny\x18\b \x01(\bR\x04deny\x12\x19\n" +
 	"\bproxy_id\x18\t \x01(\rR\aproxyId\x12\x12\n" +
 	"\x04name\x18\x05 \x01(\tR\x04name\x12'\n" +
