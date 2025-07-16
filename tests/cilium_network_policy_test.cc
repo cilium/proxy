@@ -37,16 +37,15 @@ namespace Cilium {
 
 #define ON_CALL_SDS_SECRET_PROVIDER(SECRET_MANAGER, PROVIDER_TYPE, API_TYPE)                       \
   ON_CALL(SECRET_MANAGER, findOrCreate##PROVIDER_TYPE##Provider(_, _, _, _))                       \
-      .WillByDefault(                                                                              \
-          Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,                \
-                    const std::string& config_name,                                                \
-                    Server::Configuration::TransportSocketFactoryContext& secret_provider_context, \
-                    Init::Manager& init_manager) {                                                 \
-            auto secret_provider = Secret::API_TYPE##SdsApi::create(                               \
-                secret_provider_context, sds_config_source, config_name, []() {});                 \
-            init_manager.add(*secret_provider->initTarget());                                      \
-            return secret_provider;                                                                \
-          }))
+      .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,     \
+                               const std::string& config_name,                                     \
+                               Server::Configuration::ServerFactoryContext& server_context,        \
+                               Init::Manager& init_manager) {                                      \
+        auto secret_provider = Secret::API_TYPE##SdsApi::create(server_context, sds_config_source, \
+                                                                config_name, []() {});             \
+        init_manager.add(*secret_provider->initTarget());                                          \
+        return secret_provider;                                                                    \
+      }))
 
 class CiliumNetworkPolicyTest : public ::testing::Test {
 protected:
@@ -60,13 +59,14 @@ protected:
   void SetUp() override {
     // Mock SDS secrets with a real implementation, which will not return anything if there is no
     // SDS server. This is only useful for testing functionality with a missing secret.
-    auto& secret_manager = factory_context_.server_factory_context_.cluster_manager_
-                               .cluster_manager_factory_.secretManager();
-    ON_CALL_SDS_SECRET_PROVIDER(secret_manager, TlsCertificate, TlsCertificate);
-    ON_CALL_SDS_SECRET_PROVIDER(secret_manager, CertificateValidationContext,
+    ON_CALL(factory_context_.server_factory_context_, secretManager())
+        .WillByDefault(ReturnRef(secret_manager_));
+
+    ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, TlsCertificate, TlsCertificate);
+    ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, CertificateValidationContext,
                                 CertificateValidationContext);
-    ON_CALL_SDS_SECRET_PROVIDER(secret_manager, TlsSessionTicketKeysContext, TlsSessionTicketKeys);
-    ON_CALL_SDS_SECRET_PROVIDER(secret_manager, GenericSecret, GenericSecret);
+    ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, TlsSessionTicketKeysContext, TlsSessionTicketKeys);
+    ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, GenericSecret, GenericSecret);
 
     policy_map_ = std::make_shared<NetworkPolicyMap>(factory_context_);
   }
@@ -211,6 +211,7 @@ protected:
   }
 
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;
+  NiceMock<Secret::MockSecretManager> secret_manager_;
   std::shared_ptr<NetworkPolicyMap> policy_map_;
   NiceMock<Stats::TestUtil::TestStore> store_;
   uint32_t proxy_id_ = 42;

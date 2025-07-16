@@ -42,7 +42,7 @@ secretProvider(Server::Configuration::TransportSocketFactoryContext& context,
                const std::string& sds_name) {
   envoy::config::core::v3::ConfigSource config_source = getSDSConfig(sds_name);
   return context.serverFactoryContext().secretManager().findOrCreateGenericSecretProvider(
-      config_source, sds_name, context, context.initManager());
+      config_source, sds_name, context.serverFactoryContext(), context.initManager());
 }
 
 } // namespace
