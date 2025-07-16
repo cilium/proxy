@@ -22,7 +22,7 @@ jobs:
             language: 'actions'
           - runner: ubuntu-24.04
             language: 'go'
-          - runner: ubuntu-latest-64-cores-256gb
+          - runner: oracle-vm-32cpu-128gb-x86-64
             language: 'cpp'
     steps:
       - name: Checkout repository
