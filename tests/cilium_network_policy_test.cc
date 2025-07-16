@@ -1901,6 +1901,46 @@ resources:
   EXPECT_FALSE(raw_socket_allowed);
 }
 
+TEST_F(CiliumNetworkPolicyTest, EmptyRulesAllow) {
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies: [{}]
+)EOF"));
+
+  std::string expected = R"EOF(ingress:
+  rules: []
+  wildcard_rules:
+  - rules:
+egress:
+  rules: []
+  wildcard_rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected));
+
+  // Ingress from 43 is denied to ports 80-4039, but allowed on ports 4040-9999:
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 10000));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
+}
+
 TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   // Test empty pattern
   SniPattern empty("");
