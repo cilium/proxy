@@ -38,11 +38,10 @@ envoy::config::core::v3::ConfigSource getCiliumSDSConfig(const std::string&) {
 }
 
 Secret::GenericSecretConfigProviderSharedPtr
-secretProvider(Server::Configuration::TransportSocketFactoryContext& context,
-               const std::string& sds_name) {
+secretProvider(Server::Configuration::ServerFactoryContext& context, const std::string& sds_name) {
   envoy::config::core::v3::ConfigSource config_source = getSDSConfig(sds_name);
-  return context.serverFactoryContext().secretManager().findOrCreateGenericSecretProvider(
-      config_source, sds_name, context, context.initManager());
+  return context.secretManager().findOrCreateGenericSecretProvider(config_source, sds_name, context,
+                                                                   context.initManager());
 }
 
 } // namespace
@@ -53,7 +52,8 @@ void resetSDSConfigFunc() { getSDSConfig = &getCiliumSDSConfig; }
 
 SecretWatcher::SecretWatcher(const NetworkPolicyMapImpl& parent, const std::string& sds_name)
     : parent_(parent), name_(sds_name),
-      secret_provider_(secretProvider(parent.transportFactoryContext(), sds_name)),
+      secret_provider_(
+          secretProvider(parent.transportFactoryContext().serverFactoryContext(), sds_name)),
       update_secret_(readAndWatchSecret()) {}
 
 SecretWatcher::~SecretWatcher() {
