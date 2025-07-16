@@ -4,7 +4,6 @@
 #include <openssl/mem.h>
 
 #include <algorithm>
-#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -376,12 +375,6 @@ public:
     // rules must be evaluated even if one would allow
     can_short_circuit_ = !deny_;
     for (const auto& remote : rule.remote_policies()) {
-      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} remote {} by rule: {}",
-                deny_ ? "Denying" : "Allowing", remote, name_);
-      remotes_.emplace(remote);
-    }
-    // TODO: Remove deprecated_remote_policies_64 when Cilium 1.14 is no longer supported
-    for (const auto& remote : rule.deprecated_remote_policies_64()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} remote {} by rule: {}",
                 deny_ ? "Denying" : "Allowing", remote, name_);
       remotes_.emplace(remote);
