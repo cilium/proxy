@@ -1,7 +1,6 @@
 name: CI check format
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
+  pull_request: {}
 
 # By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
 permissions:
