@@ -141,13 +141,22 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
   // Skip enforcement or logging on shadows and ingress direction
   if (stream_info.isShadow()) {
+    ENVOY_LOG(debug, "cilium.l7policy: upstream decodeHeaders() - skipping - shadow connection");
     return Http::FilterHeadersStatus::Continue;
   }
 
   const auto& conn = callbacks_->connection();
 
   if (!conn) {
-    sendLocalError("cilium.l7policy: No connection");
+    if (config_->is_upstream_) {
+      // Skip enforcement on upstream connections originating from Envoy without a relation
+      // to a downstream connection
+      ENVOY_LOG(debug,
+                "cilium.l7policy: upstream decodeHeaders() - skipping - no downstream connection");
+      return Http::FilterHeadersStatus::Continue;
+    }
+
+    sendLocalError("cilium.l7policy: downstream decodeHeaders() - no connection");
     return Http::FilterHeadersStatus::StopIteration;
   }
 
@@ -301,10 +310,26 @@ Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& h
 
   // Skip enforcement or logging on shadows
   if (stream_info.isShadow()) {
+    ENVOY_LOG(debug, "cilium.l7policy: upstream encodeHeaders() - skipping - shadow connection");
     return Http::FilterHeadersStatus::Continue;
   }
 
-  ENVOY_CONN_LOG(debug, "cilium.l7policy: {} encodeHeaders()", callbacks_->connection().ref(),
+  const auto& conn = callbacks_->connection();
+
+  if (!conn) {
+    if (config_->is_upstream_) {
+      // Skip enforcement on upstream connections originating from Envoy without a relation
+      // to a downstream connection
+      ENVOY_LOG(debug,
+                "cilium.l7policy: upstream encodeHeaders() - skipping - no downstream connection");
+      return Http::FilterHeadersStatus::Continue;
+    }
+
+    sendLocalError("cilium.l7policy: downstream encodeHeaders() - no connection");
+    return Http::FilterHeadersStatus::StopIteration;
+  }
+
+  ENVOY_CONN_LOG(debug, "cilium.l7policy: {} encodeHeaders()", conn.ref(),
                  config_->is_upstream_ ? "upstream" : "downstream");
 
   // Nothing to do in the upstream filter
