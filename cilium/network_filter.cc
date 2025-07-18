@@ -24,6 +24,7 @@
 #include "source/common/protobuf/utility.h"
 
 #include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/network_filter.pb.h"
