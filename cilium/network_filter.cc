@@ -231,12 +231,6 @@ Network::FilterStatus Instance::onNewConnection() {
             return false;
           }
 
-          // Set the destination address in the filter state, so that we can use it later when
-          // the socket option is set for local address
-          ENVOY_CONN_LOG(debug, "cilium.network (egress): destination address: {}", conn,
-                         dst_address->asString());
-          dest_fs->setDestinationAddress(dst_address);
-
           destination_port_ = dip->port();
           destination_identity = policy_fs->resolvePolicyId(dip);
           remote_id_ = destination_identity;
