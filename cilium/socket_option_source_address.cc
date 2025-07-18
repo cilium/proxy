@@ -19,6 +19,7 @@
 #include "absl/numeric/int128.h"
 #include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
+#include "cilium/policy_id.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -90,11 +91,24 @@ bool SourceAddressSocketOption::setOption(
                 socket.ioHandle().fdDoNotUse(), dst_addr);
       return true;
     }
+
     // Also skip using the original source address if destination is local.
     // Local destinations have a policy configured on their address.
     if (policy_fs_ && policy_fs_->exists(dst_addr)) {
       ENVOY_LOG(trace, "Skipping restore of local address on socket: {} - destination is local {}",
                 socket.ioHandle().fdDoNotUse(), dst_addr);
+      return true;
+    }
+
+    // Also skip using the original source address in case of N/S L7 loadbalancing if the
+    // destination identity is WORLD.
+    if (policy_fs_ && dest_fs_ && policy_fs_->is_l7lb_ && !original_source_address_ &&
+        policy_fs_->resolvePolicyId(dest_fs_->getDestinationAddress()->ip()) == Cilium::ID::WORLD) {
+      ENVOY_LOG(
+          trace,
+          "Skipping restore of local address on socket: {} - destination identity is WORLD) {}",
+          socket.ioHandle().fdDoNotUse(),
+          dest_fs_->getDestinationAddress()->ip()->addressAsString());
       return true;
     }
   }
