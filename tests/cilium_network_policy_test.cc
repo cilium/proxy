@@ -261,15 +261,14 @@ resources:
   rules:
     [23-23]:
     - rules:
-      - remotes: [42]
       - remotes: [45]
+      - remotes: [42]
     [40-79]:
     - rules:
       - remotes: [43]
     [80-80]:
     - rules:
       - remotes: [44]
-    - rules:
       - remotes: [43]
     [81-91]:
     - rules:
@@ -277,18 +276,13 @@ resources:
     [92-92]:
     - rules:
       - remotes: []
-        can_short_circuit: false
         deny: true
-      can_short_circuit: false
-    - rules:
       - remotes: [43]
     [93-99]:
     - rules:
       - remotes: [43]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -410,15 +404,12 @@ resources:
     [4040-8080]:
     - rules:
       - remotes: [43]
-    - rules:
       - remotes: [44]
     [8081-9999]:
     - rules:
       - remotes: [44]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -468,15 +459,12 @@ resources:
     [4040-8080]:
     - rules:
       - remotes: [44]
-    - rules:
       - remotes: [43]
     [8081-9999]:
     - rules:
       - remotes: [44]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -521,12 +509,9 @@ resources:
     [80-80]:
     - rules:
       - remotes: [43]
-    - rules:
       - remotes: [43]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -562,15 +547,12 @@ resources:
     [80-80]:
     - rules:
       - remotes: [43]
-    - rules:
       - remotes: [43]
     [81-8080]:
     - rules:
       - remotes: [43]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -671,10 +653,8 @@ resources:
     [4040-9999]:
     - rules:
       - remotes: [43]
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -730,10 +710,8 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -790,7 +768,6 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-  wildcard_rules: []
 egress:
   rules:
     [80-80]:
@@ -800,7 +777,6 @@ egress:
         - headers:
           - name: ":path"
             regex: <hidden>
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -864,23 +840,17 @@ resources:
   rules:
     [80-80]:
     - rules:
+      - remotes: []
+        deny: true
       - remotes: [43]
         http_rules:
         - headers:
           - name: ":path"
             value: "/allowed"
-    - rules:
-      - remotes: []
-        can_short_circuit: false
-        deny: true
-      can_short_circuit: false
     [81-10000]:
     - rules:
       - remotes: []
-        can_short_circuit: false
         deny: true
-      can_short_circuit: false
-  wildcard_rules: []
 egress:
   rules:
     [80-80]:
@@ -890,7 +860,6 @@ egress:
         - headers:
           - name: ":path"
             regex: <hidden>
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -959,14 +928,12 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-    - rules:
       - remotes: []
         proxy_id: 42
     [81-10000]:
     - rules:
       - remotes: []
         proxy_id: 42
-  wildcard_rules: []
 egress:
   rules:
     [80-80]:
@@ -976,7 +943,6 @@ egress:
         - headers:
           - name: ":path"
             regex: <hidden>
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1039,14 +1005,12 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-    - rules:
       - remotes: []
         proxy_id: 99
     [81-10000]:
     - rules:
       - remotes: []
         proxy_id: 99
-  wildcard_rules: []
 egress:
   rules:
     [80-80]:
@@ -1056,7 +1020,6 @@ egress:
         - headers:
           - name: ":path"
             regex: <hidden>
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1122,16 +1085,13 @@ resources:
         - headers:
           - name: ":method"
             value: "GET"
-    - rules:
       - remotes: [43]
         http_rules:
         - headers:
           - name: ":path"
             value: "/allowed"
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1194,7 +1154,6 @@ resources:
         - headers:
           - name: ":method"
             value: "GET"
-    - rules:
       - remotes: [43]
         http_rules:
         - headers:
@@ -1207,10 +1166,8 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1281,7 +1238,6 @@ resources:
         - headers:
           - name: ":path"
             value: "/allowed"
-    - rules:
       - remotes: [43]
         http_rules:
         - headers:
@@ -1294,10 +1250,8 @@ resources:
         - headers:
           - name: ":method"
             value: "GET"
-  wildcard_rules: []
 egress:
   rules: []
-  wildcard_rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected));
@@ -1901,6 +1855,45 @@ resources:
   EXPECT_FALSE(raw_socket_allowed);
 }
 
+TEST_F(CiliumNetworkPolicyTest, EmptyRulesAllow) {
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies: [{}]
+)EOF"));
+
+  std::string expected = R"EOF(ingress:
+  rules:
+    [0-0]:
+    - rules:
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected));
+
+  // Ingress from 43 is denied to ports 80-4039, but allowed on ports 4040-9999:
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 10000));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
+}
+
 TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   // Test empty pattern
   SniPattern empty("");
@@ -1953,6 +1946,109 @@ TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   EXPECT_FALSE(wildcard_label.matches("foo.bar.example.com"));
   EXPECT_FALSE(wildcard_label.matches("fooexample.com"));
   EXPECT_FALSE(wildcard_label.matches(""));
+}
+
+TEST_F(CiliumNetworkPolicyTest, OrderedRules) {
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    end_port: 8080
+    rules:
+    - remote_policies: [ 43 ]
+      precedence: 0
+      deny: true
+  - port: 4040
+    end_port: 9999
+    rules:
+    - remote_policies: [ 43 ]
+      precedence: 1
+)EOF"));
+
+  std::string expected = R"EOF(ingress:
+  rules:
+    [80-4039]:
+    - rules:
+      - remotes: [43]
+        deny: true
+    [4040-8080]:
+    - rules:
+      - remotes: [43]
+        precedence: 1
+      - remotes: [43]
+        deny: true
+    [8081-9999]:
+    - rules:
+      - remotes: [43]
+        precedence: 1
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected));
+
+  // Ingress from 43 is denied to ports 80-4039, but allowed on ports 4040-9999:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10000));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
+
+  // Same with policies added in reverse order
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 4040
+    end_port: 9999
+    rules:
+    - remote_policies: [ 43 ]
+      precedence: 1
+  - port: 80
+    end_port: 8080
+    rules:
+    - remote_policies: [ 43 ]
+      precedence: 0
+      deny: true
+)EOF"));
+
+  EXPECT_TRUE(validate("10.1.2.3", expected));
+
+  // Ingress from 43 is denied to ports 80-4039, but allowed on ports 4040-9999:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 79));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 81));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 4039));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4040));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 4041));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8079));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 8081));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9998));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 9999));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10000));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
 }
 
 } // namespace Cilium
