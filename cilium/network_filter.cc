@@ -185,7 +185,10 @@ Network::FilterStatus Instance::onNewConnection() {
 
   // Pass metadata from tls_inspector to the filterstate, if any & not already
   // set via upstream cluster config.
-  if (!sni.empty()) {
+  // Only do this in non-L7LB case where the proxy intercepts the traffic for policy enforcement.
+  if (!policy_fs->is_l7lb_ && !sni.empty()) {
+    ENVOY_CONN_LOG(trace, "cilium.network: Passing SNI {} to upstream connection", conn, sni);
+
     auto filter_state = conn.streamInfo().filterState();
     auto have_sni =
         filter_state->hasData<Network::UpstreamServerName>(Network::UpstreamServerName::key());
