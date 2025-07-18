@@ -162,3 +162,16 @@ jobs:
       repository: ${{ github.event.pull_request.head.repo.full_name }}
       commit_ref: ${{ github.event.pull_request.head.sha }}
     secrets: inherit
+
+  cilium-gateway-api-tests:
+    name: Cilium Gateway API Tests
+    needs: build-and-push-prs
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
+    uses: ./.github/workflows/cilium-gateway-api.yaml
+    with:
+      repository: ${{ github.event.pull_request.head.repo.full_name }}
+      commit_ref: ${{ github.event.pull_request.head.sha }}
+    secrets: inherit
