@@ -1,4 +1,4 @@
-name: Cilium Integration Tests
+name: Cilium Gateway API Tests
 on:
   workflow_call:
     inputs:
@@ -13,7 +13,7 @@ on:
         required: true
 
 concurrency:
-  group: integration-test-${{ github.workflow }}-${{ inputs.repository }}-${{ github.event.pull_request.number || github.event.after || inputs.commit_ref }}
+  group: gateway-api-${{ github.workflow }}-${{ inputs.repository }}-${{ github.event.pull_request.number || github.event.after || inputs.commit_ref }}
   cancel-in-progress: true
 
 # By specifying the access of one of the scopes, all of those that are not specified are set to 'none'.
@@ -32,9 +32,9 @@ env:
   CURL_PARALLEL: ${{ vars.CURL_PARALLEL || 10 }}
 
 jobs:
-  cilium-connectivity-tests:
+  cilium-gateway-api-tests:
     timeout-minutes: 360
-    name: Cilium Connectivity Tests
+    name: Cilium Gateway API Tests
     if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     steps:
@@ -118,11 +118,6 @@ jobs:
           go mod verify && \
           go mod vendor
 
-      - name: Wait for Cilium Proxy image to be available
-        timeout-minutes: 45
-        shell: bash
-        run: until docker manifest inspect ${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }} &> /dev/null; do sleep 15s; done
-
       - name: Build Cilium Agent & Operator with patched Cilium Proxy Image
         shell: bash
         run: DOCKER_IMAGE_TAG=${{ env.CILIUM_IMAGE_TAG }} make docker-cilium-image docker-operator-generic-image
@@ -135,16 +130,41 @@ jobs:
             quay.io/cilium/operator-generic:${{ env.CILIUM_IMAGE_TAG }} \
             quay.io/cilium/cilium:${{ env.CILIUM_IMAGE_TAG }}
 
+      - name: Install Gateway API CRDs
+        env:
+          timeout: 5m
+        run: |
+          gateway_api_version=$(grep -m 1 "sigs.k8s.io/gateway-api" go.mod | awk '{print $2}' | awk -F'-' '{print (NF>2)?$NF:$0}')
+          # Install Gateway CRDs
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_gatewayclasses.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_gateways.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_httproutes.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_referencegrants.yaml
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_grpcroutes.yaml
+          ## TLSRoute is only available in experimental channel in v0.7.0
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml
+
+          # To make sure that Gateway API CRs are available
+          kubectl wait --for condition=Established crd/gatewayclasses.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/gateways.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/httproutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/tlsroutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/grpcroutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/referencegrants.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+
       - name: Install Cilium
         timeout-minutes: 10
         shell: bash
         run: |
           cilium install \
             --chart-directory install/kubernetes/cilium \
+            --helm-set kubeProxyReplacement=true \
+            --helm-set gatewayAPI.enabled=true \
+            --helm-set l2announcements.enabled=true \
             --helm-set bpf.monitorAggregation=none \
             --helm-set loadBalancer.l7.backend=envoy \
-            --helm-set=tls.readSecretsOnlyFromSecretsNamespace=true \
-            --helm-set=tls.secretSync.enabled=true \
+            --helm-set tls.readSecretsOnlyFromSecretsNamespace=true \
+            --helm-set tls.secretSync.enabled=true \
             --helm-set image.repository=quay.io/cilium/cilium \
             --helm-set image.tag=${{ env.CILIUM_IMAGE_TAG }} \
             --helm-set image.useDigest=false \
@@ -162,16 +182,69 @@ jobs:
           cilium status --wait
           cilium hubble port-forward&
 
-      - name: Execute Cilium L7 Connectivity Tests
-        shell: bash
+      - name: Install Cilium LB IPPool and L2 Announcement Policy
+        timeout-minutes: 10
         run: |
-          cilium connectivity test \
-          --test="l7|sni|tls|ingress|check-log-errors" \
-          --curl-parallel=${{ env.CURL_PARALLEL }} \
-          --collect-sysdump-on-failure --flush-ct \
-          --sysdump-hubble-flows-count=100000 \
-          --sysdump-hubble-flows-timeout=15s \
-          --test-concurrency=5
+          KIND_NET_CIDR=$(docker network inspect kind -f '{{json .IPAM.Config}}' | jq -r '.[] | select(.Subnet | test("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+")) | .Subnet')
+          echo "KIND_NET_CIDR: $KIND_NET_CIDR"
+          LB_CIDR=$(echo ${KIND_NET_CIDR} | sed "s@0.0/16@255.200/28@")
+          echo "LB_CIDR: $LB_CIDR"
+
+          echo "Deploying LB-IPAM Pool..."
+          cat << EOF > pool.yaml
+          apiVersion: "cilium.io/v2"
+          kind: CiliumLoadBalancerIPPool
+          metadata:
+            name: "pool"
+          spec:
+            blocks:
+              - cidr: "$LB_CIDR"
+          EOF
+          cat pool.yaml
+          kubectl apply -f pool.yaml
+
+          echo "Deploying L2-Announcement Policy..."
+          cat << 'EOF' > l2policy.yaml
+          apiVersion: "cilium.io/v2alpha1"
+          kind: CiliumL2AnnouncementPolicy
+          metadata:
+            name: l2policy
+          spec:
+            loadBalancerIPs: true
+            interfaces:
+              - eth0
+            nodeSelector:
+              matchExpressions:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: DoesNotExist
+          EOF
+          cat l2policy.yaml
+          kubectl apply -f l2policy.yaml
+
+      - name: Run Gateway API conformance test
+        timeout-minutes: 30
+        run: |
+          KIND_NET_CIDR=$(docker network inspect kind -f '{{json .IPAM.Config}}' | jq -r '.[] | select(.Subnet | test("^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+")) | .Subnet')
+          echo "KIND_NET_CIDR: $KIND_NET_CIDR"
+          GATEWAY_API_CONFORMANCE_USABLE_NETWORK_ADDRESSES=$(echo ${KIND_NET_CIDR} | sed "s@0.0/16@255.206@")
+          GATEWAY_API_CONFORMANCE_UNUSABLE_NETWORK_ADDRESSES=$(echo ${KIND_NET_CIDR} | sed "s@0.0/16@255.216@")
+          echo "GATEWAY_API_CONFORMANCE_USABLE_NETWORK_ADDRESSES: $GATEWAY_API_CONFORMANCE_USABLE_NETWORK_ADDRESSES"
+          echo "GATEWAY_API_CONFORMANCE_UNUSABLE_NETWORK_ADDRESSES: $GATEWAY_API_CONFORMANCE_UNUSABLE_NETWORK_ADDRESSES"
+          EXEMPT_FEATURES="HTTPRouteParentRefPort,MeshConsumerRoute"
+
+          GATEWAY_API_CONFORMANCE_TESTS=1 \
+            GATEWAY_API_CONFORMANCE_USABLE_NETWORK_ADDRESSES=$GATEWAY_API_CONFORMANCE_USABLE_NETWORK_ADDRESSES  \
+            GATEWAY_API_CONFORMANCE_UNUSABLE_NETWORK_ADDRESSES=$GATEWAY_API_CONFORMANCE_UNUSABLE_NETWORK_ADDRESSES \
+            go test \
+              -p 4 \
+              -v ./operator/pkg/gateway-api \
+              --gateway-class cilium \
+              --all-features \
+              --exempt-features $EXEMPT_FEATURES \
+              --allow-crds-mismatch \
+              -test.run "TestConformance" \
+              -test.timeout=29m \
+              -test.skip "${{ steps.vars.outputs.skipped_tests }}"
 
       - name: Gather Cilium system dump
         if: failure()
@@ -182,6 +255,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: cilium-integration-test-sysdumps
+          name: cilium-gateway-api-test-sysdumps
           path: cilium-sysdump-*.zip
           retention-days: 5
