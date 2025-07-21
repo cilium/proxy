@@ -8,7 +8,7 @@
 # This shoould be the same as Dockerfile.builder except the below:
 # - Ubuntu version is bumped to 22.04
 # - LLVM apt repo is from apt.llvm.org/jammy/ instead of apt.llvm.org/focal/
-FROM docker.io/library/ubuntu:24.04@sha256:440dcf6a5640b2ae5c77724e68787a906afb8ddee98bf86db94eea8528c2c076 AS base
+FROM docker.io/library/ubuntu:24.04@sha256:a08e551cb33850e4740772b38217fc1796a66da2506d312abe51acda354ff061 AS base
 LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
 # Setup TimeZone to prevent tzdata package asking for it interactively
