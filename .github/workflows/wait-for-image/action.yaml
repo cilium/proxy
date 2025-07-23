@@ -1,0 +1,30 @@
+name: Wait for images
+description: Wait for images
+inputs:
+  SHA:
+    description: 'inputs.sha'
+    required: true
+    default: 'incorrect-sha'
+  repo:
+    description: 'Repo for container image'
+    required: true
+    default: 'cilium'
+  images:
+    description: 'list of images to wait for'
+    required: false
+    default: 'cilium-envoy-builder-dev'
+
+runs:
+  using: composite
+  steps:
+    - name: Wait for images
+      shell: bash
+      run: |
+        images=( ${{ inputs.images }} )
+        for image in ${images[@]}; do
+          until docker manifest inspect quay.io/${{ inputs.repo }}/$image:${{ inputs.SHA }} &> /dev/null
+          do
+            echo "Waiting for quay.io/${{ inputs.repo }}/$image:${{ inputs.SHA }} image to become available..."
+            sleep 45s
+          done
+        done
