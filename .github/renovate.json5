@@ -25,7 +25,7 @@
   separateMultipleMajor: false,
   separateMinorPatch: false,
   pruneStaleBranches: true,
-  baseBranches: [
+  baseBranchPatterns: [
     'main',
     'v1.33',
   ],
@@ -235,12 +235,12 @@
     },
     {
       customType: 'regex',
-      "managerFilePatterns": [
-        "/^.github/workflows/renovate-config-validator.yaml$/"
+      managerFilePatterns: [
+        '/^.github/workflows/renovate-config-validator.yaml$/',
       ],
-      "matchStrings": [
-        "# renovate: datasource=(?<datasource>.*?)\\s+RENOVATE_IMAGE=\"(?<depName>.*):(?<currentValue>.*)@(?<currentDigest>sha256:[a-f0-9]+)\""
-      ]
-    }
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>.*?)\\s+RENOVATE_IMAGE="(?<depName>.*):(?<currentValue>.*)@(?<currentDigest>sha256:[a-f0-9]+)"',
+      ],
+    },
   ],
 }
