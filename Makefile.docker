@@ -93,12 +93,10 @@ TESTS_ARCHIVE_TAG ?= test-main-archive-latest
 
 BUILDER_DOCKER_HASH=$(shell git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $$3 }')
 BUILDER_BASE_TAG ?= $(BUILDER_DOCKER_HASH)
-TESTS_BUILDER_BASE_TAG ?= test-$(BUILDER_DOCKER_HASH)
 BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG)
-TESTS_BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_BUILDER_BASE_TAG)
 
 BUILD_IMAGE_OPTS := --build-arg BUILDER_BASE="$(BUILDER_BASE)"
-TESTS_IMAGE_OPTS := --build-arg BUILDER_BASE="$(TESTS_BUILDER_BASE)"
+TESTS_IMAGE_OPTS := --build-arg BUILDER_BASE="$(BUILDER_BASE)"
 
 ifndef NO_ARCHIVE
   ifndef ARCHIVE_IMAGE
@@ -180,17 +178,9 @@ docker-image-builder: Dockerfile.builder SOURCE_VERSION Dockerfile.builder.docke
 docker-builder-archive: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
 	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILD_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_ARCHIVE_TAG) .
 
-.PHONY: empty-docker-builder-archive
-empty-docker-builder-archive: Dockerfile Dockerfile.dockerignore
-	$(DOCKER) build --target empty-builder-archive $(DOCKER_BUILD_OPTS) -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_ARCHIVE_TAG) .
-
 .PHONY: docker-tests-archive
 docker-tests-archive: Dockerfile.tests SOURCE_VERSION Dockerfile.tests.dockerignore
 	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(TESTS_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_ARCHIVE_TAG) .
-
-.PHONY: empty-docker-tests-archive
-empty-docker-tests-archive: Dockerfile.tests Dockerfile.tests.dockerignore
-	$(DOCKER) build --target empty-builder-archive $(DOCKER_BUILD_OPTS) --build-arg BUILDER_BASE="$(TESTS_BUILDER_BASE)" -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_ARCHIVE_TAG) .
 
 ifeq ($(BRANCH_TAG),main)
   DOCKER_TESTS_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy:latest$(IMAGE_ARCH)$(DEBUG_TAG)-testlogs
