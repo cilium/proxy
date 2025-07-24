@@ -12,8 +12,8 @@ ENVOY_REPO = "envoy"
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.34.3
-ENVOY_SHA = "450460d95fed1d27118d396594ff97c6cc7dbe75"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.35.0
+ENVOY_SHA = "84305a6cb64bd55aaf606bdd53de7cd6080427a1"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -40,10 +40,9 @@ git_repository(
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
         "@//patches:0002-listener-add-socket-options.patch",
         "@//patches:0003-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
-        "@//patches:0004-tcp_proxy-Check-for-nullptr-in-watermark-ASSERTs.patch",
-        "@//patches:0005-thread_local-reset-slot-in-worker-threads-first.patch",
-        "@//patches:0006-http-header-expose-attribute.patch",
-        "@//patches:0007-liburing-arm-build.patch",
+        "@//patches:0004-thread_local-reset-slot-in-worker-threads-first.patch",
+        "@//patches:0005-http-header-expose-attribute.patch",
+        "@//patches:0006-liburing-arm-build.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
@@ -86,3 +85,7 @@ envoy_python_dependencies()
 load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
 
 envoy_dependency_imports()
+
+load("@envoy//bazel:dependency_imports_extra.bzl", "envoy_dependency_imports_extra")
+
+envoy_dependency_imports_extra()
