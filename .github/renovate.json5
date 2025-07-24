@@ -172,7 +172,7 @@
       matchDepNames: [
         'envoyproxy/envoy',
       ],
-      allowedVersions: '<=1.34',
+      allowedVersions: '<=1.35',
       matchBaseBranches: [
         'main',
       ],

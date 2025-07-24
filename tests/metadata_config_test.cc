@@ -60,9 +60,6 @@ protected:
       logger.setLevel(spdlog::level::trace);
     }
 
-    ON_CALL(context_, getTransportSocketFactoryContext())
-        .WillByDefault(ReturnRef(transport_socket_factory_context_));
-
     ON_CALL(context_.server_factory_context_, api()).WillByDefault(testing::ReturnRef(*api_));
 
     ON_CALL(context_.server_factory_context_.dispatcher_, createFilesystemWatcher_())
