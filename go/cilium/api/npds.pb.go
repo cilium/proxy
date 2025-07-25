@@ -426,6 +426,9 @@ func (x *TLSContext) GetAlpnProtocols() []string {
 // rule.
 type PortNetworkPolicyRule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// Precedence level for this rule. Rules with **higher** numeric values take
+	// precedence, even over deny rules of lower precedence level.
+	Precedence uint32 `protobuf:"varint,10,opt,name=precedence,proto3" json:"precedence,omitempty"`
 	// Traffic on this port is denied for all `remote_policies` if true
 	Deny bool `protobuf:"varint,8,opt,name=deny,proto3" json:"deny,omitempty"`
 	// ProxyID is non-zero if the rule was an allow rule with an explicit listener reference.
@@ -439,10 +442,7 @@ type PortNetworkPolicyRule struct {
 	// A flow is matched by this predicate if the identifier of the policy
 	// applied on the flow's remote host is contained in this set.
 	// Optional. If not specified, any remote host is matched by this predicate.
-	// This field is deprecated, use remote_policies instead.
-	// TODO: Remove when Cilium 1.14 no longer supported.
-	DeprecatedRemotePolicies_64 []uint64 `protobuf:"varint,1,rep,packed,name=deprecated_remote_policies_64,json=deprecatedRemotePolicies64,proto3" json:"deprecated_remote_policies_64,omitempty"`
-	RemotePolicies              []uint32 `protobuf:"varint,7,rep,packed,name=remote_policies,json=remotePolicies,proto3" json:"remote_policies,omitempty"`
+	RemotePolicies []uint32 `protobuf:"varint,7,rep,packed,name=remote_policies,json=remotePolicies,proto3" json:"remote_policies,omitempty"`
 	// Optional downstream TLS context. If present, the incoming connection must
 	// be a TLS connection.
 	DownstreamTlsContext *TLSContext `protobuf:"bytes,3,opt,name=downstream_tls_context,json=downstreamTlsContext,proto3" json:"downstream_tls_context,omitempty"`
@@ -498,6 +498,13 @@ func (*PortNetworkPolicyRule) Descriptor() ([]byte, []int) {
 	return file_cilium_api_npds_proto_rawDescGZIP(), []int{3}
 }
 
+func (x *PortNetworkPolicyRule) GetPrecedence() uint32 {
+	if x != nil {
+		return x.Precedence
+	}
+	return 0
+}
+
 func (x *PortNetworkPolicyRule) GetDeny() bool {
 	if x != nil {
 		return x.Deny
@@ -517,13 +524,6 @@ func (x *PortNetworkPolicyRule) GetName() string {
 		return x.Name
 	}
 	return ""
-}
-
-func (x *PortNetworkPolicyRule) GetDeprecatedRemotePolicies_64() []uint64 {
-	if x != nil {
-		return x.DeprecatedRemotePolicies_64
-	}
-	return nil
 }
 
 func (x *PortNetworkPolicyRule) GetRemotePolicies() []uint32 {
@@ -1163,12 +1163,15 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\fserver_names\x18\x04 \x03(\tR\vserverNames\x12A\n" +
 	"\x1dvalidation_context_sds_secret\x18\x05 \x01(\tR\x1avalidationContextSdsSecret\x12$\n" +
 	"\x0etls_sds_secret\x18\x06 \x01(\tR\ftlsSdsSecret\x12%\n" +
-	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\xda\x04\n" +
-	"\x15PortNetworkPolicyRule\x12\x12\n" +
+	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\xbd\x04\n" +
+	"\x15PortNetworkPolicyRule\x12\x1e\n" +
+	"\n" +
+	"precedence\x18\n" +
+	" \x01(\rR\n" +
+	"precedence\x12\x12\n" +
 	"\x04deny\x18\b \x01(\bR\x04deny\x12\x19\n" +
 	"\bproxy_id\x18\t \x01(\rR\aproxyId\x12\x12\n" +
-	"\x04name\x18\x05 \x01(\tR\x04name\x12A\n" +
-	"\x1ddeprecated_remote_policies_64\x18\x01 \x03(\x04R\x1adeprecatedRemotePolicies64\x12'\n" +
+	"\x04name\x18\x05 \x01(\tR\x04name\x12'\n" +
 	"\x0fremote_policies\x18\a \x03(\rR\x0eremotePolicies\x12H\n" +
 	"\x16downstream_tls_context\x18\x03 \x01(\v2\x12.cilium.TLSContextR\x14downstreamTlsContext\x12D\n" +
 	"\x14upstream_tls_context\x18\x04 \x01(\v2\x12.cilium.TLSContextR\x12upstreamTlsContext\x12!\n" +
@@ -1179,7 +1182,7 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\vkafka_rules\x18e \x01(\v2\x1f.cilium.KafkaNetworkPolicyRulesH\x00R\n" +
 	"kafkaRules\x129\n" +
 	"\bl7_rules\x18f \x01(\v2\x1c.cilium.L7NetworkPolicyRulesH\x00R\al7RulesB\x04\n" +
-	"\x02l7\"`\n" +
+	"\x02l7J\x04\b\x01\x10\x02\"`\n" +
 	"\x16HttpNetworkPolicyRules\x12F\n" +
 	"\n" +
 	"http_rules\x18\x01 \x03(\v2\x1d.cilium.HttpNetworkPolicyRuleB\b\xfaB\x05\x92\x01\x02\b\x01R\thttpRules\"\xd2\x03\n" +
