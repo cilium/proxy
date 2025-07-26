@@ -133,7 +133,7 @@ FROM docker.io/library/ubuntu:24.04@sha256:a08e551cb33850e4740772b38217fc1796a66
 LABEL maintainer="maintainer@cilium.io"
 # install ca-certificates package
 RUN apt-get update && apt-get upgrade -y \
-    && apt-get install --no-install-recommends -y ca-certificates \
+    && apt-get install --no-install-recommends -y ca-certificates curl \
     && apt-get autoremove -y && apt-get clean \
     && rm -rf /tmp/* /var/tmp/* \
     && rm -rf /var/lib/apt/lists/*
