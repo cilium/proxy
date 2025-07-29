@@ -17,102 +17,102 @@ jobs:
     name: Check source format
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout PR Source Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
+    - name: Checkout PR Source Code
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        persist-credentials: false
 
-      - name: Prep for build
-        run: |
-          echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
+    - name: Prep for build
+      run: |
+        echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+        echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
 
-      - name: Wait for build image
-        uses: ./.github/workflows/wait-for-image
-        with:
-          SHA: ${{ env.BUILDER_DOCKER_HASH }}
-          repo: cilium
-          images: cilium-envoy-builder-dev
+    - name: Wait for build image
+      uses: ./.github/workflows/wait-for-image
+      with:
+        SHA: ${{ env.BUILDER_DOCKER_HASH }}
+        repo: cilium
+        images: cilium-envoy-builder-dev
 
-      - name: Check format
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        id: docker_format_ciak
-        with:
-          target: format
-          provenance: false
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          outputs: type=local,dest=check-format-results
-          build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-          push: false
+    - name: Check format
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      id: docker_format_ciak
+      with:
+        target: format
+        provenance: false
+        context: .
+        file: ./Dockerfile
+        platforms: linux/amd64
+        outputs: type=local,dest=check-format-results
+        build-args: |
+          BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
+        push: false
 
-      - name: Check for failure
-        run: '! grep "^Format check failed" check-format-results/format-output.txt'
+    - name: Check for failure
+      run: '! grep "^Format check failed" check-format-results/format-output.txt'
 
-      - name: Upload Format results
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: check-format-results
-          path: check-format-results/format-output.txt
-          retention-days: 5
+    - name: Upload Format results
+      if: failure()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: check-format-results
+        path: check-format-results/format-output.txt
+        retention-days: 5
 
   tidy:
     timeout-minutes: 60
     name: Lint source style
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout PR Source Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          persist-credentials: false
-          fetch-depth: 2
+    - name: Checkout PR Source Code
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+        persist-credentials: false
+        fetch-depth: 2
 
-      - name: Prep for build
-        run: |
-          echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
-          # git diff filter has everything else than deleted files (those need not be tidied)
-          echo "TIDY_SOURCES=$(git diff --name-only --diff-filter=ACMRTUXB HEAD^1 | grep -E '(.h$|.cc$)' | tr '\n' ' ')" >> $GITHUB_ENV
+    - name: Prep for build
+      run: |
+        echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+        echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
+        # git diff filter has everything else than deleted files (those need not be tidied)
+        echo "TIDY_SOURCES=$(git diff --name-only --diff-filter=ACMRTUXB HEAD^1 | grep -E '(.h$|.cc$)' | tr '\n' ' ')" >> $GITHUB_ENV
 
-      - name: Wait for build image
-        uses: ./.github/workflows/wait-for-image
-        with:
-          SHA: ${{ env.BUILDER_DOCKER_HASH }}
-          repo: cilium
-          images: cilium-envoy-builder-dev
+    - name: Wait for build image
+      uses: ./.github/workflows/wait-for-image
+      with:
+        SHA: ${{ env.BUILDER_DOCKER_HASH }}
+        repo: cilium
+        images: cilium-envoy-builder-dev
 
-      - name: Run clang-tidy
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        # skip if nothing changed
-        if: ${{ env.TIDY_SOURCES != '' }}
-        id: docker_clang_tidy
-        with:
-          target: clang-tidy
-          provenance: false
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64
-          outputs: type=local,dest=clang-tidy-results
-          build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            TIDY_SOURCES=${{ env.TIDY_SOURCES }}
-          push: false
+    - name: Run clang-tidy
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      # skip if nothing changed
+      if: ${{ env.TIDY_SOURCES != '' }}
+      id: docker_clang_tidy
+      with:
+        target: clang-tidy
+        provenance: false
+        context: .
+        file: ./Dockerfile
+        platforms: linux/amd64
+        outputs: type=local,dest=clang-tidy-results
+        build-args: |
+          BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
+          TIDY_SOURCES=${{ env.TIDY_SOURCES }}
+        push: false
 
-      - name: Check for failure
-        run: |
-          if grep -q "^clang-tidy fix produced changes, please commit them." clang-tidy-results/clang-tidy-output.txt; then
-            exit 1
-          fi
+    - name: Check for failure
+      run: |
+        if grep -q "^clang-tidy fix produced changes, please commit them." clang-tidy-results/clang-tidy-output.txt; then
+          exit 1
+        fi
 
-      - name: Upload clang-tidy results
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: clang-tidy-results
-          path: clang-tidy-results/*.txt
-          retention-days: 5
+    - name: Upload clang-tidy results
+      if: failure()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: clang-tidy-results
+        path: clang-tidy-results/*.txt
+        retention-days: 5
