@@ -67,15 +67,6 @@ ifneq ($(shell whoami),root)
   SUDO=$(shell if sudo -h 1>/dev/null 2>/dev/null; then echo "sudo"; fi)
 endif
 
-define add_clang_apt_source
-	if [ ! -f /etc/apt/trusted.gpg.d/apt.llvm.org.asc ]; then \
-	  $(SUDO) wget -q -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key; \
-	fi
-	apt_source="deb http://apt.llvm.org/$(1)/ llvm-toolchain-$(1)-17 main" && \
-	$(SUDO) apt-add-repository -y "$${apt_source}" && \
-	$(SUDO) apt update
-endef
-
 ifdef PKG_BUILD
   $(info Registering C++ toolchains via BAZEL_BUILD_OPTS)
   BAZEL_BUILD_OPTS += --extra_toolchains=//bazel/toolchains:all
@@ -103,7 +94,16 @@ else
 
   # Install clang if needed
   define install_clang
-	$(SUDO) apt info clang-17 || $(call add_clang_apt_source,$(shell lsb_release -cs))
+	add_llvm_source() { \
+		if [ ! -f /etc/apt/trusted.gpg.d/apt.llvm.org.asc ]; then \
+		  $(SUDO) wget -q -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key; \
+		fi; \
+		local CODENAME=$$(lsb_release -cs); \
+		apt_source="deb http://apt.llvm.org/$$CODENAME/ llvm-toolchain-$$CODENAME-17 main" && \
+		$(SUDO) apt-add-repository -y "$${apt_source}" && \
+		$(SUDO) apt update; \
+	}; \
+	if ! apt info clang-17; then add_llvm_source; fi; \
 	$(SUDO) apt install -y clang-17 clangd-17 llvm-17-dev lld-17 lldb-17 clang-format-17 clang-tools-17 clang-tidy-17
   endef
 endif
