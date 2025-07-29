@@ -263,12 +263,10 @@ ARCH=amd64 NO_ARCHIVE=1 NO_CACHE=1 make docker-tests-archive
 
 ## Updating generated API
 
-[Cilium project](https://github.com/cilium/cilium) vendors the Envoy
-xDS API, including Cilium extensions, from this repository. To update
+[Cilium project](https://github.com/cilium/cilium) vendors Cilium extensions from this repository. To update
 the generated API files, run:
 
 ```
-rm -r go/envoy/*
 make api
 ```
 
