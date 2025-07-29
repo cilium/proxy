@@ -13,6 +13,10 @@ import (
 	envoy_service_discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 )
 
+var LogFatal = func(format string, args ...interface{}) {
+	logrus.Fatalf(format, args...)
+}
+
 func (ins *Instance) CheckInsertPolicyText(c *C, version string, policies []string) {
 	err := ins.InsertPolicyText(version, policies, "")
 	c.Assert(err, IsNil)
@@ -27,7 +31,7 @@ func (ins *Instance) InsertPolicyText(version string, policies []string, expectF
 		err := proto.UnmarshalText(policy, pb)
 		if err != nil {
 			if expectFail != "unmarshal" {
-				logrus.Fatalf("Policy UnmarshalText failed: %v", err)
+				LogFatal("Policy UnmarshalText failed: %v", err)
 			}
 			return err
 		}
@@ -35,7 +39,7 @@ func (ins *Instance) InsertPolicyText(version string, policies []string, expectF
 		data, err := proto.Marshal(pb)
 		if err != nil {
 			if expectFail != "marshal" {
-				logrus.Fatalf("Policy marshal failed: %v", err)
+				LogFatal("Policy marshal failed: %v", err)
 			}
 			return err
 		}
@@ -57,7 +61,7 @@ func (ins *Instance) InsertPolicyText(version string, policies []string, expectF
 	err := ins.PolicyUpdate(msg)
 	if err != nil {
 		if expectFail != "update" {
-			logrus.Fatalf("Policy Update failed: %v", err)
+			LogFatal("Policy Update failed: %v", err)
 		}
 	}
 	return err
