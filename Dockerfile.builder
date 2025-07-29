@@ -27,10 +27,10 @@ RUN apt-get update && \
       # Cilium-envoy build dependencies
       software-properties-common && \
     wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
-    apt-add-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-17 main" && \
+    apt-add-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-      clang-17 clang-tidy-17 clang-tools-17 llvm-17-dev lldb-17 lld-17 clang-format-17 libc++-17-dev libc++abi-17-dev && \
+      clang-18 clang-tidy-18 clang-tools-18 llvm-18-dev lldb-18 lld-18 clang-format-18 libc++-18-dev libc++abi-18-dev && \
     apt-get purge --auto-remove && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
