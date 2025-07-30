@@ -56,6 +56,13 @@ jobs:
       - name: Clear cache
         run: rm -rf /tmp/buildx-cache/*
 
+      - name: Wait for build image
+        uses: ./.github/workflows/wait-for-image
+        with:
+          SHA: ${{ env.BUILDER_DOCKER_HASH }}
+          repo: cilium
+          images: cilium-envoy-builder
+
       - name: Run integration tests on amd64 to update docker cache
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         id: docker_tests_ci_cache_update
@@ -102,12 +109,15 @@ jobs:
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
           echo "SOURCE_TIMESTAMP=$(git log -1 --pretty=format:"%ct" .)" >> $GITHUB_ENV
 
-      - name: Wait for build image
-        uses: ./.github/workflows/wait-for-image
-        with:
-          SHA: ${{ env.BUILDER_DOCKER_HASH }}
-          repo: cilium
-          images: cilium-envoy-builder
+      - name: Checking if cilium-envoy-builder image exists
+        id: cilium-builder-tag-in-repositories
+        shell: bash
+        run: |
+          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+            echo exists="true" >> $GITHUB_OUTPUT
+          else
+            echo exists="false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Multi-arch build & push of Builder image
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
