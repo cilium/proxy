@@ -107,7 +107,7 @@ jobs:
         with:
           SHA: ${{ env.BUILDER_DOCKER_HASH }}
           repo: cilium
-          images: cilium-envoy-builder-dev
+          images: cilium-envoy-builder
 
       - name: Multi-arch build & push of Builder image
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
