@@ -31,12 +31,12 @@ EXTENSIONS = {
     # Compression
     #
 
-    # "envoy.compression.gzip.compressor":                "//source/extensions/compression/gzip/compressor:config",
-    # "envoy.compression.gzip.decompressor":              "//source/extensions/compression/gzip/decompressor:config",
-    # "envoy.compression.brotli.compressor":              "//source/extensions/compression/brotli/compressor:config",
-    # "envoy.compression.brotli.decompressor":            "//source/extensions/compression/brotli/decompressor:config",
-    # "envoy.compression.zstd.compressor":                "//source/extensions/compression/zstd/compressor:config",
-    # "envoy.compression.zstd.decompressor":              "//source/extensions/compression/zstd/decompressor:config",
+    "envoy.compression.gzip.compressor":                "//source/extensions/compression/gzip/compressor:config",
+    "envoy.compression.gzip.decompressor":              "//source/extensions/compression/gzip/decompressor:config",
+    "envoy.compression.brotli.compressor":              "//source/extensions/compression/brotli/compressor:config",
+    "envoy.compression.brotli.decompressor":            "//source/extensions/compression/brotli/decompressor:config",
+    "envoy.compression.zstd.compressor":                "//source/extensions/compression/zstd/compressor:config",
+    "envoy.compression.zstd.decompressor":              "//source/extensions/compression/zstd/decompressor:config",
 
     #
     # Config validators
@@ -137,7 +137,7 @@ EXTENSIONS = {
     # "envoy.filters.http.buffer":                        "//source/extensions/filters/http/buffer:config",
     # "envoy.filters.http.cache":                         "//source/extensions/filters/http/cache:config",
     # "envoy.filters.http.cdn_loop":                      "//source/extensions/filters/http/cdn_loop:config",
-    # "envoy.filters.http.compressor":                    "//source/extensions/filters/http/compressor:config",
+    "envoy.filters.http.compressor":                    "//source/extensions/filters/http/compressor:config",
     # "envoy.filters.http.cors":                          "//source/extensions/filters/http/cors:config",
     # "envoy.filters.http.composite":                     "//source/extensions/filters/http/composite:config",
     # "envoy.filters.http.connect_grpc_bridge":           "//source/extensions/filters/http/connect_grpc_bridge:config",
