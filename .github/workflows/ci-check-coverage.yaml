@@ -1,0 +1,41 @@
+name: CI Check coverage
+on:
+  pull_request: {}
+
+permissions:
+  # To be able to access the repository with actions/checkout
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    timeout-minutes: 360
+    name: Check coverage for pull request #${{ github.event.pull_request.number }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the repository to the runner
+        uses: actions/checkout@v4
+      - name: Install deps (for C++)
+        shell: bash
+        run: |
+          mkdir -p bin/clang17
+          cd bin/clang17
+          wget https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz
+          tar -xf clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz --strip-components 1
+          cp /bin/llvm-cov /usr/local/bin
+          ls -l
+      - name: Generate coverage data
+        shell: bash
+        run: |
+          echo "Generating bazel coverage: "
+          ./tests/run_bazel_coverage.sh
+
+     #TODO(nezdolik)
+      # - name: Display coverage data
+
+
+

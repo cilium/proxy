@@ -12,6 +12,11 @@ build:clang-common --action_env=CXX=clang++-18 --host_action_env=CXX=clang++-18
 build:rbe-toolchain-clang --action_env=CC=clang-18 --action_env=CXX=clang++-18
 build:rbe-toolchain-arm64-clang --action_env=CC=clang-18 --action_env=CXX=clang++-18
 
+build:coverage --combined_report=lcov
+build:coverage --test_arg="--log-path /dev/null"
+build:coverage --test_tag_filters=-nocoverage,-fuzz_target
+build:coverage --build_tests_only
+
 # Use platforms based toolchain resolution
 build --incompatible_enable_cc_toolchain_resolution
 build --platform_mappings=bazel/platform_mappings
