@@ -45,12 +45,14 @@
       matchDepNames: [
         'go',
         'docker.io/library/golang',
+        '.github/workflows/**'
       ],
     },
     {
       matchPackageNames: [
         'docker.io/library/golang',
         'go',
+        '.github/workflows/**'
       ],
       allowedVersions: '<1.25',
       matchBaseBranches: [
@@ -62,6 +64,7 @@
       matchPackageNames: [
         'docker.io/library/golang',
         'go',
+        '.github/workflows/**'
       ],
       allowedVersions: '<1.25',
       matchBaseBranches: [
