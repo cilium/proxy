@@ -405,15 +405,17 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   // Use a pointer as we may need to change the policy in the case of "North/South L7 LB" below.
   const auto* policy = &getPolicy(pod_ip);
 
-  // Resolve the source security ID from conntrack map, or from ip cache
-  uint32_t source_identity = resolveSourceIdentity(*policy, sip, dip, is_ingress_, is_l7lb_);
+  // original_source_identity is set to the original source identity and is used in policy logs and
+  // access logging. This is typically the same as 'source_identity', but for north/south L7 LB,
+  // where the upstream source address is set to an Ingress IP, the 'source_identity' will be that
+  // if the Ingress IP. This original source identity is still used in policy logs and access
+  // logging even in that case.
+  uint32_t original_source_identity =
+      resolveSourceIdentity(*policy, sip, dip, is_ingress_, is_l7lb_);
+  uint32_t source_identity = original_source_identity;
 
   // Resolve the destination security ID for egress traffic
   uint32_t destination_identity = is_ingress_ ? 0 : resolvePolicyId(dip);
-
-  // ingress_source_identity is non-zero when the egress path l7 LB should also enforce
-  // the ingress path policy using the original source identity.
-  uint32_t ingress_source_identity = 0;
 
   // Use the configured IPv4/IPv6 Ingress IPs as starting point for the sources addresses
   IpAddressPair source_addresses(ipv4_source_address_, ipv6_source_address_);
@@ -465,7 +467,6 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
     // Enforce Ingress policy?
     if (enforce_policy_on_l7lb_) {
-      ingress_source_identity = source_identity;
       ingress_policy_name =
           l7lb_policy_name_.empty() ? ingress_ip->addressAsString() : l7lb_policy_name_;
     }
@@ -521,15 +522,15 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   }
 
   ENVOY_LOG(trace,
-            "cilium.bpf_metadata: mark {}, ingress_source_identity {}, source_identity {}, "
+            "cilium.bpf_metadata: mark {}, original_source_identity {}, source_identity {}, "
             "is_ingress {}, is_l7lb_ {}, ingress_policy_name {}, port {}, pod_ip {}",
-            mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_,
+            mark, original_source_identity, source_identity, is_ingress_, is_l7lb_,
             ingress_policy_name, dip->port(), pod_ip);
   return {Cilium::BpfMetadata::SocketMetadata(
-      mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
-      std::move(pod_ip), std::move(ingress_policy_name), std::move(src_address),
-      std::move(source_addresses.ipv4_), std::move(source_addresses.ipv6_), std::move(dst_address),
-      shared_from_this(), proxy_id_, std::move(proxylib_l7proto), sni)};
+      mark, original_source_identity, is_ingress_, is_l7lb_, dip->port(), std::move(pod_ip),
+      std::move(ingress_policy_name), std::move(src_address), std::move(source_addresses.ipv4_),
+      std::move(source_addresses.ipv6_), std::move(dst_address), shared_from_this(), proxy_id_,
+      std::move(proxylib_l7proto), sni)};
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
