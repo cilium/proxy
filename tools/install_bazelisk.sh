@@ -7,7 +7,7 @@ else
 fi
 
 # renovate: datasource=github-releases depName=bazelbuild/bazelisk
-BAZELISK_VERSION=v1.26.0
+BAZELISK_VERSION=v1.27.0
 
 installed_bazelisk_version=""
 
