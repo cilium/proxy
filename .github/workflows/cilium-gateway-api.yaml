@@ -25,7 +25,7 @@ permissions:
 
 env:
   # renovate: datasource=github-releases depName=kubernetes-sigs/kind
-  KIND_VERSION: v0.29.0
+  KIND_VERSION: v0.30.0
   CILIUM_REPO_OWNER: cilium
   CILIUM_REPO_REF: main
   CILIUM_CLI_REF: latest
