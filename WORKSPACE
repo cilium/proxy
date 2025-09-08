@@ -12,8 +12,8 @@ ENVOY_REPO = "envoy"
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.34.6
-ENVOY_SHA = "d6a11bfd3436aef5d3aff3237a6cddb18db01d82"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.34.7
+ENVOY_SHA = "e98143bdac2bd4983e889b89d57330ca59cd71b0"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
