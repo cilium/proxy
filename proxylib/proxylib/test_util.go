@@ -4,22 +4,25 @@
 package proxylib
 
 import (
-	. "github.com/cilium/checkmate"
+	"testing"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/protobuf/ptypes/any"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+
+	envoy_service_discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
-	envoy_service_discovery "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 )
 
 var LogFatal = func(format string, args ...interface{}) {
 	logrus.Fatalf(format, args...)
 }
 
-func (ins *Instance) CheckInsertPolicyText(c *C, version string, policies []string) {
+func (ins *Instance) CheckInsertPolicyText(tb testing.TB, version string, policies []string) {
 	err := ins.InsertPolicyText(version, policies, "")
-	c.Assert(err, IsNil)
+	require.NoError(tb, err)
 }
 
 func (ins *Instance) InsertPolicyText(version string, policies []string, expectFail string) error {
@@ -69,14 +72,14 @@ func (ins *Instance) InsertPolicyText(version string, policies []string, expectF
 
 var connectionID uint64
 
-func (ins *Instance) CheckNewConnectionOK(c *C, proto string, ingress bool, srcId, dstId uint32, srcAddr, dstAddr, policyName string) *Connection {
-	err, conn := ins.CheckNewConnection(c, proto, ingress, srcId, dstId, srcAddr, dstAddr, policyName)
-	c.Assert(err, IsNil)
-	c.Assert(conn, Not(IsNil))
+func (ins *Instance) CheckNewConnectionOK(tb testing.TB, proto string, ingress bool, srcId, dstId uint32, srcAddr, dstAddr, policyName string) *Connection {
+	err, conn := ins.CheckNewConnection(proto, ingress, srcId, dstId, srcAddr, dstAddr, policyName)
+	require.NoError(tb, err)
+	require.NotNil(tb, conn)
 	return conn
 }
 
-func (ins *Instance) CheckNewConnection(c *C, proto string, ingress bool, srcId, dstId uint32, srcAddr, dstAddr, policyName string) (error, *Connection) {
+func (ins *Instance) CheckNewConnection(proto string, ingress bool, srcId, dstId uint32, srcAddr, dstAddr, policyName string) (error, *Connection) {
 	connectionID++
 	bufSize := 1024
 	origBuf := make([]byte, 0, bufSize)
@@ -85,30 +88,30 @@ func (ins *Instance) CheckNewConnection(c *C, proto string, ingress bool, srcId,
 	return NewConnection(ins, proto, connectionID, ingress, srcId, dstId, srcAddr, dstAddr, policyName, &origBuf, &replyBuf)
 }
 
-func (conn *Connection) CheckOnDataOK(c *C, reply, endStream bool, data *[][]byte, expReplyBuf []byte, expOps ...interface{}) {
-	conn.CheckOnData(c, reply, endStream, data, OK, expReplyBuf, expOps...)
+func (conn *Connection) CheckOnDataOK(tb testing.TB, reply, endStream bool, data *[][]byte, expReplyBuf []byte, expOps ...interface{}) {
+	conn.CheckOnData(tb, reply, endStream, data, OK, expReplyBuf, expOps...)
 }
 
-func (conn *Connection) CheckOnData(c *C, reply, endStream bool, data *[][]byte, expResult FilterResult, expReplyBuf []byte, expOps ...interface{}) {
+func (conn *Connection) CheckOnData(tb testing.TB, reply, endStream bool, data *[][]byte, expResult FilterResult, expReplyBuf []byte, expOps ...interface{}) {
 	ops := make([][2]int64, 0, len(expOps)/2)
 
 	res := conn.OnData(reply, endStream, data, &ops)
-	c.Check(res, Equals, expResult)
+	require.Equal(tb, expResult, res)
+	require.Equal(tb, len(expOps)/2, len(ops), "Unexpected number of filter operations")
 
-	c.Check(len(ops), Equals, len(expOps)/2, Commentf("Unexpected number of filter operations"))
 	for i, op := range ops {
 		if i*2+1 < len(expOps) {
 			expOp, ok := expOps[i*2].(OpType)
-			c.Assert(ok, Equals, true, Commentf("Invalid expected operation type"))
-			c.Check(op[0], Equals, int64(expOp), Commentf("Unexpected filter operation"))
+			require.Truef(tb, ok, "Invalid expected operation type")
+			require.Equal(tb, int64(expOp), op[0], "Unexpected filter operation")
 			expN, ok := expOps[i*2+1].(int)
-			c.Assert(ok, Equals, true, Commentf("Invalid expected operation length (must be int)"))
-			c.Check(op[1], Equals, int64(expN), Commentf("Unexpected operation length"))
+			require.Truef(tb, ok, "Invalid expected operation length (must be int)")
+			require.Equal(tb, int64(expN), op[1], "Unexpected operation length")
 		}
 	}
 
 	buf := conn.ReplyBuf
-	c.Check(*buf, DeepEquals, expReplyBuf, Commentf("Inject buffer mismatch"))
+	require.ElementsMatch(tb, expReplyBuf, *buf)
 	*buf = (*buf)[:0] // make empty again
 
 	// Clear the same-direction inject buffer, simulating the datapath forwarding the injected data
