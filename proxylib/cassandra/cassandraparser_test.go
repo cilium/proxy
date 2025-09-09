@@ -7,71 +7,62 @@ import (
 	"encoding/hex"
 	"testing"
 
-	. "github.com/cilium/checkmate"
+	"github.com/stretchr/testify/require"
 
 	"github.com/cilium/proxy/proxylib/accesslog"
 	"github.com/cilium/proxy/proxylib/proxylib"
 	"github.com/cilium/proxy/proxylib/test"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) {
-	// logging.ToggleDebugLogs(true)
-	// log.SetLevel(log.DebugLevel)
-
-	TestingT(t)
-}
-
 type CassandraSuite struct {
 	logServer *test.AccessLogServer
 	ins       *proxylib.Instance
 }
 
-var _ = Suite(&CassandraSuite{})
-
 // Set up access log server and Library instance for all the test cases
-func (s *CassandraSuite) SetUpSuite(c *C) {
+func setUpCassandraSuite(tb testing.TB) *CassandraSuite {
+	s := &CassandraSuite{}
 	s.logServer = test.StartAccessLogServer("access_log.sock", 10)
-	c.Assert(s.logServer, Not(IsNil))
+	require.NotNil(tb, s.logServer)
 	s.ins = proxylib.NewInstance("node1", accesslog.NewClient(s.logServer.Path))
-	c.Assert(s.ins, Not(IsNil))
+	require.NotNil(tb, s.ins)
+
+	tb.Cleanup(func() {
+		s.logServer.Clear()
+		s.logServer.Close()
+	})
+	return s
 }
 
-func (s *CassandraSuite) checkAccessLogs(c *C, expPasses, expDrops int) {
+func (s *CassandraSuite) checkAccessLogs(tb testing.TB, expPasses, expDrops int) {
 	passes, drops := s.logServer.Clear()
-	c.Check(passes, Equals, expPasses, Commentf("Unxpected number of passed access log messages"))
-	c.Check(drops, Equals, expDrops, Commentf("Unxpected number of passed access log messages"))
-}
-
-func (s *CassandraSuite) TearDownTest(c *C) {
-	s.logServer.Clear()
-}
-
-func (s *CassandraSuite) TearDownSuite(c *C) {
-	s.logServer.Close()
+	require.Equal(tb, expPasses, passes)
+	require.Equal(tb, expDrops, drops)
 }
 
 // util function used for Cassandra tests, as we have cassandra requests
 // as hex strings
-func hexData(c *C, dataHex ...string) [][]byte {
+func hexData(tb testing.TB, dataHex ...string) [][]byte {
 	data := make([][]byte, 0, len(dataHex))
 	for i := range dataHex {
 		dataRaw, err := hex.DecodeString(dataHex[i])
-		c.Assert(err, IsNil)
+		require.NoError(tb, err)
 		data = append(data, dataRaw)
 	}
 	return data
 }
 
-func (s *CassandraSuite) TestCassandraOnDataNoHeader(c *C) {
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "no-policy")
-	data := hexData(c, "0400")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+func TestCassandraOnDataNoHeader(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "no-policy")
+	data := hexData(t, "0400")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.MORE, 9-len(data[0]))
 }
 
-func (s *CassandraSuite) TestCassandraOnDataOptionsReq(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraOnDataOptionsReq(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -92,17 +83,18 @@ func (s *CassandraSuite) TestCassandraOnDataOptionsReq(c *C) {
 		  >
 		>
 		`})
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 
-	data := hexData(c, "040000000500000000")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	data := hexData(t, "040000000500000000")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(data[0]),
 		proxylib.MORE, 9)
 }
 
 // this passes a large query request that is missing just the last byte
-func (s *CassandraSuite) TestCassandraOnDataPartialReq(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraOnDataPartialReq(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -123,14 +115,15 @@ func (s *CassandraSuite) TestCassandraOnDataPartialReq(c *C) {
 		  >
 		>
 		`})
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	data := hexData(c, "0400000407000000760000006f53454c45435420636c75737465725f6e616d652c20646174615f63656e7465722c207261636b2c20746f6b656e732c20706172746974696f6e65722c20736368656d615f76657273696f6e2046524f4d2073797374656d2e6c6f63616c205748455245206b65793d276c6f63616c270001")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	data := hexData(t, "0400000407000000760000006f53454c45435420636c75737465725f6e616d652c20646174615f63656e7465722c207261636b2c20746f6b656e732c20706172746974696f6e65722c20736368656d615f76657273696f6e2046524f4d2073797374656d2e6c6f63616c205748455245206b65793d276c6f63616c270001")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.MORE, 1)
 }
 
-func (s *CassandraSuite) TestCassandraOnDataQueryReq(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraOnDataQueryReq(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -151,15 +144,16 @@ func (s *CassandraSuite) TestCassandraOnDataQueryReq(c *C) {
 		  >
 		>
 		`})
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	data := hexData(c, "0400000407000000760000006f53454c45435420636c75737465725f6e616d652c20646174615f63656e7465722c207261636b2c20746f6b656e732c20706172746974696f6e65722c20736368656d615f76657273696f6e2046524f4d2073797374656d2e6c6f63616c205748455245206b65793d276c6f63616c27000100")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	data := hexData(t, "0400000407000000760000006f53454c45435420636c75737465725f6e616d652c20646174615f63656e7465722c207261636b2c20746f6b656e732c20706172746974696f6e65722c20736368656d615f76657273696f6e2046524f4d2073797374656d2e6c6f63616c205748455245206b65793d276c6f63616c27000100")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(data[0]),
 		proxylib.MORE, 9)
 }
 
-func (s *CassandraSuite) TestCassandraOnDataSplitQueryReq(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraOnDataSplitQueryReq(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -180,15 +174,16 @@ func (s *CassandraSuite) TestCassandraOnDataSplitQueryReq(c *C) {
 		  >
 		>
 		`})
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	data := hexData(c, "04000004070000007600", "00006f53454c45435420636c75737465725f6e616d652c20646174615f63656e7465722c207261636b2c20746f6b656e732c20706172746974696f6e65722c20736368656d615f76657273696f6e2046524f4d2073797374656d2e6c6f63616c205748455245206b65793d276c6f63616c27000100")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	data := hexData(t, "04000004070000007600", "00006f53454c45435420636c75737465725f6e616d652c20646174615f63656e7465722c207261636b2c20746f6b656e732c20706172746974696f6e65722c20736368656d615f76657273696f6e2046524f4d2073797374656d2e6c6f63616c205748455245206b65793d276c6f63616c27000100")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(data[0])+len(data[1]),
 		proxylib.MORE, 9)
 }
 
-func (s *CassandraSuite) TestCassandraOnDataMultiReq(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraOnDataMultiReq(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -210,18 +205,19 @@ func (s *CassandraSuite) TestCassandraOnDataMultiReq(c *C) {
 		>
 		`})
 
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 
-	data := hexData(c, "040000000500000000",
+	data := hexData(t, "040000000500000000",
 		"0400000407000000760000006f53454c45435420636c75737465725f6e616d652c20646174615f63656e7465722c207261636b2c20746f6b656e732c20706172746974696f6e65722c20736368656d615f76657273696f6e2046524f4d2073797374656d2e6c6f63616c205748455245206b65793d276c6f63616c27000100")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(data[0]),
 		proxylib.PASS, len(data[1]),
 		proxylib.MORE, 9)
 }
 
-func (s *CassandraSuite) TestSimpleCassandraPolicy(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestSimpleCassandraPolicy(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -243,18 +239,18 @@ func (s *CassandraSuite) TestSimpleCassandraPolicy(c *C) {
 		>
 		`})
 
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 
 	unauthMsg := createUnauthMsg(0x4)
-	data := hexData(c, "040000000500000000",
+	data := hexData(t, "040000000500000000",
 		"0400000407000000760000006f53454c45435420636c75737465725f6e616d652c20646174615f63656e7465722c207261636b2c20746f6b656e732c20706172746974696f6e65722c20736368656d615f76657273696f6e2046524f4d2073797374656d2e6c6f63616c205748455245206b65793d276c6f63616c27000100")
-	conn.CheckOnDataOK(c, false, false, &data, unauthMsg,
+	conn.CheckOnDataOK(t, false, false, &data, unauthMsg,
 		proxylib.PASS, len(data[0]),
 		proxylib.DROP, len(data[1]),
 		proxylib.MORE, 9)
 
 	// All passes are not access-logged
-	s.checkAccessLogs(c, 0, 1)
+	s.checkAccessLogs(t, 0, 1)
 }
 
 func createUnauthMsg(streamID byte) []byte {
@@ -267,8 +263,9 @@ func createUnauthMsg(streamID byte) []byte {
 }
 
 // this test confirms that we correctly parse and allow a valid batch requests
-func (s *CassandraSuite) TestCassandraBatchRequestPolicy(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraBatchRequestPolicy(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -290,7 +287,7 @@ func (s *CassandraSuite) TestCassandraBatchRequestPolicy(c *C) {
 		>
 		`})
 
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 
 	batchMsg := []byte{
 		0x04,     // version
@@ -318,17 +315,17 @@ func (s *CassandraSuite) TestCassandraBatchRequestPolicy(c *C) {
 	}
 	data := [][]byte{batchMsg}
 
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(data[0]),
 		proxylib.MORE, 9)
 
 	// batch requests are access-logged individually
-	s.checkAccessLogs(c, 2, 0)
+	s.checkAccessLogs(t, 2, 0)
 }
 
 // this test confirms that we correctly parse and deny a batch request
 // if any of the requests are denied.
-func (s *CassandraSuite) TestCassandraBatchRequestPolicyDenied(c *C) {
+func (s *CassandraSuite) TestCassandraBatchRequestPolicyDenied(c *testing.T) {
 	s.ins.CheckInsertPolicyText(c, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
@@ -391,8 +388,9 @@ func (s *CassandraSuite) TestCassandraBatchRequestPolicyDenied(c *C) {
 }
 
 // test batch requests with prepared statements
-func (s *CassandraSuite) TestCassandraBatchRequestPreparedStatement(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraBatchRequestPreparedStatement(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -414,7 +412,7 @@ func (s *CassandraSuite) TestCassandraBatchRequestPreparedStatement(c *C) {
 		>
 		`})
 
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 
 	cassParser, ok := (conn.Parser).(*CassandraParser)
 	if !ok {
@@ -451,17 +449,18 @@ func (s *CassandraSuite) TestCassandraBatchRequestPreparedStatement(c *C) {
 	}
 	data := [][]byte{batchMsg}
 
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(data[0]),
 		proxylib.MORE, 9)
 
 	// batch requests are access-logged individually
-	s.checkAccessLogs(c, 2, 0)
+	s.checkAccessLogs(t, 2, 0)
 }
 
 // test batch requests with prepared statements, including a deny
-func (s *CassandraSuite) TestCassandraBatchRequestPreparedStatementDenied(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraBatchRequestPreparedStatementDenied(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -483,7 +482,7 @@ func (s *CassandraSuite) TestCassandraBatchRequestPreparedStatementDenied(c *C) 
 		>
 		`})
 
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 
 	cassParser, ok := (conn.Parser).(*CassandraParser)
 	if !ok {
@@ -521,17 +520,18 @@ func (s *CassandraSuite) TestCassandraBatchRequestPreparedStatementDenied(c *C) 
 	data := [][]byte{batchMsg}
 
 	unauthMsg := createUnauthMsg(0x4)
-	conn.CheckOnDataOK(c, false, false, &data, unauthMsg,
+	conn.CheckOnDataOK(t, false, false, &data, unauthMsg,
 		proxylib.DROP, len(data[0]),
 		proxylib.MORE, 9)
 
 	// batch requests are access-logged individually
-	s.checkAccessLogs(c, 0, 2)
+	s.checkAccessLogs(t, 0, 2)
 }
 
 // test execute statement, allow request
-func (s *CassandraSuite) TestCassandraExecutePreparedStatement(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraExecutePreparedStatement(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -553,7 +553,7 @@ func (s *CassandraSuite) TestCassandraExecutePreparedStatement(c *C) {
 		>
 		`})
 
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 
 	cassParser, ok := (conn.Parser).(*CassandraParser)
 	if !ok {
@@ -580,17 +580,17 @@ func (s *CassandraSuite) TestCassandraExecutePreparedStatement(c *C) {
 	}
 	data := [][]byte{executeMsg}
 
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(data[0]),
 		proxylib.MORE, 9)
 
-	s.checkAccessLogs(c, 1, 0)
+	s.checkAccessLogs(t, 1, 0)
 }
 
 // test execute statement with unknown prepared-id
-func (s *CassandraSuite) TestCassandraExecutePreparedStatementUnknownID(c *C) {
-
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "cp1")
+func TestCassandraExecutePreparedStatementUnknownID(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "cp1")
 
 	executeMsg := []byte{
 		0x04,     // version
@@ -607,17 +607,17 @@ func (s *CassandraSuite) TestCassandraExecutePreparedStatementUnknownID(c *C) {
 
 	unpreparedMsg := createUnpreparedMsg(0x04, []byte{0x0, 0x4}, "aaaa")
 
-	conn.CheckOnDataOK(c, false, false, &data, unpreparedMsg,
+	conn.CheckOnDataOK(t, false, false, &data, unpreparedMsg,
 		proxylib.DROP, len(data[0]),
 		proxylib.MORE, 9)
 
-	s.checkAccessLogs(c, 0, 1)
+	s.checkAccessLogs(t, 0, 1)
 }
 
 // test parsing of a prepared query reply
-func (s *CassandraSuite) TestCassandraPreparedResultReply(c *C) {
-
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "cp1")
+func TestCassandraPreparedResultReply(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "cp1")
 
 	cassParser, ok := (conn.Parser).(*CassandraParser)
 	if !ok {
@@ -645,17 +645,18 @@ func (s *CassandraSuite) TestCassandraPreparedResultReply(c *C) {
 	}
 	data := [][]byte{preparedResultMsg}
 
-	conn.CheckOnDataOK(c, true, false, &data, []byte{},
+	conn.CheckOnDataOK(t, true, false, &data, []byte{},
 		proxylib.PASS, len(data[0]),
 		proxylib.MORE, 9)
 
 	// these replies are not access logged
-	s.checkAccessLogs(c, 0, 0)
+	s.checkAccessLogs(t, 0, 0)
 }
 
 // test additional queries
-func (s *CassandraSuite) TestCassandraAdditionalQueries(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraAdditionalQueries(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -677,7 +678,7 @@ func (s *CassandraSuite) TestCassandraAdditionalQueries(c *C) {
 		>
 		`})
 
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 
 	queries := []string{"CREATE TABLE db4.t1 (f1 varchar, f2 timeuuid, PRIMARY KEY ((f1), f2))",
 		"INSERT INTO db4.t1 (f1, f2, f3) values ('dan', now(), 'Cilium!')",
@@ -711,7 +712,7 @@ func (s *CassandraSuite) TestCassandraAdditionalQueries(c *C) {
 
 		data[i] = queryMsg
 	}
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(data[0]),
 		proxylib.PASS, len(data[1]),
 		proxylib.PASS, len(data[2]),
@@ -720,12 +721,13 @@ func (s *CassandraSuite) TestCassandraAdditionalQueries(c *C) {
 		proxylib.PASS, len(data[5]),
 		proxylib.MORE, 9)
 
-	s.checkAccessLogs(c, 6, 0)
+	s.checkAccessLogs(t, 6, 0)
 }
 
 // test use query, following by query that does not include the keyspace
-func (s *CassandraSuite) TestCassandraUseQuery(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestCassandraUseQuery(t *testing.T) {
+	s := setUpCassandraSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -747,7 +749,7 @@ func (s *CassandraSuite) TestCassandraUseQuery(c *C) {
 		>
 		`})
 
-	conn := s.ins.CheckNewConnectionOK(c, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "cassandra", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 
 	// note: the second insert command intentionally does not include a keyspace, so that it will only
 	// be allowed if we properly propagate the keyspace from the previous use command
@@ -777,11 +779,11 @@ func (s *CassandraSuite) TestCassandraUseQuery(c *C) {
 
 		data[i] = queryMsg
 	}
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(data[0]),
 		proxylib.PASS, len(data[1]),
 		proxylib.MORE, 9)
 
 	// use command will not show up in access log, so only expect one msg
-	s.checkAccessLogs(c, 1, 0)
+	s.checkAccessLogs(t, 1, 0)
 }
