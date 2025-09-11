@@ -38,7 +38,7 @@ jobs:
   tests:
     timeout-minutes: 360
     name: Run integration tests on amd64
-    runs-on: oracle-vm-32cpu-128gb-x86-64
+    runs-on: ${{ vars.PROXY_BUILD_GITHUB_RUNNER }}
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1

@@ -22,7 +22,7 @@ jobs:
             language: 'actions'
           - runner: ubuntu-24.04
             language: 'go'
-          - runner: oracle-vm-32cpu-128gb-x86-64
+          - runner: ${{ vars.PROXY_BUILD_GITHUB_RUNNER }}
             language: 'cpp'
     steps:
       - name: Checkout repository
