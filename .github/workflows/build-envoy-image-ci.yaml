@@ -17,7 +17,7 @@ jobs:
   build-and-push-prs:
     timeout-minutes: 360
     name: Build and push multi-arch images
-    runs-on: ubuntu-latest-64-cores-256gb
+    runs-on: ${{ vars.PROXY_BUILD_GITHUB_RUNNER }}
     outputs:
       sha: ${{ steps.tag.outputs.sha }}
     steps:
