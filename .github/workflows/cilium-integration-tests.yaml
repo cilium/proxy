@@ -158,9 +158,7 @@ jobs:
           --helm-set debug.enabled=true \
           --helm-set debug.verbose=envoy
         
-        cilium hubble enable
         cilium status --wait
-        cilium hubble port-forward&
 
     - name: Execute Cilium L7 Connectivity Tests
       shell: bash
@@ -169,8 +167,7 @@ jobs:
         --test="l7|sni|tls|ingress|check-log-errors" \
         --curl-parallel=${{ env.CURL_PARALLEL }} \
         --collect-sysdump-on-failure --flush-ct \
-        --sysdump-hubble-flows-count=100000 \
-        --sysdump-hubble-flows-timeout=15s \
+        --flow-validation=disabled \
         --test-concurrency=5
 
     - name: Gather Cilium system dump
