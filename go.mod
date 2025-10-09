@@ -2,7 +2,7 @@ module github.com/cilium/proxy
 
 go 1.24.0
 
-toolchain go1.24.7
+toolchain go1.24.8
 
 require (
 	github.com/cilium/checkmate v1.0.3
@@ -11,11 +11,11 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.2.1
 	github.com/golang/protobuf v1.5.4
 	github.com/sirupsen/logrus v1.9.3
-	golang.org/x/sys v0.36.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20250922171735-9219d122eba9
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250922171735-9219d122eba9
-	google.golang.org/grpc v1.75.1
-	google.golang.org/protobuf v1.36.9
+	golang.org/x/sys v0.37.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20251007200510-49b9836ed3ff
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251007200510-49b9836ed3ff
+	google.golang.org/grpc v1.76.0
+	google.golang.org/protobuf v1.36.10
 )
 
 require (
@@ -31,10 +31,10 @@ require (
 	github.com/spf13/afero v1.10.0 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect
-	golang.org/x/net v0.41.0 // indirect
-	golang.org/x/sync v0.15.0 // indirect
-	golang.org/x/text v0.26.0 // indirect
-	golang.org/x/tools v0.33.0 // indirect
+	golang.org/x/net v0.42.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
+	golang.org/x/tools v0.34.0 // indirect
 )
 
 tool (
