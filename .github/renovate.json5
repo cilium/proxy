@@ -26,7 +26,6 @@
   pruneStaleBranches: true,
   baseBranchPatterns: [
     'main',
-    'v1.33',
     'v1.34',
   ],
   labels: [
@@ -61,17 +60,6 @@
       ],
     },
     {
-      matchPackageNames: [
-        'docker.io/library/golang',
-        'go',
-        '.github/workflows/**'
-      ],
-      allowedVersions: '<1.25',
-      matchBaseBranches: [
-        'v1.33',
-      ],
-    },
-    {
       groupName: 'all go dependencies main',
       groupSlug: 'all-go-deps-main',
       matchFileNames: [
@@ -91,7 +79,6 @@
       ],
       matchBaseBranches: [
         'main',
-        'v1.33',
         'v1.34',
       ],
     },
@@ -111,7 +98,6 @@
       ],
       matchBaseBranches: [
         'main',
-        'v1.33',
         'v1.34',
       ],
     },
@@ -125,7 +111,6 @@
       allowedVersions: '24.04',
       matchBaseBranches: [
         'main',
-        'v1.33',
         'v1.34',
       ],
     },
@@ -139,7 +124,6 @@
       allowedVersions: '22.04',
       matchBaseBranches: [
         'main',
-        'v1.33',
         'v1.34',
       ],
     },
@@ -163,17 +147,6 @@
       allowedVersions: '<=1.24',
       matchBaseBranches: [
         'main',
-        'v1.33',
-      ],
-    },
-    {
-      groupName: 'envoy 1.33.x',
-      matchDepNames: [
-        'envoyproxy/envoy',
-      ],
-      allowedVersions: '<=1.33',
-      matchBaseBranches: [
-        'v1.33',
       ],
     },
     {
