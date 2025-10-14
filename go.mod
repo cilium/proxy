@@ -2,7 +2,7 @@ module github.com/cilium/proxy
 
 go 1.24.0
 
-toolchain go1.24.8
+toolchain go1.24.9
 
 require (
 	github.com/cilium/checkmate v1.0.3
