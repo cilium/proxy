@@ -21,6 +21,7 @@ RUN apt-get update && \
       gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu \
       gcc-x86-64-linux-gnu g++-x86-64-linux-gnu libc6-dev-amd64-cross binutils-x86-64-linux-gnu \
       libc6-dev \
+      libatomic1 libatomic1-amd64-cross libatomic1-arm64-cross \
       # Envoy Build dependencies
       autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf \
 	python3 python-is-python3 unzip virtualenv wget zip \

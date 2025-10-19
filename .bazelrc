@@ -25,7 +25,7 @@ build:release -c opt
 
 # No debug info for release builds
 build:release --define no_debug_info=1
-build:release --linkopt=-Wl,--strip-all
+build:release --linkopt=-Wl,--strip-all,-latomic
 build --features=-per_object_debug_info
 build --fission=dbg
 
