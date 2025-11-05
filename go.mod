@@ -2,7 +2,7 @@ module github.com/cilium/proxy
 
 go 1.24.0
 
-toolchain go1.24.9
+toolchain go1.24.10
 
 require (
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
@@ -12,8 +12,8 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.37.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20251007200510-49b9836ed3ff
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251007200510-49b9836ed3ff
+	google.golang.org/genproto/googleapis/api v0.0.0-20251103181224-f26f9409b101
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20251103181224-f26f9409b101
 	google.golang.org/grpc v1.76.0
 	google.golang.org/protobuf v1.36.10
 )
