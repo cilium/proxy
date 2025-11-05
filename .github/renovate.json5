@@ -121,20 +121,9 @@
       matchPackageNames: [
         'docker.io/library/ubuntu',
       ],
-      allowedVersions: '24.04',
-      matchBaseBranches: [
-        'main',
-      ],
-    },
-    {
-      matchFileNames: [
-        'Dockerfile.builder'
-      ],
-      matchPackageNames: [
-        'docker.io/library/ubuntu',
-      ],
       allowedVersions: '22.04',
       matchBaseBranches: [
+        'main',
         'v1.34',
       ],
     },
