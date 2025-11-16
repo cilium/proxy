@@ -27,6 +27,13 @@ build --fission=dbg
 # upto-date
 build:release --define manual_stamp=manual_stamp
 
+# release_debug - an optimized release build containing the debug information
+build:release_debug -c opt
+build:release_debug --define no_debug_info=0
+build:release_debug --strip=never
+build:release_debug --copt=-ggdb3
+build:release_debug --define manual_stamp=manual_stamp
+
 # Always have LD_LIBRARY_PATH=/usr/cross-compat/lib defined in the test environment.
 # The path does not need to exist, but can be created when needed for running tests.
 build --test_env=LD_LIBRARY_PATH=/usr/cilium-cross-compat/lib
