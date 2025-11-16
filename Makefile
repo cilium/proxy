@@ -58,6 +58,8 @@ BAZEL_BUILD_OPTS += --platforms=$(BAZEL_PLATFORM)
 
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
+else ifdef RELEASE_DEBUG
+  BAZEL_BUILD_OPTS += --config=release_debug
 else
   BAZEL_BUILD_OPTS += --config=release
 endif

@@ -98,6 +98,12 @@ BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG)
 BUILD_IMAGE_OPTS := --build-arg BUILDER_BASE="$(BUILDER_BASE)"
 TESTS_IMAGE_OPTS := --build-arg BUILDER_BASE="$(BUILDER_BASE)"
 
+ifdef DEBUG
+  BUILD_IMAGE_OPTS += --build-arg DEBUG=$(DEBUG)
+else ifdef RELEASE_DEBUG
+  BUILD_IMAGE_OPTS += --build-arg RELEASE_DEBUG=$(RELEASE_DEBUG)
+endif
+
 ifndef NO_ARCHIVE
   ifndef ARCHIVE_IMAGE
     # Default builder refresh image ref
