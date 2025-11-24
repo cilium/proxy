@@ -53,7 +53,7 @@ jobs:
           echo "PROXY_GITHUB_REPO=github.com/${{ inputs.repository }}" >> $GITHUB_ENV
 
       - name: Checkout Cilium ${{ env.CILIUM_REPO_REF }}
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           repository: ${{ env.CILIUM_REPO_OWNER }}/cilium # Be aware that this is the Cilium repository and not the one of the proxy itself!
           ref: ${{ env.CILIUM_REPO_REF }}
