@@ -83,6 +83,16 @@
       ],
     },
     {
+      // Avoid updating minor or major version for github.com/envoyproxy/go-control-plane/envoy
+      // as we need to update cilium-envoy accordingly.
+      "matchPackageNames": [
+        "github.com/envoyproxy/go-control-plane/envoy",
+      ],
+      "matchUpdateTypes": [
+        "patch",
+      ]
+    },
+    {
       groupName: 'all github action dependencies',
       groupSlug: 'all-github-action',
       matchFileNames: [
