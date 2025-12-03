@@ -1,0 +1,242 @@
+name: Refresh test & build cache & build latest
+on:
+  workflow_call:
+    inputs:
+      release_debug:
+        description: 'Build debug images'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      QUAY_ENVOY_USERNAME:
+        description: 'Quay.io username for Envoy image registry'
+        required: true
+      QUAY_ENVOY_PASSWORD:
+        description: 'Quay.io password for Envoy image registry'
+        required: true
+
+permissions:
+  # To be able to access the repository with `actions/checkout`
+  contents: read
+  # Required to generate OIDC tokens for `sigstore/cosign-installer` authentication
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-cache-refresh:
+    timeout-minutes: 360
+    name: Build test cache and push images
+    runs-on: ${{ vars.PROXY_BUILD_GITHUB_RUNNER }}
+    steps:
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      with:
+        image: tonistiigi/binfmt:qemu-v7.0.0-28
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+    - name: Login to quay.io
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_ENVOY_USERNAME }}
+        password: ${{ secrets.QUAY_ENVOY_PASSWORD }}
+
+    - name: Checkout source
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      with:
+        persist-credentials: false
+
+    - name: Prep for build
+      run: |
+        echo "${{ github.sha }}" >SOURCE_VERSION
+        echo "ENVOY_MINOR_RELEASE=$(cat ENVOY_VERSION | sed 's/envoy-\([0-9]\+\.[0-9]\+\)\..*/v\1/')" >> $GITHUB_ENV
+        echo "ENVOY_PATCH_RELEASE=$(cat ENVOY_VERSION | sed 's/^envoy-\([0-9]\+\.[0-9]\+\.[0-9]\+$\)/v\1/')" >> $GITHUB_ENV
+        echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
+
+    - name: Cache Docker layers
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: /tmp/buildx-cache
+        key: docker-cache-tests
+
+    - name: Clear cache
+      run: rm -rf /tmp/buildx-cache/*
+
+    - name: Wait for build image
+      uses: ./.github/workflows/wait-for-image
+      with:
+        SHA: ${{ env.BUILDER_DOCKER_HASH }}
+        repo: cilium
+        images: cilium-envoy-builder
+
+    - name: Run integration tests on amd64 to update docker cache
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      id: docker_tests_ci_cache_update
+      with:
+        provenance: false
+        context: .
+        file: ./Dockerfile.tests
+        platforms: linux/amd64
+        build-args: |
+          BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
+          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
+          BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+          BAZEL_TEST_OPTS=--test_timeout=300 --local_test_jobs=1 --flaky_test_attempts=3
+        cache-to: type=local,dest=/tmp/buildx-cache,mode=max
+        push: true
+        tags: quay.io/${{ github.repository_owner }}/cilium-envoy:latest-testlogs
+
+  build-cache-and-push-images:
+    timeout-minutes: 360
+    name: Build cache and push images
+    runs-on: ${{ vars.PROXY_BUILD_GITHUB_RUNNER }}
+    steps:
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      with:
+        image: tonistiigi/binfmt:qemu-v7.0.0-28
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+    - name: Login to quay.io
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_ENVOY_USERNAME }}
+        password: ${{ secrets.QUAY_ENVOY_PASSWORD }}
+
+    - name: Checkout source
+      uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+    - name: Prep for build
+      run: |
+        echo "${{ github.sha }}" >SOURCE_VERSION
+        echo "ENVOY_MINOR_RELEASE=$(cat ENVOY_VERSION | sed 's/envoy-\([0-9]\+\.[0-9]\+\)\..*/v\1/')" >> $GITHUB_ENV
+        echo "ENVOY_PATCH_RELEASE=$(cat ENVOY_VERSION | sed 's/^envoy-\([0-9]\+\.[0-9]\+\.[0-9]\+$\)/v\1/')" >> $GITHUB_ENV
+        echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
+        echo "SOURCE_TIMESTAMP=$(git log -1 --pretty=format:"%ct" .)" >> $GITHUB_ENV
+
+    - name: Checking if cilium-envoy-builder image exists
+      id: cilium-builder-tag-in-repositories
+      shell: bash
+      run: |
+        if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }} &>/dev/null; then
+          echo exists="true" >> $GITHUB_OUTPUT
+        else
+          echo exists="false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Multi-arch build & push of Builder image
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
+      id: docker_build_builder
+      with:
+        provenance: false
+        context: .
+        file: ./Dockerfile.builder
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: |
+          quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
+          quay.io/${{ github.repository_owner }}/cilium-envoy-builder:latest
+    - name: Multi-arch build & push of build artifact archive
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      with:
+        context: .
+        file: ./Dockerfile
+        target: builder-archive
+        platforms: linux/amd64,linux/arm64
+        build-args: |
+          BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
+          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
+          COPY_CACHE_EXT=.new
+          BAZEL_BUILD_OPTS="--jobs=HOST_CPUS*.75"
+        push: true
+        tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
+
+    - name: Cache Docker layers
+      uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: /tmp/buildx-cache
+        key: docker-cache-main
+
+    - name: Clear cache
+      run: |
+        rm -rf /tmp/buildx-cache/*
+        docker buildx prune -f
+
+    - name: Multi-arch build & push main latest
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      id: docker_build_cd
+      with:
+        provenance: false
+        context: .
+        file: ./Dockerfile
+        platforms: linux/amd64,linux/arm64
+        build-args: |
+          BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
+          BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+          ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}-archive-latest
+          RELEASE_DEBUG=${{ inputs.release_debug && '1' || '' }}
+        cache-to: type=local,dest=/tmp/buildx-cache,mode=max
+        push: true
+        tags: |
+          quay.io/${{ github.repository_owner }}/cilium-envoy:latest
+          quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }}
+          quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_MINOR_RELEASE }}-${{ github.sha }}
+          quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_PATCH_RELEASE }}-${{ github.sha }}
+          quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_PATCH_RELEASE }}-${{ env.SOURCE_TIMESTAMP }}-${{ github.sha }}
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+
+    - name: Sign Container Image
+      run: |
+        cosign sign -y quay.io/${{ github.repository_owner }}/cilium-envoy@${{ steps.docker_build_cd.outputs.digest }}
+
+    - name: Install Bom
+      shell: bash
+      env:
+        # renovate: datasource=github-releases depName=kubernetes-sigs/bom
+        BOM_VERSION: v0.7.1
+      run: |
+        curl -L https://github.com/kubernetes-sigs/bom/releases/download/${{ env.BOM_VERSION }}/bom-amd64-linux -o bom
+        sudo mv ./bom /usr/local/bin/bom
+        sudo chmod +x /usr/local/bin/bom
+
+    - name: Generate SBOM
+      shell: bash
+      run: |
+        bom generate -o sbom_cilium-envoy_${{ github.sha }}.spdx --format=json --image=quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }}
+
+    - name: Attach SBOM to container images
+      run: |
+        cosign attach sbom --sbom sbom_cilium-envoy_${{ github.sha }}.spdx quay.io/${{ github.repository_owner }}/cilium-envoy@${{ steps.docker_build_cd.outputs.digest }}
+
+    - name: Sign SBOM Image
+      run: |
+        docker_build_cd_digest="${{ steps.docker_build_cd.outputs.digest }}"
+        image_name="quay.io/${{ github.repository_owner }}/cilium-envoy:${docker_build_cd_digest/:/-}.sbom"
+        docker_build_cd_sbom_digest="sha256:$(docker buildx imagetools inspect --raw ${image_name} | sha256sum | head -c 64)"
+        cosign sign -y "quay.io/${{ github.repository_owner }}/cilium-envoy@${docker_build_cd_sbom_digest}"
+
+    - name: Envoy binary version check
+      shell: bash
+      run: |
+        envoy_version=$(docker run --rm quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }} cilium-envoy --version)
+        expected_version=$(echo ${{ env.ENVOY_PATCH_RELEASE }} | sed 's/^v//')
+        echo ${envoy_version}
+        [[ "${envoy_version}" == *"${{ github.sha }}/$expected_version"* ]]
+
+    - name: Release Image Digest
+      shell: bash
+      run: |
+        echo "Digests:"
+        echo "quay.io/${{ github.repository_owner }}/cilium-envoy:${{ github.sha }}@${{ steps.docker_build_cd.outputs.digest }}"
+        echo "quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_MINOR_RELEASE }}-${{ github.sha }}@${{ steps.docker_build_cd.outputs.digest }}"
+        echo "quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_PATCH_RELEASE }}-${{ github.sha }}@${{ steps.docker_build_cd.outputs.digest }}"
+        echo "quay.io/${{ github.repository_owner }}/cilium-envoy:${{ env.ENVOY_PATCH_RELEASE }}-${{ env.SOURCE_TIMESTAMP }}-${{ github.sha }}@${{ steps.docker_build_cd.outputs.digest }}"
