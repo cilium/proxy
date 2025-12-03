@@ -1,12 +1,10 @@
-name: Refresh test & build cache & build latest
+name: Refresh test & build cache & build latest wth debug symbols
 on:
-  push:
-    branches:
-    - v1.34
-
+  workflow_dispatch:
+  
 jobs:
   include-build-envoy-images-release-base:
     uses: ./.github/workflows/build-envoy-images-release-base.yaml
     with:
-      release_debug: 'false'
+      release_debug: 'true'
     secrets: inherit
