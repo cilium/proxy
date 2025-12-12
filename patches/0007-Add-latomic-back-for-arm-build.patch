@@ -1,0 +1,25 @@
+From 4dad6252057e395d8c87831419e6e05d55d323a6 Mon Sep 17 00:00:00 2001
+From: Tam Mach <sayboras@yahoo.com>
+Date: Fri, 12 Dec 2025 13:45:27 +1100
+Subject: [PATCH] Add latomic back for arm build
+
+---
+ bazel/v8.patch | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/bazel/v8.patch b/bazel/v8.patch
+index 9b0cb2374f..512b22ebf4 100644
+--- a/bazel/v8.patch
++++ b/bazel/v8.patch
+@@ -284,7 +284,7 @@ index 39663c97df4..14b90ec6905 100644
+              ],
+              "@v8//bazel/config:is_macos": ["-pthread"],
+ -            "//conditions:default": ["-Wl,--no-as-needed -ldl -latomic -pthread"],
+-+            "//conditions:default": ["-Wl,--no-as-needed -ldl -pthread"],
+++            "//conditions:default": ["-Wl,--no-as-needed -ldl -latomic -pthread"],
+          }) + select({
+              ":should_add_rdynamic": ["-rdynamic"],
+              "//conditions:default": [],
+-- 
+2.43.0
+
