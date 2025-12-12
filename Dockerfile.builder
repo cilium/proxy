@@ -22,7 +22,7 @@ RUN apt-get update && \
       gcc-x86-64-linux-gnu g++-x86-64-linux-gnu libc6-dev-amd64-cross binutils-x86-64-linux-gnu \
       libc6-dev \
       # Envoy Build dependencies
-      autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf \
+      autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf libatomic1 \
 	python3 python-is-python3 unzip virtualenv wget zip \
       # Cilium-envoy build dependencies
       software-properties-common && \
