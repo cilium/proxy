@@ -5,8 +5,8 @@ on:
     - v1.34
 
 jobs:
-  include-build-envoy-images-release-base:
+  build-envoy-images-release:
     uses: ./.github/workflows/build-envoy-images-release-base.yaml
     with:
-      release_debug: 'false'
+      release_debug: false
     secrets: inherit

@@ -3,8 +3,8 @@ on:
   workflow_dispatch:
   
 jobs:
-  include-build-envoy-images-release-base:
+  build-envoy-images-release-debug:
     uses: ./.github/workflows/build-envoy-images-release-base.yaml
     with:
-      release_debug: 'true'
+      release_debug: true
     secrets: inherit
