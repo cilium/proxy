@@ -1,7 +1,7 @@
-From 4dad6252057e395d8c87831419e6e05d55d323a6 Mon Sep 17 00:00:00 2001
+From 12fc5290979e744543e3d144f333788c51694f99 Mon Sep 17 00:00:00 2001
 From: Tam Mach <sayboras@yahoo.com>
 Date: Fri, 12 Dec 2025 13:45:27 +1100
-Subject: [PATCH] Add latomic back for arm build
+Subject: [PATCH 7/7] Add latomic back for arm build
 
 ---
  bazel/v8.patch | 2 +-

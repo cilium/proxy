@@ -1,7 +1,7 @@
-From b13c64877b55c1a645d3b6b1d18a566930ef519c Mon Sep 17 00:00:00 2001
+From 32f28c899fec90aec45dc96387e378e73511585d Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 23 Dec 2024 22:43:15 +0100
-Subject: [PATCH 8/8] thread_local: reset slot in worker threads first
+Subject: [PATCH 4/7] thread_local: reset slot in worker threads first
 
 Thread local slots refer to their data via shared pointers. Reset the
 shared pointer first in the worker threads, and last in the main thread
@@ -114,5 +114,5 @@ index 09dff23777..88d7cea1a9 100644
    SlotPtr allocateSlotMock() { return SlotPtr{new SlotImpl(*this, current_slot_++)}; }
    void runOnAllThreads1(std::function<void()> cb) { cb(); }
 --
-2.34.1
+2.43.0
 

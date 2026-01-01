@@ -1,7 +1,7 @@
-From 024de602cae722d7f738c31d3b69fb99042ddb41 Mon Sep 17 00:00:00 2001
+From 3b833ef38f6d7f32cffbc38cb2a3e757e4da1e4b Mon Sep 17 00:00:00 2001
 From: Tam Mach <sayboras@yahoo.com>
 Date: Wed, 19 Mar 2025 21:07:05 +1100
-Subject: [PATCH] Expose HTTP Header matcher attribute
+Subject: [PATCH 5/7] Expose HTTP Header matcher attribute
 
 Signed-off-by: Tam Mach <sayboras@yahoo.com>
 ---
@@ -9,7 +9,7 @@ Signed-off-by: Tam Mach <sayboras@yahoo.com>
  1 file changed, 13 insertions(+), 13 deletions(-)
 
 diff --git a/source/common/http/header_utility.h b/source/common/http/header_utility.h
-index 00cb00d163..e479529e20 100644
+index 16c4d2a28c..0d305922eb 100644
 --- a/source/common/http/header_utility.h
 +++ b/source/common/http/header_utility.h
 @@ -92,7 +92,6 @@ public:
@@ -143,5 +143,5 @@ index 00cb00d163..e479529e20 100644
 
    using HeaderDataPtr = std::unique_ptr<HeaderMatcher>;
 --
-2.34.1
+2.43.0
 
