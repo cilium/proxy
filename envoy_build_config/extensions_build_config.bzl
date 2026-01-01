@@ -26,6 +26,7 @@ EXTENSIONS = {
     "envoy.clusters.strict_dns": "//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
     "envoy.clusters.original_dst": "//source/extensions/clusters/original_dst:original_dst_cluster_lib",
     "envoy.clusters.logical_dns": "//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
+    # "envoy.clusters.reverse_connection":                "//source/extensions/clusters/reverse_connection:reverse_connection_lib",
 
     #
     # Compression
@@ -54,6 +55,13 @@ EXTENSIONS = {
     # WASM
     #
     "envoy.bootstrap.wasm": "//source/extensions/bootstrap/wasm:config",
+
+    #
+    # Reverse Connection
+    #
+
+    # "envoy.bootstrap.reverse_tunnel.downstream_socket_interface": "//source/extensions/bootstrap/reverse_tunnel/downstream_socket_interface:reverse_tunnel_initiator_lib",
+    # "envoy.bootstrap.reverse_tunnel.upstream_socket_interface": "//source/extensions/bootstrap/reverse_tunnel/upstream_socket_interface:reverse_tunnel_acceptor_lib",
 
     #
     # Health checkers
@@ -92,6 +100,7 @@ EXTENSIONS = {
     # "envoy.matching.inputs.direct_source_ip":           "//source/extensions/matching/network/common:inputs_lib",
     # "envoy.matching.inputs.source_type":                "//source/extensions/matching/network/common:inputs_lib",
     # "envoy.matching.inputs.server_name":                "//source/extensions/matching/network/common:inputs_lib",
+    # "envoy.matching.inputs.network_namespace":          "//source/extensions/matching/network/common:inputs_lib",
     # "envoy.matching.inputs.transport_protocol":         "//source/extensions/matching/network/common:inputs_lib",
     # "envoy.matching.inputs.filter_state":               "//source/extensions/matching/network/common:inputs_lib",
 
@@ -136,6 +145,7 @@ EXTENSIONS = {
     "envoy.filters.http.basic_auth": "//source/extensions/filters/http/basic_auth:config",
     # "envoy.filters.http.buffer":                        "//source/extensions/filters/http/buffer:config",
     # "envoy.filters.http.cache":                         "//source/extensions/filters/http/cache:config",
+    # "envoy.filters.http.cache_v2":                      "//source/extensions/filters/http/cache_v2:config",
     # "envoy.filters.http.cdn_loop":                      "//source/extensions/filters/http/cdn_loop:config",
     "envoy.filters.http.compressor":                    "//source/extensions/filters/http/compressor:config",
     # "envoy.filters.http.cors":                          "//source/extensions/filters/http/cors:config",
@@ -147,6 +157,7 @@ EXTENSIONS = {
     "envoy.filters.http.dynamic_forward_proxy": "//source/extensions/filters/http/dynamic_forward_proxy:config",
     "envoy.filters.http.ext_authz": "//source/extensions/filters/http/ext_authz:config",
     # "envoy.filters.network.ext_proc":                   "//source/extensions/filters/network/ext_proc:config",
+    # "envoy.filters.network.reverse_tunnel":                       "//source/extensions/filters/network/reverse_tunnel:config",
     # "envoy.filters.http.ext_proc":                      "//source/extensions/filters/http/ext_proc:config",
     # "envoy.filters.http.fault":                         "//source/extensions/filters/http/fault:config",
     # "envoy.filters.http.file_system_buffer":            "//source/extensions/filters/http/file_system_buffer:config",
@@ -165,6 +176,7 @@ EXTENSIONS = {
     # "envoy.filters.http.ip_tagging":                    "//source/extensions/filters/http/ip_tagging:config",
     # "envoy.filters.http.json_to_metadata":              "//source/extensions/filters/http/json_to_metadata:config",
     "envoy.filters.http.jwt_authn": "//source/extensions/filters/http/jwt_authn:config",
+    # "envoy.filters.http.mcp":                           "//source/extensions/filters/http/mcp:config",
     "envoy.filters.http.rate_limit_quota": "//source/extensions/filters/http/rate_limit_quota:config",
     # Disabled by default. kill_request is not built into most prebuilt images.
     # For instructions for building with disabled-by-default filters enabled, see
@@ -332,8 +344,10 @@ EXTENSIONS = {
     #
     # CacheFilter plugins
     #
-    # "envoy.extensions.http.cache.file_system_http_cache": "//source/extensions/http/cache/file_system_http_cache:config",
-    # "envoy.extensions.http.cache.simple":               "//source/extensions/http/cache/simple_http_cache:config",
+    # "envoy.extensions.http.cache.file_system_http_cache":    "//source/extensions/http/cache/file_system_http_cache:config",
+    # "envoy.extensions.http.cache.simple":                    "//source/extensions/http/cache/simple_http_cache:config",
+    # "envoy.extensions.http.cache_v2.file_system_http_cache": "//source/extensions/http/cache_v2/file_system_http_cache:config",
+    # "envoy.extensions.http.cache_v2.simple":                 "//source/extensions/http/cache_v2/simple_http_cache:config",
 
     #
     # Internal redirect predicates
@@ -410,6 +424,11 @@ EXTENSIONS = {
     # "envoy.http.custom_response.local_response_policy":       "//source/extensions/http/custom_response/local_response_policy:local_response_policy_lib",
 
     #
+    # External Processing Request Modifiers
+    #
+    # "envoy.http.ext_proc.processing_request_modifiers.mapped_attribute_builder":         "//source/extensions/http/ext_proc/processing_request_modifiers/mapped_attribute_builder:mapped_attribute_builder_lib",
+
+    #
     # External Processing Response Processors
     #
     # "envoy.http.ext_proc.response_processors.save_processing_response":         "//source/extensions/http/ext_proc/response_processors/save_processing_response:save_processing_response_lib",
@@ -447,6 +466,7 @@ EXTENSIONS = {
     # "envoy.formatter.cel":                              "//source/extensions/formatter/cel:config",
     # "envoy.formatter.metadata":                         "//source/extensions/formatter/metadata:config",
     # "envoy.formatter.req_without_query":                "//source/extensions/formatter/req_without_query:config",
+    # "envoy.built_in_formatters.xfcc_value":             "//source/extensions/formatter/xfcc_value:config",
 
     #
     # Key value store
@@ -478,10 +498,16 @@ EXTENSIONS = {
     # "envoy.network.dns_resolver.getaddrinfo":          "//source/extensions/network/dns_resolver/getaddrinfo:config",
 
     #
+    # Address Resolvers
+    #
+
+    # "envoy.resolvers.reverse_connection":               "//source/extensions/bootstrap/reverse_tunnel/downstream_socket_interface:reverse_connection_resolver_lib",
+
+    #
     # Custom matchers
     #
 
-    # "envoy.matching.custom_matchers.trie_matcher":     "//source/extensions/common/matcher:trie_matcher_lib",
+    # "envoy.matching.custom_matchers.ip_range_matcher":     "//source/extensions/common/matcher:ip_range_matcher_lib",
     # "envoy.matching.custom_matchers.domain_matcher":   "//source/extensions/common/matcher:domain_matcher_lib",
 
     #
