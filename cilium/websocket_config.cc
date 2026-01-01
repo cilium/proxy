@@ -49,8 +49,8 @@ std::vector<uint8_t> Config::getSha1Digest(const Buffer::Instance& buffer) {
 Config::Config(Server::Configuration::FactoryContext& context, bool client,
                const std::string& access_log_path, const std::string& host, const std::string& path,
                const std::string& key, const std::string& version, const std::string& origin,
-               const ProtobufWkt::Duration& handshake_timeout,
-               const ProtobufWkt::Duration& ping_interval, bool ping_when_idle)
+               const Protobuf::Duration& handshake_timeout, const Protobuf::Duration& ping_interval,
+               bool ping_when_idle)
     : time_source_(context.serverFactoryContext().timeSource()),
       dispatcher_(context.serverFactoryContext().mainThreadDispatcher()),
       stats_{ALL_WEBSOCKET_STATS(POOL_COUNTER_PREFIX(context.scope(), "websocket"))},

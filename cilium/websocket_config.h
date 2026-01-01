@@ -61,7 +61,7 @@ public:
   Config(Server::Configuration::FactoryContext& context, bool client,
          const std::string& access_log_path, const std::string& host, const std::string& path,
          const std::string& key, const std::string& version, const std::string& origin,
-         const ProtobufWkt::Duration& handshake_timeout, const ProtobufWkt::Duration& ping_interval,
+         const Protobuf::Duration& handshake_timeout, const Protobuf::Duration& ping_interval,
          bool ping_when_idle);
   Config(const ::cilium::WebSocketClient& config, Server::Configuration::FactoryContext& context);
   Config(const ::cilium::WebSocketServer& config, Server::Configuration::FactoryContext& context);
