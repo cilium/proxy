@@ -25,12 +25,12 @@ map updates.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- .../original_dst/original_dst_cluster.cc      | 259 +++++++++++-------
+ .../original_dst/original_dst_cluster.cc      | 261 +++++++++++-------
  .../original_dst/original_dst_cluster.h       |  43 +--
- 2 files changed, 189 insertions(+), 113 deletions(-)
+ 2 files changed, 190 insertions(+), 114 deletions(-)
 
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.cc b/source/extensions/clusters/original_dst/original_dst_cluster.cc
-index 60f742af9c..01e739c6fb 100644
+index 511f46abad..eb2d9a30ad 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.cc
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.cc
 @@ -29,6 +29,19 @@ OriginalDstClusterHandle::~OriginalDstClusterHandle() {
@@ -127,6 +127,9 @@ index 60f742af9c..01e739c6fb 100644
 -    // The first worker that creates a host for the address defines the primary
 -    // host structure.
 -    new_host_map->emplace(address, std::make_shared<HostsForAddress>(host));
+-  }
+-  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
+-  setHostMap(new_host_map);
 +// getHost returns the host for the address. A new host is created when needed.
 +// Called from the worker threads.
 +// When multiple worker threads call this at the same time the updates of the
@@ -240,10 +243,8 @@ index 60f742af9c..01e739c6fb 100644
 +    // Make available for load balancers
 +    host_map_ = new_host_map;
 +    updates_map_.swap(empty_map);
-   }
--  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
--  setHostMap(new_host_map);
- 
++  }
+
 -  // Given the current config, only EDS clusters support multiple priorities.
    ASSERT(priority_set_.hostSetsPerPriority().size() == 1);
    const auto& first_host_set = priority_set_.getOrCreateHostSet(0);
@@ -252,10 +253,10 @@ index 60f742af9c..01e739c6fb 100644
 +  for (auto host : new_hosts) {
 +    all_hosts->emplace_back(host);
 +  }
-   priority_set_.updateHosts(
-       0, HostSetImpl::partitionHosts(all_hosts, HostsPerLocalityImpl::empty()), {},
--      {std::move(host)}, {}, random_.random(), absl::nullopt, absl::nullopt);
-+      {std::move(new_hosts)}, {}, random_.random(), absl::nullopt, absl::nullopt);
+   priority_set_.updateHosts(0,
+                             HostSetImpl::partitionHosts(all_hosts, HostsPerLocalityImpl::empty()),
+-                            {}, {std::move(host)}, {}, absl::nullopt, absl::nullopt);
++                            {}, {std::move(new_hosts)}, {}, absl::nullopt, absl::nullopt);
  }
 
  void OriginalDstCluster::cleanup() {
@@ -451,5 +452,5 @@ index df12c06b41..3152af8664 100644
    absl::optional<Config::MetadataKey> metadata_key_;
    absl::optional<uint32_t> port_override_;
 --
-2.49.0
+2.43.0
 

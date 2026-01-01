@@ -1,7 +1,7 @@
-From 0cf16105f43982ac22eac548d94ac5a16d0970d2 Mon Sep 17 00:00:00 2001
+From 3d5bed191ef7900b8c76ce76f52e312b60c55faa Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 14 Aug 2023 10:01:21 +0300
-Subject: [PATCH 2/6] listener: add socket options
+Subject: [PATCH 2/7] listener: add socket options
 
 This reverts commit 170c89eb0b2afb7a39d44d0f8dfb77444ffc038f.
 
@@ -34,7 +34,7 @@ index ee9fa05618..d6b8c7e097 100644
  /**
   * FactoryContext for ProtocolOptionsFactory.
 diff --git a/source/common/listener_manager/listener_impl.cc b/source/common/listener_manager/listener_impl.cc
-index f3bec6b49b..a7656f833f 100644
+index fc93131aa9..a925a1fdcc 100644
 --- a/source/common/listener_manager/listener_impl.cc
 +++ b/source/common/listener_manager/listener_impl.cc
 @@ -932,6 +932,9 @@ Configuration::ServerFactoryContext& PerListenerFactoryContextImpl::serverFactor
@@ -48,7 +48,7 @@ index f3bec6b49b..a7656f833f 100644
 
  bool ListenerImpl::createNetworkFilterChain(
 diff --git a/source/common/listener_manager/listener_impl.h b/source/common/listener_manager/listener_impl.h
-index 9cbc6dc897..719fbac18d 100644
+index 9dcd00035f..4f3c9f1f77 100644
 --- a/source/common/listener_manager/listener_impl.h
 +++ b/source/common/listener_manager/listener_impl.h
 @@ -185,6 +185,8 @@ public:
@@ -99,5 +99,5 @@ index dfdb937433..f78dcb90a5 100644
    MOCK_METHOD(const Network::DrainDecision&, drainDecision, ());
    MOCK_METHOD(Init::Manager&, initManager, ());
 --
-2.49.0
+2.43.0
 
