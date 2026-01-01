@@ -85,16 +85,6 @@ jobs:
           config: '.github/kind-config.yaml'
           cluster_name: 'kind'
 
-      - name: Patch Cilium Agent Dockerfile
-        shell: bash
-        run: |
-          sed -i -E 's|(ARG CILIUM_ENVOY_IMAGE=)(quay\.io\/cilium\/cilium-envoy:)(.*)(@sha256:[0-9a-z]*)|\1${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }}|' ./images/cilium/Dockerfile
-          cat ./images/cilium/Dockerfile
-          if git diff --exit-code ./images/cilium/Dockerfile; then
-            echo "Dockerfile not modified"
-            exit 1
-          fi
-
       - name: Install Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
@@ -154,7 +144,9 @@ jobs:
             --helm-set operator.image.tag=${{ env.CILIUM_IMAGE_TAG }} \
             --helm-set operator.image.useDigest=false \
             --helm-set operator.image.pullPolicy=Never \
-            --helm-set envoy.enabled=false \
+            --helm-set envoy.image.repository=${{ env.PROXY_IMAGE }} \
+            --helm-set envoy.image.tag=${{ env.PROXY_TAG }} \
+            --helm-set envoy.image.useDigest=false \
             --helm-set debug.enabled=true \
             --helm-set debug.verbose=envoy
 
