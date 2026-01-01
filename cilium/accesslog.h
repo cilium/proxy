@@ -49,7 +49,7 @@ public:
                             uint32_t destination_identity,
                             const Network::Address::InstanceConstSharedPtr& destination_address,
                             TimeSource* time_source);
-    bool updateFromMetadata(const std::string& l7proto, const ProtobufWkt::Struct& metadata);
+    bool updateFromMetadata(const std::string& l7proto, const Protobuf::Struct& metadata);
     void addRejected(absl::string_view key, absl::string_view value);
     void addMissing(absl::string_view key, absl::string_view value);
 

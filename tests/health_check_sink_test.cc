@@ -40,7 +40,7 @@ TEST(HealthCheckEventPipeSinkFactory, createHealthCheckEventSink) {
 
   cilium::HealthCheckEventPipeSink config;
   config.set_path("test_path");
-  Envoy::ProtobufWkt::Any typed_config;
+  Envoy::Protobuf::Any typed_config;
   typed_config.PackFrom(config);
 
   NiceMock<Server::Configuration::MockHealthCheckerFactoryContext> context;
@@ -67,7 +67,7 @@ TEST(HealthCheckEventPipeSink, logTest) {
   auto config = *dynamic_cast<cilium::HealthCheckEventPipeSink*>(empty_proto.get());
   EXPECT_TRUE(config.path().empty());
   config.set_path(normal_path);
-  Envoy::ProtobufWkt::Any typed_config;
+  Envoy::Protobuf::Any typed_config;
   typed_config.PackFrom(config);
   NiceMock<Server::Configuration::MockHealthCheckerFactoryContext> context;
   auto pipe_sink = factory->createHealthCheckEventSink(typed_config, context);

@@ -44,7 +44,7 @@ public:
   HealthCheckEventPipeSinkFactory() = default;
 
   Upstream::HealthCheckEventSinkPtr
-  createHealthCheckEventSink(const ProtobufWkt::Any& config,
+  createHealthCheckEventSink(const Protobuf::Any& config,
                              Server::Configuration::HealthCheckerFactoryContext& context) override;
 
   std::string name() const override { return "cilium.health_check.event_sink.pipe"; }

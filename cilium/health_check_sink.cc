@@ -57,7 +57,7 @@ void HealthCheckEventPipeSink::log(envoy::data::core::v3::HealthCheckEvent event
 };
 
 Upstream::HealthCheckEventSinkPtr HealthCheckEventPipeSinkFactory::createHealthCheckEventSink(
-    const ProtobufWkt::Any& config, Server::Configuration::HealthCheckerFactoryContext& context) {
+    const Protobuf::Any& config, Server::Configuration::HealthCheckerFactoryContext& context) {
   const auto& validator_config =
       Envoy::MessageUtil::anyConvertAndValidate<cilium::HealthCheckEventPipeSink>(
           config, context.messageValidationVisitor());

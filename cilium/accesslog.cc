@@ -107,7 +107,7 @@ void AccessLog::Entry::initFromConnection(
 }
 
 bool AccessLog::Entry::updateFromMetadata(const std::string& l7proto,
-                                          const ProtobufWkt::Struct& metadata) {
+                                          const Protobuf::Struct& metadata) {
   bool changed = false;
 
   auto l7entry = entry_.mutable_generic_l7();
