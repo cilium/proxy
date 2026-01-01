@@ -85,55 +85,11 @@ jobs:
           config: '.github/kind-config.yaml'
           cluster_name: 'kind'
 
-      - name: Patch Cilium Agent Dockerfile
-        shell: bash
-        run: |
-          sed -i -E 's|(ARG CILIUM_ENVOY_IMAGE=)(quay\.io\/cilium\/cilium-envoy:)(.*)(@sha256:[0-9a-z]*)|\1${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }}|' ./images/cilium/Dockerfile
-          cat ./images/cilium/Dockerfile
-          if git diff --exit-code ./images/cilium/Dockerfile; then
-            echo "Dockerfile not modified"
-            exit 1
-          fi
-
       - name: Install Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
           # renovate: datasource=golang-version depName=go
           go-version: 1.25.1
-
-      - name: Redirect proxy module
-        shell: bash
-        if: env.PROXY_GITHUB_REPO != 'github.com/cilium/proxy'
-        run: echo "replace github.com/cilium/proxy => ${{ env.PROXY_GITHUB_REPO }} ${{ env.PROXY_TAG }}" >> go.mod
-
-      - name: Update proxy module
-        shell: bash
-        if: env.PROXY_GITHUB_REPO == 'github.com/cilium/proxy'
-        run: go get ${{ env.PROXY_GITHUB_REPO }}@${{ env.PROXY_TAG }}
-
-      - name: Vendor proxy module
-        shell: bash
-        run: |
-          go mod tidy && \
-          go mod verify && \
-          go mod vendor
-
-      - name: Wait for Cilium Proxy image to be available
-        timeout-minutes: 45
-        shell: bash
-        run: until docker manifest inspect ${{ env.PROXY_IMAGE }}:${{ env.PROXY_TAG }} &> /dev/null; do sleep 15s; done
-
-      - name: Build Cilium Agent & Operator with patched Cilium Proxy Image
-        shell: bash
-        run: DOCKER_IMAGE_TAG=${{ env.CILIUM_IMAGE_TAG }} make docker-cilium-image docker-operator-generic-image
-
-      - name: Load Cilium Images into kind
-        shell: bash
-        run: |
-          kind load docker-image \
-            --name kind \
-            quay.io/cilium/operator-generic:${{ env.CILIUM_IMAGE_TAG }} \
-            quay.io/cilium/cilium:${{ env.CILIUM_IMAGE_TAG }}
 
       - name: Install Cilium
         timeout-minutes: 10
@@ -145,16 +101,10 @@ jobs:
             --helm-set loadBalancer.l7.backend=envoy \
             --helm-set=tls.readSecretsOnlyFromSecretsNamespace=true \
             --helm-set=tls.secretSync.enabled=true \
-            --helm-set image.repository=quay.io/cilium/cilium \
-            --helm-set image.tag=${{ env.CILIUM_IMAGE_TAG }} \
-            --helm-set image.useDigest=false \
-            --helm-set image.pullPolicy=Never \
-            --helm-set operator.image.repository=quay.io/cilium/operator \
-            --helm-set operator.image.suffix= \
-            --helm-set operator.image.tag=${{ env.CILIUM_IMAGE_TAG }} \
-            --helm-set operator.image.useDigest=false \
-            --helm-set operator.image.pullPolicy=Never \
-            --helm-set envoy.enabled=false \
+            --helm-set envoy.image.repository=${{ env.PROXY_IMAGE }} \
+            --helm-set envoy.image.tag=${{ env.PROXY_TAG }} \
+            --helm-set envoy.image.useDigest=false \
+            --helm-set disableEnvoyVersionCheck=true \
             --helm-set debug.enabled=true \
             --helm-set debug.verbose=envoy
 
