@@ -2,7 +2,7 @@ name: Refresh test & build cache & build latest
 on:
   push:
     branches:
-      - main
+      - v1.35
 
 jobs:
   build-envoy-images-release:
