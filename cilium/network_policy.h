@@ -93,20 +93,20 @@ public:
 
   // useProxylib returns true if a proxylib parser should be used.
   // 'l7_proto' is set to the parser name in that case.
-  bool useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const;
+  bool useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const;
   // HTTP-layer policy check. 'headers' and 'log_entry' may be manipulated by the policy.
-  bool allowed(uint32_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+  bool allowed(uint16_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const;
   // Network-layer policy check
-  bool allowed(uint32_t proxy_id, uint32_t remote_id, absl::string_view sni) const;
+  bool allowed(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni) const;
   // Envoy filter metadata policy check
-  bool allowed(uint32_t proxy_id, uint32_t remote_id,
+  bool allowed(uint16_t proxy_id, uint32_t remote_id,
                const envoy::config::core::v3::Metadata& metadata) const;
   // getServerTlsContext returns the server TLS context, if any. If a non-null pointer is returned,
   // then also the config pointer '*config' is set.
   // If '*config' is nullptr and 'raw_socket_allowed' is 'true' on return then the policy
   // allows the connection without TLS and a raw socket should be used.
-  Ssl::ContextSharedPtr getServerTlsContext(uint32_t proxy_id, uint32_t remote_id,
+  Ssl::ContextSharedPtr getServerTlsContext(uint16_t proxy_id, uint32_t remote_id,
                                             absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const;
@@ -114,7 +114,7 @@ public:
   // then also the config pointer '*config' is set.
   // If '*config' is nullptr and 'raw_socket_allowed' is 'true' on return then the policy
   // allows the connection without TLS and a raw socket should be used.
-  Ssl::ContextSharedPtr getClientTlsContext(uint32_t proxy_id, uint32_t remote_id,
+  Ssl::ContextSharedPtr getClientTlsContext(uint16_t proxy_id, uint32_t remote_id,
                                             absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const;
@@ -158,18 +158,18 @@ public:
     }
   };
 
-  virtual bool allowed(bool ingress, uint32_t proxy_id, uint32_t remote_id, uint16_t port,
+  virtual bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
                        Envoy::Http::RequestHeaderMap& headers,
                        Cilium::AccessLog::Entry& log_entry) const PURE;
 
-  virtual bool allowed(bool ingress, uint32_t proxy_id, uint32_t remote_id, absl::string_view sni,
+  virtual bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, absl::string_view sni,
                        uint16_t port) const PURE;
 
   virtual const PortPolicy findPortPolicy(bool ingress, uint16_t port) const PURE;
 
   // Returns true if the policy specifies l7 protocol for the connection, and
   // returns the l7 protocol string in 'l7_proto'
-  virtual bool useProxylib(bool ingress, uint32_t proxy_id, uint32_t remote_id, uint16_t port,
+  virtual bool useProxylib(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
                            std::string& l7_proto) const PURE;
 
   virtual const std::string& conntrackName() const PURE;

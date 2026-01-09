@@ -141,7 +141,7 @@ message PortNetworkPolicyRule {
   // The given value corresponds to the 'proxy_id' value in the BpfMetadata listener filter
   // configuration.
   // This rule should be ignored if not executing in the referred listener.
-  uint32 proxy_id = 9;
+  uint32 proxy_id = 9 [(validate.rules).uint32.lte = 65535];
 
   // Optional name for the rule, can be used in logging and error messages.
   string name = 5;

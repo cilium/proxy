@@ -202,7 +202,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
     : so_linger_(config.has_original_source_so_linger_time()
                      ? config.original_source_so_linger_time()
                      : -1),
-      proxy_id_(config.proxy_id()), is_ingress_(config.is_ingress()),
+      proxy_id_(uint16_t(config.proxy_id())), is_ingress_(config.is_ingress()),
       use_original_source_address_(config.use_original_source_address()),
       is_l7lb_(config.is_l7lb()),
       ipv4_source_address_(

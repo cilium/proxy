@@ -533,7 +533,16 @@ func (m *PortNetworkPolicyRule) validate(all bool) error {
 
 	// no validation rules for Deny
 
-	// no validation rules for ProxyId
+	if m.GetProxyId() > 65535 {
+		err := PortNetworkPolicyRuleValidationError{
+			field:  "ProxyId",
+			reason: "value must be less than or equal to 65535",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	// no validation rules for Name
 
