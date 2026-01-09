@@ -1177,14 +1177,14 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\fserver_names\x18\x04 \x03(\tR\vserverNames\x12A\n" +
 	"\x1dvalidation_context_sds_secret\x18\x05 \x01(\tR\x1avalidationContextSdsSecret\x12$\n" +
 	"\x0etls_sds_secret\x18\x06 \x01(\tR\ftlsSdsSecret\x12%\n" +
-	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\xbe\x05\n" +
+	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\xc9\x05\n" +
 	"\x15PortNetworkPolicyRule\x12\x1e\n" +
 	"\n" +
 	"precedence\x18\n" +
 	" \x01(\rR\n" +
 	"precedence\x12\x12\n" +
-	"\x04deny\x18\b \x01(\bR\x04deny\x12\x19\n" +
-	"\bproxy_id\x18\t \x01(\rR\aproxyId\x12\x12\n" +
+	"\x04deny\x18\b \x01(\bR\x04deny\x12$\n" +
+	"\bproxy_id\x18\t \x01(\rB\t\xfaB\x06*\x04\x18\xff\xff\x03R\aproxyId\x12\x12\n" +
 	"\x04name\x18\x05 \x01(\tR\x04name\x12'\n" +
 	"\x0fremote_policies\x18\a \x03(\rR\x0eremotePolicies\x12H\n" +
 	"\x16downstream_tls_context\x18\x03 \x01(\v2\x12.cilium.TLSContextR\x14downstreamTlsContext\x12D\n" +

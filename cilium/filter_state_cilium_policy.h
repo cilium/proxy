@@ -40,7 +40,7 @@ public:
   CiliumPolicyFilterState(uint32_t ingress_source_identity, uint32_t source_identity, bool ingress,
                           bool l7lb, uint16_t port, std::string&& pod_ip,
                           std::string&& ingress_policy_name,
-                          const PolicyResolverSharedPtr& policy_resolver, uint32_t proxy_id,
+                          const PolicyResolverSharedPtr& policy_resolver, uint16_t proxy_id,
                           absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
@@ -91,7 +91,7 @@ public:
   uint16_t port_;
   std::string pod_ip_;
   std::string ingress_policy_name_;
-  uint32_t proxy_id_;
+  uint16_t proxy_id_;
   std::string sni_;
 
 private:

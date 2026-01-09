@@ -217,7 +217,7 @@ protected:
   NiceMock<Secret::MockSecretManager> secret_manager_;
   std::shared_ptr<NetworkPolicyMap> policy_map_;
   NiceMock<Stats::TestUtil::TestStore> store_;
-  uint32_t proxy_id_ = 42;
+  uint16_t proxy_id_ = 42;
 };
 
 TEST_F(CiliumNetworkPolicyTest, UpdatesRejectedStatName) {
