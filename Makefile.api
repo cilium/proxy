@@ -87,8 +87,8 @@ all: cilium-go-targets
 
 .PHONY: cilium-go-targets
 cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api
+	go install tool
 	$(QUIET)set -e; \
-	echo "NOTE: protoc tools referred to in go.mod tools section must be installed with "go install" for protoc to find them."; \
 	for path in $(CILIUM_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
 		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT)" --go_opt=module=github.com/cilium/proxy/go "--validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)" --validate_opt=module=github.com/cilium/proxy/go $${path}*.proto; \

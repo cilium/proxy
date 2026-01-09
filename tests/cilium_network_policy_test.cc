@@ -806,7 +806,7 @@ egress:
   EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
 
   // 3rd update with Ingress deny rules
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "3"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -837,7 +837,7 @@ resources:
               google_re2: {}
               regex: '.*public$'
 )EOF"));
-  EXPECT_EQ(version, "2");
+  EXPECT_EQ(version, "3");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
   expected = R"EOF(ingress:
@@ -889,7 +889,7 @@ egress:
   EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/publicz"}}));
 
   // 4th update with matching proxy_id in policy
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "4"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -920,7 +920,7 @@ resources:
               google_re2: {}
               regex: '.*public$'
 )EOF"));
-  EXPECT_EQ(version, "2");
+  EXPECT_EQ(version, "4");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
   expected = R"EOF(ingress:
@@ -966,7 +966,7 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10001, {{":path", "/notallowed"}}));
 
   // 5th update with non-matching proxy_id in policy
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "5"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -997,7 +997,7 @@ resources:
               google_re2: {}
               regex: '.*public$'
 )EOF"));
-  EXPECT_EQ(version, "2");
+  EXPECT_EQ(version, "5");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
   expected = R"EOF(ingress:
