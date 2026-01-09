@@ -1043,6 +1043,106 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 10001, {{":path", "/notallowed"}}));
 }
 
+TEST_F(CiliumNetworkPolicyTest, Precedence) {
+  std::string version;
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "0"
+)EOF"));
+  EXPECT_EQ(version, "0");
+  EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
+  // No policy for the pod
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+
+  // pass_precedence must be lower than precedence
+  EXPECT_THROW_WITH_MESSAGE(
+      updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - precedence: 1000
+      pass_precedence: 2000
+      remote_policies: [ 43 ]
+)EOF"),
+      EnvoyException,
+      "PortNetworkPolicyRule: pass_precedence 2000 must be lower than precedence 1000");
+
+  // deny and pass_precedence are mutually exclusive
+  EXPECT_THROW_WITH_REGEX(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - deny: true
+      precedence: 1000
+      pass_precedence: 100
+      remote_policies: [ 43 ]
+)EOF"),
+                          EnvoyException,
+                          "Unable to parse JSON as proto.*INVALID_ARGUMENT:.*oneof");
+
+  // 1st update: higher precedence deny
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - precedence: 1000
+      deny: true
+    - precedence: 100
+      remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+)EOF"));
+  EXPECT_EQ(version, "1");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: []
+        deny: true
+        precedence: 1000
+      - remotes: [43]
+        precedence: 100
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected));
+
+  // Allowed remote ID, port, & path:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Wrong path:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+}
+
 TEST_F(CiliumNetworkPolicyTest, HttpOverlappingPortRanges) {
   std::string version;
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "0"
