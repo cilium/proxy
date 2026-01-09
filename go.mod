@@ -40,5 +40,4 @@ require (
 tool (
 	github.com/envoyproxy/protoc-gen-validate
 	github.com/golang/protobuf/protoc-gen-go
-	google.golang.org/protobuf
 )
