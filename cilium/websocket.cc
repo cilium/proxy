@@ -134,7 +134,7 @@ Network::FilterStatus Instance::onNewConnection() {
   std::string pod_ip;
   bool is_ingress;
   uint32_t identity, destination_identity;
-  uint32_t proxy_id;
+  uint16_t proxy_id;
 
   auto& conn = callbacks_->connection();
 

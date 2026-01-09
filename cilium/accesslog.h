@@ -32,7 +32,7 @@ public:
   // wrapper for protobuf
   class Entry : public StreamInfo::FilterState::Object {
   public:
-    void initFromRequest(const std::string& policy_name, uint32_t proxy_id, bool ingress,
+    void initFromRequest(const std::string& policy_name, uint16_t proxy_id, bool ingress,
                          uint32_t source_identity,
                          const Network::Address::InstanceConstSharedPtr& source_address,
                          uint32_t destination_identity,
@@ -43,7 +43,7 @@ public:
                            const Http::RequestHeaderMap&);
     void updateFromResponse(const Http::ResponseHeaderMap&, TimeSource&);
 
-    void initFromConnection(const std::string& policy_name, uint32_t proxy_id, bool ingress,
+    void initFromConnection(const std::string& policy_name, uint16_t proxy_id, bool ingress,
                             uint32_t source_identity,
                             const Network::Address::InstanceConstSharedPtr& source_address,
                             uint32_t destination_identity,

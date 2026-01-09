@@ -42,7 +42,7 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
                  Network::Address::InstanceConstSharedPtr source_address_ipv4,
                  Network::Address::InstanceConstSharedPtr source_address_ipv6,
                  Network::Address::InstanceConstSharedPtr original_dest_address,
-                 const PolicyResolverSharedPtr& policy_resolver, uint32_t proxy_id,
+                 const PolicyResolverSharedPtr& policy_resolver, uint16_t proxy_id,
                  std::string&& proxylib_l7_proto, absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
@@ -120,7 +120,7 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
   std::string pod_ip_; // pod policy to enforce, if any; empty only when there is no local pod (i.e.
                        // north/south l7lb)
   std::string ingress_policy_name_; // Ingress policy to enforce, if any
-  uint32_t proxy_id_;
+  uint16_t proxy_id_;
   std::string proxylib_l7_proto_;
   std::string sni_;
   const PolicyResolverSharedPtr policy_resolver_;
@@ -158,7 +158,7 @@ public:
   virtual bool addPrivilegedSocketOptions() { return true; };
 
   int so_linger_; // negative if disabled
-  uint32_t proxy_id_;
+  uint16_t proxy_id_;
   bool is_ingress_;
   bool use_original_source_address_;
   bool is_l7lb_;
