@@ -421,7 +421,13 @@ public:
   PortNetworkPolicyRule(const NetworkPolicyMapImpl& parent,
                         const cilium::PortNetworkPolicyRule& rule)
       : name_(rule.name()), deny_(rule.deny()), proxy_id_(uint16_t(rule.proxy_id())),
-        precedence_(rule.precedence()), l7_proto_(rule.l7_proto()) {
+        precedence_(rule.precedence()), tier_last_precedence_(rule.pass_precedence()),
+        l7_proto_(rule.l7_proto()) {
+    if (tier_last_precedence_ > precedence_) {
+      throw EnvoyException(
+          fmt::format("PortNetworkPolicyRule: pass_precedence {} must be lower than precedence {}",
+                      tier_last_precedence_, precedence_));
+    }
     for (const auto& remote : rule.remote_policies()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} remote {} by rule: {}",
                 deny_ ? "Denying" : "Allowing", remote, name_);
@@ -632,6 +638,10 @@ public:
     if (precedence_) {
       res.append(indent, ' ').append(fmt::format("precedence: {}\n", precedence_));
     }
+    if (tier_last_precedence_) {
+      res.append(indent, ' ')
+          .append(fmt::format("tier_last_precedence: {}\n", tier_last_precedence_));
+    }
     if (proxy_id_ != 0) {
       res.append(indent, ' ').append(fmt::format("proxy_id: {}\n", proxy_id_));
     }
@@ -681,6 +691,7 @@ public:
   bool deny_;
   uint16_t proxy_id_;
   uint32_t precedence_;
+  uint32_t tier_last_precedence_;
   absl::btree_set<uint32_t> remotes_;
 
   std::vector<SniPattern> allowed_snis_; // All SNIs allowed if empty.
@@ -703,13 +714,24 @@ public:
     }
   }
 
+  void updateFor(const PortNetworkPolicyRuleConstSharedPtr& rule) {
+    if (rule->has_headermatches_) {
+      can_short_circuit_ = false;
+    }
+    if (rule->tier_last_precedence_ != 0) {
+      has_pass_rules_ = true;
+    }
+  }
+
+  void insert(PortNetworkPolicyRuleConstSharedPtr rule) {
+    rules_.emplace_back(rule);
+    updateFor(rules_.back());
+  }
+
   void append(const NetworkPolicyMapImpl& parent,
               const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
     for (const auto& it : rules) {
-      rules_.emplace_back(std::make_shared<PortNetworkPolicyRule>(parent, it));
-      if (rules_.back()->has_headermatches_) {
-        can_short_circuit_ = false;
-      }
+      insert(std::make_shared<PortNetworkPolicyRule>(parent, it));
     }
   }
 
@@ -717,20 +739,18 @@ public:
                const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
     for (const auto& it : rules) {
       rules_.emplace(rules_.begin(), std::make_shared<PortNetworkPolicyRule>(parent, it));
-      if (rules_.front()->has_headermatches_) {
-        can_short_circuit_ = false;
-      }
+      updateFor(rules_.front());
     }
   }
 
-  // sort by descending precedence
+  // sort by descending precedence, retaining the original order within each precedence level
   void sort() {
-    std::sort(rules_.begin(), rules_.end(),
-              [](const PortNetworkPolicyRuleConstSharedPtr& a,
-                 const PortNetworkPolicyRuleConstSharedPtr& b) {
-                return (a->precedence_ > b->precedence_) ||
-                       (a->precedence_ == b->precedence_ && (a->deny_ && !b->deny_));
-              });
+    std::stable_sort(rules_.begin(), rules_.end(),
+                     [](const PortNetworkPolicyRuleConstSharedPtr& a,
+                        const PortNetworkPolicyRuleConstSharedPtr& b) {
+                       return (a->precedence_ > b->precedence_) ||
+                              (a->precedence_ == b->precedence_ && (a->deny_ && !b->deny_));
+                     });
   }
 
   bool empty() const { return rules_.empty(); }
@@ -915,6 +935,7 @@ public:
   // ordered set of rules as a sorted vector
   std::vector<PortNetworkPolicyRuleConstSharedPtr> rules_; // Allowed if empty.
   bool can_short_circuit_{true};
+  bool has_pass_rules_{false};
 };
 
 // end port is zero on lookup!
