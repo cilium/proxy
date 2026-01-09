@@ -451,7 +451,7 @@ private:
   bool isExplicitFullMatch() const { return !match_name_.empty(); }
 
   std::string match_name_;
-  std::unique_ptr<const Envoy::Regex::CompiledMatcher> matcher_;
+  std::shared_ptr<const Envoy::Regex::CompiledMatcher> matcher_;
 };
 
 } // namespace Cilium

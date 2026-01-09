@@ -83,7 +83,7 @@ private:
   std::vector<std::string> server_names_;
   Ssl::ServerContextSharedPtr server_context_ ABSL_GUARDED_BY(ssl_context_mutex_){};
 };
-using DownstreamTLSContextPtr = std::unique_ptr<DownstreamTLSContext>;
+using DownstreamTLSContextSharedPtr = std::shared_ptr<DownstreamTLSContext>;
 
 class UpstreamTLSContext : protected TLSContext {
 public:
@@ -100,7 +100,7 @@ private:
   Ssl::ClientContextConfigPtr client_config_;
   Ssl::ClientContextSharedPtr client_context_ ABSL_GUARDED_BY(ssl_context_mutex_){};
 };
-using UpstreamTLSContextPtr = std::unique_ptr<UpstreamTLSContext>;
+using UpstreamTLSContextSharedPtr = std::shared_ptr<UpstreamTLSContext>;
 
 } // namespace Cilium
 } // namespace Envoy

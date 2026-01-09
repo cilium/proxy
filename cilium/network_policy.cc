@@ -440,11 +440,12 @@ public:
       allowed_snis_.emplace_back(parent.regexEngine(), sni);
     }
     if (rule.has_http_rules()) {
+      http_rules_ = std::make_shared<std::vector<HttpNetworkPolicyRule>>();
       for (const auto& http_rule : rule.http_rules().http_rules()) {
         if (http_rule.header_matches_size() > 0) {
           has_headermatches_ = true;
         }
-        http_rules_.emplace_back(parent, http_rule);
+        http_rules_->emplace_back(parent, http_rule);
       }
     }
     if (l7_proto_.length() > 0 && rule.has_l7_rules()) {
@@ -512,9 +513,9 @@ public:
     if (!allowed(proxy_id, remote_id, denied)) {
       return false;
     }
-    if (!http_rules_.empty()) {
+    if (hasHttpRules()) {
       bool allowed = false;
-      for (const auto& rule : http_rules_) {
+      for (const auto& rule : *http_rules_) {
         if (rule.allowed(headers)) {
           // Return on the first match if no rule has HeaderMatches
           if (!has_headermatches_) {
@@ -647,9 +648,9 @@ public:
       res.append("]\n");
     }
 
-    if (!http_rules_.empty()) {
+    if (hasHttpRules()) {
       res.append(indent, ' ').append("http_rules:\n");
-      for (auto& rule : http_rules_) {
+      for (auto& rule : *http_rules_) {
         rule.toString(indent + 2, res);
       }
     }
@@ -671,19 +672,20 @@ public:
     }
   }
 
-  bool hasHttpRules() const { return !http_rules_.empty(); }
+  bool hasHttpRules() const { return http_rules_ && !http_rules_->empty(); }
 
   std::string name_;
-  DownstreamTLSContextPtr server_context_;
-  UpstreamTLSContextPtr client_context_;
+  DownstreamTLSContextSharedPtr server_context_;
+  UpstreamTLSContextSharedPtr client_context_;
   bool has_headermatches_{false};
   bool deny_;
   uint16_t proxy_id_;
   uint32_t precedence_;
   absl::btree_set<uint32_t> remotes_;
 
-  std::vector<SniPattern> allowed_snis_;          // All SNIs allowed if empty.
-  std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
+  std::vector<SniPattern> allowed_snis_; // All SNIs allowed if empty.
+  std::shared_ptr<std::vector<HttpNetworkPolicyRule>>
+      http_rules_; // Allowed if empty, but remote is checked first.
   std::string l7_proto_{};
   std::vector<L7NetworkPolicyRule> l7_allow_rules_;
   std::vector<L7NetworkPolicyRule> l7_deny_rules_;
