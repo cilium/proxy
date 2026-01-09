@@ -468,13 +468,15 @@ public:
     }
   }
 
+  bool isRemoteWildcard() const { return remotes_.empty(); }
+
   bool allowed(uint16_t proxy_id, uint32_t remote_id, bool& denied) const {
     // proxy_id must match if we have any.
     if (proxy_id_ != 0 && proxy_id != proxy_id_) {
       return false;
     }
     // Remote ID must match if we have any.
-    if (!remotes_.empty()) {
+    if (!isRemoteWildcard()) {
       auto match = remotes_.find(remote_id);
       if (match != remotes_.end()) {
         // remote ID matched
