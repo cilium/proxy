@@ -365,6 +365,54 @@ private:
   std::vector<envoy::type::matcher::v3::MetadataMatcher> matchers_;
 };
 
+// Constructs SniPattern with the provided regex engine for input match pattern.
+SniPattern::SniPattern(const Regex::Engine& engine, absl::string_view sni) {
+  if (!isValid(sni)) {
+    throw EnvoyException(fmt::format("SniPattern: Unsupported match pattern {}", sni));
+  }
+
+  // Only regex characters supported in valid match pattern is '*'. If not present, pattern
+  // can be reduced to explicit full match.
+  if (!absl::StrContains(sni, '*')) {
+    match_name_ = absl::AsciiStrToLower(sni);
+    return;
+  }
+
+  std::string regex_expr;
+  if (sni == "*") {
+    // For a full wildcard match pattern replace with static wildcard pattern for DNS characters.
+    regex_expr = "[-a-z0-9_]+([.][-a-z0-9_]+)*";
+  } else {
+    // NOTE: We already validated that the provided pattern cannot have more than 2 consecutive
+    // wildcard specifier('*'). This simplifies the regex replacement by isolating '**' and '*'
+    // specifiers.
+    regex_expr = absl::StrReplaceAll(
+        absl::AsciiStrToLower(sni),
+        {
+            // Convert '.' to regex literal '[.]'
+            {".", "[.]"},
+
+            // '**' expands to regex for multilevel subdomain match.
+            // The replaced regex pattern matches one or more entire DNS labels, for example:
+            // * <dns-label>
+            // * <dns-label-1>.<dns-label-2>.<dns-label-3>
+            {"**", "[-a-z0-9_]+([.][-a-z0-9_]+){0,}"},
+
+            // Replace wildcard specifier '*' with regex for any number of valid DNS characters
+            // within subdomain boundry(doesn't include '.' literal).
+            {"*", "[-a-z0-9_]{0,}"},
+        });
+  }
+
+  auto regex_matcher = engine.matcher(regex_expr);
+  if (!regex_matcher.ok()) {
+    throw EnvoyException(fmt::format("SniPattern: Failed to create pattern for SNI {} - {}", sni,
+                                     regex_matcher.status().ToString()));
+  }
+
+  matcher_ = std::move(regex_matcher.value());
+}
+
 class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
 public:
   PortNetworkPolicyRule(const NetworkPolicyMapImpl& parent,
@@ -386,7 +434,7 @@ public:
     }
     for (const auto& sni : rule.server_names()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}", sni, name_);
-      allowed_snis_.emplace_back(sni);
+      allowed_snis_.emplace_back(parent.regexEngine(), sni);
     }
     if (rule.has_http_rules()) {
       for (const auto& http_rule : rule.http_rules().http_rules()) {
