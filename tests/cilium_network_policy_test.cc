@@ -1896,8 +1896,25 @@ egress:
 }
 
 TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
+  Regex::GoogleReEngine engine;
+
+  std::string exception_msg_regex = "SniPattern: Unsupported match pattern .*";
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, "***"), EnvoyException, exception_msg_regex)
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, "example.***.com"), EnvoyException,
+                          exception_msg_regex)
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, "example.com."), EnvoyException, exception_msg_regex)
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, "example..com"), EnvoyException, exception_msg_regex)
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, "^example.com$"), EnvoyException, exception_msg_regex)
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, ".+example.com"), EnvoyException, exception_msg_regex)
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, "[a-zA-Z]*.example.com"), EnvoyException,
+                          exception_msg_regex)
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, "example.[a-zA-Z0-9]+"), EnvoyException,
+                          exception_msg_regex)
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, "(foo|bar|baz).example.com"), EnvoyException,
+                          exception_msg_regex)
+
   // Test empty pattern
-  SniPattern empty("");
+  SniPattern empty(engine, "");
   EXPECT_FALSE(empty.matches("example.com"));
   EXPECT_FALSE(empty.matches("EXAMPLE.COM"));
   EXPECT_FALSE(empty.matches("www.example.com"));
@@ -1905,48 +1922,101 @@ TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   EXPECT_FALSE(empty.matches(""));
 
   // Test exact matches
-  SniPattern exact("example.com");
+  SniPattern exact(engine, "example.com");
   EXPECT_TRUE(exact.matches("example.com"));
-  EXPECT_TRUE(exact.matches("EXAMPLE.COM"));
+  EXPECT_TRUE(exact.matches("EXaMpLE.COM"));
   EXPECT_FALSE(exact.matches("www.example.com"));
   EXPECT_FALSE(exact.matches("notexample.com"));
   EXPECT_FALSE(exact.matches(""));
 
-  // Test wildcard matches
-  SniPattern wild("*.example.com");
-  EXPECT_TRUE(wild.matches("foo.example.com"));
-  EXPECT_TRUE(wild.matches("bar.example.com"));
-  EXPECT_TRUE(wild.matches("FOO.EXAMPLE.COM"));
-  EXPECT_FALSE(wild.matches("example.com"));
-  EXPECT_FALSE(wild.matches("foo.bar.example.com"));
-  EXPECT_FALSE(wild.matches("fooexample.com"));
-  EXPECT_FALSE(wild.matches(""));
+  SniPattern exact_with_subdomain(engine, "foo.bar.example.com");
+  EXPECT_TRUE(exact_with_subdomain.matches("foo.bar.example.com"));
+  EXPECT_TRUE(exact_with_subdomain.matches("foo.BaR.example.COM"));
+  EXPECT_FALSE(exact_with_subdomain.matches("bar.example.com"));
+  EXPECT_FALSE(exact_with_subdomain.matches("foo.bar.example.org"));
+  EXPECT_FALSE(exact_with_subdomain.matches(""));
+
+  // Test full wildcard pattern.
+  std::string full_wildcard_specifiers[] = {"*", "**"};
+  for (const std::string& pattern : full_wildcard_specifiers) {
+    SniPattern full_wildcard(engine, pattern);
+    EXPECT_TRUE(full_wildcard.matches("localhost"));
+    EXPECT_TRUE(full_wildcard.matches("example.com"));
+    EXPECT_TRUE(full_wildcard.matches("foo.007.example.com"));
+    EXPECT_TRUE(full_wildcard.matches("foo.bar.example.com"));
+    EXPECT_TRUE(full_wildcard.matches("foo.BaR.example.COM"));
+    EXPECT_TRUE(full_wildcard.matches("foo-bar.example.com"));
+    EXPECT_FALSE(full_wildcard.matches("example.com."));
+    EXPECT_FALSE(full_wildcard.matches("ex@mple.com"));
+    EXPECT_FALSE(full_wildcard.matches(""));
+  }
 
   // Test subdomain wildcard matches
-  SniPattern subwild("*.sub.example.com");
-  EXPECT_TRUE(subwild.matches("foo.sub.example.com"));
-  EXPECT_TRUE(subwild.matches("bar.sub.example.com"));
-  EXPECT_FALSE(subwild.matches("sub.example.com"));
-  EXPECT_FALSE(subwild.matches("foo.example.com"));
-  EXPECT_FALSE(subwild.matches("foo.bar.sub.example.com"));
+  SniPattern subdomain_wildcard(engine, "*.example.com");
+  EXPECT_TRUE(subdomain_wildcard.matches("foo.example.com"));
+  EXPECT_TRUE(subdomain_wildcard.matches("bar-007.example.com"));
+  EXPECT_TRUE(subdomain_wildcard.matches("FOO.EXaMpLE.COM"));
+  EXPECT_FALSE(subdomain_wildcard.matches("example.com"));
+  EXPECT_FALSE(subdomain_wildcard.matches("foo.bar.example.com"));
+  EXPECT_FALSE(subdomain_wildcard.matches("fooexample.com"));
+  EXPECT_FALSE(subdomain_wildcard.matches(""));
 
-  // Test subdomain double wildcard matches
-  SniPattern double_wildcard("**.sub.example.com");
-  EXPECT_TRUE(double_wildcard.matches("foo.sub.example.com"));
-  EXPECT_TRUE(double_wildcard.matches("bar.sub.example.com"));
-  EXPECT_FALSE(double_wildcard.matches("sub.example.com"));
-  EXPECT_FALSE(double_wildcard.matches("foo.example.com"));
-  EXPECT_TRUE(double_wildcard.matches("foo.bar.sub.example.com"));
-
-  // Test with unsupported wildcard label
-  SniPattern wildcard_label("*example.com");
-  EXPECT_FALSE(wildcard_label.matches("foo.example.com"));
-  EXPECT_FALSE(wildcard_label.matches("bar.example.com"));
-  EXPECT_FALSE(wildcard_label.matches("FOO.EXAMPLE.COM"));
-  EXPECT_FALSE(wildcard_label.matches("example.com"));
-  EXPECT_FALSE(wildcard_label.matches("foo.bar.example.com"));
+  // Test wildcard label in between the subdomains
+  SniPattern wildcard_label(engine, "sub.*.com");
+  EXPECT_TRUE(wildcard_label.matches("sub.foo.com"));
+  EXPECT_TRUE(wildcard_label.matches("sub.bar.com"));
+  EXPECT_TRUE(wildcard_label.matches("sub.foobar.COM"));
+  EXPECT_FALSE(wildcard_label.matches("test.sub.example.com"));
+  EXPECT_FALSE(wildcard_label.matches("sub.com"));
   EXPECT_FALSE(wildcard_label.matches("fooexample.com"));
   EXPECT_FALSE(wildcard_label.matches(""));
+
+  // Test wildcard label in between name
+  SniPattern mixed_wildcard_label(engine, "sub.example-*.com");
+  EXPECT_TRUE(mixed_wildcard_label.matches("sub.example-foo.com"));
+  EXPECT_TRUE(mixed_wildcard_label.matches("sub.exAmPle-007.com"));
+  EXPECT_TRUE(mixed_wildcard_label.matches("sub.example-foo-bar.com"));
+  EXPECT_FALSE(mixed_wildcard_label.matches("sub.example.com"));
+  EXPECT_FALSE(mixed_wildcard_label.matches("sub.example-foo.bar.com"));
+
+  // Multiple wildcard labels
+  SniPattern multi_wildcard_labels(engine, "sub.*.*.example.com");
+  EXPECT_TRUE(multi_wildcard_labels.matches("sub.foo.bar.example.com"));
+  EXPECT_TRUE(multi_wildcard_labels.matches("sub.foo.007.example.com"));
+  EXPECT_FALSE(multi_wildcard_labels.matches("sub.foo.example.com"));
+  EXPECT_FALSE(multi_wildcard_labels.matches("sub.example.com"));
+  EXPECT_FALSE(multi_wildcard_labels.matches(""));
+
+  // Test double wildcard matches
+  SniPattern double_wildcard(engine, "sub.**.example.com");
+  EXPECT_TRUE(double_wildcard.matches("sub.foo.example.com"));
+  EXPECT_TRUE(double_wildcard.matches("sub.foo.bar-007.ExAmPle.com"));
+  EXPECT_FALSE(double_wildcard.matches("sub.foo.example.com.extra"));
+  EXPECT_FALSE(double_wildcard.matches("sub.example.com"));
+  EXPECT_FALSE(double_wildcard.matches("sub..example.com"));
+  EXPECT_FALSE(double_wildcard.matches("007.sub.ExAmPlE.com"));
+  EXPECT_FALSE(double_wildcard.matches("foo.sub.example.com"));
+  EXPECT_FALSE(double_wildcard.matches(""));
+
+  // Test subdomain double wildcard matches
+  SniPattern subdomains_double_wildcard(engine, "**.sub.example.com");
+  EXPECT_TRUE(subdomains_double_wildcard.matches("foo.sub.example.com"));
+  EXPECT_TRUE(subdomains_double_wildcard.matches("bar-007.sub.example.com"));
+  EXPECT_TRUE(subdomains_double_wildcard.matches("foo.bar.sub.example.com"));
+  EXPECT_TRUE(subdomains_double_wildcard.matches("007.sub.ExAmPlE.com"));
+  EXPECT_FALSE(subdomains_double_wildcard.matches("sub.example.com"));
+  EXPECT_FALSE(subdomains_double_wildcard.matches("foo.example.com"));
+  EXPECT_FALSE(subdomains_double_wildcard.matches(""));
+
+  // Multiple wildcard labels with multilevel subdomain prefix wildcard.
+  SniPattern all_wildcard_labels(engine, "**.sub.*.ex*e.com");
+  EXPECT_TRUE(all_wildcard_labels.matches("foo.sub.bar.example.com"));
+  EXPECT_TRUE(all_wildcard_labels.matches("test.foo.sub.bar.example.com"));
+  EXPECT_TRUE(all_wildcard_labels.matches("test.foo.sub.bar.exe.com"));
+  EXPECT_FALSE(all_wildcard_labels.matches("test.sub.foobar.com"));
+  EXPECT_FALSE(all_wildcard_labels.matches("test.sub.example.com"));
+  EXPECT_FALSE(all_wildcard_labels.matches("sub.test.example.com"));
+  EXPECT_FALSE(all_wildcard_labels.matches(""));
 }
 
 TEST_F(CiliumNetworkPolicyTest, OrderedRules) {
