@@ -1896,8 +1896,10 @@ egress:
 }
 
 TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
+  Regex::GoogleReEngine engine;
+
   // Test empty pattern
-  SniPattern empty("");
+  SniPattern empty(engine, "");
   EXPECT_FALSE(empty.matches("example.com"));
   EXPECT_FALSE(empty.matches("EXAMPLE.COM"));
   EXPECT_FALSE(empty.matches("www.example.com"));
@@ -1905,7 +1907,7 @@ TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   EXPECT_FALSE(empty.matches(""));
 
   // Test exact matches
-  SniPattern exact("example.com");
+  SniPattern exact(engine, "example.com");
   EXPECT_TRUE(exact.matches("example.com"));
   EXPECT_TRUE(exact.matches("EXAMPLE.COM"));
   EXPECT_FALSE(exact.matches("www.example.com"));
@@ -1913,7 +1915,7 @@ TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   EXPECT_FALSE(exact.matches(""));
 
   // Test wildcard matches
-  SniPattern wild("*.example.com");
+  SniPattern wild(engine, "*.example.com");
   EXPECT_TRUE(wild.matches("foo.example.com"));
   EXPECT_TRUE(wild.matches("bar.example.com"));
   EXPECT_TRUE(wild.matches("FOO.EXAMPLE.COM"));
@@ -1922,8 +1924,15 @@ TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   EXPECT_FALSE(wild.matches("fooexample.com"));
   EXPECT_FALSE(wild.matches(""));
 
+  // Wildcard with hyphen
+  SniPattern wildcard_hyphen(engine, "sub.example-*.com");
+  EXPECT_TRUE(wildcard_hyphen.matches("sub.example-foo.com"));
+  EXPECT_TRUE(wildcard_hyphen.matches("sub.example-foo-bar.com"));
+  EXPECT_FALSE(wildcard_hyphen.matches("sub.example.com"));
+  EXPECT_FALSE(wildcard_hyphen.matches("sub.example-foo.bar.com"));
+
   // Test subdomain wildcard matches
-  SniPattern subwild("*.sub.example.com");
+  SniPattern subwild(engine, "*.sub.example.com");
   EXPECT_TRUE(subwild.matches("foo.sub.example.com"));
   EXPECT_TRUE(subwild.matches("bar.sub.example.com"));
   EXPECT_FALSE(subwild.matches("sub.example.com"));
@@ -1931,22 +1940,47 @@ TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   EXPECT_FALSE(subwild.matches("foo.bar.sub.example.com"));
 
   // Test subdomain double wildcard matches
-  SniPattern double_wildcard("**.sub.example.com");
+  SniPattern double_wildcard(engine, "**.sub.example.com");
   EXPECT_TRUE(double_wildcard.matches("foo.sub.example.com"));
   EXPECT_TRUE(double_wildcard.matches("bar.sub.example.com"));
   EXPECT_FALSE(double_wildcard.matches("sub.example.com"));
   EXPECT_FALSE(double_wildcard.matches("foo.example.com"));
   EXPECT_TRUE(double_wildcard.matches("foo.bar.sub.example.com"));
 
-  // Test with unsupported wildcard label
-  SniPattern wildcard_label("*example.com");
-  EXPECT_FALSE(wildcard_label.matches("foo.example.com"));
-  EXPECT_FALSE(wildcard_label.matches("bar.example.com"));
-  EXPECT_FALSE(wildcard_label.matches("FOO.EXAMPLE.COM"));
-  EXPECT_FALSE(wildcard_label.matches("example.com"));
-  EXPECT_FALSE(wildcard_label.matches("foo.bar.example.com"));
+  // Test wildcard label in between the subdomains
+  SniPattern wildcard_label(engine, "sub.*.com");
+  EXPECT_TRUE(wildcard_label.matches("sub.foo.com"));
+  EXPECT_TRUE(wildcard_label.matches("sub.bar.com"));
+  EXPECT_TRUE(wildcard_label.matches("sub.foobar.COM"));
+  EXPECT_FALSE(wildcard_label.matches("test.sub.example.com"));
+  EXPECT_FALSE(wildcard_label.matches("sub.com"));
   EXPECT_FALSE(wildcard_label.matches("fooexample.com"));
   EXPECT_FALSE(wildcard_label.matches(""));
+
+  // Test wildcard label in between name
+  SniPattern mixed_wildcard_label(engine, "sub.ex*e.com");
+  EXPECT_TRUE(mixed_wildcard_label.matches("sub.exe.com"));
+  EXPECT_TRUE(mixed_wildcard_label.matches("sub.example.com"));
+  EXPECT_FALSE(mixed_wildcard_label.matches("sub.foobar.COM"));
+  EXPECT_FALSE(mixed_wildcard_label.matches("sub.someexe.com"));
+  EXPECT_FALSE(mixed_wildcard_label.matches(""));
+
+  // Multiple wildcard labels
+  SniPattern multi_wildcard_labels(engine, "sub.*.*.example.com");
+  EXPECT_TRUE(multi_wildcard_labels.matches("sub.foo.bar.example.com"));
+  EXPECT_FALSE(multi_wildcard_labels.matches("sub.foo.example.com"));
+  EXPECT_FALSE(multi_wildcard_labels.matches("sub.example.com"));
+  EXPECT_FALSE(multi_wildcard_labels.matches(""));
+
+  // Multiple wildcard labels with multilevel subdomain prefix wildcard.
+  SniPattern all_wildcard_labels(engine, "**.sub.*.ex*e.com");
+  EXPECT_TRUE(all_wildcard_labels.matches("foo.sub.bar.example.com"));
+  EXPECT_TRUE(all_wildcard_labels.matches("test.foo.sub.bar.example.com"));
+  EXPECT_TRUE(all_wildcard_labels.matches("test.foo.sub.bar.exe.com"));
+  EXPECT_FALSE(all_wildcard_labels.matches("test.sub.foobar.com"));
+  EXPECT_FALSE(all_wildcard_labels.matches("test.sub.example.com"));
+  EXPECT_FALSE(all_wildcard_labels.matches("sub.test.example.com"));
+  EXPECT_FALSE(all_wildcard_labels.matches(""));
 }
 
 TEST_F(CiliumNetworkPolicyTest, OrderedRules) {
