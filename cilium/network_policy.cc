@@ -365,6 +365,48 @@ private:
   std::vector<envoy::type::matcher::v3::MetadataMatcher> matchers_;
 };
 
+// Constructs SniPattern with the provided regex engine for input match pattern.
+SniPattern::SniPattern(const Regex::Engine& engine, const absl::string_view& sni) {
+  // Do explict full match check first(common case).
+  if (re2::RE2::FullMatch(sni, getValidNonRegexCharsRE())) {
+    match_name_ = absl::AsciiStrToLower(sni);
+    return;
+  }
+
+  if (!re2::RE2::FullMatch(sni, getValidPatternRE())) {
+    throw EnvoyException(fmt::format("SniPattern: Unsupported match pattern {}", sni));
+  }
+
+  std::string regex_expr;
+  if (re2::RE2::FullMatch(sni, getFullWildcardMatchRE())) {
+    // For a full wildcard match pattern replace with static wildcard pattern for DNS characters.
+    regex_expr = "([-a-zA-Z0-9_]+([.][-a-zA-Z0-9_]+){0,})";
+  } else {
+    // Convert '.' to regex literal '[.]'
+    regex_expr = absl::StrReplaceAll(absl::AsciiStrToLower(sni), {{".", "[.]"}});
+
+    // Replace subdomain wildcard specifier prefix with multilevel subdomain match.
+    // The replaced regex pattern matches one or more entire DNS labels, for example:
+    // * <dns-label>
+    // * <dns-label-1>.<dns-label-2>.<dns-label-3>
+    re2::RE2::GlobalReplace(&regex_expr, getSubdomainWildcardSpecifierPrefixRE(),
+                            "([-a-zA-Z0-9_]+([.][-a-zA-Z0-9_]+){0,})[.]");
+
+    // Replace wildcard specifier '*' with regex for any number of valid DNS characters within
+    // subdomain boundry(doesn't include '.' literal).
+    re2::RE2::GlobalReplace(&regex_expr, getWildcardSpecifierRE(), "[-a-zA-Z0-9_]*");
+  }
+
+  // Anchor the final regular expression.
+  auto regex_matcher = engine.matcher(fmt::format("^{}$", regex_expr));
+  if (!regex_matcher.ok()) {
+    throw EnvoyException(fmt::format("SniPattern: Failed to create pattern for SNI {} - {}", sni,
+                                     regex_matcher.status().ToString()));
+  }
+
+  matcher_ = std::move(regex_matcher.value());
+}
+
 class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
 public:
   PortNetworkPolicyRule(const NetworkPolicyMapImpl& parent,
@@ -386,7 +428,7 @@ public:
     }
     for (const auto& sni : rule.server_names()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}", sni, name_);
-      allowed_snis_.emplace_back(sni);
+      allowed_snis_.emplace_back(parent.regexEngine(), sni);
     }
     if (rule.has_http_rules()) {
       for (const auto& http_rule : rule.http_rules().http_rules()) {
