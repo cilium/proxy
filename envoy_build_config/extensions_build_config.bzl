@@ -147,7 +147,7 @@ EXTENSIONS = {
     "envoy.filters.http.dynamic_forward_proxy": "//source/extensions/filters/http/dynamic_forward_proxy:config",
     "envoy.filters.http.ext_authz": "//source/extensions/filters/http/ext_authz:config",
     # "envoy.filters.network.ext_proc":                   "//source/extensions/filters/network/ext_proc:config",
-    # "envoy.filters.http.ext_proc":                      "//source/extensions/filters/http/ext_proc:config",
+    "envoy.filters.http.ext_proc":                      "//source/extensions/filters/http/ext_proc:config",
     # "envoy.filters.http.fault":                         "//source/extensions/filters/http/fault:config",
     # "envoy.filters.http.file_system_buffer":            "//source/extensions/filters/http/file_system_buffer:config",
     # "envoy.filters.http.gcp_authn":                     "//source/extensions/filters/http/gcp_authn:config",
