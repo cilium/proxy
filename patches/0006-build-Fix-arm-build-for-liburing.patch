@@ -1,37 +1,80 @@
-From e994434cc738138434708372719517b31fdc81c5 Mon Sep 17 00:00:00 2001
+From f04dc6aa0c540167e31784a2abcf1d1823aa321a Mon Sep 17 00:00:00 2001
 From: Tam Mach <sayboras@yahoo.com>
-Date: Wed, 14 May 2025 11:27:14 +1000
-Subject: [PATCH 6/7] build: Fix arm build for liburing
+Date: Fri, 16 Jan 2026 16:09:08 +1100
+Subject: [PATCH 6/7] bazel: Fix arm build for liburing
 
+Add a config_setting that matches when building for linux_aarch64 with
+the clang compiler. This is a specialization of both clang_build and
+linux_aarch64, which resolves select() ambiguity in foreign_cc/BUILD
+when both conditions are true during ARM cross-compilation with clang.
+
+Note: We use config_setting instead of config_setting_group because
+Bazel does not support config_setting_group for specialization resolution
+(see https://github.com/bazelbuild/bazel/issues/16139).
+
+Also add the clang_linux_aarch64 case to the liburing select() for ARM
+cross-compilation with clang. Since clang_linux_aarch64 is a
+config_setting that is a specialization of both clang_build (via
+flag_values) and linux_aarch64 (via constraint_values), Bazel will
+correctly resolve the select() without ambiguity.
+
+Signed-off-by: Tam Mach <sayboras@yahoo.com>
 ---
- bazel/foreign_cc/BUILD | 14 ++++++++++++++
- 1 file changed, 14 insertions(+)
+ bazel/BUILD            | 14 ++++++++++++++
+ bazel/foreign_cc/BUILD | 16 ++++++++++++++++
+ 2 files changed, 30 insertions(+)
 
+diff --git a/bazel/BUILD b/bazel/BUILD
+index aaaaaaa..bbbbbbb 100644
+--- a/bazel/BUILD
++++ b/bazel/BUILD
+@@ -600,5 +600,19 @@ config_setting(
+     ],
+ )
+
++# Combined config setting for ARM64 cross-compilation with clang.
++# This is a specialization of both clang_build and linux_aarch64,
++# which resolves select() ambiguity in foreign_cc/BUILD.
++config_setting(
++    name = "clang_linux_aarch64",
++    constraint_values = [
++        "@platforms//cpu:aarch64",
++        "@platforms//os:linux",
++    ],
++    flag_values = {
++        "@bazel_tools//tools/cpp:compiler": "clang",
++    },
++)
++
+ config_setting(
+     name = "linux_ppc",
 diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index dc07b536d3..6c49ca1cb0 100644
+index ccccccc..ddddddd 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
-@@ -28,6 +28,20 @@ config_setting(
- configure_make(
+@@ -28,6 +28,22 @@ configure_make(
      name = "liburing",
      configure_in_place = True,
-+    env = select({
-+        # (sayboras) Ideally, this should be passed as part of environment variables during cross-compilation,
-+        # but somehow it doesn't work. So, we have to pass them manually for arm cross-compilation.
+     env = {"ENABLE_SHARED": "0"} | select({
++        # (sayboras) ARM cross-compilation with clang. This config_setting
++        # is a specialization of both clang_build and linux_aarch64,
++        # so Bazel will correctly select it without ambiguity.
++        # The settings include both the cross-compilation flags AND the
++        # clang AR/RANLIB settings.
 +        # The config should be kept in sync with bazel/toolchains/BUILD
-+        "//bazel:linux_aarch64": {
++        "//bazel:clang_linux_aarch64": {
 +            "CFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld-18",
 +            "CPPFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld-18",
 +            "LDFLAGS": "-Wl,-S --target=aarch64-unknown-linux-gnu -fuse-ld=lld-18 -Wl,-no-as-needed -Wl,-z,relro,-z,now -lm -l:libstdc++.a -lc",
 +            "CC": "/usr/bin/clang-18",
 +            "CXX": "/usr/bin/clang-18",
 +            "LD": "/usr/bin/lld-18",
++            "AR": "$(AR)",
++            "RANLIB": "$(AR) -s",
 +        },
-+        "//conditions:default": {},
-+    }),
-     lib_source = "@com_github_axboe_liburing//:all",
-     tags = [
-         "nocompdb",
+         "//bazel:clang_build": {
+             "AR": "$(AR)",
+             "RANLIB": "$(AR) -s",
 --
-2.43.0
+2.52.0
 
