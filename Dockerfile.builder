@@ -39,7 +39,7 @@ RUN apt-get update && \
 # Install Bazelisk
 #
 # renovate: datasource=github-releases depName=bazelbuild/bazelisk
-ENV BAZELISK_VERSION=v1.27.0
+ENV BAZELISK_VERSION=v1.28.0
 
 RUN ARCH=$TARGETARCH \
 	&& curl -sfL https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-${ARCH} -o /usr/bin/bazel \
