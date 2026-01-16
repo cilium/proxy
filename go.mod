@@ -2,7 +2,7 @@ module github.com/cilium/proxy
 
 go 1.24.0
 
-toolchain go1.24.11
+toolchain go1.24.12
 
 require (
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
