@@ -47,6 +47,11 @@
         'docker.io/library/golang',
         'actions/setup-go'
       ],
+      matchBaseBranches: [
+        'main',
+        'v1.35',
+        'v1.34',
+      ],
     },
     {
       matchPackageNames: [
@@ -56,7 +61,6 @@
       ],
       allowedVersions: '<1.25',
       matchBaseBranches: [
-        'main',
         'v1.35',
         'v1.34',
       ],
@@ -81,6 +85,7 @@
       ],
       matchBaseBranches: [
         'main',
+        'v1.35',
         'v1.34',
       ],
     },
