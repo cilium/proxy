@@ -12,11 +12,23 @@ for the cluster. Cilium proxy is distributed within the Cilium images.
 The following table shows the Cilium proxy version compatibility with supported upstream Cilium versions.
 Other combinations may work but are not tested.
 
+Note: The below table is updated by script `tools/update_version_matrix.sh`
+
 | Cilium Version | Envoy version |
 |----------------|---------------|
 | (main)         | v1.35.x       |
+| v1.18.6        | v1.35.9       |
+| v1.18.5        | v1.34.12      |
+| v1.18.4        | v1.34.10      |
+| v1.18.3        | v1.34.10      |
+| v1.18.2        | v1.34.7       |
 | v1.18.1        | v1.34.4       |
 | v1.18.0        | v1.34.4       |
+| v1.17.12       | v1.34.12      |
+| v1.17.11       | v1.34.12      |
+| v1.17.10       | v1.34.10      |
+| v1.17.9        | v1.34.10      |
+| v1.17.8        | v1.33.9       |
 | v1.17.7        | v1.33.6       |
 | v1.17.6        | v1.33.4       |
 | v1.17.5        | v1.32.6       |
@@ -25,6 +37,12 @@ Other combinations may work but are not tested.
 | v1.17.2        | v1.31.5       |
 | v1.17.1        | v1.31.5       |
 | v1.17.0        | v1.31.5       |
+| v1.16.19       | v1.34.12      |
+| v1.16.18       | v1.34.12      |
+| v1.16.17       | v1.34.10      |
+| v1.16.16       | v1.34.10      |
+| v1.16.15       | v1.33.9       |
+| v1.16.13       | v1.33.6       |
 | v1.16.12       | v1.33.4       |
 | v1.16.11       | v1.32.6       |
 | v1.16.10       | v1.32.6       |
@@ -33,7 +51,7 @@ Other combinations may work but are not tested.
 | v1.16.7        | v1.31.5       |
 | v1.16.6        | v1.30.9       |
 | v1.16.5        | v1.30.8       |
-| v1.16.4        | v1.30.6       |
+| v1.16.4        | v1.30.7       |
 | v1.16.3        | v1.29.9       |
 | v1.16.2        | v1.29.9       |
 | v1.16.1        | v1.29.7       |
