@@ -386,7 +386,7 @@ public:
     }
     for (const auto& sni : rule.server_names()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}", sni, name_);
-      allowed_snis_.emplace_back(sni);
+      allowed_snis_.emplace_back(parent.regexEngine(), sni);
     }
     if (rule.has_http_rules()) {
       for (const auto& http_rule : rule.http_rules().http_rules()) {
