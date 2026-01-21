@@ -35,19 +35,17 @@ namespace BpfMetadata {
 #define DEFAULT_CACHE_ENTRY_TTL_MS 3
 
 struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
-  SocketMetadata(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
-                 bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
-                 std::string&& ingress_policy_name,
+  SocketMetadata(uint32_t mark, uint32_t source_identity, bool ingress, bool l7lb, uint16_t port,
+                 std::string&& pod_ip, std::string&& ingress_policy_name,
                  Network::Address::InstanceConstSharedPtr original_source_address,
                  Network::Address::InstanceConstSharedPtr source_address_ipv4,
                  Network::Address::InstanceConstSharedPtr source_address_ipv6,
                  Network::Address::InstanceConstSharedPtr original_dest_address,
                  const PolicyResolverSharedPtr& policy_resolver, uint32_t proxy_id,
                  std::string&& proxylib_l7_proto, absl::string_view sni)
-      : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
-        ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
-        ingress_policy_name_(std::move(ingress_policy_name)), proxy_id_(proxy_id),
-        proxylib_l7_proto_(std::move(proxylib_l7_proto)), sni_(sni),
+      : source_identity_(source_identity), ingress_(ingress), is_l7lb_(l7lb), port_(port),
+        pod_ip_(std::move(pod_ip)), ingress_policy_name_(std::move(ingress_policy_name)),
+        proxy_id_(proxy_id), proxylib_l7_proto_(std::move(proxylib_l7_proto)), sni_(sni),
         policy_resolver_(policy_resolver), mark_(mark),
         original_source_address_(std::move(original_source_address)),
         source_address_ipv4_(std::move(source_address_ipv4)),
@@ -56,7 +54,7 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
 
   std::shared_ptr<Envoy::Cilium::CiliumPolicyFilterState> buildCiliumPolicyFilterState() {
     return std::make_shared<Envoy::Cilium::CiliumPolicyFilterState>(
-        ingress_source_identity_, source_identity_, ingress_, is_l7lb_, port_, std::move(pod_ip_),
+        source_identity_, ingress_, is_l7lb_, port_, std::move(pod_ip_),
         std::move(ingress_policy_name_), policy_resolver_, proxy_id_, sni_);
   };
 
@@ -112,7 +110,6 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
     socket.connectionInfoProvider().restoreLocalAddress(original_dest_address_);
   }
 
-  uint32_t ingress_source_identity_;
   uint32_t source_identity_;
   bool ingress_;
   bool is_l7lb_;
@@ -167,8 +164,8 @@ public:
   bool enforce_policy_on_l7lb_;
   std::string l7lb_policy_name_;
   std::chrono::milliseconds ipcache_entry_ttl_;
-  Random::RandomGenerator& random_;
 
+  Random::RandomGenerator& random_;
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
   Cilium::CtMapSharedPtr ct_maps_{};
   Cilium::IpCacheSharedPtr ipcache_{};
