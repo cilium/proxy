@@ -103,7 +103,7 @@ public:
       if (secret_value) {
         match_value = secret_value;
       } else if (value_.length() == 0) {
-        // fail if secret has no value and the inline value to match is also empty
+        // Fail if secret has no value and the inline value to match is also empty.
         ENVOY_LOG(info, "Cilium HeaderMatch missing SDS secret value for header {}", name_);
         return false;
       }
