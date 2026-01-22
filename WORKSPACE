@@ -50,6 +50,10 @@ git_repository(
     # // clang-format on
 )
 
+load("//bazel:repo.bzl", "cilium_proxy_repo")
+
+cilium_proxy_repo()
+
 #
 # Bazel does not do transitive dependencies, so we must basically
 # include all of Envoy's WORKSPACE file below, with the following
