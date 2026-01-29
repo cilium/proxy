@@ -45,6 +45,7 @@ class Codec : Logger::Loggable<Logger::Id::filter> {
 public:
   Codec(CodecCallbacks* parent, Network::Connection& conn);
 
+  void startHandshakeTimer();
   void handshake();
   void encode(Buffer::Instance&, bool end_stream);
   void decode(Buffer::Instance&, bool end_stream);

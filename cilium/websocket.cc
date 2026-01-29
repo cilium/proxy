@@ -175,6 +175,8 @@ Network::FilterStatus Instance::onNewConnection() {
   codec_ = std::make_unique<Codec>(this, conn);
 
   if (!config_->client_) {
+    // Server: downstream is already connected, start the handshake timer immediately.
+    codec_->startHandshakeTimer();
     // Server allows upstream processing only after the handshake has been received
     return Network::FilterStatus::StopIteration;
   }
@@ -208,6 +210,13 @@ Network::FilterStatus Instance::onWrite(Buffer::Instance& data, bool end_stream)
                  data.length(), end_stream);
   if (codec_) {
     if (config_->client_) {
+      // Client mode: first onWrite() means upstream has connected and is sending data.
+      // Start the handshake timer here so it only covers the WebSocket upgrade exchange,
+      // not the preceding TCP+TLS connection establishment time.
+      if (!handshake_timer_started_) {
+        handshake_timer_started_ = true;
+        codec_->startHandshakeTimer();
+      }
       codec_->decode(data, end_stream);
     } else {
       codec_->encode(data, end_stream);

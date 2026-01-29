@@ -294,13 +294,18 @@ void encodeResponse(Buffer::Instance& buffer, Http::ResponseHeaderMap& headers) 
 
 Codec::Codec(CodecCallbacks* parent, Network::Connection& conn)
     : parent_(parent), connection_(conn), encoder_(*this), decoder_(*this) {
-  ENVOY_CONN_LOG(trace, "Enabling websocket handshake timeout at {} ms", connection_,
-                 parent_->config()->handshake_timeout_.count());
   handshake_timer_ = connection_.dispatcher().createTimer([this]() {
     parent_->config()->stats_.handshake_timeout_.inc();
     closeOnError("websocket handshake timed out");
   });
-  handshake_timer_->enableTimer(parent_->config()->handshake_timeout_);
+}
+
+void Codec::startHandshakeTimer() {
+  if (handshake_timer_ && !accepted_) {
+    ENVOY_CONN_LOG(trace, "Enabling websocket handshake timeout at {} ms", connection_,
+                   parent_->config()->handshake_timeout_.count());
+    handshake_timer_->enableTimer(parent_->config()->handshake_timeout_);
+  }
 }
 
 namespace {

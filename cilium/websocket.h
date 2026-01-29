@@ -73,6 +73,7 @@ private:
   Network::WriteFilterCallbacks* write_callbacks_{nullptr};
   CodecPtr codec_{nullptr};
   Event::SchedulableCallbackPtr client_handshake_cb_{nullptr};
+  bool handshake_timer_started_{false};
   Cilium::AccessLog::Entry log_entry_{};
 };
 

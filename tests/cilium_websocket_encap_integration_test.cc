@@ -558,4 +558,227 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
   // Success criteria is that no ASSERTs fire and there are no leaks.
 }
 
+// Test that the handshake timeout fires when upstream connects but never sends a 101 response.
+// Uses a short handshake_timeout to keep the test fast.
+const std::string cilium_tcp_proxy_short_timeout_config_fmt = R"EOF(
+admin:
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 0
+static_resources:
+  clusters:
+  - name: cluster1
+    type: ORIGINAL_DST
+    lb_policy: CLUSTER_PROVIDED
+    connect_timeout:
+      seconds: 1
+  - name: xds-grpc-cilium
+    connect_timeout:
+      seconds: 5
+    type: STATIC
+    lb_policy: ROUND_ROBIN
+    http2_protocol_options:
+    load_assignment:
+      cluster_name: xds-grpc-cilium
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: /var/run/cilium/xds.sock
+  listeners:
+    stat_prefix: listener_0
+    name: listener_0
+    address:
+      socket_address:
+        address: 127.0.0.1
+        port_value: 0
+    listener_filters:
+      name: test_bpf_metadata
+      typed_config:
+        "@type": type.googleapis.com/cilium.TestBpfMetadata
+        is_ingress: {0}
+    filter_chains:
+      filters:
+      - name: cilium.network.websocket.client
+        typed_config:
+          "@type": type.googleapis.com/cilium.WebSocketClient
+          access_log_path: "{{ test_udsdir }}/access_log.sock"
+          version: "13"
+          path: "/"
+          origin: "jarno.cilium.rocks"
+          host: "jarno.cilium.rocks"
+          key: "super-secret-key"
+          handshake_timeout:
+            nanos: 500000000
+      - name: cilium.network
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
+          proxylib: "proxylib/libcilium.so"
+      - name: envoy.tcp_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+          stat_prefix: tcp_stats
+          cluster: cluster1
+)EOF";
+
+class CiliumWebSocketTimeoutTest : public CiliumTcpIntegrationTest {
+public:
+  CiliumWebSocketTimeoutTest()
+      : CiliumTcpIntegrationTest(fmt::format(
+            fmt::runtime(
+                TestEnvironment::substitute(cilium_tcp_proxy_short_timeout_config_fmt, GetParam())),
+            "true")) {}
+};
+
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumWebSocketTimeoutTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                         TestUtility::ipTestParamsToString);
+
+// Client mode: Upstream connects but never sends 101 response.
+// The handshake timer should fire and close the connection.
+TEST_P(CiliumWebSocketTimeoutTest, CiliumWebSocketClientHandshakeTimeout) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  ASSERT_TRUE(tcp_client->write("hello"));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  // Wait for the handshake request to arrive at upstream
+  std::string expected_handshake =
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
+  std::string received_data;
+  ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
+
+  // Don't send a 101 response — the handshake timer should fire (0.5s timeout)
+  test_server_->waitForCounterGe("websocket.handshake_timeout", 1);
+
+  tcp_client->waitForHalfClose();
+  tcp_client->close();
+}
+
+// Client mode: Verify the handshake_timeout counter is 0 immediately after upstream connects,
+// proving the timer doesn't start before TCP connection establishment.
+TEST_P(CiliumWebSocketTimeoutTest, CiliumWebSocketClientTimeoutNotPremature) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  ASSERT_TRUE(tcp_client->write("hello"));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  // Wait for the handshake request to arrive — upstream is now connected
+  std::string expected_handshake =
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
+  std::string received_data;
+  ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
+
+  // At this point, upstream just connected. The handshake timer should NOT have fired yet
+  // because it only starts on the first onWrite() (upstream response data), not during TCP setup.
+  EXPECT_EQ(test_server_->counter("websocket.handshake_timeout")->value(), 0);
+
+  // Now send a valid 101 response to complete the handshake cleanly
+  std::string handshake_response =
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+  ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
+
+  // Verify connection completes successfully — no timeout
+  ASSERT_TRUE(fake_upstream_connection->write("\x82\x5"
+                                              "world"));
+  ASSERT_TRUE(fake_upstream_connection->close());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  tcp_client->waitForHalfClose();
+  tcp_client->close();
+
+  EXPECT_EQ("world", tcp_client->data());
+  // Confirm timeout never fired
+  EXPECT_EQ(test_server_->counter("websocket.handshake_timeout")->value(), 0);
+}
+
+// Server mode timeout test: downstream connects but never sends the WebSocket upgrade request.
+const std::string cilium_tcp_proxy_server_timeout_config_fmt = R"EOF(
+admin:
+  address:
+    socket_address:
+      address: 127.0.0.1
+      port_value: 0
+static_resources:
+  clusters:
+  - name: cluster1
+    type: ORIGINAL_DST
+    lb_policy: CLUSTER_PROVIDED
+    connect_timeout:
+      seconds: 1
+  - name: xds-grpc-cilium
+    connect_timeout:
+      seconds: 5
+    type: STATIC
+    lb_policy: ROUND_ROBIN
+    http2_protocol_options:
+    load_assignment:
+      cluster_name: xds-grpc-cilium
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              pipe:
+                path: /var/run/cilium/xds.sock
+  listeners:
+    stat_prefix: listener_0
+    name: listener_0
+    address:
+      socket_address:
+        address: 127.0.0.1
+        port_value: 0
+    listener_filters:
+      name: test_bpf_metadata
+      typed_config:
+        "@type": type.googleapis.com/cilium.TestBpfMetadata
+        is_ingress: {0}
+    filter_chains:
+      filters:
+      - name: cilium.network.websocket.server
+        typed_config:
+          "@type": type.googleapis.com/cilium.WebSocketServer
+          access_log_path: "{{ test_udsdir }}/access_log.sock"
+          origin: "jarno.cilium.rocks"
+          handshake_timeout:
+            nanos: 500000000
+      - name: cilium.network
+        typed_config:
+          "@type": type.googleapis.com/cilium.NetworkFilter
+          proxylib: "proxylib/libcilium.so"
+      - name: envoy.tcp_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+          stat_prefix: tcp_stats
+          cluster: cluster1
+)EOF";
+
+class CiliumWebSocketServerTimeoutTest : public CiliumTcpIntegrationTest {
+public:
+  CiliumWebSocketServerTimeoutTest()
+      : CiliumTcpIntegrationTest(fmt::format(
+            fmt::runtime(TestEnvironment::substitute(cilium_tcp_proxy_server_timeout_config_fmt,
+                                                     GetParam())),
+            "true")) {}
+};
+
+INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumWebSocketServerTimeoutTest,
+                         testing::ValuesIn(TestEnvironment::getIpVersionsForTest()),
+                         TestUtility::ipTestParamsToString);
+
+// Server mode: Downstream connects but never sends the WebSocket upgrade request.
+// The handshake timer should fire and close the connection.
+TEST_P(CiliumWebSocketServerTimeoutTest, CiliumWebSocketServerHandshakeTimeout) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+
+  // Don't send anything — the server-side handshake timer should fire (0.5s timeout)
+  test_server_->waitForCounterGe("websocket.handshake_timeout", 1);
+
+  tcp_client->waitForHalfClose();
+  tcp_client->close();
+}
+
 } // namespace Envoy
