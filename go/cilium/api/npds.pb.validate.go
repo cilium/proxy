@@ -595,6 +595,22 @@ func (m *PortNetworkPolicyRule) validate(all bool) error {
 		}
 	}
 
+	for idx, item := range m.GetServerNames() {
+		_, _ = idx, item
+
+		if !_PortNetworkPolicyRule_ServerNames_Pattern.MatchString(item) {
+			err := PortNetworkPolicyRuleValidationError{
+				field:  fmt.Sprintf("ServerNames[%v]", idx),
+				reason: "value does not match regex pattern \"^([-a-zA-Z0-9_*]+[.]?)+$\"",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
 	// no validation rules for L7Proto
 
 	switch v := m.L7.(type) {
@@ -804,6 +820,8 @@ var _ interface {
 	Cause() error
 	ErrorName() string
 } = PortNetworkPolicyRuleValidationError{}
+
+var _PortNetworkPolicyRule_ServerNames_Pattern = regexp.MustCompile("^([-a-zA-Z0-9_*]+[.]?)+$")
 
 // Validate checks the field values on HttpNetworkPolicyRules with the rules
 // defined in the proto definition for this message. If any rules are
