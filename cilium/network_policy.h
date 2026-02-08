@@ -31,6 +31,7 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
+#include "source/common/common/regex.h"
 #include "source/common/common/thread.h"
 #include "source/common/init/target_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
@@ -42,6 +43,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
+#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
@@ -263,6 +265,8 @@ public:
     return *transport_factory_context_;
   }
 
+  Regex::Engine& regexEngine() const { return context_.regexEngine(); }
+
   void tlsWrapperMissingPolicyInc() const;
 
 private:
@@ -371,41 +375,89 @@ private:
 };
 using NetworkPolicyMapSharedPtr = std::shared_ptr<const NetworkPolicyMap>;
 
-struct SniPattern {
-  std::string pattern;
-
-  explicit SniPattern(const std::string& p) : pattern(absl::AsciiStrToLower(p)) {}
+// SniPattern provides a matcher for allowed SNI patterns.
+// SNI match pattern provided by the user only supports one regex character('*'), which
+// can be used as a wildcard specifier.
+//
+// - "**." is a special prefix which matches all multilevel subdomains in the prefix.
+// - "*" matches 0 or more DNS valid characters, and may occur anywhere in the pattern.
+//
+// Additionaly a full wildcard pattern can be specified using "*" that matches all
+// names consisting of valid DNS characters.
+//
+// Examples:
+// 1. `*.cilium.io` matches subdomains of cilium at that level
+//   www.cilium.io and blog.cilium.io match, cilium.io and google.com do not
+// 2. `*cilium.io` matches cilium.io and all subdomains ends with "cilium.io"
+//   except those containing "." separator, subcilium.io and sub-cilium.io match,
+//   www.cilium.io and blog.cilium.io does not
+// 3. `sub*.cilium.io` matches subdomains of cilium where the subdomain component
+//   begins with "sub". sub.cilium.io and subdomain.cilium.io match while www.cilium.io,
+//   blog.cilium.io, cilium.io and google.com do not
+// 4. `**.cilium.io` matches all multilevel subdomains of cilium.io.
+//   "app.cilium.io" and "test.app.cilium.io" match but not "cilium.io"
+class SniPattern : public Logger::Loggable<Logger::Id::config> {
+public:
+  explicit SniPattern(const Regex::Engine& engine, const absl::string_view& sni);
 
   bool matches(const absl::string_view sni) const {
-    if (pattern.empty() || sni.empty()) {
+    if (!isExplicitFullMatch() && !matcher_) {
       return false;
     }
     auto const lower_sni = absl::AsciiStrToLower(sni);
-    // Perform lower case exact match if there is no wildcard prefix
-    if (!pattern.starts_with("*")) {
-      return pattern == lower_sni;
+    if (isExplicitFullMatch()) {
+      return match_name_ == lower_sni;
     }
 
-    // Pattern is "**.<domain>"
-    if (pattern.starts_with("**.")) {
-      return lower_sni.ends_with(pattern.substr(2));
-    }
-
-    // Pattern is "*.<domain>"
-    if (pattern.starts_with("*.")) {
-      auto const sub_pattern = pattern.substr(1);
-      if (!lower_sni.ends_with(sub_pattern)) {
-        return false;
-      }
-      auto const prefix = lower_sni.substr(0, sni.size() - sub_pattern.size());
-      // Make sure that only and exactly one label is before the wildcard
-      return !prefix.empty() && prefix.find_first_of('.') == std::string::npos;
-    }
-
-    return false;
+    return matcher_->match(lower_sni);
   }
 
-  void toString(std::string& res) const { res.append(fmt::format("\"{}\"", pattern)); }
+  void toString(std::string& res) const {
+    if (isExplicitFullMatch()) {
+      res.append(fmt::format("\"{}\"", match_name_));
+    } else {
+      if (matcher_) {
+        res.append(fmt::format("\"{}\"", matcher_->pattern()));
+      } else {
+        res.append("\"\"");
+      }
+    }
+  }
+
+private:
+  // Returns regular expression to match a valid pattern that can be parsed here.
+  // SniPattern only supports multiple strings of valid DNS characters seperated by [.],
+  // with additional support for '*' wildcard anywhere in the pattern.
+  static const re2::RE2& getValidPatternRE() {
+    CONSTRUCT_ON_FIRST_USE(re2::RE2, "^([-a-zA-Z0-9_*]+[.]?)+$");
+  }
+
+  // Returns regular expression to match a SNI pattern without any regex characters('*').
+  // If the input sni pattern matches this, we can simply rely on explicit full string match.
+  static const re2::RE2& getValidNonRegexCharsRE() {
+    CONSTRUCT_ON_FIRST_USE(re2::RE2, "^[-a-zA-Z0-9_.]*$");
+  }
+
+  static const re2::RE2& getFullWildcardMatchRE() {
+    // Explicit '*' is a special case which implies a full wildcard for matching.
+    CONSTRUCT_ON_FIRST_USE(re2::RE2, "^[*]{1,}$");
+  }
+
+  // Returns regular expression to match subdomain wildcard prefix in sni patterns.
+  // This regex will match prefixes like '**[.]', '****[.]' and so on.
+  static const re2::RE2& getSubdomainWildcardSpecifierPrefixRE() {
+    CONSTRUCT_ON_FIRST_USE(re2::RE2, "^[*]{2,}\\[\\.\\]");
+  }
+
+  // Returns Regular expression to match wildcard in SNI pattern.
+  // Given this match is a superset of subdomain wildcard prefix specifier it should
+  // be used once the regex is resolved for the former.
+  static const re2::RE2& getWildcardSpecifierRE() { CONSTRUCT_ON_FIRST_USE(re2::RE2, "[*]{1,}"); }
+
+  bool isExplicitFullMatch() const { return !match_name_.empty(); }
+
+  std::string match_name_;
+  std::unique_ptr<const Envoy::Regex::CompiledMatcher> matcher_;
 };
 
 } // namespace Cilium
