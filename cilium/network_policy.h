@@ -408,15 +408,13 @@ public:
   // Helper method to check that the provided match pattern is valid and can be used
   // to construct an instance of SniPattern. A valid match pattern should:
   //
-  // - Contain only valid DNS characters('-a-zA-Z0-9_') and the wildcard specifier('*')
+  // - Contain only valid DNS characters('-a-zA-Z0-9_') and the wildcard specifier ('*')
+  // - No consecutive wildcard specifiers, except two for multiple whole subdomain matches.
   // - Not have a trailing '.'
   // - Not have an empty subdomain (multiple consecutive '.' are not allowed)
-  // - Not contain more than 2 consecutive wildcard specifiers('*')
+  // - Empty pattern is only allowed due to testing, it does not match anything
   static bool isValid(absl::string_view pattern) {
-    // NOTE: Google RE2 engine doesn't support negative lookaheads required
-    // to implement this in a single regex.
-    return re2::RE2::FullMatch(pattern, getValidPatternRE()) &&
-           !re2::RE2::PartialMatch(pattern, getInvalidWildcardSpecifierRE());
+    return pattern.length() == 0 || re2::RE2::FullMatch(pattern, getValidPatternRE());
   }
 
   bool matches(const absl::string_view sni) const {
@@ -447,12 +445,8 @@ private:
   // Returns regular expression to check for a valid DNS pattern with optional additional
   // wildcard specifier ('*') characters.
   static const re2::RE2& getValidPatternRE() {
-    CONSTRUCT_ON_FIRST_USE(re2::RE2, "^([-a-zA-Z0-9_*]+([.][-a-zA-Z0-9_*]+){0,})?$");
-  }
-
-  // Returns regular expression to check the presence of invalid wildcard specifiers.
-  static const re2::RE2& getInvalidWildcardSpecifierRE() {
-    CONSTRUCT_ON_FIRST_USE(re2::RE2, "[*]{3,}");
+    CONSTRUCT_ON_FIRST_USE(re2::RE2, "(([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)[.])*"
+                                     "([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)");
   }
 
   bool isExplicitFullMatch() const { return !match_name_.empty(); }

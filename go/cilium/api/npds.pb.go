@@ -452,6 +452,18 @@ type PortNetworkPolicyRule struct {
 	UpstreamTlsContext *TLSContext `protobuf:"bytes,4,opt,name=upstream_tls_context,json=upstreamTlsContext,proto3" json:"upstream_tls_context,omitempty"`
 	// Optional allowed SNIs in TLS handshake.
 	// The validation pattern here is synced with the corresponding k8s type in cilium/cilium.
+	// The validation pattern consists of one or more dot-delimited subdomains, where each
+	// subdomain can be:
+	//   - '*',
+	//   - '**', or
+	//   - a pattern of one or more valid DNS name characters, optionally including non-consecutive
+	//     wildcard specifiers ('*')
+	//
+	// The pattern consists of repeating parts:
+	// <DNSCHARS> = "[-a-zA-Z0-9_]"
+	// <SUBDOMAIN> = "[*]?<DNSCHARS>+([*]<DNSCHARS>+)*[*]?"
+	// <SUBPATTERN> = "([*]{1,2}|<SUBDOMAIN>)"
+	// PATTERN = "^(<SUBPATTERN>[.])*<SUBPATTERN>$"
 	ServerNames []string `protobuf:"bytes,6,rep,name=server_names,json=serverNames,proto3" json:"server_names,omitempty"`
 	// Optional L7 protocol parser name. This is only used if the parser is not
 	// one of the well knows ones. If specified, the l7 parser having this name
@@ -1165,7 +1177,7 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\fserver_names\x18\x04 \x03(\tR\vserverNames\x12A\n" +
 	"\x1dvalidation_context_sds_secret\x18\x05 \x01(\tR\x1avalidationContextSdsSecret\x12$\n" +
 	"\x0etls_sds_secret\x18\x06 \x01(\tR\ftlsSdsSecret\x12%\n" +
-	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\xe3\x04\n" +
+	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\xbe\x05\n" +
 	"\x15PortNetworkPolicyRule\x12\x1e\n" +
 	"\n" +
 	"precedence\x18\n" +
@@ -1176,8 +1188,8 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\x04name\x18\x05 \x01(\tR\x04name\x12'\n" +
 	"\x0fremote_policies\x18\a \x03(\rR\x0eremotePolicies\x12H\n" +
 	"\x16downstream_tls_context\x18\x03 \x01(\v2\x12.cilium.TLSContextR\x14downstreamTlsContext\x12D\n" +
-	"\x14upstream_tls_context\x18\x04 \x01(\v2\x12.cilium.TLSContextR\x12upstreamTlsContext\x12G\n" +
-	"\fserver_names\x18\x06 \x03(\tB$\xfaB!\x92\x01\x1e\"\x1cr\x1a2\x18^([-a-zA-Z0-9_*]+[.]?)+$R\vserverNames\x12\x19\n" +
+	"\x14upstream_tls_context\x18\x04 \x01(\v2\x12.cilium.TLSContextR\x12upstreamTlsContext\x12\xa1\x01\n" +
+	"\fserver_names\x18\x06 \x03(\tB~\xfaB{\x92\x01x\"vrt2r^(([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)[.])*([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)$R\vserverNames\x12\x19\n" +
 	"\bl7_proto\x18\x02 \x01(\tR\al7Proto\x12?\n" +
 	"\n" +
 	"http_rules\x18d \x01(\v2\x1e.cilium.HttpNetworkPolicyRulesH\x00R\thttpRules\x12B\n" +
