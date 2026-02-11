@@ -1902,6 +1902,7 @@ TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   EXPECT_THROW_WITH_REGEX(SniPattern(engine, "***"), EnvoyException, exception_msg_regex)
   EXPECT_THROW_WITH_REGEX(SniPattern(engine, "example.***.com"), EnvoyException,
                           exception_msg_regex)
+  EXPECT_THROW_WITH_REGEX(SniPattern(engine, "example.c**"), EnvoyException, exception_msg_regex)
   EXPECT_THROW_WITH_REGEX(SniPattern(engine, "example.com."), EnvoyException, exception_msg_regex)
   EXPECT_THROW_WITH_REGEX(SniPattern(engine, "example..com"), EnvoyException, exception_msg_regex)
   EXPECT_THROW_WITH_REGEX(SniPattern(engine, "^example.com$"), EnvoyException, exception_msg_regex)
@@ -2017,6 +2018,16 @@ TEST_F(CiliumNetworkPolicyTest, SNIPatternMatching) {
   EXPECT_FALSE(all_wildcard_labels.matches("test.sub.example.com"));
   EXPECT_FALSE(all_wildcard_labels.matches("sub.test.example.com"));
   EXPECT_FALSE(all_wildcard_labels.matches(""));
+
+  // Multiple wildcard labels with multilevel subdomain prefix wildcard.
+  SniPattern multi_wildcard_label(engine, "sub.*exa*.com");
+  EXPECT_TRUE(multi_wildcard_label.matches("sub.example.com"));
+  EXPECT_TRUE(multi_wildcard_label.matches("sub.examples.com"));
+  EXPECT_TRUE(multi_wildcard_label.matches("sub.exa.com"));
+  EXPECT_FALSE(multi_wildcard_label.matches("sub.foobar.com"));
+  EXPECT_FALSE(multi_wildcard_label.matches("test.sub.example.com"));
+  EXPECT_FALSE(multi_wildcard_label.matches("sub.test.example.com"));
+  EXPECT_FALSE(multi_wildcard_label.matches(""));
 }
 
 TEST_F(CiliumNetworkPolicyTest, OrderedRules) {
