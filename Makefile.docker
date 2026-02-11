@@ -95,8 +95,18 @@ BUILDER_DOCKER_HASH=$(shell git ls-tree --full-tree HEAD -- ./Dockerfile.builder
 BUILDER_BASE_TAG ?= $(BUILDER_DOCKER_HASH)
 BUILDER_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(BUILDER_BASE_TAG)
 
+# UBI9 builder image variables
+BUILDER_UBI_DOCKER_HASH=$(shell git ls-tree --full-tree HEAD -- ./Dockerfile.builder.ubi | awk '{ print $$3 }')
+BUILDER_UBI_BASE_TAG ?= $(BUILDER_UBI_DOCKER_HASH)
+BUILDER_UBI_BASE ?= $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-ubi:$(BUILDER_UBI_BASE_TAG)
+BUILDER_UBI_ARCHIVE_TAG ?= main-ubi-archive-latest
+TESTS_UBI_ARCHIVE_TAG ?= test-main-ubi-archive-latest
+
 BUILD_IMAGE_OPTS := --build-arg BUILDER_BASE="$(BUILDER_BASE)"
 TESTS_IMAGE_OPTS := --build-arg BUILDER_BASE="$(BUILDER_BASE)"
+
+BUILD_UBI_IMAGE_OPTS := --build-arg BUILDER_BASE="$(BUILDER_UBI_BASE)"
+TESTS_UBI_IMAGE_OPTS := --build-arg BUILDER_BASE="$(BUILDER_UBI_BASE)"
 
 ifdef DEBUG
   BUILD_IMAGE_OPTS += --build-arg DEBUG=$(DEBUG)
@@ -111,6 +121,13 @@ ifndef NO_ARCHIVE
     TESTS_ARCHIVE_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder:$(TESTS_ARCHIVE_TAG)
   else
     TESTS_ARCHIVE_IMAGE := $(ARCHIVE_IMAGE)
+  endif
+  # UBI9 archive defaults
+  ifndef ARCHIVE_UBI_IMAGE
+    ARCHIVE_UBI_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-ubi:$(BUILDER_UBI_ARCHIVE_TAG)
+    TESTS_ARCHIVE_UBI_IMAGE := $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-ubi:$(TESTS_UBI_ARCHIVE_TAG)
+  else
+    TESTS_ARCHIVE_UBI_IMAGE := $(ARCHIVE_UBI_IMAGE)
   endif
 endif
 
@@ -134,8 +151,27 @@ ifdef TESTS_ARCHIVE_IMAGE
   TESTS_IMAGE_OPTS += --build-arg ARCHIVE_IMAGE=$(TESTS_ARCHIVE_IMAGE)
 endif
 
+ifdef ARCHIVE_UBI_IMAGE
+  BUILD_UBI_IMAGE_OPTS += --build-arg ARCHIVE_IMAGE=$(ARCHIVE_UBI_IMAGE)
+endif
+
+ifdef TESTS_ARCHIVE_UBI_IMAGE
+  TESTS_UBI_IMAGE_OPTS += --build-arg ARCHIVE_IMAGE=$(TESTS_ARCHIVE_UBI_IMAGE)
+endif
+
+ifdef DEBUG
+  BUILD_UBI_IMAGE_OPTS += --build-arg DEBUG=$(DEBUG)
+else ifdef RELEASE_DEBUG
+  BUILD_UBI_IMAGE_OPTS += --build-arg RELEASE_DEBUG=$(RELEASE_DEBUG)
+endif
+
 # Builder image consists only of build tools, so it only needs .bazelversion
 Dockerfile.builder.dockerignore:
+	echo "*" >$@
+	echo "!/.bazelversion" >>$@
+
+# UBI9 Builder image consists only of build tools, so it only needs .bazelversion
+Dockerfile.builder.ubi.dockerignore:
 	echo "*" >$@
 	echo "!/.bazelversion" >>$@
 
@@ -152,6 +188,17 @@ Dockerfile.dockerignore: .dockerignore Makefile.docker
 	echo "/envoy_binary_test.sh" >>$@
 
 Dockerfile.tests.dockerignore: .dockerignore Makefile.docker
+	cp $< $@
+	echo "/Makefile.api" >>$@
+
+# UBI9 release does not need Go API or test files
+Dockerfile.ubi.dockerignore: .dockerignore Makefile.docker
+	cp $< $@
+	echo "/tests/" >>$@
+	echo "/Makefile.api" >>$@
+	echo "/envoy_binary_test.sh" >>$@
+
+Dockerfile.tests.ubi.dockerignore: .dockerignore Makefile.docker
 	cp $< $@
 	echo "/Makefile.api" >>$@
 
@@ -210,3 +257,42 @@ endif
 docker-image-envoy: Dockerfile SOURCE_VERSION Dockerfile.dockerignore
 	@$(ECHO_GEN) docker-image-envoy
 	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILD_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" $(DOCKER_IMAGE_ENVOY_TAGS) .
+
+#
+# UBI9-based image build targets
+#
+
+.PHONY: docker-image-builder-ubi
+docker-image-builder-ubi: Dockerfile.builder.ubi SOURCE_VERSION Dockerfile.builder.ubi.dockerignore
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-ubi:$(BUILDER_UBI_BASE_TAG) .
+
+.PHONY: docker-builder-archive-ubi
+docker-builder-archive-ubi: Dockerfile.ubi SOURCE_VERSION Dockerfile.ubi.dockerignore
+	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILD_UBI_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-ubi:$(BUILDER_UBI_ARCHIVE_TAG) .
+
+.PHONY: docker-tests-archive-ubi
+docker-tests-archive-ubi: Dockerfile.tests.ubi SOURCE_VERSION Dockerfile.tests.ubi.dockerignore
+	$(DOCKER) build --target builder-archive $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(TESTS_UBI_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg COPY_CACHE_EXT=.new -f $< -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-builder-ubi:$(TESTS_UBI_ARCHIVE_TAG) .
+
+ifeq ($(BRANCH_TAG),main)
+  DOCKER_UBI_TESTS_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-ubi:latest$(IMAGE_ARCH)$(DEBUG_TAG)-testlogs
+else
+  DOCKER_UBI_TESTS_TAGS ?= -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-ubi-dev:$(BRANCH_TAG)$(IMAGE_ARCH)$(DEBUG_TAG)-testlogs
+endif
+
+.PHONY: docker-tests-ubi
+docker-tests-ubi: Dockerfile.tests.ubi SOURCE_VERSION Dockerfile.tests.ubi.dockerignore
+	$(DOCKER) build --progress=plain $(subst --push,--load,$(DOCKER_BUILD_OPTS)) $(DOCKER_CACHE_OPTS) $(TESTS_UBI_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" --build-arg BAZEL_TEST_OPTS="$(BAZEL_TEST_OPTS)" -f $< $(DOCKER_UBI_TESTS_TAGS) .
+
+ifeq ($(BRANCH_TAG),main)
+  DOCKER_IMAGE_ENVOY_UBI_TAGS := -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-ubi:$(SOURCE_VERSION)$(IMAGE_ARCH)$(DEBUG_TAG)
+  DOCKER_IMAGE_ENVOY_UBI_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-ubi:latest$(IMAGE_ARCH)$(DEBUG_TAG)
+else
+  DOCKER_IMAGE_ENVOY_UBI_TAGS ?= -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-ubi-dev:$(BRANCH_TAG)$(IMAGE_ARCH)$(DEBUG_TAG)
+  DOCKER_IMAGE_ENVOY_UBI_TAGS += -t $(DOCKER_DEV_ACCOUNT)/cilium-envoy-ubi-dev:$(SOURCE_VERSION)$(IMAGE_ARCH)$(DEBUG_TAG)
+endif
+
+.PHONY: docker-image-envoy-ubi
+docker-image-envoy-ubi: Dockerfile.ubi SOURCE_VERSION Dockerfile.ubi.dockerignore
+	@$(ECHO_GEN) docker-image-envoy-ubi
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) $(DOCKER_CACHE_OPTS) $(BUILD_UBI_IMAGE_OPTS) --build-arg BAZEL_BUILD_OPTS="$(EXTRA_BAZEL_BUILD_OPTS)" $(DOCKER_IMAGE_ENVOY_UBI_TAGS) -f $< .

@@ -1,0 +1,150 @@
+name: CI Build & Push (UBI9)
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  # To be able to access the repository with `actions/checkout`
+  contents: read
+  # Required to generate OIDC tokens for `sigstore/cosign-installer` authentication
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push-ubi-prs:
+    timeout-minutes: 360
+    name: Build and push multi-arch UBI9 images
+    runs-on: ${{ vars.PROXY_BUILD_GITHUB_RUNNER }}
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
+    steps:
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+        with:
+          image: tonistiigi/binfmt:qemu-v7.0.0-28
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Cache Docker layers
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        with:
+          path: /tmp/buildx-cache
+          key: docker-cache-ubi-${{ github.head_ref }}
+          restore-keys: docker-cache-ubi-main
+
+      - name: Login to quay.io
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_ENVOY_USERNAME_DEV }}
+          password: ${{ secrets.QUAY_ENVOY_PASSWORD_DEV }}
+
+      - name: Checkout PR
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Prep for build
+        run: |
+          echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+          echo "ENVOY_MINOR_RELEASE=$(cat ENVOY_VERSION | sed 's/envoy-\([0-9]\+\.[0-9]\+\)\..*/v\1/')" >> $GITHUB_ENV
+          echo "ENVOY_PATCH_RELEASE=$(cat ENVOY_VERSION | sed 's/^envoy-\([0-9]\+\.[0-9]\+\.[0-9]\+$\)/v\1/')" >> $GITHUB_ENV
+          echo "BUILDER_UBI_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder.ubi | awk '{ print $3 }')" >> $GITHUB_ENV
+
+      - name: Checking if cilium-envoy-builder-ubi image exists
+        id: cilium-builder-ubi-tag-in-repositories
+        shell: bash
+        run: |
+          if docker buildx imagetools inspect quay.io/${{ github.repository_owner }}/cilium-envoy-builder-ubi-dev:${{ env.BUILDER_UBI_DOCKER_HASH }} &>/dev/null; then
+            echo exists="true" >> $GITHUB_OUTPUT
+          else
+            echo exists="false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: PR Multi-arch build & push of UBI9 Builder image (dev)
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        if: steps.cilium-builder-ubi-tag-in-repositories.outputs.exists == 'false'
+        id: docker_build_builder_ubi_ci
+        with:
+          provenance: false
+          context: .
+          file: ./Dockerfile.builder.ubi
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-builder-ubi-dev:${{ env.BUILDER_UBI_DOCKER_HASH }}
+
+      - name: CI UBI9 Builder Image Digest
+        if: steps.cilium-builder-ubi-tag-in-repositories.outputs.exists == 'false'
+        shell: bash
+        run: |
+          echo "Digests:"
+          echo "quay.io/${{ github.repository_owner }}/cilium-envoy-builder-ubi-dev:${{ env.BUILDER_UBI_DOCKER_HASH }}@${{ steps.docker_build_builder_ubi_ci.outputs.digest }}"
+
+      - name: PR Multi-arch build & push of cilium-envoy-ubi
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        id: docker_build_ubi_ci
+        with:
+          provenance: false
+          context: .
+          file: ./Dockerfile.ubi
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            BUILDER_BASE=quay.io/cilium/cilium-envoy-builder-ubi-dev:${{ env.BUILDER_UBI_DOCKER_HASH }}
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-ubi:main-ubi-archive-latest
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false
+          cache-from: type=local,src=/tmp/buildx-cache
+          cache-to: type=local,dest=/tmp/buildx-cache,mode=max
+          push: true
+          tags: quay.io/${{ github.repository_owner }}/cilium-envoy-ubi-dev:${{ github.event.pull_request.head.sha }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
+
+      - name: Sign Container Image
+        run: |
+          cosign sign -y quay.io/${{ github.repository_owner }}/cilium-envoy-ubi-dev@${{ steps.docker_build_ubi_ci.outputs.digest }}
+
+      - name: Install Bom
+        shell: bash
+        env:
+          # renovate: datasource=github-releases depName=kubernetes-sigs/bom
+          BOM_VERSION: v0.7.1
+        run: |
+          curl -L https://github.com/kubernetes-sigs/bom/releases/download/${{ env.BOM_VERSION }}/bom-amd64-linux -o bom
+          sudo mv ./bom /usr/local/bin/bom
+          sudo chmod +x /usr/local/bin/bom
+
+      - name: Generate SBOM
+        shell: bash
+        run: |
+          bom generate -o sbom_cilium-envoy-ubi_${{ github.event.pull_request.head.sha }}.spdx --format=json --image=quay.io/${{ github.repository_owner }}/cilium-envoy-ubi-dev:${{ github.event.pull_request.head.sha }}
+
+      - name: Attach SBOM to container images
+        run: |
+          cosign attach sbom --sbom sbom_cilium-envoy-ubi_${{ github.event.pull_request.head.sha }}.spdx quay.io/${{ github.repository_owner }}/cilium-envoy-ubi-dev@${{ steps.docker_build_ubi_ci.outputs.digest }}
+
+      - name: Sign SBOM Image
+        run: |
+          docker_build_ubi_ci_digest="${{ steps.docker_build_ubi_ci.outputs.digest }}"
+          image_name="quay.io/${{ github.repository_owner }}/cilium-envoy-ubi-dev:${docker_build_ubi_ci_digest/:/-}.sbom"
+          docker_build_ubi_ci_sbom_digest="sha256:$(docker buildx imagetools inspect --raw ${image_name} | sha256sum | head -c 64)"
+          cosign sign -y "quay.io/${{ github.repository_owner }}/cilium-envoy-ubi-dev@${docker_build_ubi_ci_sbom_digest}"
+
+      - name: Envoy binary version check
+        shell: bash
+        run: |
+          envoy_version=$(docker run --rm quay.io/${{ github.repository_owner }}/cilium-envoy-ubi-dev:${{ github.event.pull_request.head.sha }} cilium-envoy --version)
+          expected_version=$(echo ${{ env.ENVOY_PATCH_RELEASE }} | sed 's/^v//')
+          echo ${envoy_version}
+          [[ "${envoy_version}" == *"${{ github.event.pull_request.head.sha }}/$expected_version"* ]]
+
+      - name: CI UBI9 Image Digest
+        shell: bash
+        run: |
+          echo "Digests:"
+          echo "quay.io/${{ github.repository_owner }}/cilium-envoy-ubi-dev:${{ github.event.pull_request.head.sha }}@${{ steps.docker_build_ubi_ci.outputs.digest }}"

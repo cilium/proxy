@@ -94,7 +94,12 @@ else
   install-bazelisk:
 	tools/install_bazelisk.sh
 
-  # Install clang if needed
+  # Detect OS family for install_clang and clang.bazelrc LLVM path
+  OS_ID := $(shell . /etc/os-release 2>/dev/null && echo $$ID)
+
+  # Install clang if needed (OS-aware: supports both Debian/Ubuntu and RHEL/UBI)
+  ifeq ($(filter $(OS_ID),rhel centos fedora),)
+  # Debian/Ubuntu path
   define install_clang
 	add_llvm_source() { \
 		if [ ! -f /etc/apt/trusted.gpg.d/apt.llvm.org.asc ]; then \
@@ -108,6 +113,14 @@ else
 	if ! apt info clang-18; then add_llvm_source; fi; \
 	$(SUDO) apt install -y clang-18 clangd-18 llvm-18-dev lld-18 lldb-18 clang-format-18 clang-tools-18 clang-tidy-18 libc++-18-dev libc++abi-18-dev
   endef
+  LLVM_PREFIX := /usr/lib/llvm-18
+  else
+  # RHEL/UBI/CentOS/Fedora path
+  define install_clang
+	$(SUDO) dnf install -y llvm-toolset clang clang-tools-extra llvm-devel lld lldb
+  endef
+  LLVM_PREFIX := $(shell llvm-config --prefix 2>/dev/null || echo /usr)
+  endif
 endif
 
 include Makefile.dev
@@ -115,9 +128,11 @@ include Makefile.dev
 BUILD_DEP_HASHES: $(BUILD_DEP_FILES)
 	sha256sum $^ >$@
 
+LLVM_PREFIX ?= /usr/lib/llvm-18
+
 clang.bazelrc: bazel/setup_clang.sh
 	$(call install_clang)
-	bazel/setup_clang.sh /usr/lib/llvm-18
+	bazel/setup_clang.sh $(LLVM_PREFIX)
 	echo "build --config=clang" >> $@
 
 .PHONY: bazel-bin/cilium-envoy

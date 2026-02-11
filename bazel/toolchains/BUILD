@@ -32,6 +32,7 @@ cc_toolchain_config(
     abi_version = "aarch64",
     compile_flags = [
         "--target=aarch64-unknown-linux-gnu",
+        "--sysroot=/usr/aarch64-linux-gnu/sys-root",
         "-fuse-ld=lld-18",  # cmake compiler test needs this
         "-U_FORTIFY_SOURCE",
         "-fstack-protector",
@@ -43,6 +44,8 @@ cc_toolchain_config(
         # Needed by Envoy dependencies to build:
         "-Wno-unused-command-line-argument",  # tcmalloc needs this since -fuse-ld was added above
         "-Wno-deprecated-builtins",
+        "-Wno-nullability-completeness",  # clang-20 on UBI9 flags these in cel_cpp/abseil
+        "-Wno-nontrivial-memcall",  # clang-20 flags memcpy on non-trivially copyable types in cel_cpp
     ],
     compiler = "clang",
     coverage_compile_flags = ["--coverage"],
@@ -50,20 +53,26 @@ cc_toolchain_config(
     cpu = "aarch64",
     cxx_builtin_include_directories = [
         "/usr/lib/llvm-18",
+        "/usr/lib/clang",
+        "/usr/aarch64-linux-gnu/sys-root/usr/include",
+        "/usr/aarch64-linux-gnu/sys-root/aarch64-linux-gnu/include",
+        "/usr/aarch64-linux-gnu/sys-root/usr/local/include",
         "/usr/aarch64-linux-gnu/include",
         "/usr/include",
     ],
-    cxx_flags = ["-std=c++0x"],
+    cxx_flags = ["-std=c++0x", "-stdlib=libc++"],
     dbg_compile_flags = ["-g"],
     host_system_name = "local",
     link_flags = [
         "--target=aarch64-unknown-linux-gnu",
+        "--sysroot=/usr/aarch64-linux-gnu/sys-root",
         "-fuse-ld=lld-18",
+        "-stdlib=libc++",
         "-Wl,-no-as-needed",
         "-Wl,-z,relro,-z,now",
         "-lm",
     ],
-    link_libs = ["-l:libstdc++.a"],
+    link_libs = ["-l:libc++.a", "-l:libc++abi.a", "-lpthread"],
     opt_compile_flags = [
         "-g0",
         "-O2",
@@ -131,6 +140,7 @@ cc_toolchain_config(
     abi_version = "unknown",
     compile_flags = [
         "--target=x86_64-unknown-linux-gnu",
+        "--sysroot=/usr/x86_64-linux-gnu/sys-root",
         "-fuse-ld=lld-18",  # cmake compiler test needs this
         "-U_FORTIFY_SOURCE",
         "-fstack-protector",
@@ -142,6 +152,8 @@ cc_toolchain_config(
         # Needed by Envoy dependencies to build:
         "-Wno-unused-command-line-argument",  # tcmalloc needs this since -fuse-ld was added above
         "-Wno-deprecated-builtins",
+        "-Wno-nullability-completeness",  # clang-20 on UBI9 flags these in cel_cpp/abseil
+        "-Wno-nontrivial-memcall",  # clang-20 flags memcpy on non-trivially copyable types in cel_cpp
     ],
     compiler = "clang",
     coverage_compile_flags = ["--coverage"],
@@ -149,20 +161,26 @@ cc_toolchain_config(
     cpu = "k8",
     cxx_builtin_include_directories = [
         "/usr/lib/llvm-18",
+        "/usr/lib/clang",
+        "/usr/x86_64-linux-gnu/sys-root/usr/include",
+        "/usr/x86_64-linux-gnu/sys-root/usr/local/include",
+        "/usr/x86_64-linux-gnu/sys-root/include",
         "/usr/x86_64-linux-gnu/include",
         "/usr/include",
     ],
-    cxx_flags = ["-std=c++0x"],
+    cxx_flags = ["-std=c++0x", "-stdlib=libc++"],
     dbg_compile_flags = ["-g"],
     host_system_name = "local",
     link_flags = [
         "--target=x86_64-unknown-linux-gnu",
+        "--sysroot=/usr/x86_64-linux-gnu/sys-root",
         "-fuse-ld=lld-18",
+        "-stdlib=libc++",
         "-Wl,-no-as-needed",
         "-Wl,-z,relro,-z,now",
         "-lm",
     ],
-    link_libs = ["-l:libstdc++.a"],
+    link_libs = ["-l:libc++.a", "-l:libc++abi.a", "-lpthread"],
     opt_compile_flags = [
         "-g0",
         "-O2",

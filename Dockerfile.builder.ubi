@@ -1,0 +1,281 @@
+#
+# Builder dependencies for UBI9 (Red Hat Universal Base Image 9).
+# This takes a long time to build from scratch!
+# Also note that if build fails due to C++ internal error or similar,
+# it is possible that the image build needs more RAM than available by
+# default on non-Linux docker installs.
+#
+# NOTE: libc++ and libc++abi are not packaged for RHEL9, so we build
+# them from LLVM source in a separate stage.
+#
+FROM registry.access.redhat.com/ubi9/ubi:latest AS libcxx-builder
+ARG LLVM_VERSION=18
+RUN dnf install -y dnf-plugins-core && \
+    dnf config-manager --set-enabled ubi-9-codeready-builder-rpms && \
+    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm && \
+    dnf install -y \
+      clang \
+      cmake \
+      git \
+      lld \
+      ninja-build \
+      llvm-devel \
+      gcc-aarch64-linux-gnu gcc-x86_64-linux-gnu cpio && \
+    dnf clean all
+# Build libc++ for native arch
+RUN git clone --depth 1 --branch llvmorg-${LLVM_VERSION}.1.8 https://github.com/llvm/llvm-project.git /tmp/llvm-project && \
+    cmake -S /tmp/llvm-project/runtimes -B /tmp/llvm-build -G Ninja \
+      -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind" \
+      -DCMAKE_C_COMPILER=clang \
+      -DCMAKE_CXX_COMPILER=clang++ \
+      -DCMAKE_INSTALL_PREFIX=/usr \
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+      -DLIBCXX_INCLUDE_BENCHMARKS=OFF && \
+    ninja -C /tmp/llvm-build && \
+    DESTDIR=/tmp/libcxx-install ninja -C /tmp/llvm-build install && \
+    rm -rf /tmp/llvm-build
+# Cross-build libc++ for each non-native target arch. This allows the Bazel
+# toolchain to statically link libc++ when cross-compiling.
+RUN NATIVE_ARCH=$(uname -m) && \
+    for target in aarch64-unknown-linux-gnu x86_64-unknown-linux-gnu; do \
+      TARGET_ARCH=${target%%-*}; \
+      if [ "${TARGET_ARCH}" != "${NATIVE_ARCH}" ]; then \
+        echo "Cross-compiling libc++ for ${target}" && \
+        SYSROOT=/usr/${TARGET_ARCH}-linux-gnu/sys-root && \
+        # Populate minimal sysroot for cross-compilation
+        cd /tmp && dnf download --forcearch ${TARGET_ARCH} glibc glibc-devel glibc-headers kernel-headers libgcc libatomic 2>/dev/null && \
+        for rpm in /tmp/*.${TARGET_ARCH}.rpm; do rpm2cpio ${rpm} | cpio -idm -D ${SYSROOT} 2>/dev/null; done && \
+        rm -f /tmp/*.rpm && \
+        # Merge /lib{,64} into /usr/lib{,64} and create linker stubs
+        mkdir -p ${SYSROOT}/usr/lib ${SYSROOT}/usr/lib64 && \
+        for d in lib lib64; do \
+          if [ -d "${SYSROOT}/${d}" ] && [ ! -L "${SYSROOT}/${d}" ]; then \
+            cp -a ${SYSROOT}/${d}/* ${SYSROOT}/usr/${d}/ 2>/dev/null || true; \
+            rm -rf ${SYSROOT}/${d}; \
+          fi; \
+          ln -sf usr/${d} ${SYSROOT}/${d} 2>/dev/null || true; \
+        done && \
+        for lib in ${SYSROOT}/usr/lib64/libgcc_s.so.1 ${SYSROOT}/usr/lib64/libatomic.so.1; do \
+          if [ -f "${lib}" ]; then \
+            stub=$(echo ${lib} | sed 's/\.so\..*/\.so/'); \
+            [ ! -e "${stub}" ] && ln -sf $(basename ${lib}) ${stub}; \
+          fi; \
+        done && \
+        cmake -S /tmp/llvm-project/runtimes -B /tmp/llvm-build-${TARGET_ARCH} -G Ninja \
+          -DLLVM_ENABLE_RUNTIMES="libcxx;libcxxabi;libunwind" \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DCMAKE_C_COMPILER_TARGET=${target} \
+          -DCMAKE_CXX_COMPILER_TARGET=${target} \
+          -DCMAKE_ASM_COMPILER_TARGET=${target} \
+          -DCMAKE_SYSROOT=${SYSROOT} \
+          -DCMAKE_INSTALL_PREFIX=/usr \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+          -DLIBCXX_INCLUDE_BENCHMARKS=OFF \
+          -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld -nostdlib++" \
+          -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=lld -nostdlib++" \
+          -DLIBCXX_CXX_ABI=libcxxabi \
+          -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY && \
+        ninja -C /tmp/llvm-build-${TARGET_ARCH} && \
+        DESTDIR=/tmp/libcxx-cross-${TARGET_ARCH} ninja -C /tmp/llvm-build-${TARGET_ARCH} install && \
+        rm -rf /tmp/llvm-build-${TARGET_ARCH}; \
+      fi; \
+    done && \
+    rm -rf /tmp/llvm-project
+
+FROM registry.access.redhat.com/ubi9/ubi:latest AS base
+LABEL maintainer="maintainer@cilium.io"
+ARG TARGETARCH
+# Setup TimeZone to prevent interactive prompts
+ENV TZ=Etc/UTC
+
+# renovate: datasource=golang-version depName=go
+ENV GO_VERSION=1.24.13
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+# Enable CRB and EPEL repositories
+RUN dnf install -y dnf-plugins-core && \
+    dnf config-manager --set-enabled ubi-9-codeready-builder-rpms && \
+    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+
+# UBI9 ships coreutils-single and curl-minimal which conflict with the full
+# coreutils and curl packages. Use --allowerasing to replace them.
+RUN dnf upgrade -y && \
+    dnf install -y --allowerasing \
+      ca-certificates \
+      # Multi-arch cross-compilation packages (kernel-level from EPEL)
+      gcc-aarch64-linux-gnu gcc-c++-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+      gcc-x86_64-linux-gnu gcc-c++-x86_64-linux-gnu binutils-x86_64-linux-gnu \
+      glibc-devel \
+      # Envoy Build dependencies
+      autoconf automake cmake coreutils curl git libtool make ninja-build patch libatomic \
+      python3 python-unversioned-command unzip wget zip \
+      # LLVM/Clang toolset
+      llvm-toolset clang clang-tools-extra llvm-devel lld lldb \
+      # Patchelf from EPEL
+      patchelf && \
+    dnf clean all && \
+    rm -rf /tmp/* /var/tmp/*
+
+# Populate cross-compilation sysroots. RHEL9 doesn't ship cross-architecture
+# glibc-devel packages (unlike Ubuntu's libc6-dev-*-cross), so for the non-native
+# arch we download target-arch RPMs and extract them into the sysroot. For the
+# native arch, symlink the sysroot to / so --sysroot in the Bazel toolchain is
+# a no-op.
+RUN NATIVE_ARCH=$(uname -m) && \
+    dnf install -y cpio && \
+    for triple in aarch64-linux-gnu x86_64-linux-gnu; do \
+      ARCH_NAME=${triple%%-*}; \
+      SYSROOT=/usr/${triple}/sys-root; \
+      if [ "${ARCH_NAME}" = "${NATIVE_ARCH}" ]; then \
+        # Native arch: replace sysroot dir with symlink to / so --sysroot is transparent
+        rm -rf ${SYSROOT} && \
+        ln -sf / ${SYSROOT} && \
+        ln -sfn /usr/include /usr/${triple}/include && \
+        echo "Native sysroot symlink for ${triple}"; \
+      elif [ -d "${SYSROOT}" ]; then \
+        cd /tmp && \
+        dnf download --forcearch ${ARCH_NAME} glibc glibc-devel glibc-headers kernel-headers libgcc libatomic 2>/dev/null && \
+        for rpm in /tmp/*.${ARCH_NAME}.rpm; do \
+          rpm2cpio ${rpm} | cpio -idm -D ${SYSROOT} 2>/dev/null; \
+        done && \
+        rm -f /tmp/*.rpm && \
+        # Some RPMs install to /lib/ (e.g., libgcc -> /lib/libgcc_s.so.1).
+        # Merge into /usr/lib{,64} and create compat symlinks.
+        mkdir -p ${SYSROOT}/usr/lib && \
+        if [ -d "${SYSROOT}/lib" ] && [ ! -L "${SYSROOT}/lib" ]; then \
+          cp -a ${SYSROOT}/lib/* ${SYSROOT}/usr/lib/ 2>/dev/null || true; \
+          rm -rf ${SYSROOT}/lib; \
+        fi && \
+        ln -sf usr/lib ${SYSROOT}/lib && \
+        if [ -d "${SYSROOT}/lib64" ] && [ ! -L "${SYSROOT}/lib64" ]; then \
+          cp -a ${SYSROOT}/lib64/* ${SYSROOT}/usr/lib64/ 2>/dev/null || true; \
+          rm -rf ${SYSROOT}/lib64; \
+        fi && \
+        ln -sf usr/lib64 ${SYSROOT}/lib64 && \
+        # Create linker stubs for shared libraries (the unversioned .so symlinks
+        # that -l<name> needs). RPMs only ship the versioned .so.N files.
+        for lib in ${SYSROOT}/usr/lib64/libgcc_s.so.1 ${SYSROOT}/usr/lib64/libatomic.so.1; do \
+          if [ -f "${lib}" ]; then \
+            stub=$(echo ${lib} | sed 's/\.so\..*/\.so/'); \
+            [ ! -e "${stub}" ] && ln -sf $(basename ${lib}) ${stub}; \
+          fi; \
+        done && \
+        # Create empty libgcc_eh.a stub in cross sysroot. Bazel's static_libgcc
+        # feature adds -lgcc_eh, but with libc++/libunwind the GCC EH routines
+        # are unused. The cross-compiler package doesn't ship libgcc_eh.a.
+        if [ ! -f "${SYSROOT}/usr/lib64/libgcc_eh.a" ]; then \
+          llvm-ar rc ${SYSROOT}/usr/lib64/libgcc_eh.a; \
+        fi && \
+        # Create /usr/<triple>/include -> sysroot/usr/include symlink so
+        # Bazel's cxx_builtin_include_directories can find cross headers
+        ln -sf sys-root/usr/include /usr/${triple}/include && \
+        echo "Populated cross sysroot for ${triple}"; \
+      fi; \
+    done && \
+    dnf clean all
+
+# Install libc++ and libc++abi built from source (not available in RHEL9 repos)
+COPY --from=libcxx-builder /tmp/libcxx-install/usr /usr
+# Install cross-compiled libc++ for the non-native target arch.
+# NOTE: Docker COPY with wildcards copies directory contents (not directories
+# themselves), so /tmp/libcxx-cross-x86_64/usr/lib/ -> /tmp/libcxx-cross/usr/lib/.
+# The cross libc++ libs go to /usr/lib/ (not /usr/lib64/) per LLVM's install layout.
+COPY --from=libcxx-builder /tmp/libcxx-cross-* /tmp/libcxx-cross/
+RUN NATIVE_ARCH=$(uname -m) && \
+    for triple in aarch64-linux-gnu x86_64-linux-gnu; do \
+      TARGET_ARCH=${triple%%-*}; \
+      if [ "${TARGET_ARCH}" != "${NATIVE_ARCH}" ] && [ -d /tmp/libcxx-cross/usr/lib ]; then \
+        SYSROOT=/usr/${triple}/sys-root; \
+        mkdir -p ${SYSROOT}/usr/lib ${SYSROOT}/usr/lib64 && \
+        cp -a /tmp/libcxx-cross/usr/lib/* ${SYSROOT}/usr/lib/ 2>/dev/null || true; \
+        # Also copy to lib64 since the RHEL linker default search path uses lib64
+        cp -a /tmp/libcxx-cross/usr/lib/*.a ${SYSROOT}/usr/lib64/ 2>/dev/null || true; \
+        cp -a /tmp/libcxx-cross/usr/lib/*.so* ${SYSROOT}/usr/lib64/ 2>/dev/null || true; \
+        echo "Installed cross libc++ for ${triple}"; \
+      fi; \
+    done && \
+    rm -rf /tmp/libcxx-cross
+
+#
+# Create version-18 suffixed symlinks expected by the Bazel toolchain config.
+# The cilium/proxy Bazel toolchain (bazel/toolchains/BUILD) hardcodes paths
+# like /usr/bin/clang-18 and /usr/bin/lld-18. UBI9's llvm-toolset installs
+# a newer version (e.g. clang-20), so we create -18 aliases pointing to the
+# actual installed binaries.
+#
+RUN for tool in clang clang++ clang-cpp; do \
+      ln -sf /usr/bin/${tool} /usr/bin/${tool}-18; \
+    done && \
+    for tool in lld ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump \
+                llvm-strip llvm-dwp llvm-profdata llvm-readelf llvm-readobj \
+                llvm-symbolizer llvm-ranlib; do \
+      if [ -f /usr/bin/${tool} ]; then \
+        ln -sf /usr/bin/${tool} /usr/bin/${tool}-18; \
+      fi; \
+    done && \
+    #
+    # Create the /usr/lib/llvm-18/ directory structure expected by the Bazel
+    # toolchain. The Bazel config in bazel/toolchains/BUILD whitelists
+    # /usr/lib/llvm-18 in cxx_builtin_include_directories. On Ubuntu this
+    # directory exists from the llvm-18 deb package. On UBI9 we recreate the
+    # equivalent layout using symlinks to the actual installed locations.
+    #
+    mkdir -p /usr/lib/llvm-18/bin && \
+    ln -sf /usr/bin/llvm-config /usr/lib/llvm-18/bin/llvm-config && \
+    # libc++ headers: Bazel sandbox needs /usr/lib/llvm-18/include/c++/v1/
+    mkdir -p /usr/lib/llvm-18/include/c++ && \
+    ln -sf /usr/include/c++/v1 /usr/lib/llvm-18/include/c++/v1 && \
+    # Clang resource headers (e.g. stddef.h, stdarg.h, etc.)
+    CLANG_VER=$(clang --version | grep -oP '\d+\.\d+\.\d+' | head -1) && \
+    CLANG_MAJOR=${CLANG_VER%%.*} && \
+    if [ -d "/usr/lib64/clang/${CLANG_MAJOR}/include" ]; then \
+      mkdir -p /usr/lib/llvm-18/lib/clang/18 && \
+      ln -sf /usr/lib64/clang/${CLANG_MAJOR}/include /usr/lib/llvm-18/lib/clang/18/include; \
+    elif [ -d "/usr/lib/clang/${CLANG_MAJOR}/include" ]; then \
+      mkdir -p /usr/lib/llvm-18/lib/clang/18 && \
+      ln -sf /usr/lib/clang/${CLANG_MAJOR}/include /usr/lib/llvm-18/lib/clang/18/include; \
+    fi && \
+    # LLVM libraries
+    mkdir -p /usr/lib/llvm-18/lib && \
+    if [ -d /usr/lib64/llvm ]; then \
+      for f in /usr/lib64/libLLVM*.so* /usr/lib64/libclang*.so* /usr/lib64/liblld*.so*; do \
+        [ -e "$f" ] && ln -sf "$f" /usr/lib/llvm-18/lib/; \
+      done; \
+    fi && \
+    # GCC runtime libraries: on UBI9 the linker stubs (.so without version) for
+    # libgcc_s, libatomic, etc. live under /usr/lib/gcc/<triple>/<ver>/ which
+    # is not in the default linker search path. Create symlinks in /usr/lib64/.
+    # libgcc_eh.a is the static GCC exception handling library, needed when
+    # -static-libgcc is used (via Bazel's static_libgcc toolchain feature).
+    GCC_LIBDIR=$(dirname "$(gcc -print-libgcc-file-name)") && \
+    for lib in libgcc_s.so libatomic.so libgcc_eh.a; do \
+      if [ -f "${GCC_LIBDIR}/${lib}" ] && [ ! -f "/usr/lib64/${lib}" ]; then \
+        ln -sf "${GCC_LIBDIR}/${lib}" /usr/lib64/${lib}; \
+      fi; \
+    done
+
+#
+# Install Bazelisk
+#
+# renovate: datasource=github-releases depName=bazelbuild/bazelisk
+ENV BAZELISK_VERSION=v1.28.1
+
+RUN ARCH=$TARGETARCH \
+	&& curl -sfL https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-${ARCH} -o /usr/bin/bazel \
+	&& chmod +x /usr/bin/bazel
+#
+# Install Go
+#
+RUN curl -sfL https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz -o go.tar.gz \
+	&& tar -C /usr/local -xzf go.tar.gz \
+	&& rm go.tar.gz \
+	&& export PATH=$PATH:/usr/local/go/bin \
+	&& go version
+#
+# Switch to non-root user for builds
+#
+RUN groupadd -f -g 1337 cilium && useradd -m -d /cilium/proxy -g cilium -u 1337 cilium
+USER 1337:1337
+WORKDIR /cilium/proxy
