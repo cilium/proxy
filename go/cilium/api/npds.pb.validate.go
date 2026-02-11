@@ -601,7 +601,7 @@ func (m *PortNetworkPolicyRule) validate(all bool) error {
 		if !_PortNetworkPolicyRule_ServerNames_Pattern.MatchString(item) {
 			err := PortNetworkPolicyRuleValidationError{
 				field:  fmt.Sprintf("ServerNames[%v]", idx),
-				reason: "value does not match regex pattern \"^([-a-zA-Z0-9_*]+[.]?)+$\"",
+				reason: "value does not match regex pattern \"^(([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)[.])*([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)$\"",
 			}
 			if !all {
 				return err
@@ -821,7 +821,7 @@ var _ interface {
 	ErrorName() string
 } = PortNetworkPolicyRuleValidationError{}
 
-var _PortNetworkPolicyRule_ServerNames_Pattern = regexp.MustCompile("^([-a-zA-Z0-9_*]+[.]?)+$")
+var _PortNetworkPolicyRule_ServerNames_Pattern = regexp.MustCompile("^(([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)[.])*([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)$")
 
 // Validate checks the field values on HttpNetworkPolicyRules with the rules
 // defined in the proto definition for this message. If any rules are
