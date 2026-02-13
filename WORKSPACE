@@ -44,6 +44,7 @@ git_repository(
         "//patches:0005-http-header-expose-attribute.patch",
         "@//patches:0006-build-Fix-arm-build-for-liburing.patch",
         "@//patches:0007-Add-latomic-back-for-arm-build.patch",
+        "@//patches:0008-bazel-Bypass-yq-dependency-in-envoy_repo-rule.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
