@@ -1,0 +1,48 @@
+diff --git i/bazel/repo.bzl w/bazel/repo.bzl
+index f1a2547a..4197d840 100644
+--- i/bazel/repo.bzl
++++ w/bazel/repo.bzl
+@@ -65,24 +65,17 @@ def _envoy_repo_impl(repository_ctx):
+
+     """
+
+-    # parse container information for use in RBE
+-    json_result = repository_ctx.execute([
+-        repository_ctx.path(repository_ctx.attr.yq),
+-        repository_ctx.path(repository_ctx.attr.envoy_ci_config),
+-        "-ojson",
+-    ])
+-    if json_result.return_code != 0:
+-        fail("yq failed: {}".format(json_result.stderr))
+-    repository_ctx.file("ci-config.json", json_result.stdout)
+-    config_data = json.decode(repository_ctx.read("ci-config.json"))
++    # Cilium: bypass yq dependency for container parsing.
++    # The container values are only used for Envoy's RBE CI infrastructure,
++    # which cilium/proxy does not use.
+     repository_ctx.file("containers.bzl", CONTAINERS.format(
+-        repo = config_data["build-image"]["repo"],
+-        repo_gcr = config_data["build-image"]["repo-gcr"],
+-        sha = config_data["build-image"]["sha"],
+-        sha_gcc = config_data["build-image"]["sha-gcc"],
+-        sha_mobile = config_data["build-image"]["sha-mobile"],
+-        sha_worker = config_data["build-image"]["sha-worker"],
+-        tag = config_data["build-image"]["tag"],
++        repo = "",
++        repo_gcr = "",
++        sha = "",
++        sha_gcc = "",
++        sha_mobile = "",
++        sha_worker = "",
++        tag = "",
+     ))
+     repo_version_path = repository_ctx.path(repository_ctx.attr.envoy_version)
+     api_version_path = repository_ctx.path(repository_ctx.attr.envoy_api_version)
+@@ -260,8 +253,6 @@ _envoy_repo = repository_rule(
+     attrs = {
+         "envoy_version": attr.label(default = "@envoy//:VERSION.txt"),
+         "envoy_api_version": attr.label(default = "@envoy//:API_VERSION.txt"),
+-        "envoy_ci_config": attr.label(default = "@envoy//:.github/config.yml"),
+-        "yq": attr.label(default = "@yq"),
+     },
+     environ = ["BAZEL_LLVM_PATH"],
+ )
