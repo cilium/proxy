@@ -67,7 +67,7 @@ jobs:
         fi
 
     - name: PR Multi-arch build & push of Builder image (dev)
-      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
       if: steps.cilium-builder-tag-in-repositories.outputs.exists == 'false'
       id: docker_build_builder_ci
       with:
@@ -86,7 +86,7 @@ jobs:
         echo "quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}@${{ steps.docker_build_builder_ci.outputs.digest }}"
 
     - name: PR Multi-arch build & push of cilium-envoy
-      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
       id: docker_build_ci
       with:
         provenance: false
