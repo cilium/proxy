@@ -77,7 +77,7 @@ jobs:
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
           # git diff filter has everything else than deleted files (those need not be tidied)
-          echo "TIDY_SOURCES=$(git diff --name-only --diff-filter=ACMRTUXB HEAD^1 | grep -E '(.h$|.cc$)' | tr '\n' ' ')" >> $GITHUB_ENV
+          echo "TIDY_SOURCES=$(git diff-tree --name-only -r --diff-filter=ACMRTUXB ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} | grep -E '(.h$|.cc$)' | tr '\n' ' ')" >> $GITHUB_ENV
 
       - name: Wait for build image
         uses: ./.github/workflows/wait-for-image
