@@ -75,6 +75,13 @@ class PortNetworkPolicyRules;
 // use of named ports and numbered ports in Cilium Network Policy at the same time).
 using PolicyMap = absl::btree_map<PortRange, PortNetworkPolicyRules, PortRangeCompare>;
 
+// Supported message types
+using RuleVerdict = enum {
+  None = 0,
+  Allow = 1,
+  Deny = 2,
+};
+
 // PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
 // Methods then iterate through the set to determine if policy allows or denies. This is needed to
 // support multiple rules on the same port, like when named ports are used, or when deny policies
@@ -108,7 +115,7 @@ public:
   // allows the connection without TLS and a raw socket should be used.
   Ssl::ContextSharedPtr getServerTlsContext(uint16_t proxy_id, uint32_t remote_id,
                                             absl::string_view sni,
-                                            const Ssl::ContextConfig** config,
+                                            const Ssl::ContextConfig*& config,
                                             bool& raw_socket_allowed) const;
   // getClientTlsContext returns the client TLS context, if any. If a non-null pointer is returned,
   // then also the config pointer '*config' is set.
@@ -116,12 +123,12 @@ public:
   // allows the connection without TLS and a raw socket should be used.
   Ssl::ContextSharedPtr getClientTlsContext(uint16_t proxy_id, uint32_t remote_id,
                                             absl::string_view sni,
-                                            const Ssl::ContextConfig** config,
+                                            const Ssl::ContextConfig*& config,
                                             bool& raw_socket_allowed) const;
 
 private:
-  bool forRange(std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const;
-  bool forFirstRange(std::function<bool(const PortNetworkPolicyRules&)> f) const;
+  bool forRange(std::function<RuleVerdict(const PortNetworkPolicyRules&)> get_verdict) const;
+  RuleVerdict forFirstRange(std::function<RuleVerdict(const PortNetworkPolicyRules&)> f) const;
 
   const PolicyMap& map_;
   // using raw pointers by design:
@@ -132,7 +139,6 @@ private:
   //   before the old rules are deleted; worker thread drop references to policy rules before
   //   returning to the event loop, so after the posted lambda executes it is safe to delete the old
   //   rules.
-  const PortNetworkPolicyRules* wildcard_rules_;
   const PortNetworkPolicyRules* port_rules_;
   const bool has_http_rules_;
 };
