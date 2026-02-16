@@ -3,9 +3,10 @@
 #include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <cstdint>
 #include <string>
+
+#include "envoy/config/bootstrap/v3/bootstrap.pb.h"
 
 #include "test/integration/fake_upstream.h"
 #include "test/integration/integration_tcp_client.h"

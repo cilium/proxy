@@ -1,4 +1,6 @@
 #include <gmock/gmock-spec-builders.h>
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <spdlog/common.h>
 
 #include <cstdint>
@@ -9,7 +11,7 @@
 #include "envoy/common/exception.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/init/manager.h"
-#include "envoy/server/transport_socket_config.h"
+#include "envoy/server/factory_context.h"
 #include "envoy/service/discovery/v3/discovery.pb.h"
 #include "envoy/ssl/context.h"
 #include "envoy/ssl/context_config.h"
@@ -17,12 +19,14 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/base_logger.h"
 #include "source/common/common/logger.h"
+#include "source/common/common/regex.h"
 #include "source/common/config/decoded_resource_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/utility.h"
 #include "source/common/secret/sds_api.h"
 
 #include "test/common/stats/stat_test_utility.h"
+#include "test/mocks/secret/mocks.h"
 #include "test/mocks/server/admin.h"
 #include "test/mocks/server/factory_context.h"
 #include "test/test_common/utility.h"
@@ -30,7 +34,6 @@
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/network_policy.h"
-#include "gtest/gtest.h"
 
 namespace Envoy {
 namespace Cilium {

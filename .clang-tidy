@@ -47,7 +47,7 @@ CheckOptions:
 - key: bugprone-dangling-handle.HandleClasses
   value: 'std::basic_string_view;std::experimental::basic_string_view;absl::string_view'
 - key: misc-include-cleaner.IgnoreHeaders
-  value: 'fmt/format\.h;fmt/compile\.h;asm-generic/socket\.h;asm/unistd_32\.h;asm/unistd_64\.h;bits/.*;google/protobuf/.*;linux/in\.h;linux/in6\.h;mutex'
+  value: 'fmt/format\.h;fmt/compile\.h;asm-generic/socket\.h;asm/unistd_32\.h;asm/unistd_64\.h;bits/.*;google/protobuf/.*;linux/in\.h;linux/in6\.h;mutex;cstdint'
 - key: modernize-use-auto.MinTypeNameLength
   value: '10'
 - key: readability-identifier-naming.ClassCase

@@ -16,6 +16,7 @@ Diagnostics:
       - "linux/in\.h" # private -> use netinet/in.h
       - "linux/in6\.h" # private -> use netinet/in.h
       - "mutex" # checked by envoy linting -> use source/common/common/thread.h
+      - "cstdint" # Do not complain the uint64_t is not directly included
 # CompileFlags:
 #   CompilationDatabase: ./compile_commands.json
 #   # Unfortunately, above config isn't working as expected.

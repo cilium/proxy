@@ -19,6 +19,8 @@ def generate_compilation_database(args):
     ]
 
     source_dir_targets = args.bazel_targets
+    if args.exclude_contrib:
+        source_dir_targets.remove("//contrib/...")
 
     subprocess.check_call(["bazel", *bazel_startup_options, "build"] + bazel_options + [
         "--aspects=@bazel_compdb//:aspects.bzl%compilation_database_aspect",
@@ -119,6 +121,7 @@ if __name__ == "__main__":
     parser.add_argument('--include_headers', action='store_true')
     parser.add_argument('--vscode', action='store_true')
     parser.add_argument('--include_all', action='store_true')
+    parser.add_argument('--exclude_contrib', action='store_true')
     parser.add_argument(
         '--system-clang',
         action='store_true',

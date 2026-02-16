@@ -5,7 +5,6 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
-#include <list>
 #include <memory>
 #include <string>
 #include <utility>
@@ -14,6 +13,7 @@
 #include "envoy/common/exception.h"
 #include "envoy/common/matchers.h"
 #include "envoy/common/pure.h"
+#include "envoy/common/regex.h"
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
@@ -31,7 +31,6 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
-#include "source/common/common/regex.h"
 #include "source/common/common/thread.h"
 #include "source/common/init/target_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
@@ -43,12 +42,12 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
-#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/npds.pb.validate.h" // IWYU pragma: keep
 #include "cilium/conntrack.h"
+#include "re2/re2.h"
 
 namespace Envoy {
 namespace Cilium {
