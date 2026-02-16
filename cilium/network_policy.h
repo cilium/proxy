@@ -75,6 +75,12 @@ class PortNetworkPolicyRules;
 // use of named ports and numbered ports in Cilium Network Policy at the same time).
 using PolicyMap = absl::btree_map<PortRange, PortNetworkPolicyRules, PortRangeCompare>;
 
+struct RuleVerdict {
+  bool have_verdict;
+  bool allowed;
+  uint32_t precedence;
+};
+
 // PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
 // Methods then iterate through the set to determine if policy allows or denies. This is needed to
 // support multiple rules on the same port, like when named ports are used, or when deny policies
@@ -120,8 +126,9 @@ public:
                                             bool& raw_socket_allowed) const;
 
 private:
-  bool forRange(std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const;
-  bool forFirstRange(std::function<bool(const PortNetworkPolicyRules&)> f) const;
+  bool
+  forRange(std::function<RuleVerdict(const PortNetworkPolicyRules&, uint32_t)> get_verdict) const;
+  bool forFirstRange(std::function<RuleVerdict(const PortNetworkPolicyRules&, uint32_t)> f) const;
 
   const PolicyMap& map_;
   // using raw pointers by design:

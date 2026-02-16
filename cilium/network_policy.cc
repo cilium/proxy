@@ -480,10 +480,10 @@ public:
 
   bool isRemoteWildcard() const { return remotes_.empty(); }
 
-  bool allowed(uint16_t proxy_id, uint32_t remote_id, bool& denied) const {
+  RuleVerdict getVerdict(uint16_t proxy_id, uint32_t remote_id) const {
     // proxy_id must match if we have any.
     if (proxy_id_ != 0 && proxy_id != proxy_id_) {
-      return false;
+      return RuleVerdict{};
     }
     // Remote ID must match if we have any.
     if (!isRemoteWildcard()) {
@@ -492,28 +492,23 @@ public:
         // remote ID matched
         if (deny_) {
           // Explicit deny
-          denied = true;
-          return false;
+          return RuleVerdict{true, false, precedence_};
         }
         // Explicit allow
-        return true;
+        return RuleVerdict{true, true, precedence_};
       }
       // Not found, not allowed, but also not explicitly denied
-      return false;
+      return RuleVerdict{};
     }
     // Allow rules allow by default when remotes_ is empty, deny rules do not
-    if (deny_) {
-      denied = true;
-      return false;
-    }
-    return true;
+    return RuleVerdict{true, !deny_, precedence_};
   }
 
-  bool allowed(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni, bool& denied) const {
+  RuleVerdict getVerdict(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni) const {
     // sni must match if we have any
     if (!allowed_snis_.empty()) {
       if (sni.length() == 0) {
-        return false;
+        return RuleVerdict{}; // no verdict, not allowed, not denied, some other rule may allow
       }
       bool matched = false;
       for (const auto& pattern : allowed_snis_) {
@@ -523,114 +518,126 @@ public:
         }
       }
       if (!matched) {
-        return false;
+        return RuleVerdict{};
       }
     }
-    return allowed(proxy_id, remote_id, denied);
+    return getVerdict(proxy_id, remote_id);
   }
 
-  bool allowed(uint16_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
-               Cilium::AccessLog::Entry& log_entry, bool& denied) const {
-    if (!allowed(proxy_id, remote_id, denied)) {
-      return false;
-    }
-    if (hasHttpRules()) {
-      bool allowed = false;
+  RuleVerdict getVerdict(uint16_t proxy_id, uint32_t remote_id,
+                         Envoy::Http::RequestHeaderMap& headers,
+                         Cilium::AccessLog::Entry& log_entry) const {
+    auto verdict = getVerdict(proxy_id, remote_id);
+    if (verdict.have_verdict && verdict.allowed && hasHttpRules()) {
+      bool header_matched = false;
       for (const auto& rule : *http_rules_) {
         if (rule.allowed(headers)) {
           // Return on the first match if no rule has HeaderMatches
           if (!has_headermatches_) {
-            allowed = true;
-            break;
+            return verdict;
           }
-          // orherwise evaluate all rules to run all the header actions,
+          // Otherwise evaluate all rules to run all the header actions,
           // and remember if any of them matched
           if (rule.headerMatches(headers, log_entry)) {
-            allowed = true;
+            header_matched = true;
           }
         }
       }
-      return allowed;
+      if (!header_matched) {
+        verdict.have_verdict = false;
+      }
     }
-    // Empty set matches any payload
-    return true;
+    return verdict;
   }
 
-  bool useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto,
-                   bool& denied) const {
-    if (!allowed(proxy_id, remote_id, denied)) {
-      return false;
+  RuleVerdict useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
+    auto verdict = getVerdict(proxy_id, remote_id);
+    if (verdict.have_verdict) {
+      if (!verdict.allowed) {
+        return verdict;
+      }
+      if (l7_proto_.length() > 0) {
+        ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule::useProxylib(): returning {}", l7_proto_);
+        l7_proto = l7_proto_;
+        return verdict;
+      }
+      verdict.have_verdict = false;
     }
-    if (l7_proto_.length() > 0) {
-      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule::useProxylib(): returning {}", l7_proto_);
-      l7_proto = l7_proto_;
-      return true;
-    }
-    return false;
+    return verdict;
   }
 
   // Envoy Metadata matcher, called after deny has already been checked for
-  bool allowed(uint16_t proxy_id, uint32_t remote_id,
-               const envoy::config::core::v3::Metadata& metadata, bool& denied) const {
-    if (!allowed(proxy_id, remote_id, denied)) {
-      return false;
-    }
-    for (const auto& rule : l7_deny_rules_) {
-      if (rule.matches(metadata)) {
-        ENVOY_LOG(trace,
-                  "Cilium L7 PortNetworkPolicyRule::allowed(): DENY due to "
-                  "a matching deny rule {}",
-                  rule.name_);
-        return false; // request is denied if any deny rule matches
-      }
-    }
-    if (!l7_allow_rules_.empty()) {
-      for (const auto& rule : l7_allow_rules_) {
+  RuleVerdict getVerdict(uint16_t proxy_id, uint32_t remote_id,
+                         const envoy::config::core::v3::Metadata& metadata) const {
+    auto verdict = getVerdict(proxy_id, remote_id);
+    if (verdict.have_verdict && verdict.allowed) {
+      for (const auto& rule : l7_deny_rules_) {
         if (rule.matches(metadata)) {
           ENVOY_LOG(trace,
-                    "Cilium L7 PortNetworkPolicyRule::allowed(): ALLOW due "
-                    "to a matching allow rule {}",
+                    "Cilium L7 PortNetworkPolicyRule::allowed(): DENY due to "
+                    "a matching deny rule {}",
                     rule.name_);
-          return true;
+          // request is denied if any deny rule matches
+          verdict.allowed = false;
+          return verdict;
         }
       }
-      ENVOY_LOG(trace,
-                "Cilium L7 PortNetworkPolicyRule::allowed(): DENY due to "
-                "all {} allow rules mismatching",
-                l7_allow_rules_.size());
-      return false;
+      if (!l7_allow_rules_.empty()) {
+        for (const auto& rule : l7_allow_rules_) {
+          if (rule.matches(metadata)) {
+            ENVOY_LOG(trace,
+                      "Cilium L7 PortNetworkPolicyRule::allowed(): ALLOW due "
+                      "to a matching allow rule {}",
+                      rule.name_);
+            return verdict;
+          }
+        }
+        ENVOY_LOG(trace,
+                  "Cilium L7 PortNetworkPolicyRule::allowed(): SKIP due to "
+                  "all {} allow rules mismatching",
+                  l7_allow_rules_.size());
+        verdict.have_verdict = false;
+        return verdict;
+      }
+      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule::allowed(): default ALLOW "
+                       "due to no allow rules");
+      return verdict; // allowed by default
     }
-    ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule::allowed(): default ALLOW "
-                     "due to no allow rules");
-    return true; // allowed by default
+    return verdict;
   }
 
-  Ssl::ContextSharedPtr getServerTlsContext(uint16_t proxy_id, uint32_t remote_id,
-                                            absl::string_view sni,
-                                            const Ssl::ContextConfig** config,
-                                            bool& raw_socket_allowed, bool& denied) const {
-    if (allowed(proxy_id, remote_id, sni, denied)) {
+  RuleVerdict getServerTlsContext(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni,
+                                  Ssl::ContextSharedPtr& tls_context,
+                                  const Ssl::ContextConfig** config,
+                                  bool& raw_socket_allowed) const {
+    auto verdict = getVerdict(proxy_id, remote_id, sni);
+    if (verdict.have_verdict && verdict.allowed) {
       if (server_context_) {
+        tls_context = server_context_->getTlsContext();
         *config = &server_context_->getTlsContextConfig();
-        return server_context_->getTlsContext();
+        return verdict;
       }
       raw_socket_allowed = true;
     }
-    return nullptr;
+    verdict.have_verdict = false;
+    return verdict;
   }
 
-  Ssl::ContextSharedPtr getClientTlsContext(uint16_t proxy_id, uint32_t remote_id,
-                                            absl::string_view sni,
-                                            const Ssl::ContextConfig** config,
-                                            bool& raw_socket_allowed, bool& denied) const {
-    if (allowed(proxy_id, remote_id, sni, denied)) {
+  RuleVerdict getClientTlsContext(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni,
+                                  Ssl::ContextSharedPtr& tls_context,
+                                  const Ssl::ContextConfig** config,
+                                  bool& raw_socket_allowed) const {
+    auto verdict = getVerdict(proxy_id, remote_id, sni);
+    if (verdict.have_verdict && verdict.allowed) {
       if (client_context_) {
+        tls_context = client_context_->getTlsContext();
         *config = &client_context_->getTlsContextConfig();
-        return client_context_->getTlsContext();
+        return verdict;
       }
       raw_socket_allowed = true;
     }
-    return nullptr;
+    verdict.have_verdict = false;
+    return verdict;
   }
 
   void toString(int indent, std::string& res) const {
@@ -725,6 +732,12 @@ static void sortRules(std::vector<PortNetworkPolicyRuleConstSharedPtr>& rules) {
                    });
 }
 
+enum class RuleVerdictKind {
+  None,
+  Intermediate,
+  Final,
+};
+
 class PortNetworkPolicyRules : public Logger::Loggable<Logger::Id::config> {
 public:
   PortNetworkPolicyRules() = default;
@@ -786,162 +799,154 @@ public:
 
   bool empty() const { return rules_.empty(); }
 
-  enum class RuleVerdict {
-    None,
-    Intermediate,
-    Final,
-  };
-
-  template <typename F> void forEachRule(F&& func) const {
-    uint32_t precedence = 0;
-    bool have_verdict = false;
+  template <typename F>
+  void forEachRule(RuleVerdict& verdict, uint32_t min_precedence, F&& func) const {
 
     for (const auto& rule : rules_) {
       // lower precedence rules are skipped if there is a verdict
-      if (rule->precedence_ < precedence && have_verdict) {
+      if (rule->precedence_ < min_precedence) {
         break;
       }
-      precedence = rule->precedence_;
-
-      RuleVerdict v = func(*rule);
-
-      if (v == RuleVerdict::Final) {
+      if (verdict.have_verdict && rule->precedence_ < verdict.precedence) {
         break;
       }
-      if (v == RuleVerdict::Intermediate) {
-        have_verdict = true;
+      if (func(*rule) == RuleVerdictKind::Final) {
+        break;
       }
     }
   }
 
-  bool allowed(uint16_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
-               Cilium::AccessLog::Entry& log_entry, bool& denied) const {
+  RuleVerdict getVerdict(uint32_t min_precedence, uint16_t proxy_id, uint32_t remote_id,
+                         Envoy::Http::RequestHeaderMap& headers,
+                         Cilium::AccessLog::Entry& log_entry) const {
     // Empty set matches any payload from anyone
     if (rules_.empty()) {
-      return true;
+      return RuleVerdict{true, true, 0};
     }
 
-    bool allowed = false;
-    forEachRule([&](const auto& rule) {
-      if (rule.allowed(proxy_id, remote_id, headers, log_entry, denied)) {
-        allowed = true;
+    RuleVerdict verdict{};
+    forEachRule(verdict, min_precedence, [&](const auto& rule) {
+      auto rule_verdict = rule.getVerdict(proxy_id, remote_id, headers, log_entry);
+      if (rule_verdict.have_verdict) {
+        verdict = rule_verdict;
         // Short-circuit on the first match if no rules have HeaderMatches
-        if (can_short_circuit_) {
-          return RuleVerdict::Final;
-        }
-        return RuleVerdict::Intermediate;
+        return (!rule_verdict.allowed || can_short_circuit_) ? RuleVerdictKind::Final
+                                                             : RuleVerdictKind::Intermediate;
       }
-      return denied ? RuleVerdict::Final : RuleVerdict::None;
+      return RuleVerdictKind::None;
     });
 
     ENVOY_LOG(trace,
               "Cilium L7 PortNetworkPolicyRules(proxy_id: {}, remote_id: {}, headers: {}): "
               "{}",
-              proxy_id, remote_id, headers, allowed && !denied ? "ALLOWED" : "DENIED");
-    return allowed && !denied;
+              proxy_id, remote_id, headers,
+              verdict.have_verdict ? (verdict.allowed ? "ALLOWED" : "DENIED") : "no verdict");
+    return verdict;
   }
 
-  bool allowed(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni, bool& denied) const {
+  RuleVerdict getVerdict(uint32_t min_precedence, uint16_t proxy_id, uint32_t remote_id,
+                         absl::string_view sni) const {
     // Empty set matches any payload from anyone
     if (rules_.empty()) {
-      return true;
+      return RuleVerdict{true, true, 0};
     }
 
-    bool allowed = false;
-    forEachRule([&](const auto& rule) {
-      if (rule.allowed(proxy_id, remote_id, sni, denied)) {
-        allowed = true;
+    RuleVerdict verdict{};
+    forEachRule(verdict, min_precedence, [&](const auto& rule) {
+      auto rule_verdict = rule.getVerdict(proxy_id, remote_id, sni);
+      if (rule_verdict.have_verdict) {
+        verdict = rule_verdict;
         // Short-circuit on the first match if no rules have HeaderMatches
-        if (can_short_circuit_) {
-          return RuleVerdict::Final;
-        }
-        return RuleVerdict::Intermediate;
+        return (!rule_verdict.allowed || can_short_circuit_) ? RuleVerdictKind::Final
+                                                             : RuleVerdictKind::Intermediate;
       }
-      return denied ? RuleVerdict::Final : RuleVerdict::None;
+      return RuleVerdictKind::None;
     });
 
     ENVOY_LOG(trace,
               "Cilium L7 PortNetworkPolicyRules(proxy_id: {}, remote_id: {}, sni: {}): "
               "{}",
-              proxy_id, remote_id, sni, allowed && !denied ? "ALLOWED" : "DENIED");
-    return allowed && !denied;
+              proxy_id, remote_id, sni,
+              verdict.have_verdict ? (verdict.allowed ? "ALLOWED" : "DENIED") : "no verdict");
+    return verdict;
   }
 
-  bool useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
-    bool denied = false;
-    bool use_proxylib = false;
-    forEachRule([&](const auto& rule) {
-      if (rule.useProxylib(proxy_id, remote_id, l7_proto, denied)) {
-        use_proxylib = true;
-        return RuleVerdict::Final;
+  RuleVerdict useProxylib(uint32_t min_precedence, uint16_t proxy_id, uint32_t remote_id,
+                          std::string& l7_proto) const {
+    RuleVerdict verdict{};
+    forEachRule(verdict, min_precedence, [&](const auto& rule) {
+      auto rule_verdict = rule.useProxylib(proxy_id, remote_id, l7_proto);
+      if (rule_verdict.have_verdict) {
+        verdict = rule_verdict;
+        return RuleVerdictKind::Final;
       }
-      return denied ? RuleVerdict::Final : RuleVerdict::None;
+      return RuleVerdictKind::None;
     });
-    return use_proxylib && !denied;
+    return verdict;
   }
 
-  bool allowed(uint16_t proxy_id, uint32_t remote_id,
-               const envoy::config::core::v3::Metadata& metadata, bool& denied) const {
+  RuleVerdict getVerdict(uint32_t min_precedence, uint16_t proxy_id, uint32_t remote_id,
+                         const envoy::config::core::v3::Metadata& metadata) const {
     // Empty set matches any payload from anyone
     if (rules_.empty()) {
-      return true;
+      return RuleVerdict{true, true, 0};
     }
 
-    bool allowed = false;
-    forEachRule([&](const auto& rule) {
-      if (rule.allowed(proxy_id, remote_id, metadata, denied)) {
-        allowed = true;
+    RuleVerdict verdict{};
+    forEachRule(verdict, min_precedence, [&](const auto& rule) {
+      auto rule_verdict = rule.getVerdict(proxy_id, remote_id, metadata);
+      if (rule_verdict.have_verdict) {
+        verdict = rule_verdict;
         // Short-circuit on the first match if no rules have HeaderMatches
-        if (can_short_circuit_) {
-          return RuleVerdict::Final;
-        }
-        return RuleVerdict::Intermediate;
+        return (!rule_verdict.allowed || can_short_circuit_) ? RuleVerdictKind::Final
+                                                             : RuleVerdictKind::Intermediate;
       }
-      return denied ? RuleVerdict::Final : RuleVerdict::None;
+      return RuleVerdictKind::None;
     });
 
     ENVOY_LOG(trace,
               "Cilium L7 PortNetworkPolicyRules(proxy_id: {}, remote_id: {}, metadata: {}): "
               "{}",
               proxy_id, remote_id, metadata.DebugString(),
-              allowed && !denied ? "ALLOWED" : "DENIED");
-    return allowed && !denied;
+              verdict.have_verdict ? (verdict.allowed ? "ALLOWED" : "DENIED") : "no verdict");
+
+    return verdict;
   }
 
-  Ssl::ContextSharedPtr getServerTlsContext(uint16_t proxy_id, uint32_t remote_id,
-                                            absl::string_view sni,
-                                            const Ssl::ContextConfig** config,
-                                            bool& raw_socket_allowed) const {
-    bool denied = false;
-    Ssl::ContextSharedPtr tls_ctx = nullptr;
-    forEachRule([&](const auto& rule) {
-      Ssl::ContextSharedPtr server_context =
-          rule.getServerTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed, denied);
-      if (server_context) {
-        tls_ctx = server_context;
-        return RuleVerdict::Final;
+  RuleVerdict getServerTlsContext(uint32_t min_precedence, uint16_t proxy_id, uint32_t remote_id,
+                                  absl::string_view sni, Ssl::ContextSharedPtr& tls_ctx,
+                                  const Ssl::ContextConfig** config,
+                                  bool& raw_socket_allowed) const {
+    RuleVerdict verdict{};
+    tls_ctx = nullptr;
+    forEachRule(verdict, min_precedence, [&](const auto& rule) {
+      auto rule_verdict =
+          rule.getServerTlsContext(proxy_id, remote_id, sni, tls_ctx, config, raw_socket_allowed);
+      if (rule_verdict.have_verdict) {
+        verdict = rule_verdict;
+        return RuleVerdictKind::Final;
       }
-      return denied ? RuleVerdict::Final : RuleVerdict::None;
+      return RuleVerdictKind::None;
     });
-    return denied ? nullptr : tls_ctx;
+    return verdict;
   }
 
-  Ssl::ContextSharedPtr getClientTlsContext(uint16_t proxy_id, uint32_t remote_id,
-                                            absl::string_view sni,
-                                            const Ssl::ContextConfig** config,
-                                            bool& raw_socket_allowed) const {
-    bool denied = false;
-    Ssl::ContextSharedPtr tls_ctx = nullptr;
-    forEachRule([&](const auto& rule) {
-      Ssl::ContextSharedPtr client_context =
-          rule.getClientTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed, denied);
-      if (client_context) {
-        tls_ctx = client_context;
-        return RuleVerdict::Final;
+  RuleVerdict getClientTlsContext(uint32_t min_precedence, uint16_t proxy_id, uint32_t remote_id,
+                                  absl::string_view sni, Ssl::ContextSharedPtr& tls_ctx,
+                                  const Ssl::ContextConfig** config,
+                                  bool& raw_socket_allowed) const {
+    RuleVerdict verdict{};
+    tls_ctx = nullptr;
+    forEachRule(verdict, min_precedence, [&](const auto& rule) {
+      auto rule_verdict =
+          rule.getClientTlsContext(proxy_id, remote_id, sni, tls_ctx, config, raw_socket_allowed);
+      if (rule_verdict.have_verdict) {
+        verdict = rule_verdict;
+        return RuleVerdictKind::Final;
       }
-      return denied ? RuleVerdict::Final : RuleVerdict::None;
+      return RuleVerdictKind::None;
     });
-    return denied ? nullptr : tls_ctx;
+    return verdict;
   }
 
   void toString(int indent, std::string& res) const {
@@ -986,21 +991,31 @@ PortPolicy::PortPolicy(const PolicyMap& map, uint16_t port)
 // wildcard-port rules, as either of them could contain rules that must be evaluated (i.e., deny
 // or header match rules with side effects).
 bool PortPolicy::forRange(
-    std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const {
-  bool allow = false;
-  bool denied = false;
+    std::function<RuleVerdict(const PortNetworkPolicyRules&, uint32_t precedence)> get_verdict)
+    const {
+  // wildcard port rules have no L7 side effects, lookup 1st
+  uint32_t min_precedence = 0;
+  RuleVerdict verdict{}, wildcard_verdict{};
+  if (wildcard_rules_) {
+    wildcard_verdict = get_verdict(*wildcard_rules_, min_precedence);
+    if (wildcard_verdict.have_verdict) {
+      min_precedence = wildcard_verdict.precedence;
+    }
+  }
   if (port_rules_) {
-    if (allowed(*port_rules_, denied)) {
-      allow = true;
-    }
+    verdict = get_verdict(*port_rules_, min_precedence);
   }
-  // Wildcard port can deny a specific remote, so need to check for it too.
-  if (!(allow && wildcard_rules_ && wildcard_rules_->can_short_circuit_)) {
-    if (wildcard_rules_ && allowed(*wildcard_rules_, denied)) {
-      allow = true;
-    }
+
+  if (!verdict.have_verdict && !wildcard_verdict.have_verdict) {
+    return false;
   }
-  return allow && !denied;
+  if (verdict.have_verdict != wildcard_verdict.have_verdict) {
+    return verdict.have_verdict ? verdict.allowed : wildcard_verdict.allowed;
+  }
+  if (verdict.precedence >= wildcard_verdict.precedence) {
+    return verdict.allowed;
+  }
+  return wildcard_verdict.allowed;
 }
 
 // forFirstRange is used for proxylib parser and TLS context selection.
@@ -1013,20 +1028,36 @@ bool PortPolicy::forRange(
 // 2. port ranges (e.g., ports 80-90)
 // 3. Wildcard port rules
 //
-bool PortPolicy::forFirstRange(std::function<bool(const PortNetworkPolicyRules&)> f) const {
-  if (port_rules_ && f(*port_rules_)) {
-    return true;
+bool PortPolicy::forFirstRange(
+    std::function<RuleVerdict(const PortNetworkPolicyRules&, uint32_t min_precedence)> get_verdict)
+    const {
+  uint32_t min_precedence = 0;
+  RuleVerdict verdict{}, wildcard_verdict{};
+  if (port_rules_) {
+    verdict = get_verdict(*port_rules_, min_precedence);
+    if (verdict.have_verdict) {
+      min_precedence = verdict.precedence;
+    }
   }
-  // Check the wildcard port entry
-  if (wildcard_rules_ && f(*wildcard_rules_)) {
-    return true;
+  if (wildcard_rules_) {
+    wildcard_verdict = get_verdict(*wildcard_rules_, min_precedence);
   }
-  return false;
+
+  if (!verdict.have_verdict && !wildcard_verdict.have_verdict) {
+    return false;
+  }
+  if (verdict.have_verdict != wildcard_verdict.have_verdict) {
+    return verdict.have_verdict ? verdict.allowed : wildcard_verdict.allowed;
+  }
+  if (verdict.precedence >= wildcard_verdict.precedence) {
+    return verdict.allowed;
+  }
+  return wildcard_verdict.allowed;
 }
 
 bool PortPolicy::useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
-  return forFirstRange([&](const PortNetworkPolicyRules& rules) -> bool {
-    return rules.useProxylib(proxy_id, remote_id, l7_proto);
+  return forFirstRange([&](const PortNetworkPolicyRules& rules, uint32_t min_precedence) {
+    return rules.useProxylib(min_precedence, proxy_id, remote_id, l7_proto);
   });
 }
 
@@ -1038,21 +1069,21 @@ bool PortPolicy::allowed(uint16_t proxy_id, uint32_t remote_id,
   if (!has_http_rules_) {
     return true;
   }
-  return forRange([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
-    return rules.allowed(proxy_id, remote_id, headers, log_entry, denied);
+  return forRange([&](const PortNetworkPolicyRules& rules, uint32_t min_precedence) {
+    return rules.getVerdict(min_precedence, proxy_id, remote_id, headers, log_entry);
   });
 }
 
 bool PortPolicy::allowed(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni) const {
-  return forRange([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
-    return rules.allowed(proxy_id, remote_id, sni, denied);
+  return forRange([&](const PortNetworkPolicyRules& rules, uint32_t min_precedence) -> RuleVerdict {
+    return rules.getVerdict(min_precedence, proxy_id, remote_id, sni);
   });
 }
 
 bool PortPolicy::allowed(uint16_t proxy_id, uint32_t remote_id,
                          const envoy::config::core::v3::Metadata& metadata) const {
-  return forRange([&](const PortNetworkPolicyRules& rules, bool& denied) -> bool {
-    return rules.allowed(proxy_id, remote_id, metadata, denied);
+  return forRange([&](const PortNetworkPolicyRules& rules, uint32_t min_precedence) -> RuleVerdict {
+    return rules.getVerdict(min_precedence, proxy_id, remote_id, metadata);
   });
 }
 
@@ -1060,24 +1091,24 @@ Ssl::ContextSharedPtr PortPolicy::getServerTlsContext(uint16_t proxy_id, uint32_
                                                       absl::string_view sni,
                                                       const Ssl::ContextConfig** config,
                                                       bool& raw_socket_allowed) const {
-  Ssl::ContextSharedPtr ret;
-  forFirstRange([&](const PortNetworkPolicyRules& rules) -> bool {
-    ret = rules.getServerTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
-    return ret != nullptr;
+  Ssl::ContextSharedPtr tls_ctx;
+  forFirstRange([&](const PortNetworkPolicyRules& rules, uint32_t min_precedence) {
+    return rules.getServerTlsContext(min_precedence, proxy_id, remote_id, sni, tls_ctx, config,
+                                     raw_socket_allowed);
   });
-  return ret;
+  return tls_ctx;
 }
 
 Ssl::ContextSharedPtr PortPolicy::getClientTlsContext(uint16_t proxy_id, uint32_t remote_id,
                                                       absl::string_view sni,
                                                       const Ssl::ContextConfig** config,
                                                       bool& raw_socket_allowed) const {
-  Ssl::ContextSharedPtr ret;
-  forFirstRange([&](const PortNetworkPolicyRules& rules) -> bool {
-    ret = rules.getClientTlsContext(proxy_id, remote_id, sni, config, raw_socket_allowed);
-    return ret != nullptr;
+  Ssl::ContextSharedPtr tls_ctx;
+  forFirstRange([&](const PortNetworkPolicyRules& rules, uint32_t min_precedence) {
+    return rules.getClientTlsContext(min_precedence, proxy_id, remote_id, sni, tls_ctx, config,
+                                     raw_socket_allowed);
   });
-  return ret;
+  return tls_ctx;
 }
 
 // Ranges overlap when one is not completely below or above the other
@@ -1480,7 +1511,7 @@ public:
         storeWildcardPassRules(port_range);
       }
 
-      // Mark ranges with no rules for removal.
+      // Mark ranges with all rules removed for clean-up.
       if (rules.empty()) {
         // Empty rule set would always allow. Mark for removal.
         empty_ranges_.push_back(port_range);
