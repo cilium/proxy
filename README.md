@@ -18,6 +18,7 @@ Note: The below table is updated by script `tools/update_version_matrix.sh`
 |----------------|---------------|
 | (main)         | v1.36.x       |
 | v1.19.0        | v1.35.9       |
+| v1.18.7        | v1.35.9       |
 | v1.18.6        | v1.35.9       |
 | v1.18.5        | v1.34.12      |
 | v1.18.4        | v1.34.10      |
@@ -25,6 +26,7 @@ Note: The below table is updated by script `tools/update_version_matrix.sh`
 | v1.18.2        | v1.34.7       |
 | v1.18.1        | v1.34.4       |
 | v1.18.0        | v1.34.4       |
+| v1.17.13       | v1.35.9       |
 | v1.17.12       | v1.34.12      |
 | v1.17.11       | v1.34.12      |
 | v1.17.10       | v1.34.10      |
