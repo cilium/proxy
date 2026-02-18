@@ -1112,9 +1112,143 @@ resources:
                             "PortNetworkPolicy: Inconsistent pass precedence 200 != 100");
 
   //
-  // 1st update: higher precedence deny
+  // 1st update: Default allow rule combining with an HTTP allow rule
   //
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+  - port: 80
+)EOF"));
+  EXPECT_EQ(version, "1");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected1 = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: []
+        name: "default allow rule"
+      - remotes: []
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected1));
+
+  // All remotes allowed on port 80
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/also-allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+
+  //
+  // 2nd update: Default allow rule combining with a pass rule.
+  //
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    end_port: 81
+    rules:
+    - precedence: 10
+      pass_precedence: 1
+  - port: 80
+)EOF"));
+  EXPECT_EQ(version, "2");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected2 = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: []
+        name: "default allow rule"
+        precedence: 9
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected2));
+
+  // All remotes allowed on port 80
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/also-allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+
+  //
+  // 3rd update: Default allow rule combining with a pass rule on wildcard port.
+  //
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "3"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 0
+    rules:
+    - precedence: 10
+      pass_precedence: 1
+  - port: 80
+)EOF"));
+  EXPECT_EQ(version, "3");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected3 = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: []
+        name: "default allow rule"
+        precedence: 9
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected3));
+
+  // All remotes allowed on port 80
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/also-allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+
+  //
+  // 4th update: higher precedence deny
+  //
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "4"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -1133,10 +1267,10 @@ resources:
           - name: ':path'
             exact_match: '/allowed'
 )EOF"));
-  EXPECT_EQ(version, "1");
+  EXPECT_EQ(version, "4");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
-  std::string expected = R"EOF(ingress:
+  std::string expected4 = R"EOF(ingress:
   rules:
     [80-80]:
     - rules:
@@ -1153,7 +1287,7 @@ egress:
   rules: []
 )EOF";
 
-  EXPECT_TRUE(validate("10.1.2.3", expected));
+  EXPECT_TRUE(validate("10.1.2.3", expected4));
 
   // Denied remote ID, port, & path:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
@@ -1168,9 +1302,9 @@ egress:
   EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
 
   //
-  // twist: higher precedence deny on wildcard port
+  // 5th update: higher precedence deny on wildcard port
   //
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "5"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -1191,10 +1325,10 @@ resources:
           - name: ':path'
             exact_match: '/allowed'
 )EOF"));
-  EXPECT_EQ(version, "1");
+  EXPECT_EQ(version, "5");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
-  std::string expected_twist = R"EOF(ingress:
+  std::string expected5 = R"EOF(ingress:
   rules:
     [0-0]:
     - rules:
@@ -1213,7 +1347,7 @@ egress:
   rules: []
 )EOF";
 
-  EXPECT_TRUE(validate("10.1.2.3", expected_twist));
+  EXPECT_TRUE(validate("10.1.2.3", expected5));
 
   // Denied remote ID, port, & path:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
@@ -1228,236 +1362,7 @@ egress:
   EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
 
   //
-  // 2nd update: pass for '43'
-  //
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "2"
-resources:
-- "@type": type.googleapis.com/cilium.NetworkPolicy
-  endpoint_ips:
-  - "10.1.2.3"
-  endpoint_id: 42
-  ingress_per_port_policies:
-  - port: 80
-    rules:
-    - precedence: 1000
-      pass_precedence: 501
-      remote_policies: [ 43 ]
-    - precedence: 900
-      deny: true
-    - precedence: 500
-      remote_policies: [ 43 ]
-      http_rules:
-        http_rules:
-        - headers:
-          - name: ':path'
-            exact_match: '/allowed'
-)EOF"));
-  EXPECT_EQ(version, "2");
-  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
-
-  std::string expected2 = R"EOF(ingress:
-  rules:
-    [80-80]:
-    - rules:
-      - remotes: [43]
-        precedence: 999
-        http_rules:
-        - headers:
-          - name: ":path"
-            value: "/allowed"
-      - remotes: []
-        deny: true
-        precedence: 900
-egress:
-  rules: []
-)EOF";
-
-  EXPECT_TRUE(validate("10.1.2.3", expected2));
-
-  // Allowed remote ID, port, & path:
-  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
-  // Wrong remote ID:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
-  // Wrong port:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
-  // Wrong path:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
-
-  // No egress is allowed:
-  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
-
-  //
-  // 3rd update: pass with partial overlap
-  //
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "3"
-resources:
-- "@type": type.googleapis.com/cilium.NetworkPolicy
-  endpoint_ips:
-  - "10.1.2.3"
-  endpoint_id: 42
-  ingress_per_port_policies:
-  - port: 80
-    rules:
-    - precedence: 1000
-      pass_precedence: 501
-      remote_policies: [ 43 ]
-    - precedence: 900
-      deny: true
-    - precedence: 500
-      remote_policies: [ 43, 44 ]
-      http_rules:
-        http_rules:
-        - headers:
-          - name: ':path'
-            exact_match: '/allowed'
-)EOF"));
-  EXPECT_EQ(version, "3");
-  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
-
-  std::string expected3 = R"EOF(ingress:
-  rules:
-    [80-80]:
-    - rules:
-      - remotes: [43]
-        precedence: 999
-        http_rules:
-        - headers:
-          - name: ":path"
-            value: "/allowed"
-      - remotes: []
-        deny: true
-        precedence: 900
-egress:
-  rules: []
-)EOF";
-
-  EXPECT_TRUE(validate("10.1.2.3", expected3));
-
-  // Allowed remote ID, port, & path:
-  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
-  // Denied remote ID, port, & path:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allowed"}}));
-  // Wrong remote ID:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
-  // Wrong port:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
-  // Wrong path:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
-
-  // No egress is allowed:
-  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
-
-  //
-  // 4th update: wildcard pass
-  //
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "4"
-resources:
-- "@type": type.googleapis.com/cilium.NetworkPolicy
-  endpoint_ips:
-  - "10.1.2.3"
-  endpoint_id: 42
-  ingress_per_port_policies:
-  - port: 80
-    rules:
-    - precedence: 1000
-      pass_precedence: 501
-    - precedence: 900
-      deny: true
-    - precedence: 500
-      remote_policies: [ 43, 44 ]
-      http_rules:
-        http_rules:
-        - headers:
-          - name: ':path'
-            exact_match: '/allowed'
-)EOF"));
-  EXPECT_EQ(version, "4");
-  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
-
-  std::string expected4 = R"EOF(ingress:
-  rules:
-    [80-80]:
-    - rules:
-      - remotes: [43,44]
-        precedence: 999
-        http_rules:
-        - headers:
-          - name: ":path"
-            value: "/allowed"
-egress:
-  rules: []
-)EOF";
-
-  EXPECT_TRUE(validate("10.1.2.3", expected4));
-
-  // Allowed remote ID, port, & path:
-  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
-  // Allowed remote ID, port, & path:
-  EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allowed"}}));
-  // Wrong remote ID:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
-  // Wrong port:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
-  // Wrong path:
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
-
-  // No egress is allowed:
-  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
-
-  //
-  // 5th update: split wildcard lower-precedence rule due to pass
-  //
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "5"
-resources:
-- "@type": type.googleapis.com/cilium.NetworkPolicy
-  endpoint_ips:
-  - "10.1.2.3"
-  endpoint_id: 42
-  ingress_per_port_policies:
-  - port: 80
-    rules:
-    - precedence: 1000
-      pass_precedence: 501
-      remote_policies: [ 43 ]
-    - precedence: 900
-      deny: true
-    - precedence: 500
-      http_rules:
-        http_rules:
-        - headers:
-          - name: ':path'
-            exact_match: '/allowed'
-)EOF"));
-  EXPECT_EQ(version, "5");
-  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
-
-  std::string expected5 = R"EOF(ingress:
-  rules:
-    [80-80]:
-    - rules:
-      - remotes: [43]
-        precedence: 999
-        http_rules:
-        - headers:
-          - name: ":path"
-            value: "/allowed"
-      - remotes: []
-        deny: true
-        precedence: 900
-egress:
-  rules: []
-)EOF";
-
-  EXPECT_TRUE(validate("10.1.2.3", expected5));
-
-  // Remote 43 is promoted above deny by pass.
-  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
-  // Other remotes are still denied by the deny rule.
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allowed"}}));
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/allowed"}}));
-
-  //
-  // 6th update: wildcard-port pass inherited by specific port rules
+  // 6th update: pass for '43'
   //
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "6"
 resources:
@@ -1466,17 +1371,15 @@ resources:
   - "10.1.2.3"
   endpoint_id: 42
   ingress_per_port_policies:
-  - port: 0
+  - port: 80
     rules:
     - precedence: 1000
       pass_precedence: 501
       remote_policies: [ 43 ]
-  - port: 80
-    rules:
     - precedence: 900
       deny: true
     - precedence: 500
-      remote_policies: [ 43, 44 ]
+      remote_policies: [ 43 ]
       http_rules:
         http_rules:
         - headers:
@@ -1505,6 +1408,237 @@ egress:
 
   EXPECT_TRUE(validate("10.1.2.3", expected6));
 
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Wrong path:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+
+  //
+  // 7th update: pass with partial overlap
+  //
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "7"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - precedence: 1000
+      pass_precedence: 501
+      remote_policies: [ 43 ]
+    - precedence: 900
+      deny: true
+    - precedence: 500
+      remote_policies: [ 43, 44 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+)EOF"));
+  EXPECT_EQ(version, "7");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected7 = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        precedence: 999
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+      - remotes: []
+        deny: true
+        precedence: 900
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected7));
+
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Denied remote ID, port, & path:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Wrong path:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+
+  //
+  // 8th update: wildcard pass
+  //
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "8"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - precedence: 1000
+      pass_precedence: 501
+    - precedence: 900
+      deny: true
+    - precedence: 500
+      remote_policies: [ 43, 44 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+)EOF"));
+  EXPECT_EQ(version, "8");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected8 = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43,44]
+        precedence: 999
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected8));
+
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Allowed remote ID, port, & path:
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allowed"}}));
+  // Wrong remote ID:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 40, 80, {{":path", "/allowed"}}));
+  // Wrong port:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
+  // Wrong path:
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+
+  // No egress is allowed:
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
+
+  //
+  // 9th update: split wildcard lower-precedence rule due to pass
+  //
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "9"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - precedence: 1000
+      pass_precedence: 501
+      remote_policies: [ 43 ]
+    - precedence: 900
+      deny: true
+    - precedence: 500
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+)EOF"));
+  EXPECT_EQ(version, "9");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected9 = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        precedence: 999
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+      - remotes: []
+        deny: true
+        precedence: 900
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected9));
+
+  // Remote 43 is promoted above deny by pass.
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
+  // Other remotes are still denied by the deny rule.
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allowed"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/allowed"}}));
+
+  //
+  // 10th update: wildcard-port pass inherited by specific port rules
+  //
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "10"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 0
+    rules:
+    - precedence: 1000
+      pass_precedence: 501
+      remote_policies: [ 43 ]
+  - port: 80
+    rules:
+    - precedence: 900
+      deny: true
+    - precedence: 500
+      remote_policies: [ 43, 44 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ':path'
+            exact_match: '/allowed'
+)EOF"));
+  EXPECT_EQ(version, "10");
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+
+  std::string expected10 = R"EOF(ingress:
+  rules:
+    [80-80]:
+    - rules:
+      - remotes: [43]
+        precedence: 999
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/allowed"
+      - remotes: []
+        deny: true
+        precedence: 900
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected10));
+
   // Pass from wildcard port should promote remote 43 above deny on port 80.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Remote 44 is denied due to only 43 being promoted.
@@ -1516,9 +1650,9 @@ egress:
   EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 80, {{":path", "/public"}}));
 
   //
-  // 7th update: wildcard-port and specific-port pass rules at equal precedence
+  // 11th update: wildcard-port and specific-port pass rules at equal precedence
   //
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "7"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "11"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -1545,10 +1679,10 @@ resources:
           - name: ':path'
             exact_match: '/allowed'
 )EOF"));
-  EXPECT_EQ(version, "7");
+  EXPECT_EQ(version, "11");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
-  std::string expected7 = R"EOF(ingress:
+  std::string expected11 = R"EOF(ingress:
   rules:
     [80-80]:
     - rules:
@@ -1565,7 +1699,7 @@ egress:
   rules: []
 )EOF";
 
-  EXPECT_TRUE(validate("10.1.2.3", expected7));
+  EXPECT_TRUE(validate("10.1.2.3", expected11));
 
   // Both IDs are passed to the lower allow despite the intermediate deny.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
@@ -1573,7 +1707,7 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/allowed"}}));
 
   //
-  // 8th update: non-pass rule shadowing inside a pass tier
+  // 12th update: non-pass rule shadowing inside a pass tier
   //
   // The pass rule is required to enable tier processing, but it targets only
   // remote 45 so the tier is not wildcard-pass and does not pre-shadow 43/44.
@@ -1582,7 +1716,7 @@ egress:
   // - A lower-precedence allow for [43,44] must have 44 removed due to shadowing.
   // - A second allow at the same precedence for [43] must keep 43, confirming
   //   no same-precedence identity shadowing between allow rules.
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "8"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "12"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -1618,10 +1752,10 @@ resources:
           - name: ':path'
             exact_match: '/allow-c'
 )EOF"));
-  EXPECT_EQ(version, "8");
+  EXPECT_EQ(version, "12");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
-  std::string expected8 = R"EOF(ingress:
+  std::string expected12 = R"EOF(ingress:
   rules:
     [80-80]:
     - rules:
@@ -1656,7 +1790,7 @@ egress:
   rules: []
 )EOF";
 
-  EXPECT_TRUE(validate("10.1.2.3", expected8));
+  EXPECT_TRUE(validate("10.1.2.3", expected12));
 
   // Remote 43 is not passed, but both same-precedence allow rules remain effective.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allow-a"}}));
@@ -1674,13 +1808,13 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allow-c"}}));
 
   //
-  // 9th update: inherited wildcard current-tier pass fully shadowed
+  // 13th update: inherited wildcard current-tier pass fully shadowed
   //
   // Wildcard port has a current-tier pass for remote 43, and specific port has
   // a higher precedence pass for the same remote on the same tier. When the
   // wildcard pass is inherited, it is fully shadowed and skipped, as evidenced by the
   // precedence of the passed-to rule for remote 43, which is 999 rather than 899.
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "9"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "13"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -1707,10 +1841,10 @@ resources:
           - name: ':path'
             exact_match: '/shadowed-inherited-pass'
 )EOF"));
-  EXPECT_EQ(version, "9");
+  EXPECT_EQ(version, "13");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
-  std::string expected9 = R"EOF(ingress:
+  std::string expected13 = R"EOF(ingress:
   rules:
     [80-80]:
     - rules:
@@ -1727,7 +1861,7 @@ egress:
   rules: []
 )EOF";
 
-  EXPECT_TRUE(validate("10.1.2.3", expected9));
+  EXPECT_TRUE(validate("10.1.2.3", expected13));
 
   // Remote 43 is promoted above deny due to the specific-port pass.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/shadowed-inherited-pass"}}));
@@ -1736,7 +1870,7 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/shadowed-inherited-pass"}}));
 
   //
-  // 10th update: multiple wildcard pass tiers inherited by a specific port
+  // 14th update: multiple wildcard pass tiers inherited by a specific port
   //
   // Wildcard port contributes two pass tiers:
   // Tier boundaries are inclusive.
@@ -1748,7 +1882,7 @@ egress:
   //   - 41 to tier 1 precedence 900
   //   - 42 to tier 2 precedence 800
   //   - 43 remains at tier 3 at precedence 600
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "10"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "14"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -1775,10 +1909,10 @@ resources:
           - name: ':path'
             exact_match: '/multi-tier'
 )EOF"));
-  EXPECT_EQ(version, "10");
+  EXPECT_EQ(version, "14");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
-  std::string expected10 = R"EOF(ingress:
+  std::string expected14 = R"EOF(ingress:
   rules:
     [80-80]:
     - rules:
@@ -1792,7 +1926,7 @@ egress:
   rules: []
 )EOF";
 
-  EXPECT_TRUE(validate("10.1.2.3", expected10));
+  EXPECT_TRUE(validate("10.1.2.3", expected14));
 
   // Remote 41 hits the promoted deny from tier 1.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 41, 80, {{":path", "/multi-tier"}}));
@@ -1802,12 +1936,12 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/multi-tier"}}));
 
   //
-  // 11th update: inconsistent pass precedence via inherited wildcard + local pass
+  // 15th update: inconsistent pass precedence via inherited wildcard + local pass
   //
   // Wildcard current-tier pass (900/700) is inherited for port 80 at local
   // pass precedence 850. A local pass with pass_precedence 600 on the same tier
   // must fail as inconsistent.
-  EXPECT_THROW_WITH_MESSAGE(updateFromYaml(R"EOF(version_info: "11"
+  EXPECT_THROW_WITH_MESSAGE(updateFromYaml(R"EOF(version_info: "15"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -1836,17 +1970,17 @@ resources:
                             "PortNetworkPolicy: Inconsistent pass precedence 600 != 700");
 
   // Failed update must leave policy unchanged from version 10.
-  EXPECT_TRUE(validate("10.1.2.3", expected10));
+  EXPECT_TRUE(validate("10.1.2.3", expected14));
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 41, 80, {{":path", "/multi-tier"}}));
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 42, 80, {{":path", "/multi-tier"}}));
 
   //
-  // 12th update: inherited wildcard pass skips remaining rules on that tier
+  // 16th update: inherited wildcard pass skips remaining rules on that tier
   //
   // Wildcard port has a wildcard pass (2000/700), which is inherited for port 80.
   // Rules in that same tier [1999..700] are skipped; a lower-tier rule at 600 is
   // retained and promoted to 1900 by the inherited wildcard pass.
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "12"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "16"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -1877,10 +2011,10 @@ resources:
           - name: ':path'
             exact_match: '/promoted-after-skip'
 )EOF"));
-  EXPECT_EQ(version, "12");
+  EXPECT_EQ(version, "16");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
-  std::string expected12 = R"EOF(ingress:
+  std::string expected16 = R"EOF(ingress:
   rules:
     [80-80]:
     - rules:
@@ -1894,7 +2028,7 @@ egress:
   rules: []
 )EOF";
 
-  EXPECT_TRUE(validate("10.1.2.3", expected12));
+  EXPECT_TRUE(validate("10.1.2.3", expected16));
 
   // Both remotes are allowed by the promoted lower-tier rule.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/promoted-after-skip"}}));
@@ -1904,9 +2038,9 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/promoted-after-skip"}}));
 
   //
-  // 13th update: Shadowed rules are eliminated
+  // 17th update: Shadowed rules are eliminated
   //
-  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "12"
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "17"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
@@ -1937,10 +2071,10 @@ resources:
           - name: ':path'
             exact_match: '/partially-skipped'
 )EOF"));
-  EXPECT_EQ(version, "12");
+  EXPECT_EQ(version, "17");
   EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
-  std::string expected13 = R"EOF(ingress:
+  std::string expected17 = R"EOF(ingress:
   rules:
     [80-80]:
     - rules:
@@ -1957,7 +2091,7 @@ egress:
   rules: []
 )EOF";
 
-  EXPECT_TRUE(validate("10.1.2.3", expected13));
+  EXPECT_TRUE(validate("10.1.2.3", expected17));
 
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/partially-skipped"}}));
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/partially-skipped"}}));

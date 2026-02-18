@@ -421,6 +421,10 @@ SniPattern::SniPattern(const Regex::Engine& engine, absl::string_view sni) {
 
 class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
 public:
+  PortNetworkPolicyRule()
+      : name_("default allow rule"), deny_(false), proxy_id_(0), precedence_(0),
+        tier_last_precedence_(0), l7_proto_("") {}
+
   PortNetworkPolicyRule(const NetworkPolicyMapImpl& parent,
                         const cilium::PortNetworkPolicyRule& rule)
       : name_(rule.name()), deny_(rule.deny()), proxy_id_(uint16_t(rule.proxy_id())),
@@ -774,24 +778,36 @@ public:
     }
   }
 
-  void insert(PortNetworkPolicyRuleConstSharedPtr rule) {
-    rules_.emplace_back(rule);
-    updateFor(rules_.back());
-  }
+  void addDefaultAllowRule() { rules_.emplace_back(std::make_shared<PortNetworkPolicyRule>()); }
 
+  // append merges 'rules' to 'rules_' by placing the new 'rules' to the end of 'rules_'.
+  // If either is empty, we must add a default allow rule to retain the semantics of an empty rules.
   void append(const NetworkPolicyMapImpl& parent,
               const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
-    for (const auto& it : rules) {
-      insert(std::make_shared<PortNetworkPolicyRule>(parent, it));
+    if (initialized_ && rules.empty() != rules_.empty()) {
+      // add an explicit allow-all rule to keep the combined semantics
+      addDefaultAllowRule();
     }
+    for (const auto& it : rules) {
+      rules_.emplace_back(std::make_shared<PortNetworkPolicyRule>(parent, it));
+      updateFor(rules_.back());
+    }
+    initialized_ = true;
   }
 
+  // prepend merges 'rules' to 'rules_' by placing the new 'rules' to the front of 'rules_'.
+  // If either is empty, we must add a default allow rule to retain the semantics of an empty rules.
   void prepend(const NetworkPolicyMapImpl& parent,
                const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
+    if (initialized_ && rules.empty() != rules_.empty()) {
+      // add an explicit allow-all rule to keep the combined semantics
+      rules_.emplace(rules_.begin(), std::make_shared<PortNetworkPolicyRule>());
+    }
     for (const auto& it : rules) {
       rules_.emplace(rules_.begin(), std::make_shared<PortNetworkPolicyRule>(parent, it));
       updateFor(rules_.front());
     }
+    initialized_ = true;
   }
 
   // sort by descending precedence, retaining the original order within each precedence level
@@ -820,8 +836,8 @@ public:
                          Envoy::Http::RequestHeaderMap& headers,
                          Cilium::AccessLog::Entry& log_entry) const {
     // Empty set matches any payload from anyone
-    if (rules_.empty()) {
-      return RuleVerdict{true, true, 0};
+    if (empty() && initialized_) {
+      return DefaultAllowVerdict;
     }
 
     RuleVerdict verdict{};
@@ -847,8 +863,8 @@ public:
   RuleVerdict getVerdict(uint32_t min_precedence, uint16_t proxy_id, uint32_t remote_id,
                          absl::string_view sni) const {
     // Empty set matches any payload from anyone
-    if (rules_.empty()) {
-      return RuleVerdict{true, true, 0};
+    if (empty() && initialized_) {
+      return DefaultAllowVerdict;
     }
 
     RuleVerdict verdict{};
@@ -888,8 +904,8 @@ public:
   RuleVerdict getVerdict(uint32_t min_precedence, uint16_t proxy_id, uint32_t remote_id,
                          const envoy::config::core::v3::Metadata& metadata) const {
     // Empty set matches any payload from anyone
-    if (rules_.empty()) {
-      return RuleVerdict{true, true, 0};
+    if (empty() && initialized_) {
+      return DefaultAllowVerdict;
     }
 
     RuleVerdict verdict{};
@@ -972,6 +988,7 @@ public:
   std::vector<PortNetworkPolicyRuleConstSharedPtr> rules_; // Allowed if empty.
   bool can_short_circuit_{true};
   bool has_pass_rules_{false};
+  bool initialized_{false};
 };
 
 // end port is zero on lookup!
@@ -1444,6 +1461,10 @@ public:
   //     - this includes the case where the lower precedence rule applies to all identities
   //       (empty ID set)
   void apply(const PortRange& port_range, PortNetworkPolicyRules& rules) {
+    if (rules.rules_.empty() && !wildcard_pass_rules_.empty()) {
+      // add the default allow rule so that the wildcard port pass can apply to it.
+      rules.addDefaultAllowRule();
+    }
     if (!rules.rules_.empty() && (!wildcard_pass_rules_.empty() || rules.has_pass_rules_)) {
       bool must_sort = false;
 

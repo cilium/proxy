@@ -81,6 +81,9 @@ struct RuleVerdict {
   uint32_t precedence;
 };
 
+// DefaultAllowVerdict is used when PortNetworkPolicy has an empty set of rules.
+const RuleVerdict DefaultAllowVerdict = RuleVerdict{true, true, 0};
+
 // PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
 // Methods then iterate through the set to determine if policy allows or denies. This is needed to
 // support multiple rules on the same port, like when named ports are used, or when deny policies
