@@ -531,9 +531,16 @@ func (m *PortNetworkPolicyRule) validate(all bool) error {
 
 	// no validation rules for Precedence
 
-	// no validation rules for Deny
-
-	// no validation rules for ProxyId
+	if m.GetProxyId() > 65535 {
+		err := PortNetworkPolicyRuleValidationError{
+			field:  "ProxyId",
+			reason: "value must be less than or equal to 65535",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
 
 	// no validation rules for Name
 
@@ -613,6 +620,34 @@ func (m *PortNetworkPolicyRule) validate(all bool) error {
 
 	// no validation rules for L7Proto
 
+	switch v := m.Verdict.(type) {
+	case *PortNetworkPolicyRule_PassPrecedence:
+		if v == nil {
+			err := PortNetworkPolicyRuleValidationError{
+				field:  "Verdict",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		// no validation rules for PassPrecedence
+	case *PortNetworkPolicyRule_Deny:
+		if v == nil {
+			err := PortNetworkPolicyRuleValidationError{
+				field:  "Verdict",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+		// no validation rules for Deny
+	default:
+		_ = v // ensures v is used
+	}
 	switch v := m.L7.(type) {
 	case *PortNetworkPolicyRule_HttpRules:
 		if v == nil {

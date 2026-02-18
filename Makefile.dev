@@ -52,7 +52,7 @@ TIDY_SOURCES ?= $(shell bazel query 'kind("source file", deps(//tests/...))' 2>/
 # Depend on the WORKSPACE and TIDY_SOURCES so that the database will be re-built if
 # Envoy dependency or any of the source files has changed.
 compile_commands.json: WORKSPACE $(TIDY_SOURCES) force-non-root
-	BAZEL_STARTUP_OPTION_LIST="$(BAZEL_OPTS)" BAZEL_BUILD_OPTION_LIST="$(BAZEL_BUILD_OPTS)" tools/gen_compilation_database.py --include_all //cilium/... //starter/... //tests/... @com_google_absl//absl/...
+	BAZEL_STARTUP_OPTION_LIST="$(BAZEL_OPTS)" BAZEL_BUILD_OPTION_LIST="$(BAZEL_BUILD_OPTS)" tools/gen_compilation_database.py --include_all //cilium/... //starter/... //tests/...
 
 # Default number of jobs, derived from available memory
 TIDY_JOBS ?= $$(( $(shell sed -n "s/^MemAvailable: *\([0-9]*\).*\$$/\1/p" /proc/meminfo) / 4500000 ))
@@ -63,8 +63,12 @@ tidy: compile_commands.json force-non-root
 	run-clang-tidy-17 -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy check failed, run 'make tidy-fix' locally to fix tidy errors."
 
 tidy-fix: compile_commands.json force-non-root
-	echo "clang-tidy fix results can contain duplicate includes, check before committing!"
+	echo "clang-tidy fix results can contain duplicate or misplaced includes, check before committing!"
 	run-clang-tidy-17 -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy fix produced changes, please commit them."
+
+tidy-fix-head: compile_commands.json force-non-root
+	echo "clang-tidy fix results can contain duplicate or misplaced includes, check before committing!"
+	run-clang-tidy-17 -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(shell git diff-tree --no-commit-id --name-only -r --diff-filter=d HEAD) || echo "clang-tidy fix produced changes, please commit them."
 
 format: force-non-root
 	CARGO_BAZEL_REPIN=true $(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make format-fix' locally to fix formatting errors."

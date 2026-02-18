@@ -5,7 +5,6 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
-#include <list>
 #include <memory>
 #include <string>
 #include <utility>
@@ -14,6 +13,7 @@
 #include "envoy/common/exception.h"
 #include "envoy/common/matchers.h"
 #include "envoy/common/pure.h"
+#include "envoy/common/regex.h"
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
@@ -31,7 +31,6 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
-#include "source/common/common/regex.h"
 #include "source/common/common/thread.h"
 #include "source/common/init/target_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
@@ -43,12 +42,12 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
-#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/npds.pb.validate.h" // IWYU pragma: keep
 #include "cilium/conntrack.h"
+#include "re2/re2.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -76,6 +75,15 @@ class PortNetworkPolicyRules;
 // use of named ports and numbered ports in Cilium Network Policy at the same time).
 using PolicyMap = absl::btree_map<PortRange, PortNetworkPolicyRules, PortRangeCompare>;
 
+struct RuleVerdict {
+  bool have_verdict;
+  bool allowed;
+  uint32_t precedence;
+};
+
+// DefaultAllowVerdict is used when PortNetworkPolicy has an empty set of rules.
+const RuleVerdict DefaultAllowVerdict = RuleVerdict{true, true, 0};
+
 // PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
 // Methods then iterate through the set to determine if policy allows or denies. This is needed to
 // support multiple rules on the same port, like when named ports are used, or when deny policies
@@ -94,20 +102,20 @@ public:
 
   // useProxylib returns true if a proxylib parser should be used.
   // 'l7_proto' is set to the parser name in that case.
-  bool useProxylib(uint32_t proxy_id, uint32_t remote_id, std::string& l7_proto) const;
+  bool useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const;
   // HTTP-layer policy check. 'headers' and 'log_entry' may be manipulated by the policy.
-  bool allowed(uint32_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
+  bool allowed(uint16_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const;
   // Network-layer policy check
-  bool allowed(uint32_t proxy_id, uint32_t remote_id, absl::string_view sni) const;
+  bool allowed(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni) const;
   // Envoy filter metadata policy check
-  bool allowed(uint32_t proxy_id, uint32_t remote_id,
+  bool allowed(uint16_t proxy_id, uint32_t remote_id,
                const envoy::config::core::v3::Metadata& metadata) const;
   // getServerTlsContext returns the server TLS context, if any. If a non-null pointer is returned,
   // then also the config pointer '*config' is set.
   // If '*config' is nullptr and 'raw_socket_allowed' is 'true' on return then the policy
   // allows the connection without TLS and a raw socket should be used.
-  Ssl::ContextSharedPtr getServerTlsContext(uint32_t proxy_id, uint32_t remote_id,
+  Ssl::ContextSharedPtr getServerTlsContext(uint16_t proxy_id, uint32_t remote_id,
                                             absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const;
@@ -115,14 +123,15 @@ public:
   // then also the config pointer '*config' is set.
   // If '*config' is nullptr and 'raw_socket_allowed' is 'true' on return then the policy
   // allows the connection without TLS and a raw socket should be used.
-  Ssl::ContextSharedPtr getClientTlsContext(uint32_t proxy_id, uint32_t remote_id,
+  Ssl::ContextSharedPtr getClientTlsContext(uint16_t proxy_id, uint32_t remote_id,
                                             absl::string_view sni,
                                             const Ssl::ContextConfig** config,
                                             bool& raw_socket_allowed) const;
 
 private:
-  bool forRange(std::function<bool(const PortNetworkPolicyRules&, bool& denied)> allowed) const;
-  bool forFirstRange(std::function<bool(const PortNetworkPolicyRules&)> f) const;
+  bool
+  forRange(std::function<RuleVerdict(const PortNetworkPolicyRules&, uint32_t)> get_verdict) const;
+  bool forFirstRange(std::function<RuleVerdict(const PortNetworkPolicyRules&, uint32_t)> f) const;
 
   const PolicyMap& map_;
   // using raw pointers by design:
@@ -159,18 +168,18 @@ public:
     }
   };
 
-  virtual bool allowed(bool ingress, uint32_t proxy_id, uint32_t remote_id, uint16_t port,
+  virtual bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
                        Envoy::Http::RequestHeaderMap& headers,
                        Cilium::AccessLog::Entry& log_entry) const PURE;
 
-  virtual bool allowed(bool ingress, uint32_t proxy_id, uint32_t remote_id, absl::string_view sni,
+  virtual bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, absl::string_view sni,
                        uint16_t port) const PURE;
 
   virtual const PortPolicy findPortPolicy(bool ingress, uint16_t port) const PURE;
 
   // Returns true if the policy specifies l7 protocol for the connection, and
   // returns the l7 protocol string in 'l7_proto'
-  virtual bool useProxylib(bool ingress, uint32_t proxy_id, uint32_t remote_id, uint16_t port,
+  virtual bool useProxylib(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
                            std::string& l7_proto) const PURE;
 
   virtual const std::string& conntrackName() const PURE;
@@ -452,7 +461,7 @@ private:
   bool isExplicitFullMatch() const { return !match_name_.empty(); }
 
   std::string match_name_;
-  std::unique_ptr<const Envoy::Regex::CompiledMatcher> matcher_;
+  std::shared_ptr<const Envoy::Regex::CompiledMatcher> matcher_;
 };
 
 } // namespace Cilium

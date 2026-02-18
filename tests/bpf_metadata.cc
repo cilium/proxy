@@ -167,8 +167,8 @@ TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
   socket.setRequestedServerName("localhost");
 
   std::string pod_ip;
-  uint64_t source_identity;
-  uint64_t destination_identity;
+  std::uint64_t source_identity;
+  std::uint64_t destination_identity;
   if (is_ingress_) {
     source_identity = 1;
     destination_identity = 173;

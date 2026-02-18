@@ -39,7 +39,6 @@
 #include "cilium/accesslog.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/bpf_metadata.h"
-#include "gtest/gtest.h"
 #include "tests/bpf_metadata.h"
 
 using testing::Mock;
@@ -66,9 +65,8 @@ protected:
         .WillByDefault(Invoke([]() -> Filesystem::Watcher* {
           auto watcher = new Filesystem::MockWatcher();
           EXPECT_CALL(*watcher, addWatch(_, Filesystem::Watcher::Events::MovedTo, _))
-              .WillOnce(Invoke([](absl::string_view, uint32_t, Filesystem::Watcher::OnChangedCb) {
-                return absl::OkStatus();
-              }));
+              .WillOnce(Invoke([](absl::string_view, std::uint32_t,
+                                  Filesystem::Watcher::OnChangedCb) { return absl::OkStatus(); }));
           Mock::AllowLeak(watcher);
           return watcher;
         }));
