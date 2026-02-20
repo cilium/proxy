@@ -1,4 +1,4 @@
-From 3d5bed191ef7900b8c76ce76f52e312b60c55faa Mon Sep 17 00:00:00 2001
+From 86b63c6bacd6abca176c25eb60e74fc4551e09fb Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 14 Aug 2023 10:01:21 +0300
 Subject: [PATCH 2/7] listener: add socket options
@@ -15,7 +15,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  5 files changed, 21 insertions(+), 1 deletion(-)
 
 diff --git a/envoy/server/factory_context.h b/envoy/server/factory_context.h
-index ee9fa05618..d6b8c7e097 100644
+index ee9fa05..d6b8c7e 100644
 --- a/envoy/server/factory_context.h
 +++ b/envoy/server/factory_context.h
 @@ -341,7 +341,13 @@ public:
@@ -30,14 +30,14 @@ index ee9fa05618..d6b8c7e097 100644
 +   */
 +  virtual void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& options) PURE;
 +};
-
+ 
  /**
   * FactoryContext for ProtocolOptionsFactory.
 diff --git a/source/common/listener_manager/listener_impl.cc b/source/common/listener_manager/listener_impl.cc
-index fc93131aa9..a925a1fdcc 100644
+index 2f8232a..7008d08 100644
 --- a/source/common/listener_manager/listener_impl.cc
 +++ b/source/common/listener_manager/listener_impl.cc
-@@ -932,6 +932,9 @@ Configuration::ServerFactoryContext& PerListenerFactoryContextImpl::serverFactor
+@@ -954,6 +954,9 @@ Configuration::ServerFactoryContext& PerListenerFactoryContextImpl::serverFactor
  Stats::Scope& PerListenerFactoryContextImpl::listenerScope() {
    return listener_factory_context_base_->listenerScope();
  }
@@ -45,25 +45,25 @@ index fc93131aa9..a925a1fdcc 100644
 +  listener_impl_.addListenSocketOptions(options);
 +}
  Init::Manager& PerListenerFactoryContextImpl::initManager() { return listener_impl_.initManager(); }
-
+ 
  bool ListenerImpl::createNetworkFilterChain(
 diff --git a/source/common/listener_manager/listener_impl.h b/source/common/listener_manager/listener_impl.h
-index 9dcd00035f..4f3c9f1f77 100644
+index 746043f..42b19ec 100644
 --- a/source/common/listener_manager/listener_impl.h
 +++ b/source/common/listener_manager/listener_impl.h
 @@ -185,6 +185,8 @@ public:
-
+ 
    Stats::Scope& listenerScope() override;
-
+ 
 +  void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& options) override;
 +
    ListenerFactoryContextBaseImpl& parentFactoryContext() { return *listener_factory_context_base_; }
    friend class ListenerImpl;
-
+ 
 @@ -332,6 +334,13 @@ public:
      return listener_factory_context_->listener_factory_context_base_->listener_info_;
    }
-
+ 
 +  void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& append_options) {
 +    for (std::vector<Network::Address::InstanceConstSharedPtr>::size_type i = 0;
 +      i < addresses_.size(); i++) {
@@ -75,7 +75,7 @@ index 9dcd00035f..4f3c9f1f77 100644
      if (options == nullptr) {
        options = std::make_shared<std::vector<Network::Socket::OptionConstSharedPtr>>();
 diff --git a/test/mocks/server/factory_context.h b/test/mocks/server/factory_context.h
-index 9dec1cb0da..605ccf6c78 100644
+index 9dec1cb..605ccf6 100644
 --- a/test/mocks/server/factory_context.h
 +++ b/test/mocks/server/factory_context.h
 @@ -30,6 +30,7 @@ public:
@@ -83,21 +83,21 @@ index 9dec1cb0da..605ccf6c78 100644
    MOCK_METHOD(Stats::Scope&, listenerScope, ());
    MOCK_METHOD(const Network::ListenerInfo&, listenerInfo, (), (const));
 +  MOCK_METHOD(void, addListenSocketOptions, (const Network::Socket::OptionsSharedPtr&));
-
+ 
    testing::NiceMock<MockServerFactoryContext> server_factory_context_;
    testing::NiceMock<Init::MockManager> init_manager_;
 diff --git a/test/mocks/server/listener_factory_context.h b/test/mocks/server/listener_factory_context.h
-index dfdb937433..f78dcb90a5 100644
+index dfdb937..f78dcb9 100644
 --- a/test/mocks/server/listener_factory_context.h
 +++ b/test/mocks/server/listener_factory_context.h
 @@ -21,6 +21,7 @@ public:
    MockListenerFactoryContext();
    ~MockListenerFactoryContext() override;
-
+ 
 +  MOCK_METHOD(void, addListenSocketOptions, (const Network::Socket::OptionsSharedPtr&));
    MOCK_METHOD(ServerFactoryContext&, serverFactoryContext, ());
    MOCK_METHOD(const Network::DrainDecision&, drainDecision, ());
    MOCK_METHOD(Init::Manager&, initManager, ());
---
-2.43.0
+-- 
+2.52.0
 

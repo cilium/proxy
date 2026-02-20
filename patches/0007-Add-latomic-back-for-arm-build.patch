@@ -1,14 +1,15 @@
-From 12fc5290979e744543e3d144f333788c51694f99 Mon Sep 17 00:00:00 2001
+From c8b405d11fb5aa9d1cb0f3db1a4afced83d90398 Mon Sep 17 00:00:00 2001
 From: Tam Mach <sayboras@yahoo.com>
 Date: Fri, 12 Dec 2025 13:45:27 +1100
 Subject: [PATCH 7/7] Add latomic back for arm build
 
+Signed-off-by: Tam Mach <sayboras@yahoo.com>
 ---
  bazel/v8.patch | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/bazel/v8.patch b/bazel/v8.patch
-index 9b0cb2374f..512b22ebf4 100644
+index 9b0cb23..512b22e 100644
 --- a/bazel/v8.patch
 +++ b/bazel/v8.patch
 @@ -284,7 +284,7 @@ index 39663c97df4..14b90ec6905 100644
@@ -21,5 +22,5 @@ index 9b0cb2374f..512b22ebf4 100644
               ":should_add_rdynamic": ["-rdynamic"],
               "//conditions:default": [],
 -- 
-2.43.0
+2.52.0
 

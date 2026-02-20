@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "envoy/common/exception.h"
+#include "envoy/common/optref.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/init/manager.h"
 #include "envoy/server/transport_socket_config.h"
@@ -41,9 +42,24 @@ namespace Cilium {
                                const std::string& config_name,                                     \
                                Server::Configuration::ServerFactoryContext& server_context,        \
                                Init::Manager& init_manager) {                                      \
-        auto secret_provider = Secret::API_TYPE##SdsApi::create(server_context, sds_config_source, \
-                                                                config_name, []() {});             \
+        auto secret_provider = Secret::API_TYPE##SdsApi::create(                                   \
+            server_context, sds_config_source, config_name, []() {}, false);                       \
         init_manager.add(*secret_provider->initTarget());                                          \
+        return secret_provider;                                                                    \
+      }))
+
+// TlsCertificateProvider has a different signature in 1.37: OptRef<Init::Manager> + bool warm
+#define ON_CALL_SDS_TLS_CERTIFICATE_PROVIDER(SECRET_MANAGER)                                       \
+  ON_CALL(SECRET_MANAGER, findOrCreateTlsCertificateProvider(_, _, _, _, _))                       \
+      .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,     \
+                               const std::string& config_name,                                     \
+                               Server::Configuration::ServerFactoryContext& server_context,        \
+                               OptRef<Init::Manager> init_manager, bool warm) {                    \
+        auto secret_provider = Secret::TlsCertificateSdsApi::create(                               \
+            server_context, sds_config_source, config_name, []() {}, warm);                        \
+        if (init_manager.has_value()) {                                                            \
+          init_manager->add(*secret_provider->initTarget());                                       \
+        }                                                                                          \
         return secret_provider;                                                                    \
       }))
 
@@ -62,7 +78,7 @@ protected:
     ON_CALL(factory_context_.server_factory_context_, secretManager())
         .WillByDefault(ReturnRef(secret_manager_));
 
-    ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, TlsCertificate, TlsCertificate);
+    ON_CALL_SDS_TLS_CERTIFICATE_PROVIDER(secret_manager_);
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, CertificateValidationContext,
                                 CertificateValidationContext);
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, TlsSessionTicketKeysContext, TlsSessionTicketKeys);
