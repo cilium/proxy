@@ -127,9 +127,6 @@ public:
                                             bool& raw_socket_allowed) const;
 
 private:
-  bool forRange(std::function<RuleVerdict(const PortNetworkPolicyRules&)> get_verdict) const;
-  RuleVerdict forFirstRange(std::function<RuleVerdict(const PortNetworkPolicyRules&)> f) const;
-
   const PolicyMap& map_;
   // using raw pointers by design:
   // - pointer to distinguish between no rules and empty rules
