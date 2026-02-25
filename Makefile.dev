@@ -52,7 +52,7 @@ TIDY_SOURCES ?= $(shell bazel query 'kind("source file", deps(//tests/...))' 2>/
 # Depend on the WORKSPACE and TIDY_SOURCES so that the database will be re-built if
 # Envoy dependency or any of the source files has changed.
 compile_commands.json: WORKSPACE $(TIDY_SOURCES) force-non-root
-	BAZEL_STARTUP_OPTION_LIST="$(BAZEL_OPTS)" BAZEL_BUILD_OPTION_LIST="$(BAZEL_BUILD_OPTS)" tools/gen_compilation_database.py --include_all //cilium/... //starter/... //tests/...
+	CARGO_BAZEL_REPIN=true BAZEL_STARTUP_OPTION_LIST="$(BAZEL_OPTS)" BAZEL_BUILD_OPTION_LIST="$(BAZEL_BUILD_OPTS)" tools/gen_compilation_database.py --include_all //cilium/... //starter/... //tests/...
 
 # Default number of jobs, derived from available memory
 TIDY_JOBS ?= $$(( $(shell sed -n "s/^MemAvailable: *\([0-9]*\).*\$$/\1/p" /proc/meminfo) / 4500000 ))
