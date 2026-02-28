@@ -63,6 +63,8 @@ void AccessLog::log(AccessLog::Entry& log_entry, ::cilium::EntryType entry_type)
     log_entry.request_logged_ = true;
   }
 
+  ENVOY_LOG_MISC(trace, "Cilium Access log entry: {}", entry.DebugString());
+
   // encode protobuf
   std::string msg;
   entry.SerializeToString(&msg);
