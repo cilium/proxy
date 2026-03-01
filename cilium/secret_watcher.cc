@@ -156,15 +156,14 @@ DownstreamTLSContext::DownstreamTLSContext(const NetworkPolicyMapImpl& parent,
     server_names_.emplace_back(config.server_names(i));
   }
   auto server_config_or_error = Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(
-      context_config, parent.transportFactoryContext(), false);
+      context_config, parent.transportFactoryContext(), server_names_, false);
   // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
   THROW_IF_NOT_OK(server_config_or_error.status());
   server_config_ = std::move(server_config_or_error.value());
 
   auto create_server_context = [this]() {
     ENVOY_LOG(debug, "Server secret is updated.");
-    auto ctx_or_error =
-        manager_.createSslServerContext(scope_, *server_config_, server_names_, nullptr);
+    auto ctx_or_error = manager_.createSslServerContext(scope_, *server_config_, nullptr);
     // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(ctx_or_error.status());
     auto ctx = std::move(ctx_or_error.value());

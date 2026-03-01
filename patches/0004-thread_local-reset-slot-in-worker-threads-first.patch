@@ -1,4 +1,4 @@
-From 32f28c899fec90aec45dc96387e378e73511585d Mon Sep 17 00:00:00 2001
+From 17858febc86eb44b332c78e2cef93111962b7bfe Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 23 Dec 2024 22:43:15 +0100
 Subject: [PATCH 4/7] thread_local: reset slot in worker threads first
@@ -18,7 +18,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  4 files changed, 36 insertions(+), 2 deletions(-)
 
 diff --git a/envoy/thread_local/thread_local.h b/envoy/thread_local/thread_local.h
-index 13ff7496ff..da982ccea5 100644
+index 13ff749..da982cc 100644
 --- a/envoy/thread_local/thread_local.h
 +++ b/envoy/thread_local/thread_local.h
 @@ -248,6 +248,13 @@ public:
@@ -33,10 +33,10 @@ index 13ff7496ff..da982ccea5 100644
 +  virtual void runOnAllWorkerThreads(std::function<void()> worker_cb, std::function<void()> main_cb) const PURE;
 +
  };
-
+ 
  } // namespace ThreadLocal
 diff --git a/source/common/thread_local/thread_local_impl.cc b/source/common/thread_local/thread_local_impl.cc
-index 2a49789a09..e57b2fd70d 100644
+index 2a49789..e57b2fd 100644
 --- a/source/common/thread_local/thread_local_impl.cc
 +++ b/source/common/thread_local/thread_local_impl.cc
 @@ -165,7 +165,8 @@ void InstanceImpl::removeSlot(uint32_t slot) {
@@ -61,12 +61,12 @@ index 2a49789a09..e57b2fd70d 100644
 +  // worker thread.
 +  runOnAllWorkerThreads(cb, cb);
  }
-
+ 
  void InstanceImpl::runOnAllThreads(std::function<void()> cb) {
 @@ -208,6 +214,22 @@ void InstanceImpl::runOnAllThreads(std::function<void()> cb,
    }
  }
-
+ 
 +void InstanceImpl::runOnAllWorkerThreads(std::function<void()> cb,
 +                                         std::function<void()> worker_threads_complete_cb) const {
 +  ASSERT_IS_MAIN_OR_TEST_THREAD();
@@ -87,7 +87,7 @@ index 2a49789a09..e57b2fd70d 100644
    if (thread_local_data_.data_.size() <= index) {
      thread_local_data_.data_.resize(index + 1);
 diff --git a/source/common/thread_local/thread_local_impl.h b/source/common/thread_local/thread_local_impl.h
-index 719418991e..685457afe5 100644
+index 7194189..685457a 100644
 --- a/source/common/thread_local/thread_local_impl.h
 +++ b/source/common/thread_local/thread_local_impl.h
 @@ -29,6 +29,7 @@ public:
@@ -95,11 +95,11 @@ index 719418991e..685457afe5 100644
    Event::Dispatcher& dispatcher() override;
    bool isShutdown() const override { return shutdown_; }
 +  void runOnAllWorkerThreads(std::function<void()> worker_cb, std::function<void()> main_cb) const override;
-
+ 
  private:
    // On destruction returns the slot index to the deferred delete queue (detaches it). This allows
 diff --git a/test/mocks/thread_local/mocks.h b/test/mocks/thread_local/mocks.h
-index 09dff23777..88d7cea1a9 100644
+index 09dff23..88d7cea 100644
 --- a/test/mocks/thread_local/mocks.h
 +++ b/test/mocks/thread_local/mocks.h
 @@ -27,6 +27,10 @@ public:
@@ -110,9 +110,9 @@ index 09dff23777..88d7cea1a9 100644
 +    worker_cb();
 +    main_cb();
 +  }
-
+ 
    SlotPtr allocateSlotMock() { return SlotPtr{new SlotImpl(*this, current_slot_++)}; }
    void runOnAllThreads1(std::function<void()> cb) { cb(); }
---
-2.43.0
+-- 
+2.52.0
 

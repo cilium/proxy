@@ -12,8 +12,8 @@ ENVOY_REPO = "envoy"
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.36.4
-ENVOY_SHA = "0c30f2cfb88356984f8089fd973919deeb1cf7c2"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.37.0
+ENVOY_SHA = "6d9bb7d9a85d616b220d1f8fe67b61f82bbdb8d3"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -41,9 +41,10 @@ git_repository(
         "@//patches:0002-listener-add-socket-options.patch",
         "@//patches:0003-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
         "@//patches:0004-thread_local-reset-slot-in-worker-threads-first.patch",
-        "@//patches:0005-http-header-expose-attribute.patch",
+        "//patches:0005-http-header-expose-attribute.patch",
         "@//patches:0006-build-Fix-arm-build-for-liburing.patch",
         "@//patches:0007-Add-latomic-back-for-arm-build.patch",
+        "@//patches:0008-bazel-Bypass-yq-dependency-in-envoy_repo-rule.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
@@ -67,13 +68,13 @@ load("@envoy//bazel:api_repositories.bzl", "envoy_api_dependencies")
 
 envoy_api_dependencies()
 
-load("@envoy//bazel:repo.bzl", "envoy_repo")
-
-envoy_repo()
-
 load("@envoy//bazel:repositories.bzl", "envoy_dependencies")
 
 envoy_dependencies()
+
+load("@envoy//bazel:bazel_deps.bzl", "envoy_bazel_dependencies")
+
+envoy_bazel_dependencies()
 
 load("@envoy//bazel:repositories_extra.bzl", "envoy_dependencies_extra")
 
@@ -86,6 +87,14 @@ envoy_python_dependencies()
 load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
 
 envoy_dependency_imports()
+
+load("@envoy//bazel:repo.bzl", "envoy_repo")
+
+envoy_repo()
+
+load("@envoy//bazel:toolchains.bzl", "envoy_toolchains")
+
+envoy_toolchains()
 
 load("@envoy//bazel:dependency_imports_extra.bzl", "envoy_dependency_imports_extra")
 
