@@ -219,14 +219,14 @@ Config::Config(const ::cilium::BpfMetadata& config,
   }
   if ((ipv4_source_address_ &&
        ipv4_source_address_->ip()->version() != Network::Address::IpVersion::v4) ||
-      (!ipv4_source_address_ && config.ipv4_source_address().length() > 0)) {
+      (!ipv4_source_address_ && !config.ipv4_source_address().empty())) {
     throw EnvoyException(
         fmt::format("cilium.bpf_metadata: ipv4_source_address is not an IPv4 address: {}",
                     config.ipv4_source_address()));
   }
   if ((ipv6_source_address_ &&
        ipv6_source_address_->ip()->version() != Network::Address::IpVersion::v6) ||
-      (!ipv6_source_address_ && config.ipv6_source_address().length() > 0)) {
+      (!ipv6_source_address_ && !config.ipv6_source_address().empty())) {
     throw EnvoyException(
         fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}",
                     config.ipv6_source_address()));
@@ -240,7 +240,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
   // bpf_root instantiated! Only try opening bpf maps if bpf root is explicitly
   // configured
   std::string bpf_root = config.bpf_root();
-  if (bpf_root.length() > 0) {
+  if (!bpf_root.empty()) {
     ct_maps_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::CtMap>(
         SINGLETON_MANAGER_REGISTERED_NAME(cilium_bpf_conntrack), [&bpf_root] {
           // Even if opening the global maps fail, local maps may still succeed
@@ -255,7 +255,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
 
     if (!hosts_) {
       std::string ipcache_name = "cilium_ipcache";
-      if (config.ipcache_name().length() > 0) {
+      if (!config.ipcache_name().empty()) {
         ipcache_name = config.ipcache_name();
       }
       ipcache_ = IpCache::newIpCache(
@@ -306,7 +306,7 @@ uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
   // Resolve the source security ID from conntrack map, or from ip cache
   if (ct_maps_ != nullptr) {
     const std::string& ct_name = policy.conntrackName();
-    if (ct_name.length() > 0) {
+    if (!ct_name.empty()) {
       source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, ingress);
     } else if (is_l7_lb) {
       // non-local source should be in the global conntrack

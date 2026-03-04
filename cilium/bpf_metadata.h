@@ -169,10 +169,10 @@ public:
   std::chrono::milliseconds ipcache_entry_ttl_;
   Random::RandomGenerator& random_;
 
-  std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_{};
-  Cilium::CtMapSharedPtr ct_maps_{};
-  Cilium::IpCacheSharedPtr ipcache_{};
-  std::shared_ptr<const Cilium::PolicyHostMap> hosts_{};
+  std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
+  Cilium::CtMapSharedPtr ct_maps_;
+  Cilium::IpCacheSharedPtr ipcache_;
+  std::shared_ptr<const Cilium::PolicyHostMap> hosts_;
 
 private:
   uint32_t resolveSourceIdentity(const PolicyInstance& policy, const Network::Address::Ip* sip,

@@ -30,7 +30,7 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
   l7_proto = "";
 
   // enforce pod policy first, if any
-  if (pod_ip_.length() > 0) {
+  if (!pod_ip_.empty()) {
     const auto& policy = policy_resolver_->getPolicy(pod_ip_);
     auto remote_id = ingress_ ? source_identity_ : destination_identity;
     auto port = ingress_ ? port_ : destination_port;
@@ -48,7 +48,7 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
   }
 
   // enforce Ingress policy 2nd, if any
-  if (ingress_policy_name_.length() > 0) {
+  if (!ingress_policy_name_.empty()) {
     log_entry.entry_.set_policy_name(ingress_policy_name_);
     const auto& policy = policy_resolver_->getPolicy(ingress_policy_name_);
 

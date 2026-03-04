@@ -81,7 +81,7 @@ public:
 private:
   Ssl::ServerContextConfigPtr server_config_;
   std::vector<std::string> server_names_;
-  Ssl::ServerContextSharedPtr server_context_ ABSL_GUARDED_BY(ssl_context_mutex_){};
+  Ssl::ServerContextSharedPtr server_context_ ABSL_GUARDED_BY(ssl_context_mutex_);
 };
 using DownstreamTLSContextPtr = std::unique_ptr<DownstreamTLSContext>;
 
@@ -98,7 +98,7 @@ public:
 
 private:
   Ssl::ClientContextConfigPtr client_config_;
-  Ssl::ClientContextSharedPtr client_context_ ABSL_GUARDED_BY(ssl_context_mutex_){};
+  Ssl::ClientContextSharedPtr client_context_ ABSL_GUARDED_BY(ssl_context_mutex_);
 };
 using UpstreamTLSContextPtr = std::unique_ptr<UpstreamTLSContext>;
 

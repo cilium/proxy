@@ -79,10 +79,10 @@ private:
   Network::ReadFilterCallbacks* callbacks_ = nullptr;
   uint32_t remote_id_ = 0;
   uint16_t destination_port_ = 0;
-  std::string l7proto_{};
+  std::string l7proto_;
   bool should_buffer_ = false;
   Buffer::OwnedImpl buffer_; // Buffer for initial connection data
-  Cilium::GoFilter::InstancePtr go_parser_{};
+  Cilium::GoFilter::InstancePtr go_parser_;
   Cilium::AccessLog::Entry log_entry_{};
 };
 
