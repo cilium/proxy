@@ -63,7 +63,7 @@ private:
 
     Codec& parent_;
     bool end_stream_{false};
-    Buffer::OwnedImpl encoded_{}; // Buffer for encoded websocket frames
+    Buffer::OwnedImpl encoded_; // Buffer for encoded websocket frames
   };
 
   class Decoder : Logger::Loggable<Logger::Id::filter> {
@@ -79,8 +79,8 @@ private:
 
     Codec& parent_;
     bool end_stream_{false};
-    Buffer::OwnedImpl buffer_{};  // Buffer for partial websocket frames
-    Buffer::OwnedImpl decoded_{}; // Buffer for decoded websocket frames
+    Buffer::OwnedImpl buffer_;  // Buffer for partial websocket frames
+    Buffer::OwnedImpl decoded_; // Buffer for decoded websocket frames
 
     bool unmasking_{false};
     uint8_t mask_[4];
@@ -124,7 +124,7 @@ private:
   uint64_t ping_count_{0};
 
   Event::TimerPtr handshake_timer_{nullptr};
-  Buffer::OwnedImpl handshake_buffer_{};
+  Buffer::OwnedImpl handshake_buffer_;
   bool accepted_{false};
 };
 using CodecPtr = std::unique_ptr<Codec>;

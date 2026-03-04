@@ -79,10 +79,10 @@ Config::Config(const ::cilium::NetworkFilter& config,
                Server::Configuration::FactoryContext& context)
     : time_source_(context.serverFactoryContext().timeSource()), access_log_(nullptr) {
   const auto& access_log_path = config.access_log_path();
-  if (access_log_path.length()) {
+  if (!access_log_path.empty()) {
     access_log_ = Cilium::AccessLog::open(access_log_path, time_source_);
   }
-  if (config.proxylib().length() > 0) {
+  if (!config.proxylib().empty()) {
     proxylib_ = std::make_shared<Cilium::GoFilter>(config.proxylib(), config.proxylib_params());
   }
 }

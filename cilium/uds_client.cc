@@ -25,7 +25,7 @@ UDSClient::UDSClient(const std::string& path, TimeSource& time_source)
     : addr_(THROW_OR_RETURN_VALUE(Network::Address::PipeInstance::create(path),
                                   std::unique_ptr<Network::Address::PipeInstance>)),
       fd_(-1), errno_(0), logging_limiter_(std::make_unique<TokenBucketImpl>(10, time_source)) {
-  if (path.length() == 0) {
+  if (path.empty()) {
     throw EnvoyException(fmt::format("cilium: Invalid Unix domain socket path: {}", path));
   }
 

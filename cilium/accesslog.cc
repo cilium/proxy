@@ -238,7 +238,7 @@ void AccessLog::Entry::updateFromResponse(const Http::ResponseHeaderMap& headers
   http_entry->clear_headers();
 
   // Add back the x-request-id, if any
-  if (request_id.length() > 0) {
+  if (!request_id.empty()) {
     ::cilium::KeyValue* kv = http_entry->add_headers();
     kv->set_key(xRequestIdSV.data(), xRequestIdSV.size());
     kv->set_value(request_id);

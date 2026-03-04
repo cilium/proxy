@@ -23,7 +23,7 @@
 #include "source/common/config/decoded_resource_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/utility.h"
-#include "source/common/secret/sds_api.h"
+#include "source/common/secret/sds_api.h" // NOLINT
 
 #include "test/common/stats/stat_test_utility.h"
 #include "test/mocks/secret/mocks.h"

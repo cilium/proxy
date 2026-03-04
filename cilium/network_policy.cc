@@ -81,7 +81,7 @@ public:
   HeaderMatch(const NetworkPolicyMapImpl& parent, const cilium::HeaderMatch& config)
       : name_(config.name()), value_(config.value()), match_action_(config.match_action()),
         mismatch_action_(config.mismatch_action()) {
-    if (config.value_sds_secret().length() > 0) {
+    if (!config.value_sds_secret().empty()) {
       secret_ = std::make_unique<SecretWatcher>(parent, config.value_sds_secret());
     }
   }
@@ -105,7 +105,7 @@ public:
       auto* secret_value = secret_->value();
       if (secret_value) {
         match_value = secret_value;
-      } else if (value_.length() == 0) {
+      } else if (value_.empty()) {
         // fail if secret has no value and the inline value to match is also empty
         ENVOY_LOG(info, "Cilium HeaderMatch missing SDS secret value for header {}", name_);
         return false;
@@ -113,7 +113,7 @@ public:
     }
 
     // Perform presence match if the value to match is empty
-    bool is_present_match = match_value->length() == 0;
+    bool is_present_match = match_value->empty();
     if (is_present_match) {
       matches = header_value.result().has_value();
     } else if (header_value.result().has_value()) {
@@ -183,7 +183,7 @@ public:
 
   void toString(int indent, std::string& res) const {
     res.append(indent - 2, ' ').append("- name: \"").append(name_.get()).append("\"\n");
-    if (value_.length() > 0) {
+    if (!value_.empty()) {
       res.append(indent, ' ').append("value: \"").append(value_).append("\"\n");
     }
     if (secret_) {
@@ -447,7 +447,7 @@ public:
         http_rules_.emplace_back(parent, http_rule);
       }
     }
-    if (l7_proto_.length() > 0 && rule.has_l7_rules()) {
+    if (!l7_proto_.empty() && rule.has_l7_rules()) {
       const auto& ruleset = rule.l7_rules();
       for (const auto& l7_rule : ruleset.l7_deny_rules()) {
         l7_deny_rules_.emplace_back(parent, l7_rule);
@@ -490,7 +490,7 @@ public:
   bool allowed(uint32_t proxy_id, uint32_t remote_id, absl::string_view sni, bool& denied) const {
     // sni must match if we have any
     if (!allowed_snis_.empty()) {
-      if (sni.length() == 0) {
+      if (sni.empty()) {
         return false;
       }
       bool matched = false;
@@ -539,7 +539,7 @@ public:
     if (!allowed(proxy_id, remote_id, denied)) {
       return false;
     }
-    if (l7_proto_.length() > 0) {
+    if (!l7_proto_.empty()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule::useProxylib(): returning {}", l7_proto_);
       l7_proto = l7_proto_;
       return true;
@@ -622,7 +622,7 @@ public:
     }
     res.append("]\n");
 
-    if (name_.length() > 0) {
+    if (!name_.empty()) {
       res.append(indent, ' ').append("name: \"").append(name_).append("\"\n");
     }
     if (deny_) {
@@ -684,7 +684,7 @@ public:
 
   std::vector<SniPattern> allowed_snis_;          // All SNIs allowed if empty.
   std::vector<HttpNetworkPolicyRule> http_rules_; // Allowed if empty, but remote is checked first.
-  std::string l7_proto_{};
+  std::string l7_proto_;
   std::vector<L7NetworkPolicyRule> l7_allow_rules_;
   std::vector<L7NetworkPolicyRule> l7_deny_rules_;
 };

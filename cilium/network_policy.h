@@ -145,8 +145,8 @@ public:
       : ipv4_(ipv4), ipv6_(ipv6) {};
   IpAddressPair(const cilium::NetworkPolicy& proto);
 
-  Network::Address::InstanceConstSharedPtr ipv4_{};
-  Network::Address::InstanceConstSharedPtr ipv6_{};
+  Network::Address::InstanceConstSharedPtr ipv4_;
+  Network::Address::InstanceConstSharedPtr ipv6_;
 };
 
 class PolicyInstance {
@@ -413,7 +413,7 @@ public:
   // - Not have an empty subdomain (multiple consecutive '.' are not allowed)
   // - Empty pattern is only allowed due to testing, it does not match anything
   static bool isValid(absl::string_view pattern) {
-    return pattern.length() == 0 || re2::RE2::FullMatch(pattern, getValidPatternRE());
+    return pattern.empty() || re2::RE2::FullMatch(pattern, getValidPatternRE());
   }
 
   bool matches(const absl::string_view sni) const {

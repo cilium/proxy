@@ -429,13 +429,13 @@ Codec::decodeHandshakeRequest(const ConfigSharedPtr& config,
        connection == Http::Headers::get().ConnectionValues.Upgrade &&
        upgrade == Http::Headers::get().UpgradeValues.WebSocket &&
        // path must be present with non-empty value, and must match expected if configured
-       ((config->path_.empty() && path.length() > 0) || (path == config->path_)) &&
+       ((config->path_.empty() && !path.empty()) || (path == config->path_)) &&
        // host must be present with non-empty value, and must match expected if configured
-       ((config->host_.empty() && host.length() > 0) || (host == config->host_)) &&
+       ((config->host_.empty() && !host.empty()) || (host == config->host_)) &&
        // key must be present with non-empty value, and must match expected if configured
-       ((config->key_.empty() && key.length() > 0) || (key == config->key_)) &&
+       ((config->key_.empty() && !key.empty()) || (key == config->key_)) &&
        // version must be present with non-empty value, and must match expected if configured
-       ((config->version_.empty() && version.length() > 0) || (version == config->version_)) &&
+       ((config->version_.empty() && !version.empty()) || (version == config->version_)) &&
        // origin must be present with non-empty value and must match expected if configured,
        // origin may not be present if not configured
        (config->origin_.empty()

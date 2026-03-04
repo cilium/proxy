@@ -53,7 +53,7 @@ public:
     void addRejected(absl::string_view key, absl::string_view value);
     void addMissing(absl::string_view key, absl::string_view value);
 
-    ::cilium::LogEntry entry_{};
+    ::cilium::LogEntry entry_;
     bool request_logged_ = false;
   };
 
