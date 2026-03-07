@@ -7,17 +7,10 @@
 #include <utility>
 #include <vector>
 
-#include "envoy/common/exception.h"
-#include "envoy/extensions/transport_sockets/tls/v3/tls.pb.h"
 #include "envoy/http/codec.h" // IWYU pragma: keep
 #include "envoy/network/address.h"
 #include "envoy/network/connection.h"
 #include "envoy/network/transport_socket.h"
-
-#include "source/common/common/logger.h"
-#include "source/common/stats/isolated_store_impl.h"
-#include "source/common/tls/server_context_config_impl.h"
-#include "source/common/tls/server_ssl_socket.h"
 
 #include "test/integration/fake_upstream.h"
 #include "test/integration/ssl_utility.h"
@@ -260,32 +253,9 @@ public:
     }
   }
 
-  // TODO(mattklein123): This logic is duplicated in various places. Cleanup in
-  // a follow up.
   Network::DownstreamTransportSocketFactoryPtr createUpstreamSslContext() {
-    envoy::extensions::transport_sockets::tls::v3::DownstreamTlsContext tls_context;
-    auto* common_tls_context = tls_context.mutable_common_tls_context();
-    auto* tls_cert = common_tls_context->add_tls_certificates();
-    tls_cert->mutable_certificate_chain()->set_filename(TestEnvironment::runfilesPath(
-        fmt::format("test/config/integration/certs/{}cert.pem", upstream_cert_name_)));
-    tls_cert->mutable_private_key()->set_filename(TestEnvironment::runfilesPath(
-        fmt::format("test/config/integration/certs/{}key.pem", upstream_cert_name_)));
-    ENVOY_LOG_MISC(debug, "Fake Upstream Downstream TLS context: {}", tls_context.DebugString());
-
-    auto server_config_or_error =
-        Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(tls_context,
-                                                                           factory_context_, false);
-    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
-    THROW_IF_NOT_OK(server_config_or_error.status());
-    auto cfg = std::move(server_config_or_error.value());
-
-    static auto* upstream_stats_store = new Stats::IsolatedStoreImpl();
-    auto factory_or_error = Extensions::TransportSockets::Tls::ServerSslSocketFactory::create(
-        std::move(cfg), context_manager_, *upstream_stats_store->rootScope(),
-        std::vector<std::string>{});
-    // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
-    THROW_IF_NOT_OK(factory_or_error.status());
-    return std::move(factory_or_error.value());
+    return Cilium::createUpstreamSslContext(upstream_cert_name_, factory_context_,
+                                            context_manager_);
   }
 
   std::string testPolicyFmt() override {

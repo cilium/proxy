@@ -83,6 +83,8 @@ envoy_cc_test_library(
     ],
     repository = "@envoy",
     deps = [
+        "@envoy//source/common/tls:server_context_lib",
+        "@envoy//source/common/tls:server_ssl_socket_lib",
         "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
         "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
         "@envoy//source/extensions/clusters/static:static_cluster_lib",
