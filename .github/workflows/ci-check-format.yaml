@@ -36,7 +36,7 @@ jobs:
           images: cilium-envoy-builder-dev
 
       - name: Check format
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         id: docker_format_ciak
         with:
           target: format
@@ -54,7 +54,7 @@ jobs:
 
       - name: Upload Format results
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: check-format-results
           path: check-format-results/format-output.txt
@@ -86,7 +86,7 @@ jobs:
           images: cilium-envoy-builder-dev
 
       - name: Run clang-tidy
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         # skip if nothing changed
         if: ${{ env.TIDY_SOURCES != '' }}
         id: docker_clang_tidy
@@ -110,7 +110,7 @@ jobs:
 
       - name: Upload clang-tidy results
         if: failure()
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: clang-tidy-results
           path: clang-tidy-results/*.txt
