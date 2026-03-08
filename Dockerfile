@@ -134,8 +134,10 @@ FROM docker.io/library/ubuntu:24.04@sha256:d1e2e92c075e5ca139d51a140fff46f84315c
 LABEL maintainer="maintainer@cilium.io"
 # install ca-certificates package
 RUN apt-get update && apt-get upgrade -y \
-    && apt-get install --no-install-recommends -y ca-certificates libatomic1 \
+    && apt-get install --no-install-recommends -y ca-certificates libatomic1 curl \
     && apt-get autoremove -y && apt-get clean \
     && rm -rf /tmp/* /var/tmp/* \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /tmp/install /
+COPY SOURCE_VERSION ENVOY_VERSION /
+COPY hack/cilium-envoy-wrapper.sh /usr/local/bin/cilium-envoy
