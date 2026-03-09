@@ -81,6 +81,13 @@ public:
     return false;
   }
 
+  // Shared test helpers for deny/accept verification with access log validation.
+  // Derived classes may hide these with their own versions (e.g., simplified
+  // variants without access log checks).
+  void denied(Http::TestRequestHeaderMapImpl&& headers);
+  void accepted(Http::TestRequestHeaderMapImpl&& headers);
+  void deniedL3(Http::TestRequestHeaderMapImpl&& headers);
+
   AccessLogServer accessLogServer_;
 };
 

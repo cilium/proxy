@@ -83,6 +83,8 @@ envoy_cc_test_library(
     ],
     repository = "@envoy",
     deps = [
+        "@envoy//source/common/tls:server_context_lib",
+        "@envoy//source/common/tls:server_ssl_socket_lib",
         "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
         "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
         "@envoy//source/extensions/clusters/static:static_cluster_lib",
@@ -155,10 +157,6 @@ envoy_cc_test(
         ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
         "//cilium:network_filter_lib",
-        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
         "@envoy//test/integration/clusters:custom_static_cluster",
     ],
 )
@@ -177,10 +175,6 @@ envoy_cc_test(
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
         "//cilium:tls_wrapper_lib",
-        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
     ],
 )
 
@@ -199,10 +193,6 @@ envoy_cc_test(
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
         "//cilium:tls_wrapper_lib",
-        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
     ],
 )
 
@@ -218,10 +208,6 @@ envoy_cc_test(
         ":cilium_http_integration_lib",
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
-        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
         "@envoy//test/integration/clusters:custom_static_cluster",
     ],
 )
@@ -238,10 +224,6 @@ envoy_cc_test(
         ":cilium_http_integration_lib",
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
-        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
         "@envoy//source/extensions/upstreams/http/http:config",
         "@envoy//source/extensions/upstreams/http/http:upstream_request_lib",
         "@envoy//test/integration/clusters:custom_static_cluster",
@@ -260,10 +242,6 @@ envoy_cc_test(
         ":cilium_http_integration_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
-        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
         "@envoy//source/extensions/filters/network/tcp_proxy:config",
     ],
 )
@@ -280,10 +258,6 @@ envoy_cc_test(
         ":cilium_tcp_integration_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
-        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
     ],
 )
 
@@ -301,10 +275,6 @@ envoy_cc_test(
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
-        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
     ],
 )
 
@@ -320,10 +290,6 @@ envoy_cc_test(
         ":cilium_tcp_integration_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
-        "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
     ],
 )
 
