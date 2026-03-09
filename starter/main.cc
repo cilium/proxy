@@ -4,6 +4,11 @@
 
 #include <cerrno>
 #include <cstring>
+#include <fstream>
+#include <stdlib.h>	// NOLINT
+#include <iterator>
+#include <string>
+#include <string_view>
 #include <sys/prctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -25,6 +30,57 @@
 
 #define STARTER_SUFFIX "-starter"
 #define STARTER_SUFFIX_LEN (sizeof(STARTER_SUFFIX) - 1)
+
+namespace {
+
+std::string_view trimWhitespace(std::string_view input) {
+  constexpr std::string_view whitespace = " \t\n\r\f\v";
+  size_t start = input.find_first_not_of(whitespace);
+  if (start == std::string_view::npos) {
+    return {};
+  }
+  size_t end = input.find_last_not_of(whitespace);
+  return input.substr(start, end - start + 1);
+}
+
+std::string loadArgumentValueFromFile(const char* value_path) {
+  std::ifstream value_file(value_path);
+  if (!value_file.is_open()) {
+    fprintf(stderr, "failed to open argument file '%s': %s\n", value_path, strerror(errno));
+    exit(1);
+  }
+
+  std::string value((std::istreambuf_iterator<char>(value_file)), std::istreambuf_iterator<char>());
+  if (value_file.bad()) {
+    fprintf(stderr, "failed to read argument file '%s': %s\n", value_path, strerror(errno));
+    exit(1);
+  }
+
+  return std::string(trimWhitespace(value));
+}
+
+std::string resolveArgumentValue(std::string_view arg_value) {
+  if (arg_value.empty()) {
+    return "";
+  }
+
+  if (arg_value[0] != '@') {
+    return std::string(arg_value);
+  }
+
+  if (arg_value.size() == 1) {
+    fprintf(stderr, "argument file path cannot be empty\n");
+    exit(1);
+  }
+
+  if (arg_value[1] == '@') {
+    return std::string(arg_value.substr(1));
+  }
+
+  return loadArgumentValueFromFile(std::string(arg_value.substr(1)).c_str());
+}
+
+} // namespace
 
 int main(int argc, char** argv) {
   // Get the path we're running from
@@ -75,12 +131,17 @@ int main(int argc, char** argv) {
   }
 
   bool keep_cap_netbindservice = false;
+  std::vector<std::string> resolved_envoy_args;
+  resolved_envoy_args.reserve(args.size());
   std::vector<char*> envoy_args;
   envoy_args.push_back(path); // program
 
   if (!delimiter_present) {
     // backwards compatibility: handle all args as Envoys if delimiter isn't present
-    envoy_args.insert(envoy_args.end(), args.begin(), args.end());
+    for (char* arg : args) {
+      resolved_envoy_args.push_back(resolveArgumentValue(arg));
+      envoy_args.push_back(const_cast<char*>(resolved_envoy_args.back().c_str()));
+    }
   } else {
     // parse arguments and split by delimiter "--"
     // before: arguments for starter process
@@ -89,7 +150,8 @@ int main(int argc, char** argv) {
     for (char* arg : args) {
       if (delimiter_reached) {
         // argument for Envoy
-        envoy_args.push_back(arg);
+        resolved_envoy_args.push_back(resolveArgumentValue(arg));
+        envoy_args.push_back(const_cast<char*>(resolved_envoy_args.back().c_str()));
         continue;
       }
 
