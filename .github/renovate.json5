@@ -27,6 +27,7 @@
   baseBranchPatterns: [
     'main',
     'v1.35',
+    'v1.34',
   ],
   labels: [
     'kind/enhancement',
@@ -49,6 +50,7 @@
       matchBaseBranches: [
         'main',
         'v1.35',
+        'v1.34',
       ],
     },
     {
@@ -60,6 +62,7 @@
       allowedVersions: '<1.25',
       matchBaseBranches: [
         'v1.35',
+        'v1.34',
       ],
     },
     {
@@ -83,6 +86,7 @@
       matchBaseBranches: [
         'main',
         'v1.35',
+        'v1.34',
       ],
     },
     {
@@ -126,6 +130,7 @@
       matchBaseBranches: [
         'main',
         'v1.35',
+        'v1.34',
       ],
     },
     {
@@ -139,6 +144,18 @@
       matchBaseBranches: [
         'main',
         'v1.35',
+      ],
+    },
+    {
+      matchFileNames: [
+        'Dockerfile.builder'
+      ],
+      matchPackageNames: [
+        'docker.io/library/ubuntu',
+      ],
+      allowedVersions: '22.04',
+      matchBaseBranches: [
+        'v1.34',
       ],
     },
     {
@@ -161,6 +178,16 @@
       allowedVersions: '<=1.24',
       matchBaseBranches: [
         'main',
+      ],
+    },
+    {
+      groupName: 'envoy 1.34.x',
+      matchDepNames: [
+        'envoyproxy/envoy',
+      ],
+      allowedVersions: '<=1.34',
+      matchBaseBranches: [
+        'v1.34',
       ],
     },
     {
