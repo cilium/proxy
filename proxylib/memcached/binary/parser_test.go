@@ -6,16 +6,10 @@ package binary
 import (
 	"testing"
 
-	. "github.com/cilium/checkmate"
+	"github.com/stretchr/testify/require"
 )
 
-func Test(t *testing.T) { TestingT(t) }
-
-type BinaryMemcachedTestSuite struct{}
-
-var _ = Suite(&BinaryMemcachedTestSuite{})
-
-func (k *BinaryMemcachedTestSuite) TestMemcacheGetKey(c *C) {
+func TestMemcacheGetKey(c *testing.T) {
 	packet := []byte{
 		0x80, 0, 0, 0x5,
 		0, 0, 0, 0,
@@ -29,7 +23,7 @@ func (k *BinaryMemcachedTestSuite) TestMemcacheGetKey(c *C) {
 
 	key := getMemcacheKey(packet, 0, 5)
 
-	c.Assert(string(key), Equals, "Test1")
+	require.Equal(c, "Test1", string(key))
 
 	packet = []byte{
 		0x80, 0, 0, 0x5,
@@ -45,7 +39,7 @@ func (k *BinaryMemcachedTestSuite) TestMemcacheGetKey(c *C) {
 
 	key = getMemcacheKey(packet, 4, 5)
 
-	c.Assert(string(key), Equals, "Test1")
+	require.Equal(c, "Test1", string(key))
 
 	packet = []byte{
 		0x80, 0x8, 0, 0x0,
@@ -59,5 +53,5 @@ func (k *BinaryMemcachedTestSuite) TestMemcacheGetKey(c *C) {
 
 	key = getMemcacheKey(packet, 4, 0)
 
-	c.Assert(string(key), Equals, "")
+	require.Equal(c, "", string(key))
 }

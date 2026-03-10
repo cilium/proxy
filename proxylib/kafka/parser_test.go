@@ -7,77 +7,69 @@ import (
 	"encoding/hex"
 	"testing"
 
-	. "github.com/cilium/checkmate"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 
 	"github.com/cilium/proxy/proxylib/accesslog"
 	"github.com/cilium/proxy/proxylib/proxylib"
 	"github.com/cilium/proxy/proxylib/test"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-	TestingT(t)
-}
-
 type KafkaSuite struct {
 	logServer *test.AccessLogServer
 	ins       *proxylib.Instance
 }
 
-var _ = Suite(&KafkaSuite{})
-
 // Set up access log server and Library instance for all the test cases
-func (s *KafkaSuite) SetUpSuite(c *C) {
+func setUpKafkaSuite(tb testing.TB) *KafkaSuite {
+	logrus.SetLevel(logrus.DebugLevel)
+	s := &KafkaSuite{}
 	s.logServer = test.StartAccessLogServer("access_log.sock", 10)
-	c.Assert(s.logServer, Not(IsNil))
+	require.NotNil(tb, s.logServer)
 	s.ins = proxylib.NewInstance("node1", accesslog.NewClient(s.logServer.Path))
-	c.Assert(s.ins, Not(IsNil))
+	require.NotNil(tb, s.ins)
+	tb.Cleanup(func() {
+		s.logServer.Clear()
+		s.logServer.Close()
+	})
+	return s
 }
 
-func (s *KafkaSuite) checkAccessLogs(c *C, expPasses, expDrops int) {
+func (s *KafkaSuite) checkAccessLogs(tb testing.TB, expPasses, expDrops int) {
 	passes, drops := s.logServer.Clear()
-	c.Check(passes, Equals, expPasses, Commentf("Unxpected number of passed access log messages"))
-	c.Check(drops, Equals, expDrops, Commentf("Unxpected number of passed access log messages"))
-}
-
-func (s *KafkaSuite) TearDownTest(c *C) {
-	s.logServer.Clear()
-}
-
-func (s *KafkaSuite) TearDownSuite(c *C) {
-	s.logServer.Close()
+	require.Equal(tb, expPasses, passes, "Unxpected number of passed access log messages")
+	require.Equal(tb, expDrops, drops, "Unxpected number of dropped access log messages")
 }
 
 // util function used for Kafka tests, as we may have Kafka requests
 // as hex strings
-func hexData(c *C, dataHex ...string) [][]byte {
+func hexData(tb testing.TB, dataHex ...string) [][]byte {
 	data := make([][]byte, 0, len(dataHex))
 	for i := range dataHex {
 		dataRaw, err := hex.DecodeString(dataHex[i])
-		c.Assert(err, IsNil)
+		require.NoError(tb, err)
 		data = append(data, dataRaw)
 	}
 	return data
 }
 
-func (s *KafkaSuite) TestKafkaOnDataNoHeader(c *C) {
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "no-policy")
-	data := hexData(c, "")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{})
-	data = hexData(c, "00")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.MORE, 7)
-	data = hexData(c, "0000")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.MORE, 6)
-	data = hexData(c, "000001")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.MORE, 5)
-	data = hexData(c, "00000100")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.MORE, 4)
-	data = hexData(c, "00010000010203")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.MORE, 1)
-	data = hexData(c, "000100000102030405060708")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.MORE, 65536-8)
+func TestKafkaOnDataNoHeader(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "no-policy")
+	data := hexData(t, "")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{})
+	data = hexData(t, "00")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.MORE, 7)
+	data = hexData(t, "0000")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.MORE, 6)
+	data = hexData(t, "000001")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.MORE, 5)
+	data = hexData(t, "00000100")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.MORE, 4)
+	data = hexData(t, "00010000010203")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.MORE, 1)
+	data = hexData(t, "000100000102030405060708")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.MORE, 65536-8)
 }
 
 var testMessage1 = "0000" // length = 42 (0x2a), first half
@@ -105,8 +97,9 @@ var testMessage3Fail = "E8" + // Timeout = 1000 ms, last byte
 	"00024748" + // - TopicName (string) "GH"
 	"00000000" //   ProduceReqPartition array length = 0
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderMinimalPolicy(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderMinimalPolicy(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "face::feed"
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
@@ -115,14 +108,15 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderMinimalPolicy(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.PASS, 4+42)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.PASS, 4+42)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataInvalidMessage(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataInvalidMessage(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -130,15 +124,16 @@ func (s *KafkaSuite) TestKafkaOnDataInvalidMessage(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3Fail)
+	data := hexData(t, testMessage1, testMessage2, testMessage3Fail)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.ERROR, int(proxylib.ERROR_INVALID_FRAME_TYPE))
-	s.checkAccessLogs(c, 0, 1)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.ERROR, int(proxylib.ERROR_INVALID_FRAME_TYPE))
+	s.checkAccessLogs(t, 0, 1)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderSimplePolicy(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderSimplePolicy(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -150,15 +145,16 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderSimplePolicy(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.PASS, 4+42)
-	s.checkAccessLogs(c, 1, 0)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.PASS, 4+42)
+	s.checkAccessLogs(t, 1, 0)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithPolicyDrop(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderWithPolicyDrop(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -176,10 +172,10 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithPolicyDrop(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3, "0000")
+	data := hexData(t, testMessage1, testMessage2, testMessage3, "0000")
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data,
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data,
 		// Error response:
 		[]byte{0x0, 0x0, 0x0, 0x1c, // length
 			0x0, 0x1, 0x0, 0x1, // Correlation ID (65537)
@@ -191,11 +187,12 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithPolicyDrop(c *C) {
 			0x0, 0x0, 0x0, 0x0}, // ThrottleTime
 		proxylib.DROP, 4+42,
 		proxylib.MORE, 6)
-	s.checkAccessLogs(c, 0, 1)
+	s.checkAccessLogs(t, 0, 1)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithPolicyAllow(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderWithPolicyAllow(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -217,15 +214,16 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithPolicyAllow(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.PASS, 4+42)
-	s.checkAccessLogs(c, 1, 0)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.PASS, 4+42)
+	s.checkAccessLogs(t, 1, 0)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithClientIDAllow(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderWithClientIDAllow(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -248,15 +246,16 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithClientIDAllow(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.PASS, 4+42)
-	s.checkAccessLogs(c, 1, 0)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.PASS, 4+42)
+	s.checkAccessLogs(t, 1, 0)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithClientID(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderWithClientID(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -274,15 +273,16 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithClientID(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.PASS, 4+42)
-	s.checkAccessLogs(c, 1, 0)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.PASS, 4+42)
+	s.checkAccessLogs(t, 1, 0)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiKeys(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderWithApiKeys(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -301,15 +301,16 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiKeys(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.PASS, 4+42)
-	s.checkAccessLogs(c, 1, 0)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.PASS, 4+42)
+	s.checkAccessLogs(t, 1, 0)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiKeysMismatch(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderWithApiKeysMismatch(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -328,10 +329,10 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiKeysMismatch(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data,
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data,
 		// Error response:
 		[]byte{0x0, 0x0, 0x0, 0x1c, // length
 			0x0, 0x1, 0x0, 0x1, // Correlation ID (65537)
@@ -342,11 +343,12 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiKeysMismatch(c *C) {
 			0x0, 0x0, 0x0, 0x0, // 0 partitions
 			0x0, 0x0, 0x0, 0x0}, // ThrottleTime
 		proxylib.DROP, 4+42)
-	s.checkAccessLogs(c, 0, 1)
+	s.checkAccessLogs(t, 0, 1)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiVersion(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderWithApiVersion(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -364,15 +366,16 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiVersion(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.PASS, 4+42)
-	s.checkAccessLogs(c, 1, 0)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.PASS, 4+42)
+	s.checkAccessLogs(t, 1, 0)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiVersionMismatch(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderWithApiVersionMismatch(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -390,10 +393,10 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiVersionMismatch(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data,
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data,
 		// Error response:
 		[]byte{0x0, 0x0, 0x0, 0x1c, // length
 			0x0, 0x1, 0x0, 0x1, // Correlation ID (65537)
@@ -404,11 +407,12 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithApiVersionMismatch(c *C) {
 			0x0, 0x0, 0x0, 0x0, // 0 partitions
 			0x0, 0x0, 0x0, 0x0}, // ThrottleTime
 		proxylib.DROP, 4+42)
-	s.checkAccessLogs(c, 0, 1)
+	s.checkAccessLogs(t, 0, 1)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithClientIDDeny(c *C) {
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestKafkaOnDataSimpleHeaderWithClientIDDeny(t *testing.T) {
+	s := setUpKafkaSuite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2000
 		ingress_per_port_policies: <
@@ -431,10 +435,10 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithClientIDDeny(c *C) {
 		>
 		`})
 
-	data := hexData(c, testMessage1, testMessage2, testMessage3)
+	data := hexData(t, testMessage1, testMessage2, testMessage3)
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
-	conn.CheckOnDataOK(c, false, false, &data,
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn.CheckOnDataOK(t, false, false, &data,
 		// Error response:
 		[]byte{0x0, 0x0, 0x0, 0x1c, // length
 			0x0, 0x1, 0x0, 0x1, // Correlation ID (65537)
@@ -445,10 +449,11 @@ func (s *KafkaSuite) TestKafkaOnDataSimpleHeaderWithClientIDDeny(c *C) {
 			0x0, 0x0, 0x0, 0x0, // 0 partitions
 			0x0, 0x0, 0x0, 0x0}, // ThrottleTime
 		proxylib.DROP, 4+42)
-	s.checkAccessLogs(c, 0, 1)
+	s.checkAccessLogs(t, 0, 1)
 }
 
-func (s *KafkaSuite) TestKafkaOnDataResponse(c *C) {
+func TestKafkaOnDataResponse(t *testing.T) {
+	s := setUpKafkaSuite(t)
 	data := [][]byte{
 		{0x0, 0x0, 0x0, 0x1c}, // length
 		{0x0, 0x1, 0x0, 0x1},  // Correlation ID (65537)
@@ -460,7 +465,7 @@ func (s *KafkaSuite) TestKafkaOnDataResponse(c *C) {
 		{0x0, 0x0, 0x0, 0x0}, // ThrottleTime
 	}
 
-	conn := s.ins.CheckNewConnectionOK(c, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "")
-	conn.CheckOnDataOK(c, true, false, &data, []byte{}, proxylib.PASS, 4+28)
-	s.checkAccessLogs(c, 1, 0)
+	conn := s.ins.CheckNewConnectionOK(t, "kafka", true, 1000, 2000, "1.1.1.1:34567", "10.0.0.2:80", "")
+	conn.CheckOnDataOK(t, true, false, &data, []byte{}, proxylib.PASS, 4+28)
+	s.checkAccessLogs(t, 1, 0)
 }

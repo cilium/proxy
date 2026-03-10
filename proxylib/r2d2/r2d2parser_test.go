@@ -6,54 +6,43 @@ package r2d2
 import (
 	"testing"
 
-	. "github.com/cilium/checkmate"
+	"github.com/stretchr/testify/require"
 
 	"github.com/cilium/proxy/proxylib/accesslog"
 	"github.com/cilium/proxy/proxylib/proxylib"
 	"github.com/cilium/proxy/proxylib/test"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) {
-	// logging.ToggleDebugLogs(true)
-	// log.SetLevel(log.DebugLevel)
-
-	TestingT(t)
-}
-
 type R2d2Suite struct {
 	logServer *test.AccessLogServer
 	ins       *proxylib.Instance
 }
 
-var _ = Suite(&R2d2Suite{})
-
 // Set up access log server and Library instance for all the test cases
-func (s *R2d2Suite) SetUpSuite(c *C) {
+func setUpR2d2Suite(tb testing.TB) *R2d2Suite {
+	s := &R2d2Suite{}
 	s.logServer = test.StartAccessLogServer("access_log.sock", 10)
-	c.Assert(s.logServer, Not(IsNil))
+	require.NotNil(tb, s.logServer)
 	s.ins = proxylib.NewInstance("node1", accesslog.NewClient(s.logServer.Path))
-	c.Assert(s.ins, Not(IsNil))
+	require.NotNil(tb, s.ins)
+	tb.Cleanup(func() {
+		s.logServer.Clear()
+		s.logServer.Close()
+	})
+	return s
 }
 
-func (s *R2d2Suite) TearDownTest(c *C) {
-	s.logServer.Clear()
-}
-
-func (s *R2d2Suite) TearDownSuite(c *C) {
-	s.logServer.Close()
-}
-
-func (s *R2d2Suite) TestR2d2OnDataIncomplete(c *C) {
-	conn := s.ins.CheckNewConnectionOK(c, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "no-policy")
+func TestR2d2OnDataIncomplete(t *testing.T) {
+	s := setUpR2d2Suite(t)
+	conn := s.ins.CheckNewConnectionOK(t, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "no-policy")
 	data := [][]byte{[]byte("READ xssss")}
-	conn.CheckOnDataOK(c, false, false, &data, []byte{}, proxylib.MORE, 1)
+	conn.CheckOnDataOK(t, false, false, &data, []byte{}, proxylib.MORE, 1)
 }
 
-func (s *R2d2Suite) TestR2d2OnDataBasicPass(c *C) {
-
+func TestR2d2OnDataBasicPass(t *testing.T) {
+	s := setUpR2d2Suite(t)
 	// allow all rule
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -63,13 +52,13 @@ func (s *R2d2Suite) TestR2d2OnDataBasicPass(c *C) {
 		  >
 		>
 		`})
-	conn := s.ins.CheckNewConnectionOK(c, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 	msg1 := "READ sssss\r\n"
 	msg2 := "WRITE sssss\r\n"
 	msg3 := "HALT\r\n"
 	msg4 := "RESET\r\n"
 	data := [][]byte{[]byte(msg1 + msg2 + msg3 + msg4)}
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(msg1),
 		proxylib.PASS, len(msg2),
 		proxylib.PASS, len(msg3),
@@ -77,10 +66,10 @@ func (s *R2d2Suite) TestR2d2OnDataBasicPass(c *C) {
 		proxylib.MORE, 1)
 }
 
-func (s *R2d2Suite) TestR2d2OnDataMultipleReq(c *C) {
-
+func TestR2d2OnDataMultipleReq(t *testing.T) {
+	s := setUpR2d2Suite(t)
 	// allow all rule
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -90,18 +79,18 @@ func (s *R2d2Suite) TestR2d2OnDataMultipleReq(c *C) {
 		  >
 		>
 		`})
-	conn := s.ins.CheckNewConnectionOK(c, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 	msg1Part1 := "RE"
 	msg1Part2 := "SET\r\n"
 	data := [][]byte{[]byte(msg1Part1), []byte(msg1Part2)}
-	conn.CheckOnDataOK(c, false, false, &data, []byte{},
+	conn.CheckOnDataOK(t, false, false, &data, []byte{},
 		proxylib.PASS, len(msg1Part1+msg1Part2),
 		proxylib.MORE, 1)
 }
 
-func (s *R2d2Suite) TestR2d2OnDataAllowDenyCmd(c *C) {
-
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+func TestR2d2OnDataAllowDenyCmd(t *testing.T) {
+	s := setUpR2d2Suite(t)
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -119,19 +108,19 @@ func (s *R2d2Suite) TestR2d2OnDataAllowDenyCmd(c *C) {
 		  >
 		>
 		`})
-	conn := s.ins.CheckNewConnectionOK(c, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 	msg1 := "READ xssss\r\n"
 	msg2 := "WRITE xssss\r\n"
 	data := [][]byte{[]byte(msg1 + msg2)}
-	conn.CheckOnDataOK(c, false, false, &data, []byte("ERROR\r\n"),
+	conn.CheckOnDataOK(t, false, false, &data, []byte("ERROR\r\n"),
 		proxylib.PASS, len(msg1),
 		proxylib.DROP, len(msg2),
 		proxylib.MORE, 1)
 }
 
-func (s *R2d2Suite) TestR2d2OnDataAllowDenyRegex(c *C) {
+func (s *R2d2Suite) TestR2d2OnDataAllowDenyRegex(t *testing.T) {
 
-	s.ins.CheckInsertPolicyText(c, "1", []string{`
+	s.ins.CheckInsertPolicyText(t, "1", []string{`
 		endpoint_ips: "1.1.1.1"
 		endpoint_id: 2
 		ingress_per_port_policies: <
@@ -149,11 +138,11 @@ func (s *R2d2Suite) TestR2d2OnDataAllowDenyRegex(c *C) {
 		  >
 		>
 		`})
-	conn := s.ins.CheckNewConnectionOK(c, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
+	conn := s.ins.CheckNewConnectionOK(t, "r2d2", true, 1, 2, "1.1.1.1:34567", "10.0.0.2:80", "1.1.1.1")
 	msg1 := "READ ssss\r\n"
 	msg2 := "WRITE yyyyy\r\n"
 	data := [][]byte{[]byte(msg1 + msg2)}
-	conn.CheckOnDataOK(c, false, false, &data, []byte("ERROR\r\n"),
+	conn.CheckOnDataOK(t, false, false, &data, []byte("ERROR\r\n"),
 		proxylib.PASS, len(msg1),
 		proxylib.DROP, len(msg2),
 		proxylib.MORE, 1)
