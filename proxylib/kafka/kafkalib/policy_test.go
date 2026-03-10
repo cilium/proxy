@@ -7,24 +7,18 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/cilium/checkmate"
 	"github.com/cilium/kafka/proto"
+	"github.com/stretchr/testify/require"
 
 	"github.com/cilium/proxy/pkg/policy/api/kafka"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) {
-	TestingT(t)
-}
-
 type kafkaTestSuite struct{}
-
-var _ = Suite(&kafkaTestSuite{})
 
 var messages = make([]*proto.Message, 100)
 
-func (k *kafkaTestSuite) SetUpTest(c *C) {
+func setUpKafkaTestSuite(tb testing.TB) *kafkaTestSuite {
+	tb.Helper()
 	for i := range messages {
 		messages[i] = &proto.Message{
 			Offset: int64(i),
@@ -33,6 +27,7 @@ func (k *kafkaTestSuite) SetUpTest(c *C) {
 			Value:  []byte(`Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec a diam lectus. Sed sit amet ipsum mauris. Maecenas congue ligula ac quam viverra nec consectetur ante hendrerit. Donec et mollis dolor. Praesent et diam eget libero egestas mattis sit amet vitae augue. Nam tincidunt congue enim, ut porta lorem lacinia consectetur.`),
 		}
 	}
+	return &kafkaTestSuite{}
 }
 
 // MatchesRule validates the Kafka request message against the provided list of
@@ -47,7 +42,8 @@ func (req *RequestMessage) MatchesRule(rules []Rule) bool {
 	return false
 }
 
-func (k *kafkaTestSuite) TestProduceRequest(c *C) {
+func TestProduceRequest(c *testing.T) {
+	setUpKafkaTestSuite(c)
 	req := &proto.ProduceReq{
 		CorrelationID: 241,
 		ClientID:      "test",
@@ -82,54 +78,55 @@ func (k *kafkaTestSuite) TestProduceRequest(c *C) {
 
 	// empty rules should match nothing
 	reqMsg.setTopics()
-	c.Assert(reqMsg.MatchesRule([]Rule{}), Equals, false)
+	require.False(c, reqMsg.MatchesRule([]Rule{}))
 
 	// wildcard rule matches everything
 	reqMsg.setTopics()
-	c.Assert(reqMsg.MatchesRule([]Rule{{}}), Equals, true)
+	require.True(c, reqMsg.MatchesRule([]Rule{{}}))
 
 	reqMsg.setTopics()
-	c.Assert(reqMsg.MatchesRule([]Rule{
+	require.False(c, reqMsg.MatchesRule([]Rule{
 		NewRule(-1, nil, "", "foo"),
-	}), Equals, false)
+	}))
 
 	reqMsg.setTopics()
-	c.Assert(reqMsg.MatchesRule([]Rule{
+	require.True(c, reqMsg.MatchesRule([]Rule{
 		NewRule(-1, nil, "", "foo"), NewRule(-1, nil, "", "bar"),
-	}), Equals, true)
+	}))
 
 	reqMsg.setTopics()
-	c.Assert(reqMsg.MatchesRule([]Rule{
+	require.False(c, reqMsg.MatchesRule([]Rule{
 		NewRule(-1, nil, "", "foo"), NewRule(-1, nil, "", "baz"),
-	}), Equals, false)
+	}))
 
 	reqMsg.setTopics()
-	c.Assert(reqMsg.MatchesRule([]Rule{
+	require.False(c, reqMsg.MatchesRule([]Rule{
 		NewRule(-1, nil, "", "baz"), NewRule(-1, nil, "", "foo2"),
-	}), Equals, false)
+	}))
 
 	reqMsg.setTopics()
-	c.Assert(reqMsg.MatchesRule([]Rule{
+	require.True(c, reqMsg.MatchesRule([]Rule{
 		NewRule(-1, nil, "", "bar"), NewRule(-1, nil, "", "foo"),
-	}), Equals, true)
+	}))
 
 	reqMsg.setTopics()
-	c.Assert(reqMsg.MatchesRule([]Rule{
+	require.True(c, reqMsg.MatchesRule([]Rule{
 		NewRule(-1, nil, "", "bar"), NewRule(-1, nil, "", "foo"), NewRule(-1, nil, "", "baz"),
-	}), Equals, true)
+	}))
 }
 
-func (k *kafkaTestSuite) TestUnknownRequest(c *C) {
+func TestUnknownRequest(t *testing.T) {
+	setUpKafkaTestSuite(t)
 	reqMsg := RequestMessage{kind: 18} // ApiVersions request
 
 	// Empty rule should disallow
-	c.Assert(reqMsg.MatchesRule([]Rule{}), Equals, false)
+	require.False(t, reqMsg.MatchesRule([]Rule{}))
 
 	// Whitelisting of unknown message
 	rule1 := NewRule(-1, []int32{int32(kafka.MetadataKey)}, "", "")
 	rule2 := NewRule(-1, []int32{int32(kafka.APIVersionsKey)}, "", "")
-	c.Assert(reqMsg.MatchesRule([]Rule{rule1, rule2}), Equals, true)
+	require.True(t, reqMsg.MatchesRule([]Rule{rule1, rule2}))
 
 	reqMsg = RequestMessage{kind: 19}
-	c.Assert(reqMsg.MatchesRule([]Rule{rule1, rule2}), Equals, false)
+	require.False(t, reqMsg.MatchesRule([]Rule{rule1, rule2}))
 }
