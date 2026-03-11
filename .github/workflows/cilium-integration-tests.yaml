@@ -28,7 +28,7 @@ env:
   KIND_VERSION: v0.31.0
   CILIUM_REPO_OWNER: cilium
   CILIUM_REPO_REF: v1.18
-  CILIUM_CLI_REF: latest
+  CILIUM_CLI_REF: v0.18.9
   CURL_PARALLEL: ${{ vars.CURL_PARALLEL || 10 }}
 
 jobs:
