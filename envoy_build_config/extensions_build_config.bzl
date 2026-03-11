@@ -143,7 +143,7 @@ EXTENSIONS = {
     # "envoy.filters.http.aws_request_signing":           "//source/extensions/filters/http/aws_request_signing:config",
     # "envoy.filters.http.bandwidth_limit":               "//source/extensions/filters/http/bandwidth_limit:config",
     "envoy.filters.http.basic_auth": "//source/extensions/filters/http/basic_auth:config",
-    # "envoy.filters.http.buffer":                        "//source/extensions/filters/http/buffer:config",
+    "envoy.filters.http.buffer": "//source/extensions/filters/http/buffer:config",
     # "envoy.filters.http.cache":                         "//source/extensions/filters/http/cache:config",
     # "envoy.filters.http.cache_v2":                      "//source/extensions/filters/http/cache_v2:config",
     # "envoy.filters.http.cdn_loop":                      "//source/extensions/filters/http/cdn_loop:config",
