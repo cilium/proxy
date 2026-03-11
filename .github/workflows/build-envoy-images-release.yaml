@@ -4,6 +4,10 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build-envoy-images-release:
     uses: ./.github/workflows/build-envoy-images-release-base.yaml
