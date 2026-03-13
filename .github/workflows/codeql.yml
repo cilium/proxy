@@ -38,17 +38,20 @@ jobs:
         run: |
           sudo apt-get update --error-on=any
           sudo apt-get install --yes \
-           libtool cmake automake autoconf make ninja-build curl unzip \
-           virtualenv openjdk-11-jdk build-essential libc++1
-          mkdir -p bin/clang17
-          cd bin/clang17
-          wget https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz
-          tar -xf clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz --strip-components 1
+          libtool libtinfo5 automake autoconf curl unzip
+          # Note: the llvm/clang version should match the version specifed in:
+          #  - bazel/repository_locations.bzl
+          #  - .github/workflows/codeql-push.yml
+          #  - https://github.com/envoyproxy/envoy-build-tools/blob/main/build_container/build_container_ubuntu.sh#L84
+          mkdir -p bin/clang18.1.8
+          cd bin/clang18.1.8
+          wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+          tar -xf clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz --strip-components 1
 
       - name: Build (for C++)
         if: matrix.config.language == 'cpp'
         run: |
-          bazel/setup_clang.sh bin/clang17
+          bazel/setup_clang.sh bin/clang18.1.8
           bazelisk shutdown
           CARGO_BAZEL_REPIN=true bazel build \
           -c fastbuild \
