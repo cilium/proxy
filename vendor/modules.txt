@@ -37,12 +37,6 @@ github.com/envoyproxy/protoc-gen-validate/templates/goshared
 github.com/envoyproxy/protoc-gen-validate/templates/java
 github.com/envoyproxy/protoc-gen-validate/templates/shared
 github.com/envoyproxy/protoc-gen-validate/validate
-# github.com/golang/protobuf v1.5.4
-## explicit; go 1.17
-github.com/golang/protobuf/internal/gengogrpc
-github.com/golang/protobuf/proto
-github.com/golang/protobuf/protoc-gen-go
-github.com/golang/protobuf/ptypes/any
 # github.com/golang/snappy v0.0.4
 ## explicit
 github.com/golang/snappy

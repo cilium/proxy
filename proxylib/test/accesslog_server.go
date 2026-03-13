@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 

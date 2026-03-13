@@ -8,7 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/golang/protobuf/proto"
+	"google.golang.org/protobuf/proto"
 	"github.com/sirupsen/logrus"
 
 	cilium "github.com/cilium/proxy/go/cilium/api"
