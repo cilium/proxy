@@ -163,7 +163,8 @@ subscribe(const absl::string_view type_url,
           Config::SubscriptionFactory::RetryInitialDelayMs,
           Config::SubscriptionFactory::RetryMaxDelayMs, random),
       /*target_xds_authority_=*/"",
-      /*eds_resources_cache_=*/nullptr // EDS cache is only used for ADS.
+      /*eds_resources_cache_=*/nullptr, // EDS cache is only used for ADS.
+      /*skip_subsequent_node_=*/api_config_source.set_node_on_first_message_only(),
   };
 
   return std::make_unique<Config::GrpcSubscriptionImpl>(

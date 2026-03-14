@@ -146,15 +146,14 @@ public:
         fmt::format("test/config/integration/certs/{}key.pem", upstream_cert_name_)));
 
     auto cfg_or_error = Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(
-        tls_context, factory_context_, false);
+        tls_context, factory_context_, {}, false);
     // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(cfg_or_error.status());
     auto cfg = std::move(cfg_or_error.value());
 
     static auto* upstream_stats_store = new Stats::IsolatedStoreImpl();
     auto server_or_error = Extensions::TransportSockets::Tls::ServerSslSocketFactory::create(
-        std::move(cfg), context_manager_, *upstream_stats_store->rootScope(),
-        std::vector<std::string>{});
+        std::move(cfg), context_manager_, *upstream_stats_store->rootScope());
     // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(server_or_error.status());
     return std::move(server_or_error.value());
