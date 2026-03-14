@@ -82,7 +82,48 @@ load("@envoy//bazel:python_dependencies.bzl", "envoy_python_dependencies")
 
 envoy_python_dependencies()
 
+load("@bazel_gazelle//:deps.bzl", "go_repository")
 load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
+
+go_repository(
+    name = "org_golang_x_text",
+    build_external = "external",
+    importpath = "golang.org/x/text",
+    sum = "h1:B3njUFyqtHDUI5jMn1YIr5B0IE2U0qck04r6d4KPAxE=",
+    version = "v0.33.0",
+)
+
+go_repository(
+    name = "org_golang_x_tools",
+    build_external = "external",
+    importpath = "golang.org/x/tools",
+    sum = "h1:a9b8iMweWG+S0OBnlU36rzLp20z1Rp10w+IY2czHTQc=",
+    version = "v0.41.0",
+)
+
+go_repository(
+    name = "org_golang_x_net",
+    build_external = "external",
+    importpath = "golang.org/x/net",
+    sum = "h1:eeHFmOGUTtaaPSGNmjBKpbng9MulQsJURQUAfUwY++o=",
+    version = "v0.49.0",
+)
+
+go_repository(
+    name = "org_golang_x_sys",
+    build_external = "external",
+    importpath = "golang.org/x/sys",
+    sum = "h1:omrd2nAlyT5ESRdCLYdm3+fMfNFE/+Rf4bDIQImRJeo=",
+    version = "v0.42.0",
+)
+
+go_repository(
+    name = "org_golang_x_mod",
+    build_external = "external",
+    importpath = "golang.org/x/mod",
+    sum = "h1:9F4d3PHLljb6x//jOyokMv3eX+YDeepZSEo3mFJy93c=",
+    version = "v0.32.0",
+)
 
 envoy_dependency_imports()
 
