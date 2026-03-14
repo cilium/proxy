@@ -1,0 +1,72 @@
+From af2053dc1e3892a9f28d6eebf7f907c3d83ce536 Mon Sep 17 00:00:00 2001
+From: Tam Mach <sayboras@yahoo.com>
+Date: Sat, 14 Mar 2026 21:00:53 +1100
+Subject: [PATCH] repo: Make yq dependency optional for CI config parsing
+
+When yq is unavailable (e.g. in WORKSPACE mode due to aspect_bazel_lib
+hub repo symlink issues), fall back to placeholder container image
+values. This only affects RBE container references which are not needed
+for local or Docker-based builds.
+
+Signed-off-by: Tam Mach <sayboras@yahoo.com>
+---
+ bazel/repo.bzl | 38 +++++++++++++++++++++++++-------------
+ 1 file changed, 25 insertions(+), 13 deletions(-)
+
+diff --git a/bazel/repo.bzl b/bazel/repo.bzl
+index 561c99b71c..a96fcd3757 100644
+--- a/bazel/repo.bzl
++++ b/bazel/repo.bzl
+@@ -66,24 +66,36 @@ def _envoy_repo_impl(repository_ctx):
+     """
+ 
+     # parse container information for use in RBE
++    # Try to use yq, fall back to placeholder values if unavailable
++    # (yq may not resolve in WORKSPACE mode due to aspect_bazel_lib hub repo symlink issues)
+     json_result = repository_ctx.execute([
+         repository_ctx.path(repository_ctx.attr.yq),
+         repository_ctx.path(repository_ctx.attr.envoy_ci_config),
+         "-ojson",
+     ])
+-    if json_result.return_code != 0:
+-        fail("yq failed: {}".format(json_result.stderr))
+-    repository_ctx.file("ci-config.json", json_result.stdout)
+-    config_data = json.decode(repository_ctx.read("ci-config.json"))
+-    repository_ctx.file("containers.bzl", CONTAINERS.format(
+-        repo = config_data["build-image"]["repo"],
+-        repo_gcr = config_data["build-image"]["repo-gcr"],
+-        sha = config_data["build-image"]["sha"],
+-        sha_gcc = config_data["build-image"]["sha-gcc"],
+-        sha_mobile = config_data["build-image"]["sha-mobile"],
+-        sha_worker = config_data["build-image"]["sha-worker"],
+-        tag = config_data["build-image"]["tag"],
+-    ))
++    if json_result.return_code == 0:
++        repository_ctx.file("ci-config.json", json_result.stdout)
++        config_data = json.decode(repository_ctx.read("ci-config.json"))
++        repository_ctx.file("containers.bzl", CONTAINERS.format(
++            repo = config_data["build-image"]["repo"],
++            repo_gcr = config_data["build-image"]["repo-gcr"],
++            sha = config_data["build-image"]["sha"],
++            sha_gcc = config_data["build-image"]["sha-gcc"],
++            sha_mobile = config_data["build-image"]["sha-mobile"],
++            sha_worker = config_data["build-image"]["sha-worker"],
++            tag = config_data["build-image"]["tag"],
++        ))
++    else:
++        # yq unavailable - use placeholder values (RBE container refs won't work)
++        repository_ctx.file("containers.bzl", CONTAINERS.format(
++            repo = "envoyproxy/envoy-build-ubuntu",
++            repo_gcr = "envoyproxy/envoy-build-ubuntu",
++            sha = "0" * 64,
++            sha_gcc = "0" * 64,
++            sha_mobile = "0" * 64,
++            sha_worker = "0" * 64,
++            tag = "unknown",
++        ))
+     repo_version_path = repository_ctx.path(repository_ctx.attr.envoy_version)
+     api_version_path = repository_ctx.path(repository_ctx.attr.envoy_api_version)
+     version = repository_ctx.read(repo_version_path).strip()
+-- 
+2.43.0
+
