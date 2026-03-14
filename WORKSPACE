@@ -86,6 +86,52 @@ envoy_python_dependencies()
 
 load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
 
+# Pre-declare key Go repos before envoy_dependency_imports() so they are known
+# to Gazelle's go_repository_config (which is created by gazelle_dependencies()
+# inside envoy_dependency_imports). Without these, Gazelle's BUILD generation
+# for go_repository targets can't resolve cross-repo dependencies.
+load("@bazel_gazelle//:deps.bzl", "go_repository")
+
+go_repository(
+    name = "org_golang_x_text",
+    importpath = "golang.org/x/text",
+    sum = "h1:zyQAAkrwaneQ066sspRyJaG9VNi/YJ1NfzcGB3hZ/qo=",
+    version = "v0.21.0",
+    build_external = "external",
+)
+
+go_repository(
+    name = "org_golang_x_tools",
+    importpath = "golang.org/x/tools",
+    sum = "h1:Iey4qkscZuv0VvIt8E0neZjtPVQFSc870HQ448QgEmQ=",
+    version = "v0.13.0",
+    build_external = "external",
+)
+
+go_repository(
+    name = "org_golang_x_net",
+    importpath = "golang.org/x/net",
+    sum = "h1:Mb7Mrk043xzHgnRM88suvJFwzVrRfHEHJEl5/71CKw0=",
+    version = "v0.34.0",
+    build_external = "external",
+)
+
+go_repository(
+    name = "org_golang_x_sys",
+    importpath = "golang.org/x/sys",
+    sum = "h1:TPYlXGxIudtjnhMUyEBNIuqx3IKcJBx+JGEIGy0Wms=",
+    version = "v0.29.0",
+    build_external = "external",
+)
+
+go_repository(
+    name = "org_golang_x_mod",
+    importpath = "golang.org/x/mod",
+    sum = "h1:zY54UmvipHiNd+pm+m0x9KhZ9hl1/7QNMyxXbc6ICqA=",
+    version = "v0.15.0",
+    build_external = "external",
+)
+
 envoy_dependency_imports()
 
 load("@envoy//bazel:repo.bzl", "envoy_repo")
