@@ -273,16 +273,15 @@ public:
     ENVOY_LOG_MISC(debug, "Fake Upstream Downstream TLS context: {}", tls_context.DebugString());
 
     auto server_config_or_error =
-        Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(tls_context,
-                                                                           factory_context_, false);
+        Extensions::TransportSockets::Tls::ServerContextConfigImpl::create(
+            tls_context, factory_context_, {}, false);
     // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(server_config_or_error.status());
     auto cfg = std::move(server_config_or_error.value());
 
     static auto* upstream_stats_store = new Stats::IsolatedStoreImpl();
     auto factory_or_error = Extensions::TransportSockets::Tls::ServerSslSocketFactory::create(
-        std::move(cfg), context_manager_, *upstream_stats_store->rootScope(),
-        std::vector<std::string>{});
+        std::move(cfg), context_manager_, *upstream_stats_store->rootScope());
     // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(factory_or_error.status());
     return std::move(factory_or_error.value());
