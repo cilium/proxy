@@ -23,8 +23,7 @@ namespace Cilium {
 // GrpcMux wrapper to get access to control plane identifier
 class GrpcMuxImpl : public Config::GrpcMuxImpl {
 public:
-  GrpcMuxImpl(Config::GrpcMuxContext& grpc_mux_context, bool skip_subsequent_node)
-      : Config::GrpcMuxImpl(grpc_mux_context, skip_subsequent_node) {}
+  GrpcMuxImpl(Config::GrpcMuxContext& grpc_mux_context) : Config::GrpcMuxImpl(grpc_mux_context) {}
 
   ~GrpcMuxImpl() override = default;
 
