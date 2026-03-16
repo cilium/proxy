@@ -472,6 +472,10 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
     // Resolve source identity for the Ingress address
     source_identity = resolvePolicyId(ingress_ip);
+    if (!l7lb_policy_name_.empty()) {
+      const auto* named_policy = &getPolicy(l7lb_policy_name_);
+      source_identity = named_policy->getEndpointID();
+    }
     if (source_identity == Cilium::ID::WORLD) {
       // No security ID available for the configured source IP
       ENVOY_LOG(warn,
