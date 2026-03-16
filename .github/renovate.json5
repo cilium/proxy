@@ -59,7 +59,7 @@
         'go',
         'actions/setup-go'
       ],
-      allowedVersions: '<1.25',
+      allowedVersions: '<1.26',
       matchBaseBranches: [
         'v1.35',
         'v1.34',
