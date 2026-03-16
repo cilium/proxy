@@ -1,0 +1,100 @@
+name: CI Check coverage
+on:
+  pull_request: {}
+
+permissions:
+  # To be able to access the repository with actions/checkout
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    timeout-minutes: 460
+    name: Check coverage for pull request #${{ github.event.pull_request.number }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Clear Workspace
+        shell: bash
+        run: |
+          sudo rm -r /usr/local/.ghcup
+          sudo rm -r /usr/local/lib/android
+          sudo rm -r /opt/hostedtoolcache
+      - name: Check disk space
+        shell: bash
+        run: |
+          df . -h
+      - name: Check out the repository to the runner
+        uses: actions/checkout@v4
+      - name: Setup gcloud credentials
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.CI_CILIUM_PROXY_SA_KEY }}
+      - name: set up google cloud sdk
+        uses: 'google-github-actions/setup-gcloud@v2'
+        with:
+          version: '>= 507.0.0'
+      - name: Install deps (for C++)
+        shell: bash
+        run: |
+          sudo apt-get update && \
+          sudo apt-get upgrade -y --no-install-recommends && \
+          sudo apt-get install -y --no-install-recommends \
+          ca-certificates libc6-dev autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf \
+          python3 python-is-python3 unzip virtualenv wget zip software-properties-common && \
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
+          sudo apt-add-repository -y "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" && \
+          sudo apt-get update && \
+          sudo apt-get install -y --no-install-recommends \
+            clang-18 clangd-18 clang-tidy-18 clang-tools-18 llvm-18-dev lldb-18 lld-18 clang-format-18 libc++-18-dev libc++abi-18-dev libclang-rt-18-dev lcov && \
+          sudo apt-get purge --auto-remove && \
+          sudo apt-get clean && \
+          sudo rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+          cp /usr/lib/llvm-18/bin/llvm-cov /usr/local/bin
+          cp /usr/lib/llvm-18/bin/llvm-profdata /usr/local/bin
+      - name: Install Go
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          # renovate: datasource=golang-version depName=go
+          go-version: 1.24.6
+      - name: Sync crate lockfile with bazel
+        shell: bash
+        run: |
+          CARGO_BAZEL_ISOLATED=0 CARGO_BAZEL_REPIN=1 bazel sync --only=crate_index
+      - name: Build proxylib
+        shell: bash
+        run: |
+          go version
+          make -C proxylib
+      - name: Generate coverage data
+        shell: bash
+        run: |
+          echo "Generating bazel coverage: "
+          ./tests/run_bazel_coverage.sh
+          ls -la /home/runner/work/cilium-proxy/cilium-proxy/generated/coverage/
+      - name: Upload (sync) to GCS bucket
+        if: '!cancelled()'
+        shell: bash
+        run: |
+          UPLOAD_DIR="/home/runner/work/cilium-proxy/cilium-proxy/generated/coverage/"
+          SHA=${{ github.sha }}
+          BUCKET_PATH="${{ vars.GCS_ARTIFACT_BUCKET_COVERAGE }}/${SHA:0:7}/coverage"
+          echo "Uploading to gs://$BUCKET_PATH ..."
+          gsutil \
+              -mq rsync \
+              -dr "$UPLOAD_DIR" \
+              "gs://$BUCKET_PATH"
+          echo "Artifacts uploaded to: https://storage.googleapis.com/$BUCKET_PATH/html/index.html" >&2
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - target: coverage
+          name: Coverage
+          diskspace-hack: true
+          diskspace-hack-paths: |
+            /opt/hostedtoolcache
+            /usr/local/lib/android
