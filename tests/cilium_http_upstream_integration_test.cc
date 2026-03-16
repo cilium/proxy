@@ -353,65 +353,6 @@ resources:
     }
   }
 
-  void denied(Http::TestRequestHeaderMapImpl&& headers) {
-    initialize();
-    codec_client_ = makeHttpConnection(lookupPort("http"));
-    auto response = codec_client_->makeHeaderOnlyRequest(headers);
-    ASSERT_TRUE(response->waitForEndStream());
-
-    // Validate that request access log message with x-request-id is logged
-    absl::optional<std::string> maybe_x_request_id;
-    EXPECT_TRUE(expectAccessLogDeniedTo([&maybe_x_request_id](const ::cilium::LogEntry& entry) {
-      maybe_x_request_id = getHeader(entry.http().headers(), "x-request-id");
-      return entry.http().status() == 0;
-    }));
-    ASSERT_TRUE(maybe_x_request_id.has_value());
-
-    // Validate that response x-request-id is the same as in request
-    absl::optional<std::string> maybe_x_request_id_resp;
-    EXPECT_TRUE(
-        expectAccessLogResponseTo([&maybe_x_request_id_resp](const ::cilium::LogEntry& entry) {
-          maybe_x_request_id_resp = getHeader(entry.http().headers(), "x-request-id");
-          return entry.http().status() == 403;
-        }));
-    ASSERT_TRUE(maybe_x_request_id_resp.has_value());
-    EXPECT_EQ(maybe_x_request_id.value(), maybe_x_request_id_resp.value());
-
-    EXPECT_TRUE(response->complete());
-    EXPECT_EQ("403", response->headers().getStatusValue());
-    cleanupUpstreamAndDownstream();
-  }
-
-  void accepted(Http::TestRequestHeaderMapImpl&& headers) {
-    initialize();
-    codec_client_ = makeHttpConnection(lookupPort("http"));
-    auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
-
-    // Validate that request access log message with x-request-id is logged
-    absl::optional<std::string> maybe_x_request_id;
-    EXPECT_TRUE(expectAccessLogRequestTo([&maybe_x_request_id](const ::cilium::LogEntry& entry) {
-      maybe_x_request_id = getHeader(entry.http().headers(), "x-request-id");
-      return entry.http().status() == 0;
-    }));
-    ASSERT_TRUE(maybe_x_request_id.has_value());
-
-    // Validate that response x-request-id is the same as in request
-    absl::optional<std::string> maybe_x_request_id_resp;
-    EXPECT_TRUE(
-        expectAccessLogResponseTo([&maybe_x_request_id_resp](const ::cilium::LogEntry& entry) {
-          maybe_x_request_id_resp = getHeader(entry.http().headers(), "x-request-id");
-          return entry.http().status() == 200;
-        }));
-    ASSERT_TRUE(maybe_x_request_id_resp.has_value());
-    EXPECT_EQ(maybe_x_request_id.value(), maybe_x_request_id_resp.value());
-
-    EXPECT_TRUE(response->complete());
-    EXPECT_EQ("200", response->headers().getStatusValue());
-    EXPECT_TRUE(upstream_request_->complete());
-    EXPECT_EQ(0, upstream_request_->bodyLength());
-    cleanupUpstreamAndDownstream();
-  }
-
   bool initialized_ = false;
 };
 
