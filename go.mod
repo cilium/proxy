@@ -8,7 +8,6 @@ require (
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
-	github.com/golang/protobuf v1.5.4
 	github.com/sirupsen/logrus v1.9.4
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.42.0
@@ -38,5 +37,5 @@ require (
 
 tool (
 	github.com/envoyproxy/protoc-gen-validate
-	github.com/golang/protobuf/protoc-gen-go
+	google.golang.org/protobuf/cmd/protoc-gen-go
 )

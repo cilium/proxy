@@ -6,8 +6,9 @@ package proxylib
 import (
 	"testing"
 
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes/any"
+	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -27,11 +28,11 @@ func (ins *Instance) CheckInsertPolicyText(tb testing.TB, version string, polici
 
 func (ins *Instance) InsertPolicyText(version string, policies []string, expectFail string) error {
 	typeUrl := "type.googleapis.com/cilium.NetworkPolicy"
-	resources := make([]*any.Any, 0, len(policies))
+	resources := make([]*anypb.Any, 0, len(policies))
 
 	for _, policy := range policies {
 		pb := new(cilium.NetworkPolicy)
-		err := proto.UnmarshalText(policy, pb)
+		err := prototext.Unmarshal([]byte(policy), pb)
 		if err != nil {
 			if expectFail != "unmarshal" {
 				LogFatal("Policy UnmarshalText failed: %v", err)
@@ -47,7 +48,7 @@ func (ins *Instance) InsertPolicyText(version string, policies []string, expectF
 			return err
 		}
 
-		resources = append(resources, &any.Any{
+		resources = append(resources, &anypb.Any{
 			TypeUrl: typeUrl,
 			Value:   data,
 		})
