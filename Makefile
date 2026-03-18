@@ -56,6 +56,8 @@ BAZEL_PLATFORM := //bazel:linux_$(subst amd64,x86_64,$(subst arm64,aarch64,$(TAR
 $(info BUILDING on $(BUILDARCH) for $(TARGETARCH) using $(BAZEL_PLATFORM))
 BAZEL_BUILD_OPTS += --platforms=$(BAZEL_PLATFORM)
 
+BAZEL_BUILD_OPTS += --config=clang
+
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
 else ifdef RELEASE_DEBUG
