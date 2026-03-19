@@ -7,10 +7,17 @@
 import %workspace%/envoy.bazelrc
 
 # override clang version in envoy.bazelrc
-build:clang-common --action_env=CC=clang-18 --host_action_env=CC=clang-18
-build:clang-common --action_env=CXX=clang++-18 --host_action_env=CXX=clang++-18
-build:rbe-toolchain-clang --action_env=CC=clang-18 --action_env=CXX=clang++-18
-build:rbe-toolchain-arm64-clang --action_env=CC=clang-18 --action_env=CXX=clang++-18
+common:clang-local --action_env=CC=clang-18 --host_action_env=CC=clang-18
+common:clang-local --action_env=CXX=clang++-18 --host_action_env=CXX=clang++-18
+
+# Point to system LLVM for hermetic toolchain
+build --repo_env=BAZEL_LLVM_PATH=/usr/lib/llvm-18
+build --repo_env=BAZEL_USE_HOST_SYSROOT=true
+
+# Ensure libc++ static libs are found from system LLVM
+common:libc++ --action_env=BAZEL_LINKOPTS=-lm:-pthread:-L/usr/lib/llvm-18/lib
+build --host_linkopt=-L/usr/lib/llvm-18/lib
+build --linkopt=-L/usr/lib/llvm-18/lib
 
 # Use platforms based toolchain resolution
 build --incompatible_enable_cc_toolchain_resolution

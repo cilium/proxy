@@ -1,21 +1,20 @@
-From e994434cc738138434708372719517b31fdc81c5 Mon Sep 17 00:00:00 2001
+From 73f6930704c7427cdcb3ec72e931835393f74279 Mon Sep 17 00:00:00 2001
 From: Tam Mach <sayboras@yahoo.com>
 Date: Wed, 14 May 2025 11:27:14 +1000
 Subject: [PATCH 6/7] build: Fix arm build for liburing
 
 ---
- bazel/foreign_cc/BUILD | 14 ++++++++++++++
- 1 file changed, 14 insertions(+)
+ bazel/foreign_cc/BUILD | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
 
 diff --git a/bazel/foreign_cc/BUILD b/bazel/foreign_cc/BUILD
-index dc07b536d3..6c49ca1cb0 100644
+index ddc876e95b..d5742e2e08 100644
 --- a/bazel/foreign_cc/BUILD
 +++ b/bazel/foreign_cc/BUILD
-@@ -28,6 +28,20 @@ config_setting(
- configure_make(
+@@ -29,6 +29,17 @@ configure_make(
      name = "liburing",
      configure_in_place = True,
-+    env = select({
+     env = {"ENABLE_SHARED": "0"} | select({
 +        # (sayboras) Ideally, this should be passed as part of environment variables during cross-compilation,
 +        # but somehow it doesn't work. So, we have to pass them manually for arm cross-compilation.
 +        # The config should be kept in sync with bazel/toolchains/BUILD
@@ -27,11 +26,9 @@ index dc07b536d3..6c49ca1cb0 100644
 +            "CXX": "/usr/bin/clang-18",
 +            "LD": "/usr/bin/lld-18",
 +        },
-+        "//conditions:default": {},
-+    }),
-     lib_source = "@com_github_axboe_liburing//:all",
-     tags = [
-         "nocompdb",
---
+         "//bazel:clang_build": {
+             "AR": "$(AR)",
+             "RANLIB": "$(AR) -s",
+-- 
 2.43.0
 
