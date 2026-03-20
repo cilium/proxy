@@ -32,7 +32,7 @@ cc_toolchain_config(
     abi_version = "aarch64",
     compile_flags = [
         "--target=aarch64-unknown-linux-gnu",
-        "-fuse-ld=lld-18",  # cmake compiler test needs this
+        "-fuse-ld=lld",  # cmake compiler test needs this
         "-U_FORTIFY_SOURCE",
         "-fstack-protector",
         "-Wall",
@@ -50,6 +50,7 @@ cc_toolchain_config(
     cpu = "aarch64",
     cxx_builtin_include_directories = [
         "/usr/lib/llvm-18",
+        "/usr/lib/clang",
         "/usr/aarch64-linux-gnu/include",
         "/usr/include",
     ],
@@ -69,7 +70,7 @@ cc_toolchain_config(
     host_system_name = "local",
     link_flags = [
         "--target=aarch64-unknown-linux-gnu",
-        "-fuse-ld=lld-18",
+        "-fuse-ld=lld",
         "-Wl,-no-as-needed",
         "-Wl,-z,relro,-z,now",
         "-lm",
@@ -91,18 +92,18 @@ cc_toolchain_config(
     target_libc = "glibc",
     target_system_name = "aarch64-linux-gnu",
     tool_paths = {
-        "ar": "/usr/bin/llvm-ar-18",
-        "compat-ld": "/usr/bin/lld-18",
-        "ld": "/usr/bin/lld-18",
-        "gold": "/usr/bin/lld-18",
-        "cpp": "/usr/bin/clang-cpp-18",
-        "gcc": "/usr/bin/clang-18",
-        "dwp": "/usr/bin/llvm-dwp-18",
-        "gcov": "/usr/bin/llvmcov-18",
-        "nm": "/usr/bin/llvm-nm-18",
-        "objcopy": "/usr/bin/llvm-objcopy-18",
-        "objdump": "/usr/bin/llvm-objdump-18",
-        "strip": "/usr/bin/llvm-strip-18",
+        "ar": "/usr/bin/llvm-ar",
+        "compat-ld": "/usr/bin/lld",
+        "ld": "/usr/bin/lld",
+        "gold": "/usr/bin/lld",
+        "cpp": "/usr/bin/clang-cpp",
+        "gcc": "/usr/bin/clang",
+        "dwp": "/usr/bin/llvm-dwp",
+        "gcov": "/usr/bin/llvm-cov",
+        "nm": "/usr/bin/llvm-nm",
+        "objcopy": "/usr/bin/llvm-objcopy",
+        "objdump": "/usr/bin/llvm-objdump",
+        "strip": "/usr/bin/llvm-strip",
     },
     toolchain_identifier = "linux_aarch64",
     unfiltered_compile_flags = [
@@ -145,7 +146,7 @@ cc_toolchain_config(
     abi_version = "unknown",
     compile_flags = [
         "--target=x86_64-unknown-linux-gnu",
-        "-fuse-ld=lld-18",  # cmake compiler test needs this
+        "-fuse-ld=lld",  # cmake compiler test needs this
         "-U_FORTIFY_SOURCE",
         "-fstack-protector",
         "-Wall",
@@ -163,6 +164,7 @@ cc_toolchain_config(
     cpu = "k8",
     cxx_builtin_include_directories = [
         "/usr/lib/llvm-18",
+        "/usr/lib/clang",
         "/usr/x86_64-linux-gnu/include",
         "/usr/include",
     ],
@@ -171,7 +173,7 @@ cc_toolchain_config(
     host_system_name = "local",
     link_flags = [
         "--target=x86_64-unknown-linux-gnu",
-        "-fuse-ld=lld-18",
+        "-fuse-ld=lld",
         "-Wl,-no-as-needed",
         "-Wl,-z,relro,-z,now",
         "-lm",
@@ -193,18 +195,18 @@ cc_toolchain_config(
     target_libc = "unknown",
     target_system_name = "unknown",
     tool_paths = {
-        "ar": "/usr/bin/llvm-ar-18",
-        "compat-ld": "/usr/bin/lld-18",
-        "ld": "/usr/bin/lld-18",
-        "gold": "/usr/bin/lld-18",
-        "cpp": "/usr/bin/clang-cpp-18",
-        "gcc": "/usr/bin/clang-18",
-        "dwp": "/usr/bin/llvm-dwp-18",
-        "gcov": "/usr/bin/llvmcov-18",
-        "nm": "/usr/bin/llvm-nm-18",
-        "objcopy": "/usr/bin/llvm-objcopy-18",
-        "objdump": "/usr/bin/llvm-objdump-18",
-        "strip": "/usr/bin/llvm-strip-18",
+        "ar": "/usr/bin/llvm-ar",
+        "compat-ld": "/usr/bin/lld",
+        "ld": "/usr/bin/lld",
+        "gold": "/usr/bin/lld",
+        "cpp": "/usr/bin/clang-cpp",
+        "gcc": "/usr/bin/clang",
+        "dwp": "/usr/bin/llvm-dwp",
+        "gcov": "/usr/bin/llvm-cov",
+        "nm": "/usr/bin/llvm-nm",
+        "objcopy": "/usr/bin/llvm-objcopy",
+        "objdump": "/usr/bin/llvm-objdump",
+        "strip": "/usr/bin/llvm-strip",
     },
     toolchain_identifier = "linux_x86_64",
     unfiltered_compile_flags = [
