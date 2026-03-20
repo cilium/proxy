@@ -96,17 +96,7 @@ else
 
   # Install clang if needed
   define install_clang
-	add_llvm_source() { \
-		if [ ! -f /etc/apt/trusted.gpg.d/apt.llvm.org.asc ]; then \
-		  $(SUDO) wget -q -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key; \
-		fi; \
-		local CODENAME=$$(lsb_release -cs); \
-		apt_source="deb http://apt.llvm.org/$$CODENAME/ llvm-toolchain-$$CODENAME-18 main" && \
-		$(SUDO) apt-add-repository -y "$${apt_source}" && \
-		$(SUDO) apt update; \
-	}; \
-	if ! apt info clang-18; then add_llvm_source; fi; \
-	$(SUDO) apt install -y clang-18 clangd-18 llvm-18-dev lld-18 lldb-18 clang-format-18 clang-tools-18 clang-tidy-18 libc++-18-dev libc++abi-18-dev
+	$(SUDO) apt install -y clang clangd llvm llvm-dev lld lldb clang-format clang-tools clang-tidy libc++-dev libc++abi-dev
   endef
 endif
 
@@ -117,7 +107,7 @@ BUILD_DEP_HASHES: $(BUILD_DEP_FILES)
 
 clang.bazelrc: bazel/setup_clang.sh
 	$(call install_clang)
-	bazel/setup_clang.sh /usr/lib/llvm-18
+	bazel/setup_clang.sh $$(llvm-config --prefix)
 	echo "build --config=clang" >> $@
 
 .PHONY: bazel-bin/cilium-envoy
