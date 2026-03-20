@@ -20,12 +20,12 @@ index dc07b536d3..6c49ca1cb0 100644
 +        # but somehow it doesn't work. So, we have to pass them manually for arm cross-compilation.
 +        # The config should be kept in sync with bazel/toolchains/BUILD
 +        "//bazel:linux_aarch64": {
-+            "CFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld-18",
-+            "CPPFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld-18",
-+            "LDFLAGS": "-Wl,-S --target=aarch64-unknown-linux-gnu -fuse-ld=lld-18 -Wl,-no-as-needed -Wl,-z,relro,-z,now -lm -l:libstdc++.a -lc",
-+            "CC": "/usr/bin/clang-18",
-+            "CXX": "/usr/bin/clang-18",
-+            "LD": "/usr/bin/lld-18",
++            "CFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld",
++            "CPPFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld",
++            "LDFLAGS": "-Wl,-S --target=aarch64-unknown-linux-gnu -fuse-ld=lld -Wl,-no-as-needed -Wl,-z,relro,-z,now -lm -l:libstdc++.a -lc",
++            "CC": "/usr/bin/clang",
++            "CXX": "/usr/bin/clang",
++            "LD": "/usr/bin/lld",
 +        },
 +        "//conditions:default": {},
 +    }),
