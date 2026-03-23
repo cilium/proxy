@@ -55,6 +55,17 @@ cc_toolchain_config(
     ],
     cxx_flags = ["-std=c++0x"],
     dbg_compile_flags = ["-g"],
+    # Cross-compilation flags exported as environment variables for foreign_cc
+    # rules (e.g. liburing's configure_make). This ensures foreign build systems
+    # see the correct --target when they use CFLAGS/CPPFLAGS from the environment.
+    foreign_cc_env = {
+        "CFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld",
+        "CPPFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld",
+        # -lc is needed because liburing builds a shared library with -Wl,-z,defs
+        # which requires all symbols (including memset from libc) to be resolved.
+        # The cross-compiler driver doesn't implicitly add -lc for shared libraries.
+        "LDFLAGS": "--target=aarch64-unknown-linux-gnu -fuse-ld=lld -lc",
+    },
     host_system_name = "local",
     link_flags = [
         "--target=aarch64-unknown-linux-gnu",

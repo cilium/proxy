@@ -20,6 +20,8 @@
 load("@bazel_tools//tools/build_defs/cc:action_names.bzl", "ACTION_NAMES")
 load(
     "@bazel_tools//tools/cpp:cc_toolchain_config_lib.bzl",
+    "env_entry",
+    "env_set",
     "feature",
     "feature_set",
     "flag_group",
@@ -1145,6 +1147,26 @@ def _impl(ctx):
         ],
     )
 
+    # Export cross-compilation flags as environment variables for foreign_cc rules
+    # (e.g. rules_foreign_cc's configure_make). These env vars are picked up by
+    # cc_common.get_environment_variables() and exported globally in the build
+    # script prelude, making them available to both configure and make steps.
+    # This is needed because some foreign build systems (like liburing) override
+    # CFLAGS internally, losing the --target flag from the toolchain's compile_flags.
+    foreign_cc_env_feature = feature(
+        name = "foreign_cc_env",
+        enabled = bool(ctx.attr.foreign_cc_env),
+        env_sets = [
+            env_set(
+                actions = all_compile_actions + all_link_actions,
+                env_entries = [
+                    env_entry(key = key, value = value)
+                    for key, value in ctx.attr.foreign_cc_env.items()
+                ],
+            ),
+        ] if ctx.attr.foreign_cc_env else [],
+    )
+
     is_linux = ctx.attr.target_libc != "macosx"
 
     # TODO(#8303): Mac crosstool should also declare every feature.
@@ -1194,6 +1216,7 @@ def _impl(ctx):
             user_compile_flags_feature,
             sysroot_feature,
             unfiltered_compile_flags_feature,
+            foreign_cc_env_feature,
         ] + layering_check_features(ctx.attr.compiler)
     else:
         features = [
@@ -1213,6 +1236,7 @@ def _impl(ctx):
             user_compile_flags_feature,
             sysroot_feature,
             unfiltered_compile_flags_feature,
+            foreign_cc_env_feature,
         ] + layering_check_features(ctx.attr.compiler)
 
     return cc_common.create_cc_toolchain_config_info(
@@ -1257,6 +1281,7 @@ cc_toolchain_config = rule(
         "coverage_link_flags": attr.string_list(),
         "supports_start_end_lib": attr.bool(),
         "builtin_sysroot": attr.string(),
+        "foreign_cc_env": attr.string_dict(),
     },
     provides = [CcToolchainConfigInfo],
 )
