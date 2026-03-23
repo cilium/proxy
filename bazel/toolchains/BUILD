@@ -74,7 +74,10 @@ cc_toolchain_config(
         "-Wl,-z,relro,-z,now",
         "-lm",
     ],
-    link_libs = ["-l:libstdc++.a"],
+    link_libs = [
+        "-l:libstdc++.a",
+        "-latomic",
+    ],
     opt_compile_flags = [
         "-g0",
         "-O2",
@@ -173,7 +176,10 @@ cc_toolchain_config(
         "-Wl,-z,relro,-z,now",
         "-lm",
     ],
-    link_libs = ["-l:libstdc++.a"],
+    link_libs = [
+        "-l:libstdc++.a",
+        "-latomic",
+    ],
     opt_compile_flags = [
         "-g0",
         "-O2",
