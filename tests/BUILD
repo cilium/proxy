@@ -1,3 +1,4 @@
+load("@aspect_bazel_lib//lib:yq.bzl", "yq")
 load(
     "@envoy//bazel:envoy_build_system.bzl",
     "envoy_cc_test",
@@ -16,6 +17,14 @@ envoy_package()
 api_cc_py_proto_library(
     name = "bpf_metadata",
     srcs = ["bpf_metadata.proto"],
+)
+
+yq(
+    name = "coverage_config",
+    srcs = [":coverage.yaml"],
+    outs = ["cilium_coverage_config.json"],
+    args = ["-o=json"],
+    visibility = ["//visibility:public"],
 )
 
 envoy_cc_test_library(
