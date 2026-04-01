@@ -5,6 +5,9 @@
 
 #include "source/common/common/logger.h"
 
+#include "absl/base/thread_annotations.h"
+#include "absl/synchronization/mutex.h"
+
 union bpf_attr;
 
 namespace Envoy {
@@ -30,7 +33,7 @@ public:
   /**
    * Close the bpf file descriptor, if open.
    */
-  void close();
+  void close() ABSL_LOCKS_EXCLUDED(mutex_);
 
   /**
    * Open an existing bpf map. The bpf map must have the map type and key and
@@ -38,7 +41,7 @@ public:
    * @param path the file system path to the pinned bpf map.
    * @returns boolean for success of the operation.
    */
-  bool open(const std::string& path);
+  bool open(const std::string& path) ABSL_LOCKS_EXCLUDED(mutex_);
 
   /**
    * Lookup an entry from the bpf map identified with the key, storing the found
@@ -49,18 +52,23 @@ public:
    *        The caller should only examine the first 'min_value_size_' bytes.
    * @returns boolean for success of the operation.
    */
-  bool lookup(const void* key, void* value);
+  bool lookup(const void* key, void* value) ABSL_LOCKS_EXCLUDED(mutex_);
+
+private:
+  bool openLocked(const std::string& path) ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
+  void closeLocked() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mutex_);
 
 protected:
-  std::string path_;
-  int fd_;
+  absl::Mutex mutex_;
+  std::string path_ ABSL_GUARDED_BY(mutex_);
+  int fd_ ABSL_GUARDED_BY(mutex_);
+  uint32_t real_value_size_ ABSL_GUARDED_BY(mutex_);
 
 public:
-  uint32_t map_type_;
-  uint32_t key_size_;
-  uint32_t min_value_size_;
-  uint32_t max_value_size_;
-  uint32_t real_value_size_;
+  const uint32_t map_type_;
+  const uint32_t key_size_;
+  const uint32_t min_value_size_;
+  const uint32_t max_value_size_;
 };
 
 } // namespace Cilium
