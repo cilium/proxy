@@ -159,13 +159,8 @@ type NetworkPolicy struct {
 	// combination.
 	// Optional. If empty, all flows in this direction are denied.
 	EgressPerPortPolicies []*PortNetworkPolicy `protobuf:"bytes,4,rep,name=egress_per_port_policies,json=egressPerPortPolicies,proto3" json:"egress_per_port_policies,omitempty"`
-	// Name of the conntrack map to use with this policy.
-	// The paths to various Cilium conntrack maps are derived using this name.
-	// Optional. If empty, ipcache or hostmap lookup is used instead of conntrack
-	// map.
-	ConntrackMapName string `protobuf:"bytes,5,opt,name=conntrack_map_name,json=conntrackMapName,proto3" json:"conntrack_map_name,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *NetworkPolicy) Reset() {
@@ -224,13 +219,6 @@ func (x *NetworkPolicy) GetEgressPerPortPolicies() []*PortNetworkPolicy {
 		return x.EgressPerPortPolicies
 	}
 	return nil
-}
-
-func (x *NetworkPolicy) GetConntrackMapName() string {
-	if x != nil {
-		return x.ConntrackMapName
-	}
-	return ""
 }
 
 // A network policy to whitelist flows to a specific destination L4 port,
@@ -1195,15 +1183,14 @@ var File_cilium_api_npds_proto protoreflect.FileDescriptor
 
 const file_cilium_api_npds_proto_rawDesc = "" +
 	"\n" +
-	"\x15cilium/api/npds.proto\x12\x06cilium\x1a\"envoy/config/core/v3/address.proto\x1a,envoy/config/route/v3/route_components.proto\x1a*envoy/service/discovery/v3/discovery.proto\x1a$envoy/type/matcher/v3/metadata.proto\x1a\x1cgoogle/api/annotations.proto\x1a envoy/annotations/resource.proto\x1a\x17validate/validate.proto\"\xbd\x02\n" +
+	"\x15cilium/api/npds.proto\x12\x06cilium\x1a\"envoy/config/core/v3/address.proto\x1a,envoy/config/route/v3/route_components.proto\x1a*envoy/service/discovery/v3/discovery.proto\x1a$envoy/type/matcher/v3/metadata.proto\x1a\x1cgoogle/api/annotations.proto\x1a envoy/annotations/resource.proto\x1a\x17validate/validate.proto\"\x95\x02\n" +
 	"\rNetworkPolicy\x123\n" +
 	"\fendpoint_ips\x18\x01 \x03(\tB\x10\xfaB\r\x92\x01\n" +
 	"\b\x01\x10\x02\"\x04r\x02\x10\x01R\vendpointIps\x12\x1f\n" +
 	"\vendpoint_id\x18\x02 \x01(\x04R\n" +
 	"endpointId\x12T\n" +
 	"\x19ingress_per_port_policies\x18\x03 \x03(\v2\x19.cilium.PortNetworkPolicyR\x16ingressPerPortPolicies\x12R\n" +
-	"\x18egress_per_port_policies\x18\x04 \x03(\v2\x19.cilium.PortNetworkPolicyR\x15egressPerPortPolicies\x12,\n" +
-	"\x12conntrack_map_name\x18\x05 \x01(\tR\x10conntrackMapName\"\xd7\x01\n" +
+	"\x18egress_per_port_policies\x18\x04 \x03(\v2\x19.cilium.PortNetworkPolicyR\x15egressPerPortPoliciesJ\x04\b\x05\x10\x06\"\xd7\x01\n" +
 	"\x11PortNetworkPolicy\x12\x1d\n" +
 	"\x04port\x18\x01 \x01(\rB\t\xfaB\x06*\x04\x18\xff\xff\x03R\x04port\x12$\n" +
 	"\bend_port\x18\x04 \x01(\rB\t\xfaB\x06*\x04\x18\xff\xff\x03R\aendPort\x12H\n" +
