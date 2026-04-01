@@ -30,21 +30,7 @@ PROTO_DEPS = \
 	-I bazel-proxy/external/dev_cel/proto
 
 GO_OUT = go
-
-# Skip draft Envoy APIs that do not compile.
-ENVOY_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/envoy -not -path "*/v*alpha*" -not -path "*/v2/*" \( -name *.proto \) -print))
-ENVOY_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(ENVOY_RAW_PROTOS))
-ENVOY_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(ENVOY_API_PROTOS))
-ENVOY_PROTO_DIRS := $(sort $(dir $(ENVOY_PROTO_SOURCES)))
-# Produce a raw list of package mappings
-RAW_GO_MAPPINGS := $(foreach proto,$(ENVOY_API_PROTOS),$(proto)=github.com/envoyproxy/go-control-plane/$(dir $(proto)))
-
-CONTRIB_RAW_PROTOS := $(strip $(shell find -H $(ENVOY_API_PROTO_PATH)/contrib -not -path "*/v3alpha*" \( -name *.proto \) -print))
-CONTRIB_API_PROTOS := $(subst $(ENVOY_API_PROTO_PATH)/,,$(CONTRIB_RAW_PROTOS))
-CONTRIB_PROTO_SOURCES := $(addprefix $(ENVOY_API_PROTO_PATH)/,$(CONTRIB_API_PROTOS))
-CONTRIB_PROTO_DIRS := $(sort $(dir $(CONTRIB_PROTO_SOURCES)))
-# Produce a raw list of package mappings
-RAW_GO_MAPPINGS += $(foreach proto,$(CONTRIB_API_PROTOS),$(proto)=github.com/envoyproxy/go-control-plane/contrib/$(dir $(proto)))
+GO_MODULE = module=github.com/cilium/proxy/go
 
 CILIUM_PROTO_SOURCES := \
 	cilium/api/accesslog.proto \
@@ -54,32 +40,6 @@ CILIUM_PROTO_SOURCES := \
 	cilium/api/npds.proto \
 	cilium/api/nphds.proto
 CILIUM_PROTO_DIRS := $(sort $(dir $(CILIUM_PROTO_SOURCES)))
-RAW_GO_MAPPINGS += $(foreach proto,$(CILIUM_PROTO_SOURCES),$(proto)=github.com/cilium/proxy/go/$(dir $(proto)))
-
-# Add mappings to vendored dependencies
-RAW_GO_MAPPINGS += gogoproto/gogo.proto=github.com/gogo/protobuf/gogoproto/
-RAW_GO_MAPPINGS += google/rpc/status.proto=google.golang.org/genproto/googleapis/rpc/status/
-RAW_GO_MAPPINGS += metrics.proto=github.com/prometheus/client_model/go/
-RAW_GO_MAPPINGS += udpa/annotations/migrate.proto=github.com/cncf/xds/go/udpa/annotations/
-RAW_GO_MAPPINGS += udpa/annotations/sensitive.proto=github.com/cncf/xds/go/udpa/annotations/
-RAW_GO_MAPPINGS += udpa/annotations/status.proto=github.com/cncf/xds/go/udpa/annotations/
-RAW_GO_MAPPINGS += udpa/annotations/versioning.proto=github.com/cncf/xds/go/udpa/annotations/
-RAW_GO_MAPPINGS += udpa/annotations/security.proto=github.com/cncf/xds/go/udpa/annotations/
-RAW_GO_MAPPINGS += udpa/annotations/deprecation.proto=github.com/cncf/xds/go/udpa/annotations/
-RAW_GO_MAPPINGS += xds/core/v3/collection_entry.proto=github.com/cncf/xds/go/xds/core/v3/
-RAW_GO_MAPPINGS += xds/core/v3/authority.proto=github.com/cncf/xds/go/xds/core/v3/
-RAW_GO_MAPPINGS += xds/core/v3/context_params.proto=github.com/cncf/xds/go/xds/core/v3/
-RAW_GO_MAPPINGS += xds/core/v3/resource_locator.proto=github.com/cncf/xds/go/xds/core/v3/
-RAW_GO_MAPPINGS += xds/annotations/v3/status.proto=github.com/cncf/xds/go/xds/annotations/v3/
-RAW_GO_MAPPINGS += xds/type/v3/cel.proto=github.com/cncf/xds/go/xds/type/v3/
-RAW_GO_MAPPINGS += opentelemetry/proto/common/v1/common.proto=go.opentelemetry.io/proto/otlp/common/v1/
-
-# Add mapping separators and remove the trailing slash
-# but first create "/ " and ",M"
-E = 
-file_sep := / $E
-map_sep := ,M
-GO_MAPPINGS := $(patsubst %/,%,$(map_sep)$(subst $(file_sep),$(map_sep),$(RAW_GO_MAPPINGS)))
 
 export PATH:=$(HOME)/go/bin:$(PATH)
 
@@ -87,11 +47,11 @@ all: cilium-go-targets
 
 .PHONY: cilium-go-targets
 cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api
-	go install tool
+	GOFLAGS="$(GOFLAGS) -mod=mod" go install tool
 	$(QUIET)set -e; \
 	for path in $(CILIUM_PROTO_DIRS) ; do \
 		$(ECHO_GEN) envoy/$$path; \
-		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=plugins=grpc$(GO_MAPPINGS):$(GO_OUT)" --go_opt=module=github.com/cilium/proxy/go "--validate_out=lang=go$(GO_MAPPINGS):$(GO_OUT)" --validate_opt=module=github.com/cilium/proxy/go $${path}*.proto; \
+		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=$(GO_MODULE):$(GO_OUT)" "--go-grpc_out=$(GO_MODULE):$(GO_OUT)" "--validate_out=lang=go,$(GO_MODULE):$(GO_OUT)" $${path}*.proto; \
 	done
 	go mod tidy && go mod vendor
 

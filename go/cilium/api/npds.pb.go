@@ -7,7 +7,6 @@
 package cilium
 
 import (
-	context "context"
 	_ "github.com/envoyproxy/go-control-plane/envoy/annotations"
 	v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	v31 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
@@ -15,9 +14,6 @@ import (
 	v32 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
-	grpc "google.golang.org/grpc"
-	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -1374,153 +1370,4 @@ func file_cilium_api_npds_proto_init() {
 	File_cilium_api_npds_proto = out.File
 	file_cilium_api_npds_proto_goTypes = nil
 	file_cilium_api_npds_proto_depIdxs = nil
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConnInterface
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion6
-
-// NetworkPolicyDiscoveryServiceClient is the client API for NetworkPolicyDiscoveryService service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
-type NetworkPolicyDiscoveryServiceClient interface {
-	StreamNetworkPolicies(ctx context.Context, opts ...grpc.CallOption) (NetworkPolicyDiscoveryService_StreamNetworkPoliciesClient, error)
-	FetchNetworkPolicies(ctx context.Context, in *v33.DiscoveryRequest, opts ...grpc.CallOption) (*v33.DiscoveryResponse, error)
-}
-
-type networkPolicyDiscoveryServiceClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewNetworkPolicyDiscoveryServiceClient(cc grpc.ClientConnInterface) NetworkPolicyDiscoveryServiceClient {
-	return &networkPolicyDiscoveryServiceClient{cc}
-}
-
-func (c *networkPolicyDiscoveryServiceClient) StreamNetworkPolicies(ctx context.Context, opts ...grpc.CallOption) (NetworkPolicyDiscoveryService_StreamNetworkPoliciesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_NetworkPolicyDiscoveryService_serviceDesc.Streams[0], "/cilium.NetworkPolicyDiscoveryService/StreamNetworkPolicies", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &networkPolicyDiscoveryServiceStreamNetworkPoliciesClient{stream}
-	return x, nil
-}
-
-type NetworkPolicyDiscoveryService_StreamNetworkPoliciesClient interface {
-	Send(*v33.DiscoveryRequest) error
-	Recv() (*v33.DiscoveryResponse, error)
-	grpc.ClientStream
-}
-
-type networkPolicyDiscoveryServiceStreamNetworkPoliciesClient struct {
-	grpc.ClientStream
-}
-
-func (x *networkPolicyDiscoveryServiceStreamNetworkPoliciesClient) Send(m *v33.DiscoveryRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *networkPolicyDiscoveryServiceStreamNetworkPoliciesClient) Recv() (*v33.DiscoveryResponse, error) {
-	m := new(v33.DiscoveryResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *networkPolicyDiscoveryServiceClient) FetchNetworkPolicies(ctx context.Context, in *v33.DiscoveryRequest, opts ...grpc.CallOption) (*v33.DiscoveryResponse, error) {
-	out := new(v33.DiscoveryResponse)
-	err := c.cc.Invoke(ctx, "/cilium.NetworkPolicyDiscoveryService/FetchNetworkPolicies", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// NetworkPolicyDiscoveryServiceServer is the server API for NetworkPolicyDiscoveryService service.
-type NetworkPolicyDiscoveryServiceServer interface {
-	StreamNetworkPolicies(NetworkPolicyDiscoveryService_StreamNetworkPoliciesServer) error
-	FetchNetworkPolicies(context.Context, *v33.DiscoveryRequest) (*v33.DiscoveryResponse, error)
-}
-
-// UnimplementedNetworkPolicyDiscoveryServiceServer can be embedded to have forward compatible implementations.
-type UnimplementedNetworkPolicyDiscoveryServiceServer struct {
-}
-
-func (*UnimplementedNetworkPolicyDiscoveryServiceServer) StreamNetworkPolicies(NetworkPolicyDiscoveryService_StreamNetworkPoliciesServer) error {
-	return status.Errorf(codes.Unimplemented, "method StreamNetworkPolicies not implemented")
-}
-func (*UnimplementedNetworkPolicyDiscoveryServiceServer) FetchNetworkPolicies(context.Context, *v33.DiscoveryRequest) (*v33.DiscoveryResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method FetchNetworkPolicies not implemented")
-}
-
-func RegisterNetworkPolicyDiscoveryServiceServer(s *grpc.Server, srv NetworkPolicyDiscoveryServiceServer) {
-	s.RegisterService(&_NetworkPolicyDiscoveryService_serviceDesc, srv)
-}
-
-func _NetworkPolicyDiscoveryService_StreamNetworkPolicies_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NetworkPolicyDiscoveryServiceServer).StreamNetworkPolicies(&networkPolicyDiscoveryServiceStreamNetworkPoliciesServer{stream})
-}
-
-type NetworkPolicyDiscoveryService_StreamNetworkPoliciesServer interface {
-	Send(*v33.DiscoveryResponse) error
-	Recv() (*v33.DiscoveryRequest, error)
-	grpc.ServerStream
-}
-
-type networkPolicyDiscoveryServiceStreamNetworkPoliciesServer struct {
-	grpc.ServerStream
-}
-
-func (x *networkPolicyDiscoveryServiceStreamNetworkPoliciesServer) Send(m *v33.DiscoveryResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *networkPolicyDiscoveryServiceStreamNetworkPoliciesServer) Recv() (*v33.DiscoveryRequest, error) {
-	m := new(v33.DiscoveryRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _NetworkPolicyDiscoveryService_FetchNetworkPolicies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(v33.DiscoveryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NetworkPolicyDiscoveryServiceServer).FetchNetworkPolicies(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/cilium.NetworkPolicyDiscoveryService/FetchNetworkPolicies",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NetworkPolicyDiscoveryServiceServer).FetchNetworkPolicies(ctx, req.(*v33.DiscoveryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _NetworkPolicyDiscoveryService_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "cilium.NetworkPolicyDiscoveryService",
-	HandlerType: (*NetworkPolicyDiscoveryServiceServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "FetchNetworkPolicies",
-			Handler:    _NetworkPolicyDiscoveryService_FetchNetworkPolicies_Handler,
-		},
-	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "StreamNetworkPolicies",
-			Handler:       _NetworkPolicyDiscoveryService_StreamNetworkPolicies_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
-		},
-	},
-	Metadata: "cilium/api/npds.proto",
 }
