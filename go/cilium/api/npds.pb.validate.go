@@ -158,8 +158,6 @@ func (m *NetworkPolicy) validate(all bool) error {
 
 	}
 
-	// no validation rules for ConntrackMapName
-
 	if len(errors) > 0 {
 		return NetworkPolicyMultiError(errors)
 	}

@@ -189,10 +189,10 @@ createHostMap(Server::Configuration::ListenerFactoryContext& context) {
 }
 
 std::shared_ptr<const Cilium::NetworkPolicyMap>
-createPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct) {
+createPolicyMap(Server::Configuration::FactoryContext& context) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-      [&context, &ct] { return std::make_shared<Cilium::NetworkPolicyMap>(context, ct); });
+      [&context] { return std::make_shared<Cilium::NetworkPolicyMap>(context, true); });
 }
 
 } // namespace
@@ -270,7 +270,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
   // instances!
   // Only created if either ipcache_ or hosts_ map exists
   if (ipcache_ || hosts_) {
-    npmap_ = createPolicyMap(context, ct_maps_);
+    npmap_ = createPolicyMap(context);
   }
 }
 
@@ -297,21 +297,13 @@ uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
   return id;
 }
 
-uint32_t Config::resolveSourceIdentity(const PolicyInstance& policy,
-                                       const Network::Address::Ip* sip,
-                                       const Network::Address::Ip* dip, bool ingress,
-                                       bool is_l7_lb) {
+uint32_t Config::resolveSourceIdentity(const Network::Address::Ip* sip,
+                                       const Network::Address::Ip* dip, bool ingress) {
   uint32_t source_identity = 0;
 
   // Resolve the source security ID from conntrack map, or from ip cache
   if (ct_maps_ != nullptr) {
-    const std::string& ct_name = policy.conntrackName();
-    if (!ct_name.empty()) {
-      source_identity = ct_maps_->lookupSrcIdentity(ct_name, sip, dip, ingress);
-    } else if (is_l7_lb) {
-      // non-local source should be in the global conntrack
-      source_identity = ct_maps_->lookupSrcIdentity("global", sip, dip, ingress);
-    }
+    source_identity = ct_maps_->lookupSrcIdentity(sip, dip, ingress);
   }
   // Fall back to ipcache lookup if conntrack entry can not be located
   if (source_identity == 0) {
@@ -406,7 +398,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   const auto* policy = &getPolicy(pod_ip);
 
   // Resolve the source security ID from conntrack map, or from ip cache
-  uint32_t source_identity = resolveSourceIdentity(*policy, sip, dip, is_ingress_, is_l7lb_);
+  uint32_t source_identity = resolveSourceIdentity(sip, dip, is_ingress_);
 
   // Resolve the destination security ID for egress traffic
   uint32_t destination_identity = is_ingress_ ? 0 : resolvePolicyId(dip);

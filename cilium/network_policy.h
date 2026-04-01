@@ -46,7 +46,6 @@
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/npds.pb.validate.h" // IWYU pragma: keep
-#include "cilium/conntrack.h"
 #include "re2/re2.h"
 
 namespace Envoy {
@@ -174,8 +173,6 @@ public:
   // returns the l7 protocol string in 'l7_proto'
   virtual bool useProxylib(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
                            std::string& l7_proto) const PURE;
-
-  virtual const std::string& conntrackName() const PURE;
 
   virtual uint32_t getEndpointID() const PURE;
 
@@ -334,9 +331,6 @@ protected:
   friend class NetworkPolicyMap;
   friend class CiliumNetworkPolicyTest;
 
-  void setConntrackMap(Cilium::CtMapSharedPtr& ct) { ctmap_ = ct; }
-
-  Cilium::CtMapSharedPtr ctmap_;
   PolicyStats stats_;
 };
 
@@ -345,8 +339,7 @@ class AllowAllEgressPolicyInstanceImpl;
 
 class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Logger::Id::config> {
 public:
-  NetworkPolicyMap(Server::Configuration::FactoryContext& context);
-  NetworkPolicyMap(Server::Configuration::FactoryContext& context, Cilium::CtMapSharedPtr& ct);
+  NetworkPolicyMap(Server::Configuration::FactoryContext& context, bool subscribe = false);
   ~NetworkPolicyMap() override;
 
   // This is used for testing with a file-based subscription

@@ -55,7 +55,6 @@
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
-#include "cilium/conntrack.h"
 #include "cilium/grpc_subscription.h"
 #include "cilium/ipcache.h"
 #include "cilium/secret_watcher.h"
@@ -1765,9 +1764,8 @@ class PolicyInstanceImpl : public PolicyInstance {
 public:
   PolicyInstanceImpl(const NetworkPolicyMapImpl& parent, uint64_t hash,
                      const cilium::NetworkPolicy& proto)
-      : conntrack_map_name_(proto.conntrack_map_name()), endpoint_id_(proto.endpoint_id()),
-        hash_(hash), policy_proto_(proto), endpoint_ips_(proto), parent_(parent),
-        ingress_(parent, policy_proto_.ingress_per_port_policies()),
+      : endpoint_id_(proto.endpoint_id()), hash_(hash), policy_proto_(proto), endpoint_ips_(proto),
+        parent_(parent), ingress_(parent, policy_proto_.ingress_per_port_policies()),
         egress_(parent, policy_proto_.egress_per_port_policies()) {}
 
   bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
@@ -1796,8 +1794,6 @@ public:
     return port_policy.useProxylib(proxy_id, remote_id, l7_proto);
   }
 
-  const std::string& conntrackName() const override { return conntrack_map_name_; }
-
   uint32_t getEndpointID() const override { return endpoint_id_; }
 
   const IpAddressPair& getEndpointIPs() const override { return endpoint_ips_; }
@@ -1814,7 +1810,6 @@ public:
   void tlsWrapperMissingPolicyInc() const override { parent_.tlsWrapperMissingPolicyInc(); }
 
 public:
-  std::string conntrack_map_name_;
   uint32_t endpoint_id_;
   uint64_t hash_;
   const cilium::NetworkPolicy policy_proto_;
@@ -1828,7 +1823,7 @@ private:
 
 // Common base constructor
 // This is used directly for testing with a file-based subscription
-NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context)
+NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context, bool subscribe)
     : context_(context.serverFactoryContext()) {
   impl_ = std::make_unique<NetworkPolicyMapImpl>(context);
 
@@ -1840,14 +1835,10 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
         });
     RELEASE_ASSERT(config_tracker_entry_, "");
   }
-}
 
-// This is used in production
-NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context,
-                                   Cilium::CtMapSharedPtr& ct)
-    : NetworkPolicyMap(context) {
-  getImpl().setConntrackMap(ct);
-  getImpl().startSubscription();
+  if (subscribe) {
+    getImpl().startSubscription();
+  }
 }
 
 NetworkPolicyMap::~NetworkPolicyMap() {
@@ -1971,11 +1962,8 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
   // SDS secrets will use this!
   transport_factory_context_->setInitManager(version_init_manager);
 
-  absl::flat_hash_set<std::string> ctmaps_to_be_closed;
-
   const auto* old_map = load();
   {
-    absl::flat_hash_set<std::string> ctmaps_to_keep;
     auto new_map = new RawPolicyMap();
     try {
       for (const auto& resource : resources) {
@@ -1987,7 +1975,6 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
         if (config.endpoint_ips().empty()) {
           throw EnvoyException("Network Policy has no endpoint ips");
         }
-        ctmaps_to_keep.insert(config.conntrack_map_name());
 
         // First find the old config to figure out if an update is needed.
         const uint64_t new_hash = MessageUtil::hash(config);
@@ -2026,19 +2013,6 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
     // Initialize SDS secrets. We do not wait for the completion.
     version_init_manager.initialize(Init::WatcherImpl(version_name, []() {}));
 
-    // Add old ctmaps to be closed
-    //
-    // NOTE: Support for local CT maps was removed in Cilium 1.17. This clean-up code can be
-    // simplified by always keeping the global map open when Cilium 1.17 is the oldest supported
-    // version.
-    for (auto& pair : *old_map) {
-      // insert conntrack map names we don't want to keep
-      auto& ct_map_name = pair.second->conntrack_map_name_;
-      if (ctmaps_to_keep.find(ct_map_name) == ctmaps_to_keep.end()) {
-        ctmaps_to_be_closed.insert(ct_map_name);
-      }
-    }
-
     // Swap the new map in, new_map goes out of scope right after to eliminate accidental
     // modification.
     old_map = exchange(new_map);
@@ -2046,11 +2020,8 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
 
   // Delete the old map once all worker threads have entered their event queues, as this
   // is proof that they no longer refer to the old map.
-  runAfterAllThreads([ctmap = ctmap_, ctmaps_to_be_closed, old_map]() {
+  runAfterAllThreads([old_map]() {
     // Clean-up in the main thread after all threads have scheduled
-    if (ctmap) {
-      ctmap->closeMaps(ctmaps_to_be_closed);
-    }
     delete old_map;
   });
 
@@ -2125,8 +2096,6 @@ public:
     return false;
   }
 
-  const std::string& conntrackName() const override { return empty_string; }
-
   uint32_t getEndpointID() const override { return 0; }
 
   const IpAddressPair& getEndpointIPs() const override { return empty_ips; }
@@ -2168,8 +2137,6 @@ public:
   bool useProxylib(bool, uint16_t, uint32_t, uint16_t, std::string&) const override {
     return false;
   }
-
-  const std::string& conntrackName() const override { return empty_string; }
 
   uint32_t getEndpointID() const override { return 0; }
 

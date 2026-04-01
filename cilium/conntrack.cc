@@ -5,19 +5,14 @@
 #include <cerrno> // IWYU pragma: keep
 #include <cstdint>
 #include <cstring>
-#include <memory>
 #include <string>
-#include <utility>
 
 #include "envoy/common/platform.h"
 #include "envoy/network/address.h"
 
-#include "source/common/common/lock_guard.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 
-#include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "absl/numeric/int128.h"
 #include "cilium/bpf.h"
 #include "linux/bpf.h"
@@ -81,112 +76,42 @@ struct CtEntry {
   __u32 last_rx_report;
 };
 
-CtMap::CtMap4::CtMap4()
-    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct IPv4CtTuple), sizeof(struct CtEntry)) {}
+CtMap::CtMap4::CtMap4(const std::string& bpf_root)
+    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct IPv4CtTuple), sizeof(struct CtEntry)),
+      path_(bpf_root + "/tc/globals/cilium_ct4_global") {}
 
-CtMap::CtMap6::CtMap6()
-    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct IPv6CtTuple), sizeof(struct CtEntry)) {}
-
-CtMap::CtMaps4::CtMaps4(const std::string& bpf_root, const std::string& map_name) : ok_(false) {
-  // Open the IPv4 bpf maps from Cilium specific paths
-
-  std::string path4tcp(bpf_root + "/tc/globals/cilium_ct4_" + map_name);
-  if (!ctmap4_tcp_.open(path4tcp)) {
-    ENVOY_LOG(warn, "cilium.bpf_metadata: Cannot open IPv4 conntrack map at {}", path4tcp);
-    return;
+bool CtMap::CtMap4::open() {
+  bool ret = Bpf::open(path_);
+  if (!ret) {
+    ENVOY_LOG(warn, "cilium.bpf_metadata: Cannot open IPv4 conntrack map at {}", path_);
   }
-  std::string path4any(bpf_root + "/tc/globals/cilium_ct_any4_" + map_name);
-  if (!ctmap4_any_.open(path4any)) {
-    ENVOY_LOG(info, "cilium.bpf_metadata: Cannot open IPv4 conntrack map at {}", path4any);
-    // do not fail if non-TCP map can not be opened
-  }
-
-  ok_ = true;
+  return ret;
 }
 
-CtMap::CtMaps6::CtMaps6(const std::string& bpf_root, const std::string& map_name) : ok_(false) {
-  // Open the IPv6 bpf maps from Cilium specific paths
+CtMap::CtMap6::CtMap6(const std::string& bpf_root)
+    : Bpf(BPF_MAP_TYPE_HASH, sizeof(struct IPv6CtTuple), sizeof(struct CtEntry)),
+      path_(bpf_root + "/tc/globals/cilium_ct6_global") {}
 
-  std::string path6tcp(bpf_root + "/tc/globals/cilium_ct6_" + map_name);
-  if (!ctmap6_tcp_.open(path6tcp)) {
-    ENVOY_LOG(warn, "cilium.bpf_metadata: Cannot open IPv6 conntrack map at {}", path6tcp);
-    return;
+bool CtMap::CtMap6::open() {
+  bool ret = Bpf::open(path_);
+  if (!ret) {
+    ENVOY_LOG(warn, "cilium.bpf_metadata: Cannot open IPv6 conntrack map at {}", path_);
   }
-  std::string path6any(bpf_root + "/tc/globals/cilium_ct_any6_" + map_name);
-  if (!ctmap6_any_.open(path6any)) {
-    ENVOY_LOG(info, "cilium.bpf_metadata: Cannot open IPv6 conntrack map at {}", path6any);
-    // do not fail if non-TCP map can not be opened
-  }
-
-  ok_ = true;
+  return ret;
 }
 
-// Must hold mutex!
-absl::flat_hash_map<const std::string, std::unique_ptr<CtMap::CtMaps4>>::iterator
-CtMap::openMap4(const std::string& map_name) {
-  auto pair = ct_maps4_.emplace(std::make_pair(map_name, nullptr));
-  // construct the maps only if the entry was inserted
-  if (pair.second) {
-    auto maps = new CtMaps4(bpf_root_, map_name);
-    if (!maps->ok_) {
-      // Map open failed, delete and return nullptr
-      delete maps;
-      ct_maps4_.erase(pair.first);
-      return ct_maps4_.end();
-    }
-    pair.first->second.reset(maps);
-  }
-  ENVOY_LOG(debug, "cilium.bpf_metadata: Opened IPv4 conntrack map {}", map_name);
-  return pair.first;
-}
-
-// Must hold mutex!
-absl::flat_hash_map<const std::string, std::unique_ptr<CtMap::CtMaps6>>::iterator
-CtMap::openMap6(const std::string& map_name) {
-  auto pair = ct_maps6_.emplace(std::make_pair(map_name, nullptr));
-  // construct the maps only if the entry was inserted
-  if (pair.second) {
-    auto maps = new CtMaps6(bpf_root_, map_name);
-    if (!maps->ok_) {
-      // Map open failed, delete and return nullptr
-      delete maps;
-      ct_maps6_.erase(pair.first);
-      return ct_maps6_.end();
-    }
-    pair.first->second.reset(maps);
-  }
-  ENVOY_LOG(debug, "cilium.bpf_metadata: Opened IPv6 conntrack map {}", map_name);
-  return pair.first;
-}
-
-void CtMap::closeMaps(const absl::flat_hash_set<std::string>& to_be_closed) {
-  Thread::LockGuard guard(maps_mutex_);
-
-  for (const auto& name : to_be_closed) {
-    auto ct4 = ct_maps4_.find(name);
-    if (ct4 != ct_maps4_.end()) {
-      ct_maps4_.erase(ct4);
-      ENVOY_LOG(debug, "cilium.bpf_metadata: Closed IPv4 conntrack map {}", name);
-    }
-    auto ct6 = ct_maps6_.find(name);
-    if (ct6 != ct_maps6_.end()) {
-      ct_maps6_.erase(ct6);
-      ENVOY_LOG(debug, "cilium.bpf_metadata: Closed IPv6 conntrack map {}", name);
-    }
-  }
-}
-
-CtMap::CtMap(const std::string& bpf_root) : bpf_root_(bpf_root) {
-  if (openMap4("global") == ct_maps4_.end() && openMap6("global") == ct_maps6_.end()) {
+CtMap::CtMap(const std::string& bpf_root)
+    : bpf_root_(bpf_root), ct_map4_(bpf_root), ct_map6_(bpf_root) {
+  if (!ct_map4_.open() && !ct_map6_.open()) {
     ENVOY_LOG(debug, "cilium.bpf_metadata: conntrack map global open failed: ({})",
               Envoy::errorDetails(errno));
   }
 }
 
 // map_name is "global" for the global maps, or endpoint ID for local maps
-uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Address::Ip* sip,
-                                  const Network::Address::Ip* dip, bool ingress) {
-  ENVOY_LOG(debug, "cilium.bpf_metadata: Using conntrack map {}", map_name);
+uint32_t CtMap::lookupSrcIdentity(const Network::Address::Ip* sip, const Network::Address::Ip* dip,
+                                  bool ingress) {
+  ENVOY_LOG(debug, "cilium.bpf_metadata: Using conntrack map global");
 
   struct IPv4CtTuple key4 {};
   struct IPv6CtTuple key6 {};
@@ -223,38 +148,16 @@ uint32_t CtMap::lookupSrcIdentity(const std::string& map_name, const Network::Ad
   }
 
   if (dip->version() == Network::Address::IpVersion::v4) {
-    // Lock for the duration of the map lookup and conntrack lookup
-    Thread::LockGuard guard(maps_mutex_);
-    auto it = ct_maps4_.find(map_name);
-    if (it == ct_maps4_.end()) {
-      it = openMap4(map_name);
-    }
-    if (it == ct_maps4_.end()) {
-      ENVOY_LOG(error, "cilium.bpf_metadata: No IPv4 conntrack map {}", map_name);
-      return 0;
-    }
-    auto ct = it->second.get();
-    if (!ct->ctmap4_tcp_.lookup(&key4, &value)) {
-      ct_maps4_.erase(it); // flush the map to force reload after each failure.
-      ENVOY_LOG(debug, "cilium.bpf_metadata: IPv4 conntrack map {} lookup failed: {}", map_name,
+    if (!ct_map4_.lookup(&key4, &value)) {
+      ct_map4_.close(); // flush the map to force reload after each failure.
+      ENVOY_LOG(debug, "cilium.bpf_metadata: IPv4 conntrack map lookup failed: {}",
                 Envoy::errorDetails(errno));
       return 0;
     }
   } else {
-    // Lock for the duration of the map lookup and conntrack lookup
-    Thread::LockGuard guard(maps_mutex_);
-    auto it = ct_maps6_.find(map_name);
-    if (it == ct_maps6_.end()) {
-      it = openMap6(map_name);
-    }
-    if (it == ct_maps6_.end()) {
-      ENVOY_LOG(error, "cilium.bpf_metadata: No IPv6 conntrack map {}", map_name);
-      return 0;
-    }
-    auto ct = it->second.get();
-    if (!ct->ctmap6_tcp_.lookup(&key6, &value)) {
-      ct_maps6_.erase(it); // flush the map to force reload after each failure.
-      ENVOY_LOG(debug, "cilium.bpf_metadata: IPv6 conntrack map {} lookup failed: {}", map_name,
+    if (!ct_map6_.lookup(&key6, &value)) {
+      ct_map6_.close(); // flush the map to force reload after each failure.
+      ENVOY_LOG(debug, "cilium.bpf_metadata: IPv6 conntrack map lookup failed: {}",
                 Envoy::errorDetails(errno));
       return 0;
     }

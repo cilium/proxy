@@ -175,8 +175,8 @@ public:
   std::shared_ptr<const Cilium::PolicyHostMap> hosts_;
 
 private:
-  uint32_t resolveSourceIdentity(const PolicyInstance& policy, const Network::Address::Ip* sip,
-                                 const Network::Address::Ip* dip, bool ingress, bool is_l7_lb);
+  uint32_t resolveSourceIdentity(const Network::Address::Ip* sip, const Network::Address::Ip* dip,
+                                 bool ingress);
 
   IpAddressPair getIpAddressPairWithPort(uint16_t port, const IpAddressPair& addresses);
 
