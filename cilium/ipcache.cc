@@ -61,7 +61,7 @@ IpCache::IpCache(Server::Configuration::ServerFactoryContext& context, const std
           sizeof(struct RemoteEndpointInfo)),
       dispatcher_(context.mainThreadDispatcher()),
       cache_gc_timer_(dispatcher_.createTimer([this]() { cacheGc(); })),
-      cache_gc_interval_(cache_gc_interval), time_source_(context.timeSource()), path_(path) {
+      time_source_(context.timeSource()), cache_gc_interval_(cache_gc_interval), path_(path) {
   // Timer for cache GC
   if (cache_gc_interval_ != std::chrono::milliseconds(0)) {
     cache_gc_timer_->enableTimer(cache_gc_interval_);
@@ -79,8 +79,8 @@ void IpCache::cacheGc() {
         cache_.erase(it);
       }
     }
+    cache_gc_timer_->enableTimer(cache_gc_interval_);
   }
-  cache_gc_timer_->enableTimer(cache_gc_interval_);
 }
 
 void IpCache::setConfig(const std::string& path, std::chrono::milliseconds cache_gc_interval) {
@@ -131,27 +131,25 @@ uint32_t IpCache::resolve(const Network::Address::Ip* ip, std::chrono::microseco
 
   bool ok;
   bool use_cache = cache_ttl > std::chrono::microseconds(0);
-  {
+  if (use_cache) {
     // Read lock prevents ipcache lookups while ipcache is being reopened.
     absl::ReaderMutexLock lock(&mutex_);
 
     // local cache lookup
-    if (use_cache) {
-      const auto it = cache_.find(key);
-      if (it != cache_.cend()) {
-        auto age = time_source_.monotonicTime() - it->second.time_stamp;
-        if (age < cache_ttl) {
-          // use cached value
-          ENVOY_LOG(trace, "cilium.ipcache: {} has cached ID {}", ip->addressAsString(),
-                    it->second.sec_label);
-          return it->second.sec_label;
-        }
+    const auto it = cache_.find(key);
+    if (it != cache_.cend()) {
+      auto age = time_source_.monotonicTime() - it->second.time_stamp;
+      if (age < cache_ttl) {
+        // use cached value
+        ENVOY_LOG(trace, "cilium.ipcache: {} has cached ID {}", ip->addressAsString(),
+                  it->second.sec_label);
+        return it->second.sec_label;
       }
     }
-
-    ENVOY_LOG(trace, "cilium.ipcache: Looking up key: {}", key.asString());
-    ok = lookup(&key, &value);
   }
+
+  ENVOY_LOG(trace, "cilium.ipcache: Looking up key: {}", key.asString());
+  ok = lookup(&key, &value);
 
   if (ok) {
     ENVOY_LOG(debug, "cilium.ipcache: {} has ID {}", ip->addressAsString(), value.sec_label);

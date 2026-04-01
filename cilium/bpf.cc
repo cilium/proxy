@@ -11,6 +11,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/common/utility.h"
 
+#include "absl/synchronization/mutex.h"
 #include "cilium/privileged_service_client.h"
 #include "linux/bpf.h"
 
@@ -22,16 +23,18 @@ enum {
 };
 
 Bpf::Bpf(uint32_t map_type, uint32_t key_size, uint32_t min_value_size, uint32_t max_value_size)
-    : fd_(-1), map_type_(map_type), key_size_(key_size), min_value_size_(min_value_size),
-      max_value_size_(max_value_size), real_value_size_(0) {
-  if (max_value_size_ == 0) {
-    max_value_size_ = min_value_size_;
-  }
-}
+    : fd_(-1), real_value_size_(0), map_type_(map_type), key_size_(key_size),
+      min_value_size_(min_value_size),
+      max_value_size_(max_value_size ? max_value_size : min_value_size) {}
 
 Bpf::~Bpf() { close(); }
 
 void Bpf::close() {
+  absl::WriterMutexLock lock(mutex_);
+  closeLocked();
+}
+
+void Bpf::closeLocked() {
   if (fd_ >= 0) {
     ::close(fd_);
   }
@@ -40,10 +43,15 @@ void Bpf::close() {
 }
 
 bool Bpf::open(const std::string& path) {
+  absl::WriterMutexLock lock(mutex_);
+  return openLocked(path);
+}
+
+bool Bpf::openLocked(const std::string& path) {
   bool log_on_error = ENVOY_LOG_CHECK_LEVEL(trace);
 
   // close old fd if any
-  close();
+  closeLocked();
 
   // store the path for later
   if (path != path_) {
@@ -109,7 +117,7 @@ bool Bpf::open(const std::string& path) {
       ENVOY_LOG(warn, "cilium.bpf_metadata: map {} could not open bpf file {}", path,
                 bpf_file_path);
     }
-    close();
+    closeLocked();
   } else if (ret.errno_ == ENOENT && log_on_error) {
     ENVOY_LOG(debug, "cilium.bpf_metadata: bpf syscall for map {} failed: {}", path,
               Envoy::errorDetails(ret.errno_));
@@ -125,21 +133,32 @@ bool Bpf::open(const std::string& path) {
 
 // value must point to space of at least 'max_value_size_' as passed in to the constructor.
 bool Bpf::lookup(const void* key, void* value) {
-  // Try reopen if open failed previously
-  if (fd_ < 0) {
-    if (!open(path_)) {
-      return false;
+  while (true) {
+    {
+      // Happy parh allowing multiple readers to lookup concurrently
+      absl::ReaderMutexLock lock(mutex_);
+      if (fd_ >= 0) {
+        auto& cilium_calls = PrivilegedService::Singleton::get();
+        auto result = cilium_calls.bpfLookup(fd_, key, key_size_, value, real_value_size_);
+
+        if (result.return_value_ != 0) {
+          errno = result.errno_;
+          return false;
+        }
+        return true;
+      }
     }
+
+    {
+      // Try reopen if open failed previously
+      absl::WriterMutexLock lock(mutex_);
+      if (fd_ < 0 && !openLocked(path_)) {
+        return false;
+      }
+    }
+    // Since the lock is released in between, it is possible for the fd to get closed before we get
+    // the reader lock again, hence the loop.
   }
-
-  auto& cilium_calls = PrivilegedService::Singleton::get();
-  auto result = cilium_calls.bpfLookup(fd_, key, key_size_, value, real_value_size_);
-
-  if (result.return_value_ == 0) {
-    return true;
-  }
-
-  errno = result.errno_;
   return false;
 }
 

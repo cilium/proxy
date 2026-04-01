@@ -106,12 +106,12 @@ private:
 
   Event::Dispatcher& dispatcher_;
   Event::TimerPtr cache_gc_timer_;
-  std::chrono::milliseconds cache_gc_interval_;
   TimeSource& time_source_;
 
   absl::Mutex mutex_;
-  std::string path_;
-  IpCacheMap cache_;
+  std::chrono::milliseconds cache_gc_interval_ ABSL_GUARDED_BY(mutex_);
+  std::string path_ ABSL_GUARDED_BY(mutex_);
+  IpCacheMap cache_ ABSL_GUARDED_BY(mutex_);
 };
 
 using IpCacheSharedPtr = std::shared_ptr<IpCache>;
