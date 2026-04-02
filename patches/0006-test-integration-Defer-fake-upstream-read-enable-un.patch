@@ -40,7 +40,7 @@ diff --git a/test/integration/fake_upstream.cc b/test/integration/fake_upstream.
      return AssertionSuccess();
 @@ -857,7 +866,8 @@
        EXPECT_TRUE(upstream.runOnDispatcherThreadAndWait([&]() {
-         absl::MutexLock lock(&upstream.lock_);
+         absl::MutexLock lock(upstream.lock_);
          connection = std::make_unique<FakeHttpConnection>(
 -            upstream, upstream.consumeConnection(), upstream.http_type_, upstream.timeSystem(),
 +            upstream, upstream.consumeConnection(/*defer_read_enable=*/true),
