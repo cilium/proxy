@@ -197,7 +197,7 @@ resources:
     host_map_config += extra_host_map_config;
     policy_config += extra_policy_config;
 
-    initTestMaps(context_);
+    Cilium::TestHelper::initTestMaps(context_);
 
     Init::WatcherImpl watcher("metadata test", []() {});
     context_.initManager().initialize(watcher);

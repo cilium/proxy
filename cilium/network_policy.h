@@ -2,48 +2,32 @@
 
 #include <fmt/format.h>
 
-#include <atomic>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
-#include <utility>
-#include <vector>
 
-#include "envoy/common/exception.h"
-#include "envoy/common/matchers.h"
 #include "envoy/common/pure.h"
 #include "envoy/common/regex.h"
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
-#include "envoy/event/dispatcher_thread_deletable.h"
 #include "envoy/http/header_map.h"
 #include "envoy/network/address.h"
 #include "envoy/protobuf/message_validator.h"
-#include "envoy/server/config_tracker.h"
 #include "envoy/server/factory_context.h"
-#include "envoy/server/transport_socket_config.h"
 #include "envoy/singleton/instance.h"
 #include "envoy/ssl/context.h"
 #include "envoy/ssl/context_config.h"
-#include "envoy/stats/scope.h"
 #include "envoy/stats/stats_macros.h" // IWYU pragma: keep
 
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
 #include "source/common/common/thread.h"
-#include "source/common/init/manager_impl.h"
-#include "source/common/init/target_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
-#include "source/server/transport_socket_config_impl.h"
 
-#include "absl/container/btree_map.h"
-#include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
@@ -54,35 +38,8 @@
 namespace Envoy {
 namespace Cilium {
 
-// PortRangeCompare is used for as std::less replacement for port range keys.
-//
-// All port ranges in the map have non-overlapping keys, which allows total ordering needed for
-// ordered map containers. When inserting new ranges, any range overlap will be flagged as a
-// "duplicate" entry, as overlapping keys are considered equal (as neither is strictly less than the
-// other given this comparison predicate).
-// On lookups we'll set both ends of the port range to the same port number, which will find the one
-// range that it overlaps with, if one exists.
-using PortRange = std::pair<uint16_t, uint16_t>;
-struct PortRangeCompare {
-  bool operator()(const PortRange& a, const PortRange& b) const {
-    // return true if range 'a.first - a.second' is below range 'b.first - b.second'.
-    return a.second < b.first;
-  }
-};
-
 class PortNetworkPolicyRules;
-
-// PolicyMap is keyed by port ranges, and contains a list of PortNetworkPolicyRules's applicable
-// to this range. A list is needed as rules may come from multiple sources (e.g., resulting from
-// use of named ports and numbered ports in Cilium Network Policy at the same time).
-using PolicyMap = absl::btree_map<PortRange, PortNetworkPolicyRules, PortRangeCompare>;
-
-// Supported message types
-using RuleVerdict = enum {
-  None = 0,
-  Allow = 1,
-  Deny = 2,
-};
+class PolicySnapshot;
 
 // PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
 // Methods then iterate through the set to determine if policy allows or denies. This is needed to
@@ -93,7 +50,7 @@ protected:
   friend class PortNetworkPolicy;
   friend class DenyAllPolicyInstanceImpl;
   friend class AllowAllEgressPolicyInstanceImpl;
-  PortPolicy(const PolicyMap& map, uint16_t port);
+  PortPolicy(const PolicySnapshot& map, uint16_t port);
 
 public:
   // If hasHttpRules() returns false, then HTTP policy enforcement can be skipped,
@@ -129,7 +86,6 @@ public:
                                             bool& raw_socket_allowed) const;
 
 private:
-  const PolicyMap& map_;
   // using raw pointers by design:
   // - pointer to distinguish between no rules and empty rules
   // - not using shared pointer to not allow a worker thread to hold the last reference to policy
@@ -187,8 +143,6 @@ public:
 };
 using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
 
-class PolicyInstanceImpl;
-
 class NetworkPolicyDecoder : public Envoy::Config::OpaqueResourceDecoder {
 public:
   NetworkPolicyDecoder() : validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {}
@@ -231,124 +185,7 @@ struct PolicyStats {
   ALL_CILIUM_POLICY_STATS(GENERATE_COUNTER_STRUCT)
 };
 
-using RawPolicyMap = absl::flat_hash_map<std::string, std::shared_ptr<const PolicyInstanceImpl>>;
-
-class NetworkPolicyMapImpl : public Envoy::Config::SubscriptionCallbacks,
-                             public Envoy::Event::DispatcherThreadDeletable,
-                             public Logger::Loggable<Logger::Id::config> {
-public:
-  NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context,
-                       const envoy::config::core::v3::ConfigSource& npds_config);
-  ~NetworkPolicyMapImpl() override;
-
-  void startSubscription(const envoy::config::core::v3::ConfigSource& npds_config);
-
-  // This is used for testing with a file-based subscription
-  void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
-    subscription_ = std::move(subscription);
-  }
-
-  const envoy::config::core::v3::ConfigSource& getConfigSource() const { return npds_config_; }
-
-  // run the given function after all the threads have scheduled
-  void runAfterAllThreads(std::function<void()>) const;
-
-  // Config::SubscriptionCallbacks
-  absl::Status onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& resources,
-                              const std::string& version_info) override;
-  absl::Status onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
-                              const Protobuf::RepeatedPtrField<std::string>& removed_resources,
-                              const std::string& system_version_info) override {
-    // NOT IMPLEMENTED YET.
-    UNREFERENCED_PARAMETER(added_resources);
-    UNREFERENCED_PARAMETER(removed_resources);
-    UNREFERENCED_PARAMETER(system_version_info);
-    return absl::OkStatus();
-  }
-  void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
-                            const EnvoyException* e) override;
-
-  Server::Configuration::TransportSocketFactoryContext& transportFactoryContext() const {
-    return *transport_factory_context_;
-  }
-
-  Regex::Engine& regexEngine() const { return context_.regexEngine(); }
-
-  void tlsWrapperMissingPolicyInc() const;
-
-private:
-  // Helpers for atomic swap of the policy map pointer.
-  //
-  // store() is only used for the initialization of the map during construction.
-  // exchange() is used to atomically swap in a new map, the old map pointer is returned.
-  // Once a map is stored or swapped in to the atomic pointer by the main thread, it may be "loaded"
-  // from the atomic pointer by any thread. This is why the load returns a const pointer.
-  //
-  // For the loaded pointer to be safe to use, we must use acquire/release memory ordering:
-  // - when a pointer stored or swapped in, 'std::memory_order_release' informs the compiler to make
-  //   sure it is not reordering any write operations into the map to happen after the pointer is
-  //   written, and emits CPU instructions to also make the CPU out-of-order-execution logic to not
-  //   reorder any write operations to happen after the pointer itself is written. This guarantees
-  //   that the map is not modified after the point when the worker threads can observe the new
-  //   pointer value, i.e., the map is actaully immutable (const) from that point forward.
-  // - when the pointer is read (by a worker thread) 'std::memory_order_acquire' in the load
-  //   operation informs the compiler to emit CPU instructions to make the CPU
-  //   out-of-order-execution logic to not reorder any reads from the new map to happen before the
-  //   pointer itself is read, so that no values from the map are read before the map was "released"
-  //   by the store or exchange operation.
-  //
-  // Typically it is easier to think about the release part of the acquire/release semantics, as at
-  // the point of the store or exchange operation the compiler and the CPU know the location of the
-  // map in memory before and after the pointer is stored, so that without
-  // 'std::memory_order_release' there is an understandable risk of such write after release
-  // happening. On the acquire side it seems less likely that the compiler or the CPU could know the
-  // new map pointer value in advance and even try to reorder any read operations to happen before
-  // the pointer is actually read. But consider the typical case where the pointer value is actually
-  // not changing between consecutice load operations. The compiler or the CPU could speculate that
-  // to be the case and read some values from the old memory location. 'std::memory_order_acquire'
-  // tells the compiler (which then "tells" the CPU) that this can not be done, and all reads must
-  // actually happen after the pointer value is loaded, be it a new one or the same as before.
-  //
-  const RawPolicyMap* load() const { return map_ptr_.load(std::memory_order_acquire); }
-  void store(const RawPolicyMap* map) { map_ptr_.store(map, std::memory_order_release); }
-  const RawPolicyMap* exchange(const RawPolicyMap* map) {
-    return map_ptr_.exchange(map, std::memory_order_release);
-  }
-
-  const PolicyInstance* getPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
-
-  void removeInitManager();
-
-  bool isNewStream();
-
-  static uint64_t instance_id_;
-
-  Server::Configuration::ServerFactoryContext& context_;
-  std::atomic<const RawPolicyMap*> map_ptr_;
-  Stats::ScopeSharedPtr npds_stats_scope_;
-  Stats::ScopeSharedPtr policy_stats_scope_;
-
-  // init target which starts gRPC subscription
-  Init::TargetImpl init_target_;
-  std::shared_ptr<Server::Configuration::TransportSocketFactoryContextImpl>
-      transport_factory_context_;
-  // Between policy updates, keep a dormant init manager installed so unexpected late init-target
-  // registrations do not hit the listener's already-initialized manager. If it accumulates targets
-  // while parked, log and rotate it out before making it active again.
-  std::unique_ptr<Init::ManagerImpl> parked_init_manager_;
-
-  std::unique_ptr<Envoy::Config::Subscription> subscription_;
-  envoy::config::core::v3::ConfigSource npds_config_;
-
-protected:
-  friend class NetworkPolicyMap;
-  friend class CiliumNetworkPolicyTest;
-
-  PolicyStats stats_;
-};
-
-class DenyAllPolicyInstanceImpl;
-class AllowAllEgressPolicyInstanceImpl;
+class NetworkPolicyMapImpl;
 
 class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Logger::Id::config> {
 public:
@@ -357,31 +194,24 @@ public:
                    bool subscribe = false);
   ~NetworkPolicyMap() override;
 
-  // This is used for testing with a file-based subscription
-  void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
-    getImpl().startSubscription(std::move(subscription));
-  }
+  bool exists(const std::string& endpoint_policy_name) const;
 
   const PolicyInstance& getPolicyInstance(const std::string& endpoint_policy_name,
                                           bool allow_egress) const;
 
-  static DenyAllPolicyInstanceImpl DenyAllPolicy;
   static PolicyInstance& getDenyAllPolicy();
-  static AllowAllEgressPolicyInstanceImpl AllowAllEgressPolicy;
   static PolicyInstance& getAllowAllEgressPolicy();
 
-  bool exists(const std::string& endpoint_policy_name) const {
-    return getImpl().getPolicyInstanceImpl(endpoint_policy_name) != nullptr;
-  }
-
-  NetworkPolicyMapImpl& getImpl() const { return *impl_; }
+protected:
+  friend class CiliumNetworkPolicyTest;
+  friend struct TestHelper;
+  PolicyStats& statsForTest() const;
+  void startSubscriptionForTest(std::unique_ptr<Envoy::Config::Subscription>&& subscription);
+  Envoy::Config::SubscriptionCallbacks& subscriptionCallbacksForTest() const;
 
 private:
   Server::Configuration::ServerFactoryContext& context_;
   std::unique_ptr<NetworkPolicyMapImpl> impl_;
-
-  ProtobufTypes::MessagePtr dumpNetworkPolicyConfigs(const Matchers::StringMatcher& name_matcher);
-  Server::ConfigTracker::EntryOwnerPtr config_tracker_entry_;
 };
 using NetworkPolicyMapSharedPtr = std::shared_ptr<const NetworkPolicyMap>;
 
