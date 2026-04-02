@@ -35,14 +35,15 @@
 #include "fmt/printf.h"
 #include "tests/bpf_metadata.pb.h"
 #include "tests/bpf_metadata.pb.validate.h" // IWYU pragma: keep
+#include "tests/cilium_test_peer.h"
 
 namespace Envoy {
 
 std::string host_map_config = "version_info: \"0\"";
-std::shared_ptr<const Cilium::PolicyHostMap> hostmap{nullptr}; // Keep reference to singleton
+std::shared_ptr<Cilium::PolicyHostMap> hostmap{nullptr}; // Keep reference to singleton
 
 Network::Address::InstanceConstSharedPtr original_dst_address;
-std::shared_ptr<const Cilium::NetworkPolicyMap> npmap{nullptr}; // Keep reference to singleton
+std::shared_ptr<Cilium::NetworkPolicyMap> npmap{nullptr}; // Keep reference to singleton
 
 std::string policy_config = "version_info: \"0\"";
 std::string policy_path = "";
@@ -51,10 +52,10 @@ std::vector<std::pair<std::string, std::string>> sds_configs{};
 
 namespace Cilium {
 
-std::shared_ptr<const Cilium::PolicyHostMap>
+std::shared_ptr<Cilium::PolicyHostMap>
 TestHelper::createHostMap(const std::string& config,
                           Server::Configuration::ListenerFactoryContext& context) {
-  return context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
+  return context.serverFactoryContext().singletonManager().getTyped<Cilium::PolicyHostMap>(
       "cilium_host_map_singleton", [&config, &context] {
         std::string path = TestEnvironment::writeStringToFileForTest("host_map.yaml", config);
         ENVOY_LOG_MISC(debug, "Loading Cilium Host Map from file \'{}\' instead of using gRPC",
@@ -64,22 +65,26 @@ TestHelper::createHostMap(const std::string& config,
             path, context.serverFactoryContext().api()));
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
-        auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
+        envoy::config::core::v3::ConfigSource config_source;
+        *config_source.mutable_path_config_source() = Envoy::Config::makePathConfigSource(path);
+        auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext(),
+                                                           config_source, false);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
             context.serverFactoryContext().mainThreadDispatcher(),
             Envoy::Config::makePathConfigSource(path), *map,
             std::make_shared<Cilium::PolicyHostDecoder>(), stats,
             ProtobufMessage::getNullValidationVisitor(), context.serverFactoryContext().api());
-        map->startSubscription(std::move(subscription));
+        CiliumTestPeer::setSubscription(*map, std::move(subscription));
+        CiliumTestPeer::start(*map);
         return map;
       });
 }
 
-std::shared_ptr<const Cilium::NetworkPolicyMap>
+std::shared_ptr<Cilium::NetworkPolicyMap>
 TestHelper::createPolicyMap(const std::string& config,
                             const std::vector<std::pair<std::string, std::string>>& secret_configs,
                             Server::Configuration::FactoryContext& context) {
-  return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
+  return context.serverFactoryContext().singletonManager().getTyped<Cilium::NetworkPolicyMap>(
       "cilium_network_policy_singleton", [&config, &secret_configs, &context] {
         if (!secret_configs.empty()) {
           for (const auto& sds_pair : secret_configs) {
@@ -112,14 +117,17 @@ TestHelper::createPolicyMap(const std::string& config,
             policy_path, context.serverFactoryContext().api()));
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
-        auto map =
-            std::make_shared<Cilium::NetworkPolicyMap>(context, Cilium::CILIUM_XDS_API_CONFIG);
+        envoy::config::core::v3::ConfigSource config_source;
+        *config_source.mutable_path_config_source() =
+            Envoy::Config::makePathConfigSource(policy_path);
+        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context, config_source, false);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
             context.serverFactoryContext().mainThreadDispatcher(),
-            Envoy::Config::makePathConfigSource(policy_path), map->subscriptionCallbacksForTest(),
+            Envoy::Config::makePathConfigSource(policy_path),
+            CiliumTestPeer::subscriptionCallbacks(*map),
             std::make_shared<Cilium::NetworkPolicyDecoder>(), stats,
             ProtobufMessage::getNullValidationVisitor(), context.serverFactoryContext().api());
-        map->startSubscriptionForTest(std::move(subscription));
+        CiliumTestPeer::setSubscription(*map, std::move(subscription));
         return map;
       });
 }

@@ -217,6 +217,16 @@ Config::Config(const ::cilium::BpfMetadata& config,
       random_(context.serverFactoryContext().api().randomGenerator()),
       config_source_(config.has_cilium_config_source() ? config.cilium_config_source()
                                                        : Cilium::CILIUM_XDS_API_CONFIG) {
+  // Aggregated Delta xDS is not yet supported, override if present.
+  // This is needed for upgrade/downgrade compatibility.
+  if (config_source_.config_source_specifier_case() ==
+      envoy::config::core::v3::ConfigSource::kApiConfigSource) {
+    const auto& api_type = config_source_.api_config_source().api_type();
+    if (api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC) {
+      config_source_.mutable_api_config_source()->set_api_type(
+          envoy::config::core::v3::ApiConfigSource::AGGREGATED_GRPC);
+    }
+  }
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -235,14 +245,14 @@ Config::Config(const ::cilium::BpfMetadata& config,
                     config.ipv6_source_address()));
   }
   if (config.use_nphds()) {
-    hosts_ =
-        context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
-            SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map),
-            [&context, config_source = config_source_] {
-              auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
-              map->startSubscription(context.serverFactoryContext(), config_source);
-              return map;
-            });
+    hosts_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::PolicyHostMap>(
+        SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map),
+        [&context, config_source = config_source_] {
+          return std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext(),
+                                                         config_source);
+        });
+    // update desired config source on the map
+    hosts_->configure(config_source_);
   }
 
   // Note: all instances use the bpf root of the first filter with non-empty
@@ -279,12 +289,13 @@ Config::Config(const ::cilium::BpfMetadata& config,
   // instances!
   // Only created if either ipcache_ or hosts_ map exists
   if (ipcache_ || hosts_) {
-    npmap_ =
-        context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
-            SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-            [&context, config_source = config_source_] {
-              return std::make_shared<Cilium::NetworkPolicyMap>(context, config_source, true);
-            });
+    npmap_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::NetworkPolicyMap>(
+        SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
+        [&context, config_source = config_source_] {
+          return std::make_shared<Cilium::NetworkPolicyMap>(context, config_source);
+        });
+    // update desired config source on the map
+    npmap_->configure(config_source_);
   }
 }
 

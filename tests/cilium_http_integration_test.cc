@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/network/address.h"
 #include "envoy/service/discovery/v3/discovery.pb.h"
 
@@ -20,7 +21,6 @@
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/utility.h"
-#include "source/common/thread_local/thread_local_impl.h"
 
 #include "test/integration/http_integration.h"
 #include "test/test_common/environment.h"
@@ -410,12 +410,14 @@ public:
   void invalidHostMap(const std::string& config, const char* exmsg) {
     std::string path = TestEnvironment::writeStringToFileForTest("host_map_fail.yaml", config);
     envoy::service::discovery::v3::DiscoveryResponse message;
-    ThreadLocal::InstanceImpl tls;
     Cilium::PolicyHostDecoder host_decoder;
+    envoy::config::core::v3::ConfigSource config_source;
+    config_source.mutable_path_config_source()->set_path(path);
 
     THROW_IF_NOT_OK(MessageUtil::loadFromFile(
         path, message, ProtobufMessage::getNullValidationVisitor(), *api_.get()));
-    Envoy::Cilium::PolicyHostMap hmap(tls, api_->rootScope());
+    Envoy::Cilium::PolicyHostMap hmap(factory_context_.serverFactoryContext(), config_source,
+                                      false);
     const auto decoded_resources =
         THROW_OR_RETURN_VALUE(Config::DecodedResourcesWrapper::create(
                                   host_decoder, message.resources(), message.version_info()),
@@ -424,8 +426,6 @@ public:
     EXPECT_THROW_WITH_MESSAGE(
         EXPECT_TRUE(hmap.onConfigUpdate(decoded_resources->refvec_, message.version_info()).ok()),
         EnvoyException, exmsg);
-
-    tls.shutdownGlobalThreading();
   }
 };
 
@@ -451,12 +451,14 @@ resources:
 
   std::string path = TestEnvironment::writeStringToFileForTest("host_map_success.yaml", config);
   envoy::service::discovery::v3::DiscoveryResponse message;
-  ThreadLocal::InstanceImpl tls;
   Cilium::PolicyHostDecoder host_decoder;
+  envoy::config::core::v3::ConfigSource config_source;
+  config_source.mutable_path_config_source()->set_path(path);
 
   THROW_IF_NOT_OK(MessageUtil::loadFromFile(
       path, message, ProtobufMessage::getNullValidationVisitor(), *api_.get()));
-  auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(tls, api_->rootScope());
+  auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(
+      factory_context_.serverFactoryContext(), config_source, false);
   const auto decoded_resources =
       THROW_OR_RETURN_VALUE(Config::DecodedResourcesWrapper::create(
                                 host_decoder, message.resources(), message.version_info()),
@@ -479,8 +481,6 @@ resources:
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::").ip()), 11);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::42").ip()), 11);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:2::").ip()), 12);
-
-  tls.shutdownGlobalThreading();
 }
 
 TEST_P(HostMapTest, HostMapInvalidNonCIDRBits) {
