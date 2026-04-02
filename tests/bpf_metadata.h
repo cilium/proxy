@@ -27,9 +27,18 @@ extern std::string policy_config;
 extern std::string policy_path;
 extern std::vector<std::pair<std::string, std::string>> sds_configs;
 
-extern void initTestMaps(Server::Configuration::ListenerFactoryContext& context);
-
 namespace Cilium {
+
+struct TestHelper {
+  static std::shared_ptr<const Cilium::PolicyHostMap>
+  createHostMap(const std::string& config, Server::Configuration::ListenerFactoryContext&);
+  static std::shared_ptr<const Cilium::NetworkPolicyMap>
+  createPolicyMap(const std::string& config,
+                  const std::vector<std::pair<std::string, std::string>>& secret_configs,
+                  Server::Configuration::FactoryContext&);
+  static void initTestMaps(Server::Configuration::ListenerFactoryContext&);
+};
+
 namespace BpfMetadata {
 
 class TestConfig : public Config {
