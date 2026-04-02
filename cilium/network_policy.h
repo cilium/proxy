@@ -38,6 +38,8 @@
 namespace Envoy {
 namespace Cilium {
 
+class CiliumTestPeer;
+class ManagedGrpcSubscription;
 class PortNetworkPolicyRules;
 class PolicySnapshot;
 
@@ -171,18 +173,22 @@ private:
  * All Cilium L7 filter stats. @see stats_macros.h
  */
 // clang-format off
-#define ALL_CILIUM_POLICY_STATS(COUNTER)	\
-  COUNTER(updates_total)				\
-  COUNTER(updates_rejected)				\
-  COUNTER(tls_wrapper_missing_policy) \
+#define ALL_CILIUM_POLICY_COUNTERS(COUNTER) \
+  COUNTER(updates_total)                    \
+  COUNTER(updates_rejected)                 \
+  COUNTER(tls_wrapper_missing_policy)       \
   COUNTER(update_success)
+
+#define ALL_CILIUM_POLICY_GAUGES(GAUGE) \
+  GAUGE(policy_stream_generation, NeverImport)
 // clang-format on
 
 /**
  * Struct definition for all policy stats. @see stats_macros.h
  */
 struct PolicyStats {
-  ALL_CILIUM_POLICY_STATS(GENERATE_COUNTER_STRUCT)
+  ALL_CILIUM_POLICY_COUNTERS(GENERATE_COUNTER_STRUCT)
+  ALL_CILIUM_POLICY_GAUGES(GENERATE_GAUGE_STRUCT)
 };
 
 class NetworkPolicyMapImpl;
@@ -191,10 +197,11 @@ class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Log
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context,
                    const envoy::config::core::v3::ConfigSource& config_source,
-                   bool subscribe = false);
+                   bool subscribe = true);
   ~NetworkPolicyMap() override;
 
   bool exists(const std::string& endpoint_policy_name) const;
+  void configure(const envoy::config::core::v3::ConfigSource& config_source);
 
   const PolicyInstance& getPolicyInstance(const std::string& endpoint_policy_name,
                                           bool allow_egress) const;
@@ -202,16 +209,17 @@ public:
   static PolicyInstance& getDenyAllPolicy();
   static PolicyInstance& getAllowAllEgressPolicy();
 
-protected:
-  friend class CiliumNetworkPolicyTest;
-  friend struct TestHelper;
-  PolicyStats& statsForTest() const;
-  void startSubscriptionForTest(std::unique_ptr<Envoy::Config::Subscription>&& subscription);
-  Envoy::Config::SubscriptionCallbacks& subscriptionCallbacksForTest() const;
-
 private:
+  friend class CiliumTestPeer;
+
+  ManagedGrpcSubscription& managedSubscription();
+  const ManagedGrpcSubscription& managedSubscription() const;
+  PolicyStats& stats() const;
+  PolicyInstanceConstSharedPtr
+  getPolicyInstanceShared(const std::string& endpoint_policy_name) const;
+
   Server::Configuration::ServerFactoryContext& context_;
-  std::unique_ptr<NetworkPolicyMapImpl> impl_;
+  std::shared_ptr<NetworkPolicyMapImpl> impl_;
 };
 using NetworkPolicyMapSharedPtr = std::shared_ptr<const NetworkPolicyMap>;
 

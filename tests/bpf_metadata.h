@@ -18,10 +18,10 @@
 namespace Envoy {
 
 extern std::string host_map_config;
-extern std::shared_ptr<const Cilium::PolicyHostMap> hostmap;
+extern std::shared_ptr<Cilium::PolicyHostMap> hostmap;
 
 extern Network::Address::InstanceConstSharedPtr original_dst_address;
-extern std::shared_ptr<const Cilium::NetworkPolicyMap> npmap;
+extern std::shared_ptr<Cilium::NetworkPolicyMap> npmap;
 
 extern std::string policy_config;
 extern std::string policy_path;
@@ -30,9 +30,9 @@ extern std::vector<std::pair<std::string, std::string>> sds_configs;
 namespace Cilium {
 
 struct TestHelper {
-  static std::shared_ptr<const Cilium::PolicyHostMap>
+  static std::shared_ptr<Cilium::PolicyHostMap>
   createHostMap(const std::string& config, Server::Configuration::ListenerFactoryContext&);
-  static std::shared_ptr<const Cilium::NetworkPolicyMap>
+  static std::shared_ptr<Cilium::NetworkPolicyMap>
   createPolicyMap(const std::string& config,
                   const std::vector<std::pair<std::string, std::string>>& secret_configs,
                   Server::Configuration::FactoryContext&);

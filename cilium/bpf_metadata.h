@@ -175,10 +175,10 @@ public:
   Random::RandomGenerator& random_;
   envoy::config::core::v3::ConfigSource config_source_;
 
-  std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
+  std::shared_ptr<Cilium::NetworkPolicyMap> npmap_;
   Cilium::CtMapSharedPtr ct_maps_;
   Cilium::IpCacheSharedPtr ipcache_;
-  std::shared_ptr<const Cilium::PolicyHostMap> hosts_;
+  std::shared_ptr<Cilium::PolicyHostMap> hosts_;
 
 private:
   uint32_t resolveSourceIdentity(const Network::Address::Ip* sip, const Network::Address::Ip* dip,

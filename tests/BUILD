@@ -44,12 +44,23 @@ envoy_cc_test_library(
 )
 
 envoy_cc_test_library(
+    name = "cilium_test_peer_lib",
+    hdrs = ["cilium_test_peer.h"],
+    repository = "@envoy",
+    deps = [
+        "//cilium:bpf_metadata_lib",
+        "//cilium:network_policy_lib",
+    ],
+)
+
+envoy_cc_test_library(
     name = "bpf_metadata_lib",
     srcs = ["bpf_metadata.cc"],
     hdrs = ["bpf_metadata.h"],
     repository = "@envoy",
     deps = [
         ":bpf_metadata_cc_proto",
+        ":cilium_test_peer_lib",
         "//cilium:bpf_metadata_lib",
         "//cilium:network_policy_lib",
         "//cilium:socket_option_lib",
@@ -117,6 +128,7 @@ envoy_cc_test(
     repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
+        ":cilium_test_peer_lib",
         "//cilium:network_policy_lib",
         "@envoy//test/mocks/server:factory_context_mocks",
     ],

@@ -36,6 +36,7 @@
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/network_policy.h"
+#include "tests/cilium_test_peer.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -93,7 +94,7 @@ protected:
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, GenericSecret, GenericSecret);
 
     policy_map_ =
-        std::make_shared<NetworkPolicyMap>(factory_context_, Cilium::CILIUM_XDS_API_CONFIG);
+        std::make_shared<NetworkPolicyMap>(factory_context_, Cilium::CILIUM_XDS_API_CONFIG, false);
   }
 
   void TearDown() override {
@@ -102,7 +103,7 @@ protected:
   }
 
   Envoy::Config::SubscriptionCallbacks& subscriptionCallbacks() const {
-    return policy_map_->subscriptionCallbacksForTest();
+    return CiliumTestPeer::subscriptionCallbacks(*policy_map_);
   }
 
   std::string updateFromYaml(const std::string& config) {
@@ -236,7 +237,7 @@ protected:
   }
 
   std::string updatesRejectedStatName() {
-    return policy_map_->statsForTest().updates_rejected_.name();
+    return CiliumTestPeer::policyStats(*policy_map_).updates_rejected_.name();
   }
 
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;

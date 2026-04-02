@@ -13,20 +13,17 @@
 #include <utility>
 #include <vector>
 
-#include "envoy/common/exception.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/network/address.h"
 #include "envoy/protobuf/message_validator.h"
 #include "envoy/server/factory_context.h"
 #include "envoy/singleton/instance.h"
-#include "envoy/stats/scope.h"
 #include "envoy/stats/stats_macros.h"
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/thread_local/thread_local_object.h"
 
 #include "source/common/common/logger.h"
-#include "source/common/common/macros.h"
 #include "source/common/network/utility.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/protobuf.h"
@@ -37,6 +34,7 @@
 #include "absl/status/status.h"
 #include "cilium/api/nphds.pb.h"
 #include "cilium/api/nphds.pb.validate.h" // IWYU pragma: keep
+#include "cilium/grpc_subscription.h"
 #include "cilium/policy_id.h"
 
 // std::hash specialization for Abseil uint128, needed for unordered_map key.
@@ -104,24 +102,12 @@ struct PolicyHostsStats {
   CILIUM_POLICY_HOSTS_STATS(GENERATE_COUNTER_STRUCT)
 };
 
-class PolicyHostMap : public Singleton::Instance,
-                      public Config::SubscriptionCallbacks,
-                      public std::enable_shared_from_this<PolicyHostMap>,
-                      public Logger::Loggable<Logger::Id::config> {
+class PolicyHostMap : public Singleton::Instance, public ManagedGrpcSubscription {
 public:
-  PolicyHostMap(Server::Configuration::CommonFactoryContext& context);
-  PolicyHostMap(ThreadLocal::SlotAllocator& tls, Stats::Scope& scope);
+  PolicyHostMap(Server::Configuration::CommonFactoryContext& context,
+                const envoy::config::core::v3::ConfigSource& config_source, bool subscribe = true);
   ~PolicyHostMap() override {
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
-  }
-
-  void startSubscription(Server::Configuration::CommonFactoryContext& context,
-                         const envoy::config::core::v3::ConfigSource& config_source);
-
-  // This is used for testing with a file-based subscription
-  void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
-    subscription_ = std::move(subscription);
-    subscription_->start({});
   }
 
   // A shared pointer to a immutable copy is held by each thread. Changes are
@@ -229,22 +215,12 @@ public:
                               const std::string& version_info) override;
   absl::Status onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
                               const Protobuf::RepeatedPtrField<std::string>& removed_resources,
-                              const std::string& system_version_info) override {
-    // NOT IMPLEMENTED YET.
-    UNREFERENCED_PARAMETER(added_resources);
-    UNREFERENCED_PARAMETER(removed_resources);
-    UNREFERENCED_PARAMETER(system_version_info);
-    return absl::OkStatus();
-  }
-  void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason,
-                            const EnvoyException* e) override;
+                              const std::string& system_version_info) override;
 
 private:
   ThreadLocal::SlotPtr tls_;
   std::string name_;
-  Stats::ScopeSharedPtr scope_;
-  Stats::ScopeSharedPtr stats_scope_;
-  std::unique_ptr<Envoy::Config::Subscription> subscription_;
+  uint64_t accepted_stream_generation_{0};
   static uint64_t instance_id_;
   PolicyHostsStats stats_;
 };
