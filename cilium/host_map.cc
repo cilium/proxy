@@ -205,9 +205,7 @@ void PolicyHostMap::startSubscription(Server::Configuration::CommonFactoryContex
             std::make_shared<Cilium::PolicyHostDecoder>(), {}),
         Config::SubscriptionPtr);
   } else {
-    subscription_ = subscribe(NetworkPolicyHostsTypeUrl, npds_config, context.localInfo(),
-                              context.clusterManager(), context.mainThreadDispatcher(),
-                              context.api().randomGenerator(), *scope_, *this,
+    subscription_ = subscribe(NetworkPolicyHostsTypeUrl, npds_config, context, *scope_, *this,
                               std::make_shared<Cilium::PolicyHostDecoder>());
   }
 

@@ -10,14 +10,12 @@
 
 #include "envoy/annotations/resource.pb.h"
 #include "envoy/common/exception.h"
-#include "envoy/common/random_generator.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/custom_config_validators.h"
 #include "envoy/config/subscription.h"
 #include "envoy/config/subscription_factory.h"
-#include "envoy/event/dispatcher.h"
 #include "envoy/grpc/async_client.h"
-#include "envoy/local_info/local_info.h"
+#include "envoy/server/factory_context.h"
 #include "envoy/stats/scope.h"
 #include "envoy/upstream/cluster_manager.h"
 
@@ -120,17 +118,16 @@ const Protobuf::MethodDescriptor& sotwGrpcMethod(absl::string_view type_url) {
       it->second.sotw_grpc_method_);
 }
 
-std::unique_ptr<Config::GrpcSubscriptionImpl>
+std::unique_ptr<Config::Subscription>
 subscribe(const absl::string_view type_url,
           const envoy::config::core::v3::ConfigSource& npds_config,
-          const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
-          Event::Dispatcher& dispatcher, Random::RandomGenerator& random, Stats::Scope& scope,
+          Server::Configuration::CommonFactoryContext& context, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
           Config::OpaqueResourceDecoderSharedPtr resource_decoder,
           std::chrono::milliseconds init_fetch_timeout) {
   auto& api_config_source = npds_config.api_config_source();
   THROW_IF_NOT_OK(Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(
-      cm.primaryClusters(), api_config_source));
+      context.clusterManager().primaryClusters(), api_config_source));
 
   Config::SubscriptionStats stats = Config::Utility::generateStats(scope);
   Envoy::Config::SubscriptionOptions options;
@@ -139,7 +136,7 @@ subscribe(const absl::string_view type_url,
   Envoy::Config::CustomConfigValidatorsPtr nop_config_validators =
       std::make_unique<NopConfigValidatorsImpl>();
   auto factory_or_error = Config::Utility::factoryForGrpcApiConfigSource(
-      cm.grpcAsyncClientManager(), api_config_source, scope, true, 0, false);
+      context.clusterManager().grpcAsyncClientManager(), api_config_source, scope, true, 0, false);
   THROW_IF_NOT_OK_REF(factory_or_error.status());
 
   absl::StatusOr<Config::RateLimitSettings> rate_limit_settings_or_error =
@@ -150,9 +147,9 @@ subscribe(const absl::string_view type_url,
       /*async_client_=*/THROW_OR_RETURN_VALUE(
           factory_or_error.value()->createUncachedRawAsyncClient(), Grpc::RawAsyncClientPtr),
       /*failover_async_client_=*/nullptr,
-      /*dispatcher_=*/dispatcher,
+      /*dispatcher_=*/context.mainThreadDispatcher(),
       /*service_method_=*/sotwGrpcMethod(type_url),
-      /*local_info_=*/local_info,
+      /*local_info_=*/context.localInfo(),
       /*rate_limit_settings_=*/rate_limit_settings_or_error.value(),
       /*scope_=*/scope,
       /*config_validators_=*/std::move(nop_config_validators),
@@ -161,7 +158,7 @@ subscribe(const absl::string_view type_url,
       /*backoff_strategy_=*/
       std::make_unique<JitteredExponentialBackOffStrategy>(
           Config::SubscriptionFactory::RetryInitialDelayMs,
-          Config::SubscriptionFactory::RetryMaxDelayMs, random),
+          Config::SubscriptionFactory::RetryMaxDelayMs, context.api().randomGenerator()),
       /*target_xds_authority_=*/"",
       /*eds_resources_cache_=*/nullptr // EDS cache is only used for ADS.
   };
@@ -169,8 +166,8 @@ subscribe(const absl::string_view type_url,
   return std::make_unique<Config::GrpcSubscriptionImpl>(
       std::make_shared<GrpcMuxImpl>(grpc_mux_context,
                                     api_config_source.set_node_on_first_message_only()),
-      callbacks, resource_decoder, stats, type_url, dispatcher, init_fetch_timeout,
-      /*is_aggregated*/ false, options);
+      callbacks, resource_decoder, stats, type_url, context.mainThreadDispatcher(),
+      init_fetch_timeout, /*is_aggregated*/ false, options);
 }
 
 } // namespace Cilium
