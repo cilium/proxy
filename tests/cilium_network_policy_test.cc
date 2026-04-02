@@ -11,6 +11,7 @@
 #include "envoy/common/exception.h"
 #include "envoy/common/optref.h"
 #include "envoy/config/core/v3/config_source.pb.h"
+#include "envoy/config/subscription.h"
 #include "envoy/init/manager.h"
 #include "envoy/server/factory_context.h"
 #include "envoy/service/discovery/v3/discovery.pb.h"
@@ -100,6 +101,10 @@ protected:
     policy_map_.reset();
   }
 
+  Envoy::Config::SubscriptionCallbacks& subscriptionCallbacks() const {
+    return policy_map_->subscriptionCallbacksForTest();
+  }
+
   std::string updateFromYaml(const std::string& config) {
     envoy::service::discovery::v3::DiscoveryResponse message;
     MessageUtil::loadFromYaml(config, message, ProtobufMessage::getNullValidationVisitor());
@@ -109,7 +114,7 @@ protected:
     THROW_IF_NOT_OK_REF(decoded_resources_or_error.status());
     const auto decoded_resources = std::move(decoded_resources_or_error.value().get());
 
-    EXPECT_TRUE(policy_map_->getImpl()
+    EXPECT_TRUE(subscriptionCallbacks()
                     .onConfigUpdate(decoded_resources->refvec_, message.version_info())
                     .ok());
     return message.version_info();
@@ -231,7 +236,7 @@ protected:
   }
 
   std::string updatesRejectedStatName() {
-    return policy_map_->getImpl().stats_.updates_rejected_.name();
+    return policy_map_->statsForTest().updates_rejected_.name();
   }
 
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;
@@ -246,7 +251,7 @@ TEST_F(CiliumNetworkPolicyTest, UpdatesRejectedStatName) {
 }
 
 TEST_F(CiliumNetworkPolicyTest, EmptyPolicyUpdate) {
-  EXPECT_TRUE(policy_map_->getImpl().onConfigUpdate({}, "1").ok());
+  EXPECT_TRUE(subscriptionCallbacks().onConfigUpdate({}, "1").ok());
   EXPECT_FALSE(validate("10.1.2.3", "")); // Policy not found
 }
 
