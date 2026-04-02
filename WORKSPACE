@@ -135,6 +135,13 @@ load("@envoy//bazel:toolchains.bzl", "envoy_toolchains")
 
 envoy_toolchains()
 
+# When BAZEL_LLVM_PATH is set, envoy_toolchains() skips creating the
+# llvm_toolchain_llvm repo, but envoy's clang-format target still depends on it.
+# Provide it only if it wasn't already created.
+load("//bazel:local_llvm.bzl", "local_llvm_repo")
+
+local_llvm_repo(name = "llvm_toolchain_llvm")
+
 load("@envoy//bazel:dependency_imports_extra.bzl", "envoy_dependency_imports_extra")
 
 envoy_dependency_imports_extra()
