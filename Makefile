@@ -73,6 +73,8 @@ endif
 ifdef PKG_BUILD
   $(info Registering C++ toolchains via BAZEL_BUILD_OPTS)
   BAZEL_BUILD_OPTS += --extra_toolchains=//bazel/toolchains:all
+  # Use system LLVM instead of hermetic download to avoid libtinfo.so.5 mismatch
+  BAZEL_BUILD_OPTS += --repo_env=BAZEL_LLVM_PATH=/usr/lib/llvm-18
 
   all: cilium-envoy-starter cilium-envoy
 
