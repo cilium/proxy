@@ -1996,8 +1996,8 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
   transport_factory_context_->setInitManager(version_init_manager);
 
   const auto* old_map = load();
+  RawPolicyMap new_map;
   {
-    auto new_map = new RawPolicyMap();
     try {
       for (const auto& resource : resources) {
         const auto& config = dynamic_cast<const cilium::NetworkPolicy&>(resource.get().resource());
@@ -2019,7 +2019,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
             ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
             for (const auto& endpoint_ip : config.endpoint_ips()) {
               ENVOY_LOG(trace, "Cilium keeping network policy for endpoint {}", endpoint_ip);
-              new_map->emplace(endpoint_ip, old_policy);
+              new_map.emplace(endpoint_ip, old_policy);
             }
             continue;
           }
@@ -2031,7 +2031,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
         for (const auto& endpoint_ip : config.endpoint_ips()) {
           ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", endpoint_ip);
           // new_map is not exception safe, new_policy must be computed separately!
-          new_map->emplace(endpoint_ip, new_policy);
+          new_map.emplace(endpoint_ip, new_policy);
         }
       }
     } catch (const EnvoyException& e) {
@@ -2048,7 +2048,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
 
     // Swap the new map in, new_map goes out of scope right after to eliminate accidental
     // modification.
-    old_map = exchange(new_map);
+    old_map = exchange(new RawPolicyMap(std::move(new_map)));
   }
 
   // Delete the old map once all worker threads have entered their event queues, as this
