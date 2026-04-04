@@ -9,7 +9,6 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
-#include <iterator>
 #include <memory>
 #include <ranges>
 #include <string>
@@ -81,8 +80,9 @@ namespace Cilium {
 // Supported verdict kinds
 using RuleVerdict = enum {
   None = 0,
-  Allow = 1,
-  Deny = 2,
+  Pass = 1,
+  Allow = 2,
+  Deny = 3,
 };
 
 } // namespace Cilium
@@ -105,6 +105,9 @@ template <> struct formatter<Envoy::Cilium::RuleVerdict> {
       break;
     case Envoy::Cilium::RuleVerdict::Deny:
       name = "DENY";
+      break;
+    case Envoy::Cilium::RuleVerdict::Pass:
+      name = "PASS";
       break;
     default:
       name = "UNKNOWN";
@@ -643,22 +646,24 @@ SniPattern::SniPattern(const Regex::Engine& engine, absl::string_view sni) {
 class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
 public:
   PortNetworkPolicyRule()
-      : name_("default allow rule"), deny_(false), proxy_id_(0), precedence_(0),
-        tier_last_precedence_(0), mutable_remotes_(false), l7_proto_("") {}
+      : name_("default allow rule"), verdict_(RuleVerdict::Allow), proxy_id_(0), precedence_(0),
+        tier_last_precedence_(0), pass_index_(0), l7_proto_("") {}
 
   PortNetworkPolicyRule(const NetworkPolicyMapImpl& parent,
-                        const cilium::PortNetworkPolicyRule& rule, bool shared_resource)
-      : name_(rule.name()), deny_(rule.deny()), proxy_id_(uint16_t(rule.proxy_id())),
-        precedence_(rule.precedence()), tier_last_precedence_(rule.pass_precedence()),
-        mutable_remotes_(!shared_resource), l7_proto_(rule.l7_proto()) {
+                        const cilium::PortNetworkPolicyRule& rule)
+      : name_(rule.name()),
+        verdict_(rule.pass_precedence() ? RuleVerdict::Pass
+                                        : (rule.deny() ? RuleVerdict::Deny : RuleVerdict::Allow)),
+        proxy_id_(uint16_t(rule.proxy_id())), precedence_(rule.precedence()),
+        tier_last_precedence_(rule.pass_precedence()), pass_index_(0), l7_proto_(rule.l7_proto()) {
     if (tier_last_precedence_ > precedence_) {
       throw EnvoyException(
           fmt::format("PortNetworkPolicyRule: pass_precedence {} must be lower than precedence {}",
                       tier_last_precedence_, precedence_));
     }
     for (const auto& remote : rule.remote_policies()) {
-      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} remote {} by rule: {}",
-                deny_ ? "Denying" : "Allowing", remote, name_);
+      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} remote {} by rule: {}", verdict_,
+                remote, name_);
       remotes_.emplace(remote);
     }
     if (rule.has_downstream_tls_context()) {
@@ -672,7 +677,8 @@ public:
                                                              parent.getConfigSource(), config);
     }
     for (const auto& sni : rule.server_names()) {
-      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): Allowing SNI {} by rule {}", sni, name_);
+      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} SNI {} by rule {}", verdict_, sni,
+                name_);
       allowed_snis_.emplace_back(parent.regexEngine(), sni);
     }
     if (rule.has_http_rules()) {
@@ -706,15 +712,15 @@ public:
 
   RuleVerdict getVerdict(uint16_t proxy_id, uint32_t remote_id) const {
     // proxy_id must match if we have any.
-    if (proxy_id_ != 0 && proxy_id != proxy_id_) {
+    if (proxy_id_ && proxy_id != proxy_id_) {
       return RuleVerdict::None;
     }
     // Remote ID must match if we have any.
     if (!isRemoteWildcard() && !remotes_.contains(remote_id)) {
       return RuleVerdict::None; // no verdict
     }
-    // Allow rules allow by default when remotes_ is empty, deny rules do not
-    return deny_ ? RuleVerdict::Deny : RuleVerdict::Allow;
+    ASSERT(verdict_ != RuleVerdict::None, "rule must have a verdict");
+    return verdict_;
   }
 
   RuleVerdict getVerdict(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni) const {
@@ -830,7 +836,7 @@ public:
     if (!name_.empty()) {
       res.append(indent, ' ').append("name: \"").append(name_).append("\"\n");
     }
-    if (deny_) {
+    if (verdict_ == RuleVerdict::Deny) {
       res.append(indent, ' ').append("deny: true\n");
     }
     if (precedence_) {
@@ -840,7 +846,7 @@ public:
       res.append(indent, ' ')
           .append(fmt::format("tier_last_precedence: {}\n", tier_last_precedence_));
     }
-    if (proxy_id_ != 0) {
+    if (proxy_id_) {
       res.append(indent, ' ').append(fmt::format("proxy_id: {}\n", proxy_id_));
     }
 
@@ -886,12 +892,12 @@ public:
   DownstreamTLSContextSharedPtr server_context_;
   UpstreamTLSContextSharedPtr client_context_;
   bool has_headermatches_{false};
-  bool deny_;
-  uint16_t proxy_id_;
+  const RuleVerdict verdict_;
+  const uint16_t proxy_id_;
   uint32_t precedence_;
   uint32_t tier_last_precedence_;
+  uint32_t pass_index_;
   absl::btree_set<uint32_t> remotes_;
-  bool mutable_remotes_;
 
   std::vector<SniPattern> allowed_snis_; // All SNIs allowed if empty.
   std::shared_ptr<std::vector<HttpNetworkPolicyRule>>
@@ -934,7 +940,7 @@ public:
     if (rule->has_headermatches_) {
       can_short_circuit_ = false;
     }
-    if (rule->tier_last_precedence_ != 0) {
+    if (rule->tier_last_precedence_) {
       has_pass_rules_ = true;
     }
   }
@@ -943,16 +949,15 @@ public:
 
   // append merges 'rules' to 'rules_' by placing the new 'rules' to the end of 'rules_'.
   // First call marks 'rules_' as initialized. Of further calls, if either is empty,
-  // we must add a default allow rule to retain the semantics of an empty rules.
+  // we must add a default allow rule to retain the semantics of empty rules.
   void append(const NetworkPolicyMapImpl& parent,
-              const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules,
-              bool shared_resource) {
+              const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
     if (initialized_ && rules.empty() != rules_.empty()) {
       // add an explicit allow-all rule to keep the combined semantics
       addDefaultAllowRule();
     }
     for (const auto& it : rules) {
-      rules_.emplace_back(std::make_shared<PortNetworkPolicyRule>(parent, it, shared_resource));
+      rules_.emplace_back(std::make_shared<PortNetworkPolicyRule>(parent, it));
       updateFor(rules_.back());
     }
     initialized_ = true;
@@ -962,46 +967,79 @@ public:
   // First call marks 'rules_' as initialized. Of further calls, if either is empty,
   // we must add a default allow rule to retain the semantics of an empty rules.
   void prepend(const NetworkPolicyMapImpl& parent,
-               const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules,
-               bool shared_resource) {
+               const Protobuf::RepeatedPtrField<cilium::PortNetworkPolicyRule>& rules) {
     if (initialized_ && rules.empty() != rules_.empty()) {
       // add an explicit allow-all rule to keep the combined semantics
       rules_.emplace(rules_.begin(), std::make_shared<PortNetworkPolicyRule>());
     }
     for (const auto& it : rules) {
-      rules_.emplace(rules_.begin(),
-                     std::make_shared<PortNetworkPolicyRule>(parent, it, shared_resource));
+      rules_.emplace(rules_.begin(), std::make_shared<PortNetworkPolicyRule>(parent, it));
       updateFor(rules_.front());
     }
     initialized_ = true;
   }
 
-  // appendNonPassRules merges non-pass rules from 'rules' to 'rules_' by placing the new rules to
-  // the end of 'rules_'. First call marks 'rules_' as initialized. Of further calls, if either is
-  // empty, we must add a default allow rule to retain the semantics of an empty rules.
-  void appendNonPassRules(const std::vector<PortNetworkPolicyRuleConstSharedPtr>& rules) {
+  // appendRules merges all rules from 'rules' to the end of 'rules_'.
+  // First call marks 'rules_' as initialized. Of further calls, if either is empty,
+  // we must add a default allow rule to retain the semantics of the combined rules.
+  void appendRules(const std::vector<PortNetworkPolicyRuleConstSharedPtr>& rules) {
     if (initialized_ && rules.empty() != rules_.empty()) {
       // add an explicit allow-all rule to keep the combined semantics
       addDefaultAllowRule();
     }
     for (auto& rule : rules) {
-      if (rule->tier_last_precedence_ == 0) {
-        rules_.insert(rules_.end(), rule);
-        updateFor(rule);
-      }
+      rules_.insert(rules_.end(), rule);
+      updateFor(rule);
     }
     initialized_ = true;
   }
 
-  // sort by descending precedence, retaining the original order within each precedence level
+  // Sort by descending precedence. Within the same precedence, deny rules come first,
+  // then allow rules, and pass rules last. This lets runtime pass handling jump
+  // immediately, as any same-precedence allow/deny verdict has already been seen.
   void sort() {
-    // sortRules(rules_);
     std::stable_sort(rules_.begin(), rules_.end(),
                      [](const PortNetworkPolicyRuleConstSharedPtr& a,
                         const PortNetworkPolicyRuleConstSharedPtr& b) {
                        return (a->precedence_ > b->precedence_) ||
-                              (a->precedence_ == b->precedence_ && (a->deny_ && !b->deny_));
+                              (a->precedence_ == b->precedence_ && a->verdict_ > b->verdict_);
                      });
+  }
+
+  void prepareRuntimePasses() {
+    if (!has_pass_rules_) {
+      return;
+    }
+
+    uint32_t pass_precedence = 0;
+    for (uint32_t idx = 0; idx < rules_.size(); idx++) {
+      if (rules_[idx]->tier_last_precedence_ == 0) {
+        continue;
+      }
+
+      if (rules_[idx].use_count() > 1) {
+        // Pass continuation index is specific to this ordered rule set, so shared pass
+        // rules must be cloned before storing the computed continuation on the rule.
+        rules_[idx] = std::make_shared<PortNetworkPolicyRule>(*rules_[idx]);
+      }
+      auto& rule = const_cast<PortNetworkPolicyRule&>(*rules_[idx]);
+
+      if (pass_precedence && rule.precedence_ < pass_precedence) {
+        pass_precedence = 0;
+      }
+
+      if (pass_precedence && rule.tier_last_precedence_ != pass_precedence) {
+        throw EnvoyException(fmt::format("PortNetworkPolicy: Inconsistent pass precedence {} != {}",
+                                         rule.tier_last_precedence_, pass_precedence));
+      }
+      pass_precedence = rule.tier_last_precedence_;
+
+      uint32_t pass_index = idx + 1;
+      while (pass_index < rules_.size() && rules_[pass_index]->precedence_ >= pass_precedence) {
+        pass_index++;
+      }
+      rule.pass_index_ = pass_index;
+    }
   }
 
   bool empty() const { return rules_.empty(); }
@@ -1021,21 +1059,30 @@ public:
       return RuleVerdict::Allow;
     }
 
-    for (const auto& rule : rules_) {
+    for (uint32_t idx = 0; idx < rules_.size();) {
+      const auto& rule = rules_[idx];
+
       // lower precedence rules are skipped if there is a verdict
       if (verdict != RuleVerdict::None && rule->precedence_ < verdict_precedence) {
         break;
       }
       auto rule_verdict = func(*rule);
-      if (rule_verdict != RuleVerdict::None) {
+      if (rule_verdict == RuleVerdict::Pass) {
+        ASSERT(rule->pass_index_, "matching pass rule must have a continuation index");
+        if (verdict == RuleVerdict::None || verdict_precedence < rule->precedence_) {
+          idx = rule->pass_index_;
+          continue;
+        }
+      } else if (rule_verdict != RuleVerdict::None) {
         verdict = rule_verdict;
         verdict_precedence = rule->precedence_;
 
         // Short-circuit on the first deny or on first allow if no rules have HeaderMatches
         if (rule_verdict == RuleVerdict::Deny || can_short_circuit) {
-          break;
+          return verdict;
         }
       }
+      idx++;
     }
     return verdict;
   }
@@ -1061,9 +1108,18 @@ public:
       return RuleVerdict::Allow;
     }
 
-    for (const auto& rule : rules_) {
+    for (uint32_t idx = 0; idx < rules_.size();) {
+      const auto& rule = rules_[idx];
+
       auto rule_verdict = get_verdict(*rule);
       switch (rule_verdict) {
+      case RuleVerdict::Pass:
+        ASSERT(rule->pass_index_, "matching pass rule must have a continuation index");
+        if (verdict == RuleVerdict::None || verdict_precedence < rule->precedence_) {
+          idx = rule->pass_index_;
+          continue;
+        }
+        break;
       case RuleVerdict::Deny:
         // return higher precedence allow verdict if any.
         if (verdict != RuleVerdict::None && verdict_precedence > rule->precedence_) {
@@ -1084,6 +1140,7 @@ public:
       case RuleVerdict::None:
         break;
       }
+      idx++;
     }
     return verdict;
   }
@@ -1147,7 +1204,7 @@ public:
 
   void toString(int indent, std::string& res) const {
     res.append(indent - 2, ' ').append("- rules:\n");
-    for (auto& rule : rules_) {
+    for (const auto& rule : rules_) {
       rule->toString(indent + 2, res);
     }
     if (!can_short_circuit_) {
@@ -1162,6 +1219,11 @@ public:
       }
     }
     return false;
+  }
+
+  bool hasOnlyPassRules() const {
+    return !rules_.empty() &&
+           std::ranges::all_of(rules_, [](const auto& rule) { return rule->pass_index_ != 0; });
   }
 
   // ordered set of rules as a sorted vector
@@ -1297,448 +1359,7 @@ bool inline rangesOverlap(const PortRange& a, const PortRange& b) {
   // !(a.second < b.first || a.first > b.second)
   return a.second >= b.first && a.first <= b.second;
 }
-
-template <typename T>
-absl::btree_set<T> intersection(const absl::btree_set<T>& a, const absl::btree_set<T>& b) {
-  absl::btree_set<T> result;
-  std::set_intersection(a.begin(), a.end(), b.begin(), b.end(),
-                        std::inserter(result, result.begin()));
-  return result;
-}
 } // namespace
-
-// ShadowedRemotes maintains state for shadowed remote identities within a tier. When a higher
-// precedence rule has a verdict for a given remote identity, that identity becomes "shadowed" and
-// is removed from the set of remote identities of the remaining rules of the tier. For pass
-// verdicts this shadowing is immediate, for allow/deny verdicts the shadowing takes place for the
-// next precedence level, so that rules on the same precedence level do not shadow each other.
-class ShadowedRemotes {
-public:
-  // reset is used to re-initialize state for a new port range
-  void reset(uint32_t first_precedence) {
-    shadowed_pass_remotes_.clear();
-    shadowed_nonpass_remotes_.clear();
-    current_precedence_nonpass_remotes_.clear();
-    shadow_all_lower_precedence_ = false;
-    current_precedence_has_wildcard_ = false;
-    previous_precedence_ = first_precedence;
-  }
-
-  // resetForNewTier is used to re-initialize state for each new tier
-  void resetForNewTier(uint32_t first_precedence) {
-    shadowed_pass_remotes_.clear();
-    // shadowed_nonpass_remotes_ are kept for the new tier
-    // shadow_all_lower_precedence_ is not reset for the new tier
-    current_precedence_nonpass_remotes_.clear();
-    // current_precedence_has_wildcard_ = false;
-    previous_precedence_ = first_precedence;
-  }
-
-  // shadowRemotes marks 'remotes' as shadowed and returns 'true' if any of them were not already
-  // shadowed.
-  bool shadowPassRemotes(const absl::btree_set<uint32_t>& pass_remotes) {
-    bool any_unshadowed = false;
-    for (auto remote : pass_remotes) {
-      if (!shadowed_pass_remotes_.contains(remote)) {
-        if (!shadowed_nonpass_remotes_.contains(remote)) {
-          any_unshadowed = true;
-        }
-        shadowed_pass_remotes_.insert(remote);
-      }
-    }
-    return any_unshadowed;
-  }
-
-  // filterShadowPassRemotes filters out any already shadowed remotes from the pass rule and marks
-  // the remaining remotes as shadowed. Returns 'true' if any remotes remain.
-  bool filterShadowPassRemotes(PortNetworkPolicyRule& rule) {
-    absl::erase_if(rule.remotes_, [&](const auto& x) {
-      return shadowed_pass_remotes_.contains(x) || shadowed_nonpass_remotes_.contains(x);
-    });
-    if (rule.remotes_.empty()) {
-      return false;
-    }
-    shadowed_pass_remotes_.insert(rule.remotes_.begin(), rule.remotes_.end());
-    return true;
-  }
-
-  // shadowRule collects the remotes from 'rule' for shadowing once the first rule on the next
-  // (lower) precedence level is processed. No shadowing between rules on the same precedence
-  // level. Returns 'true' if the rule itself should be skipped.
-  bool shadowNonpassRule(PortNetworkPolicyRule& rule) {
-    // Same-precedence allow/deny rules do not shadow each other.
-    // Only after leaving a precedence level do its verdict identities shadow
-    // lower-precedence rules.
-    if (rule.precedence_ != previous_precedence_) {
-      shadowed_nonpass_remotes_.insert(current_precedence_nonpass_remotes_.begin(),
-                                       current_precedence_nonpass_remotes_.end());
-      current_precedence_nonpass_remotes_.clear();
-      if (current_precedence_has_wildcard_) {
-        shadow_all_lower_precedence_ = true;
-      }
-      // current_precedence_has_wildcard_ = false;
-      previous_precedence_ = rule.precedence_;
-    }
-
-    if (shadow_all_lower_precedence_) {
-      return true;
-    }
-
-    if (rule.isRemoteWildcard()) {
-      current_precedence_has_wildcard_ = true;
-    } else {
-      if (rule.mutable_remotes_) {
-        // Check if this rule is (partially) shadowed by nonpass rules on any higher tier.
-        if (!shadowed_nonpass_remotes_.empty()) {
-          absl::erase_if(rule.remotes_,
-                         [&](const auto& x) { return shadowed_nonpass_remotes_.contains(x); });
-          if (rule.remotes_.empty()) {
-            return true;
-          }
-        }
-
-        // Check if this rule is (partially) shadowed by pass rules on this tier.
-        if (!shadowed_pass_remotes_.empty()) {
-          absl::erase_if(rule.remotes_,
-                         [&](const auto& x) { return shadowed_pass_remotes_.contains(x); });
-          if (rule.remotes_.empty()) {
-            return true;
-          }
-        }
-      } else {
-        // rule.remotes_ can not be modified, check if it is completely shadowed
-        if (std::ranges::all_of(rule.remotes_, [&](const auto& x) {
-              return shadowed_nonpass_remotes_.contains(x) || shadowed_pass_remotes_.contains(x);
-            })) {
-          return true;
-        }
-      }
-
-      // Defer shadowing identities until this precedence level is complete,
-      // so same-precedence rules do not shadow each other.
-      current_precedence_nonpass_remotes_.insert(rule.remotes_.begin(), rule.remotes_.end());
-    }
-
-    return false;
-  }
-
-private:
-  absl::btree_set<uint32_t> shadowed_pass_remotes_;
-  absl::btree_set<uint32_t> shadowed_nonpass_remotes_;
-  absl::btree_set<uint32_t> current_precedence_nonpass_remotes_;
-  uint32_t previous_precedence_{0};
-  bool shadow_all_lower_precedence_{false};
-  bool current_precedence_has_wildcard_{false};
-};
-
-class Passes {
-public:
-  // reset state for a new port range
-  void reset(uint32_t first_precedence) {
-    wildcard_it_ = wildcard_pass_rules_.begin();
-    pass_rules_.clear();
-    pass_rules_tier_index_.clear();
-
-    tier_pass_rules_.clear();
-    tier_wildcard_pass_ = false;
-    pass_precedence_ = 0;
-
-    shadowing_.reset(first_precedence);
-  }
-
-  void resetForNextTier(uint32_t first_precedence) {
-    // Move the collected pass rules to be considered for lower tiers.
-    pass_rules_tier_index_.push_back(pass_rules_.size());
-    pass_rules_.insert(pass_rules_.end(), std::make_move_iterator(tier_pass_rules_.begin()),
-                       std::make_move_iterator(tier_pass_rules_.end()));
-
-    tier_pass_rules_.clear();
-    tier_wildcard_pass_ = false;
-    pass_precedence_ = 0;
-
-    shadowing_.resetForNewTier(first_precedence);
-  }
-
-  void inheritHigherTierWildcardPassRules(uint32_t precedence) {
-    // Inherit *higher tier* pass rules from the wildcard port.
-    // Needed since the wildcard port may have more tiers.
-    for (; wildcard_it_ != wildcard_pass_rules_.end() &&
-           (*wildcard_it_)->tier_last_precedence_ > precedence;
-         wildcard_it_++) {
-      const auto& wildcard_rule = *wildcard_it_;
-      // Add index entry if this starts a new pass tier.
-      if (pass_rules_.empty() ||
-          wildcard_rule->tier_last_precedence_ != pass_rules_.back()->tier_last_precedence_) {
-        pass_rules_tier_index_.push_back(pass_rules_.size());
-      }
-      pass_rules_.insert(pass_rules_.end(), wildcard_rule);
-    }
-  }
-
-  void inheritCurrentTierWildcardPassRules(uint32_t precedence) {
-    // Inherit *current tier* higher or equal precedence pass rules from wildcard port.
-    for (;
-         wildcard_it_ != wildcard_pass_rules_.end() && (*wildcard_it_)->precedence_ >= precedence &&
-         (*wildcard_it_)->tier_last_precedence_ <= precedence;
-         wildcard_it_++) {
-      const auto& wildcard_rule = *wildcard_it_;
-
-      ensurePassPrecedence(wildcard_rule->tier_last_precedence_);
-
-      if (tier_wildcard_pass_) {
-        continue;
-      }
-
-      // Insert to tier_pass_rules_ if any unshadowed remotes remain.
-      if (wildcard_rule->isRemoteWildcard()) {
-        tier_wildcard_pass_ = true;
-      } else if (!shadowing_.shadowPassRemotes(wildcard_rule->remotes_)) {
-        // Only insert if some remotes are not already shadowed.
-        // We do not remove already-shadowed remotes from wildcard_rule because
-        // wildcard pass entries are shared and deep-copying here is expensive.
-        continue;
-      }
-      tier_pass_rules_.emplace_back(wildcard_rule);
-    }
-  }
-
-  // addPassRule adds state from a rule with a pass verdict.
-  void addPassRule(const PortNetworkPolicyRuleConstSharedPtr& rule) {
-    ensurePassPrecedence(rule->tier_last_precedence_);
-
-    auto& mutable_rule = const_cast<PortNetworkPolicyRule&>(*rule);
-
-    if (!tier_wildcard_pass_) {
-      if (mutable_rule.isRemoteWildcard()) {
-        tier_wildcard_pass_ = true;
-      } else if (!shadowing_.filterShadowPassRemotes(mutable_rule)) {
-        return;
-      }
-      if (!tier_pass_rules_.empty() && tier_pass_rules_.back()->precedence_ == rule->precedence_) {
-        // Same-precedence pass rule already exists; merge remotes.
-        tier_pass_rules_.back()->remotes_.insert(mutable_rule.remotes_.begin(),
-                                                 mutable_rule.remotes_.end());
-      } else {
-        tier_pass_rules_.emplace_back(std::const_pointer_cast<PortNetworkPolicyRule>(rule));
-      }
-    }
-  }
-
-  bool
-  promoteRuleFromHigherTierPasses(std::vector<PortNetworkPolicyRuleConstSharedPtr>& rules,
-                                  std::vector<PortNetworkPolicyRuleConstSharedPtr>::iterator& it) {
-    // Mutable reference to the rule for in-place updates below.
-    auto& rule = const_cast<PortNetworkPolicyRule&>(**it);
-
-    bool promoted = false;
-
-    // Check if this rule needs to be (partially) promoted due to higher-tier passes:
-    // - pick highest-precedence pass from each higher tier for each remote ID
-    // - apply in reverse order of tiers
-    // - if all remotes are covered, promotion can happen fully in-place.
-    int tier_end = pass_rules_.size();
-    for (int tier_start : pass_rules_tier_index_ | std::views::reverse) {
-      // Skip pass rules on same or lower tiers.
-      if (pass_rules_[tier_start]->tier_last_precedence_ < rule.precedence_) {
-        continue;
-      }
-
-      for (int idx = tier_start; idx < tier_end; idx++) {
-        auto& pass_rule = pass_rules_[idx];
-        // Whole rule is promoted in-place if pass is wildcard or sets are equal.
-        if (pass_rule->isRemoteWildcard() || rule.remotes_ == pass_rule->remotes_) {
-          rule.inheritPassPrecedence(*pass_rule);
-          promoted = true;
-          break; // Later pass verdicts on this tier have no effect.
-        }
-
-        // Pass rule is not wildcard and sets differ.
-        // If mutable_rule is wildcard, keep original and add promoted clone.
-        if (rule.isRemoteWildcard()) {
-          auto new_rule = std::make_shared<PortNetworkPolicyRule>(rule);
-          new_rule->remotes_ = pass_rule->remotes_;
-          new_rule->inheritPassPrecedence(*pass_rule);
-          it = rules.insert(it, new_rule);
-          it++;
-          promoted = true;
-          continue; // Later pass verdicts may specify other remote sets.
-        }
-
-        // Neither side is wildcard; split by set intersection.
-        auto remotes = intersection(pass_rule->remotes_, rule.remotes_);
-        if (!remotes.empty()) {
-          auto new_rule = std::make_shared<PortNetworkPolicyRule>(rule);
-          new_rule->remotes_ = remotes;
-          new_rule->inheritPassPrecedence(*pass_rule);
-          it = rules.insert(it, new_rule);
-          it++;
-          promoted = true;
-          for (const auto& remote : remotes) {
-            rule.remotes_.erase(remote);
-          }
-        }
-      }
-      // Update for previous tier, if any.
-      tier_end = tier_start;
-    }
-
-    return promoted;
-  }
-
-  // storeWildcardPassRules stores the current pass rules as wildcard port pass rules to be
-  // considered when processing non-wildcard port rules.
-  void storeWildcardPassRules(const PortRange& port_range) {
-    if (!wildcard_pass_rules_.empty()) {
-      throw EnvoyException(fmt::format("PortNetworkPolicy: Wildcard port range {}-{}, but "
-                                       "wildcard pass rules has already been set",
-                                       port_range.first, port_range.second));
-    }
-    wildcard_pass_rules_ = pass_rules_;
-
-    // store also the pass rules for the last tier, as they are not yet included in pass_rules_.
-    if (pass_precedence_ != 0 && !tier_pass_rules_.empty()) {
-      wildcard_pass_rules_.insert(wildcard_pass_rules_.end(),
-                                  std::make_move_iterator(tier_pass_rules_.begin()),
-                                  std::make_move_iterator(tier_pass_rules_.end()));
-    }
-  }
-
-  // Applies pass verdicts for rules on a given port range.
-  // Returns true if resulting rules should be kept, false if the rules became empty.
-  //
-  // - a pass verdict rule applies on a given port (range) (can be the wildcard port),
-  //   and a set of remote IDs (L3). If the remote ID set is empty, then it applies to all peers.
-  //   (there is no "wildcard identity" (e.g., '0') in the set of the remote IDs)
-  // - a pass verdict rule (like a deny verdict rule) has no L7 rule components
-  // - each pass verdict rule has a specific precedence and pass_precedence, and the function is
-  //   to bypass the remaining lower precedence rules upto the pass_precedence, and to promote the
-  //   priority of the intersecting remote ID set lower precedence rules to immediately follow
-  //   the precedence of the pass verdict rule.
-  // - Precedence promotion is needed to make a verdicts found via actual port vs. wildcard port
-  //   comparable. This allows a higher precedence allow rule to take precedence over a lower
-  //   precedence deny rule, even it the allow originally had a lower precedence, but was
-  //   "passed-to" from a higher precedece pass rule.
-  //
-  // We pre-process the rules accordingly here so that the policy lookup at enforcement time
-  // does not need to consider pass verdicts at all. The key insights to consider are:
-  // - rules are already split up to non-overlapping port ranges, so we only need
-  //   to consider the remote ID sets (and the wildcard port)
-  // - if the lower precedence rule remote ID set is covered by the pass rule remote ID set,
-  //   then we can simply promote the precedence (and re-sort afterwards)
-  //   - if the pass rule applies to all remote IDs (empty set == wildcard), then it covers all
-  //     possible sets of remote IDs
-  //   - if not wildcard, but the sets are the same, then the pass verdicts "covers" the rule
-  //     in question
-  // - otherwise the rule needs to be split into two:
-  //   - one with the intersection of the remote IDs of the two rules, with precedence promotion
-  //   - other with the remaining remote IDs, left with the original precedence
-  //     - this includes the case where the lower precedence rule applies to all identities
-  //       (empty ID set)
-  void apply(const PortRange& port_range, PortNetworkPolicyRules& rules) {
-    if (rules.rules_.empty() && !wildcard_pass_rules_.empty()) {
-      // add the default allow rule so that the wildcard port pass can apply to it.
-      rules.addDefaultAllowRule();
-    }
-    if (!rules.rules_.empty() && (!wildcard_pass_rules_.empty() || rules.has_pass_rules_)) {
-      bool must_sort = false;
-
-      // reset state for the new range's rules
-      reset(rules.rules_.front()->precedence_);
-
-      bool keep = false; // assume rule is dropped
-      for (auto it = rules.rules_.begin(); it != rules.rules_.end();
-           it = keep ? (keep = false, ++it) : rules.rules_.erase(it)) {
-        auto& rule = *it;
-
-        // Check if we have reached the next tier.
-        if (pass_precedence_ != 0 && rule->precedence_ < pass_precedence_) {
-          resetForNextTier(rule->precedence_);
-        }
-
-        // Skip remaining rules on this tier?
-        if (tier_wildcard_pass_) {
-          continue;
-        }
-
-        // Inherit wildcard-port pass rules affecting this rule.
-        inheritHigherTierWildcardPassRules(rule->precedence_);
-        inheritCurrentTierWildcardPassRules(rule->precedence_);
-
-        // skip remaining rules on this tier?
-        if (tier_wildcard_pass_) {
-          continue;
-        }
-
-        // Is this a pass verdict rule?
-        if (rule->tier_last_precedence_ != 0) {
-          addPassRule(rule);
-          // Pass rules are not kept
-          continue;
-        }
-
-        // Is the rule shadowed? (If not then updates shadowed state)
-        if (shadowing_.shadowNonpassRule(const_cast<PortNetworkPolicyRule&>(*rule))) {
-          continue;
-        }
-
-        // Apply passes to the rule and insert.
-        if (promoteRuleFromHigherTierPasses(rules.rules_, it)) {
-          must_sort = true;
-        }
-        // keep rule in place
-        keep = true;
-      }
-
-      // Have to sort if precedences have been updated in-place.
-      if (must_sort) {
-        rules.sort();
-
-        // remove shadowed rules due to promoted precedences
-        shadowing_.reset(rules.rules_.front()->precedence_);
-        for (auto it = rules.rules_.begin(); it != rules.rules_.end();
-             it = keep ? ++it : rules.rules_.erase(it)) {
-          keep = !shadowing_.shadowNonpassRule(const_cast<PortNetworkPolicyRule&>(**it));
-        }
-      }
-
-      // Store wildcard port passes for consideration for non-wildcard ports.
-      if (port_range.first == 0) {
-        storeWildcardPassRules(port_range);
-      }
-
-      // Mark ranges with all rules removed for clean-up.
-      if (rules.empty()) {
-        // Empty rule set would always allow. Mark for removal.
-        empty_ranges_.push_back(port_range);
-      }
-    }
-  }
-
-  std::vector<PortRange>& emptyRanges() { return empty_ranges_; }
-
-private:
-  void ensurePassPrecedence(uint32_t tier_last_precedence) {
-    // pass_precedence_ is non-zero when a pass verdict has been seen and
-    // defines the end of the current tier. All pass verdicts on a specific
-    // tier must have the same pass_precedence so tier boundaries stay unambiguous.
-    if (tier_last_precedence == 0 ||
-        (pass_precedence_ != 0 && tier_last_precedence != pass_precedence_)) {
-      throw EnvoyException(fmt::format("PortNetworkPolicy: Inconsistent pass precedence {} != {}",
-                                       tier_last_precedence, pass_precedence_));
-    }
-    pass_precedence_ = tier_last_precedence;
-  }
-
-  std::vector<PortRange> empty_ranges_;
-  std::vector<PortNetworkPolicyRuleSharedPtr> wildcard_pass_rules_;
-  std::vector<PortNetworkPolicyRuleSharedPtr>::iterator wildcard_it_;
-  ShadowedRemotes shadowing_;
-  std::vector<PortNetworkPolicyRuleSharedPtr> pass_rules_;
-  std::vector<int> pass_rules_tier_index_;
-  uint32_t pass_precedence_{0};
-  std::vector<PortNetworkPolicyRuleSharedPtr> tier_pass_rules_;
-  bool tier_wildcard_pass_{false};
-};
 
 class PortNetworkPolicy : public Logger::Loggable<Logger::Id::config> {
 public:
@@ -1752,7 +1373,7 @@ public:
         // End port may be zero, which means no range
         uint16_t end_port = rule.end_port();
         if (end_port < port) {
-          if (end_port != 0) {
+          if (end_port) {
             throw EnvoyException(fmt::format(
                 "PortNetworkPolicy: Invalid port range, end port is less than start port {}-{}",
                 port, end_port));
@@ -1888,7 +1509,6 @@ public:
           RELEASE_ASSERT(it != rules_.end(), "first overlapping entry not found");
         }
         // Add rules to all the overlapping entries
-        bool shared_resource = rule_range.first == 0; // wildcard port rules are shared
         bool singular = rule_range.first == rule_range.second;
         for (; it != rules_.end() && rangesOverlap(it->first, rule_range); it++) {
           auto range = it->first;
@@ -1903,10 +1523,10 @@ public:
             // so the relative order of rules from this batch is reversed. This
             // is harmless: equal-precedence rules are evaluated as alternatives
             // (stable sort only affects presentation/debug ordering).
-            rules.prepend(parent, rule.rules(), shared_resource);
+            rules.prepend(parent, rule.rules());
           } else {
             // Rules with a non-trivial range go to the back of the list
-            rules.append(parent, rule.rules(), shared_resource);
+            rules.append(parent, rule.rules());
           }
         }
       } else {
@@ -1924,7 +1544,7 @@ public:
       if (!wildcard_rules) {
         break;
       }
-      rules.appendNonPassRules(wildcard_rules->rules_);
+      rules.appendRules(wildcard_rules->rules_);
     }
 
     bool have_passes = false;
@@ -1940,19 +1560,20 @@ public:
       }
     }
 
-    // Apply pass verdicts, if any.
     if (have_passes) {
-      Passes passes;
-
-      // This loop always iterates the wildcard port first, if rules for it exist.
       for (auto& [port_range, rules] : rules_) {
-        passes.apply(port_range, rules);
+        (void)port_range;
+        rules.prepareRuntimePasses();
       }
 
-      // Delete port ranges that only contained pass rules.
-      // Otherwise the policy would always accept.
-      for (auto port_range : passes.emptyRanges()) {
-        rules_.erase(port_range);
+      // Pass-only ranges do not yield a final verdict, but keeping them would make
+      // higher-level L7 checks treat the range as "no L7 rules" and allow by default.
+      for (auto it = rules_.begin(); it != rules_.end();) {
+        if (it->second.hasOnlyPassRules()) {
+          it = rules_.erase(it);
+        } else {
+          ++it;
+        }
       }
     }
   }
