@@ -31,7 +31,7 @@ ifdef BAZEL_REMOTE_CACHE
   BAZEL_BUILD_OPTS += --remote_cache=$(BAZEL_REMOTE_CACHE)
 endif
 
-BAZEL_TEST_OPTS ?= --jobs=HOST_RAM*.0003 --test_timeout=300 --local_test_jobs=1 --flaky_test_attempts=3
+BAZEL_TEST_OPTS ?= --jobs=HOST_RAM*.0002 --test_timeout=100 --local_test_jobs=1 --flaky_test_attempts=3
 BAZEL_TEST_OPTS += --test_output=errors
 
 BUILDARCH := $(subst aarch64,arm64,$(subst x86_64,amd64,$(shell uname -m)))
