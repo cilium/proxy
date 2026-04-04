@@ -1211,8 +1211,10 @@ resources:
     [80-80]:
     - rules:
       - remotes: []
+        precedence: 10
+        tier_last_precedence: 1
+      - remotes: []
         name: "default allow rule"
-        precedence: 9
 egress:
   rules: []
 )EOF";
@@ -1253,8 +1255,10 @@ resources:
     [80-80]:
     - rules:
       - remotes: []
+        precedence: 10
+        tier_last_precedence: 1
+      - remotes: []
         name: "default allow rule"
-        precedence: 9
 egress:
   rules: []
 )EOF";
@@ -1423,14 +1427,17 @@ resources:
     [80-80]:
     - rules:
       - remotes: [43]
-        precedence: 999
+        precedence: 1000
+        tier_last_precedence: 501
+      - remotes: []
+        deny: true
+        precedence: 900
+      - remotes: [43]
+        precedence: 500
         http_rules:
         - headers:
           - name: ":path"
             value: "/allowed"
-      - remotes: []
-        deny: true
-        precedence: 900
 egress:
   rules: []
 )EOF";
@@ -1482,14 +1489,17 @@ resources:
     [80-80]:
     - rules:
       - remotes: [43]
-        precedence: 999
+        precedence: 1000
+        tier_last_precedence: 501
+      - remotes: []
+        deny: true
+        precedence: 900
+      - remotes: [43,44]
+        precedence: 500
         http_rules:
         - headers:
           - name: ":path"
             value: "/allowed"
-      - remotes: []
-        deny: true
-        precedence: 900
 egress:
   rules: []
 )EOF";
@@ -1541,8 +1551,14 @@ resources:
   rules:
     [80-80]:
     - rules:
+      - remotes: []
+        precedence: 1000
+        tier_last_precedence: 501
+      - remotes: []
+        deny: true
+        precedence: 900
       - remotes: [43,44]
-        precedence: 999
+        precedence: 500
         http_rules:
         - headers:
           - name: ":path"
@@ -1599,21 +1615,24 @@ resources:
     [80-80]:
     - rules:
       - remotes: [43]
-        precedence: 999
+        precedence: 1000
+        tier_last_precedence: 501
+      - remotes: []
+        deny: true
+        precedence: 900
+      - remotes: []
+        precedence: 500
         http_rules:
         - headers:
           - name: ":path"
             value: "/allowed"
-      - remotes: []
-        deny: true
-        precedence: 900
 egress:
   rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected9));
 
-  // Remote 43 is promoted above deny by pass.
+  // Remote 43 matches the pass rule and skips the intermediate deny.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
   // Other remotes are still denied by the deny rule.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allowed"}}));
@@ -1654,23 +1673,26 @@ resources:
     [80-80]:
     - rules:
       - remotes: [43]
-        precedence: 999
+        precedence: 1000
+        tier_last_precedence: 501
+      - remotes: []
+        deny: true
+        precedence: 900
+      - remotes: [43,44]
+        precedence: 500
         http_rules:
         - headers:
           - name: ":path"
             value: "/allowed"
-      - remotes: []
-        deny: true
-        precedence: 900
 egress:
   rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected10));
 
-  // Pass from wildcard port should promote remote 43 above deny on port 80.
+  // Pass from wildcard port lets remote 43 skip the deny on port 80.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allowed"}}));
-  // Remote 44 is denied due to only 43 being promoted.
+  // Remote 44 is denied because only 43 matches the pass rule.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allowed"}}));
   // Unspecified remotes remain denied.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/allowed"}}));
@@ -1715,15 +1737,21 @@ resources:
   rules:
     [80-80]:
     - rules:
+      - remotes: [43]
+        precedence: 1000
+        tier_last_precedence: 501
+      - remotes: [44]
+        precedence: 1000
+        tier_last_precedence: 501
+      - remotes: []
+        deny: true
+        precedence: 900
       - remotes: [43,44]
-        precedence: 999
+        precedence: 500
         http_rules:
         - headers:
           - name: ":path"
             value: "/allowed"
-      - remotes: []
-        deny: true
-        precedence: 900
 egress:
   rules: []
 )EOF";
@@ -1736,15 +1764,11 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/allowed"}}));
 
   //
-  // 12th update: non-pass rule shadowing inside a pass tier
+  // 12th update: pass tier keeps native rules in runtime order
   //
-  // The pass rule is required to enable tier processing, but it targets only
-  // remote 45 so the tier is not wildcard-pass and does not pre-shadow 43/44.
-  // Within this tier:
-  // - A higher-precedence deny for remote 44 establishes a final verdict for 44.
-  // - A lower-precedence allow for [43,44] must have 44 removed due to shadowing.
-  // - A second allow at the same precedence for [43] must keep 43, confirming
-  //   no same-precedence identity shadowing between allow rules.
+  // With runtime pass handling the pass rule remains present, the higher-precedence
+  // deny for remote 44 stays in place, and the lower allow rules are evaluated in
+  // their native form instead of being rewritten during preprocessing.
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "12"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
@@ -1789,11 +1813,8 @@ resources:
     [80-80]:
     - rules:
       - remotes: [45]
-        precedence: 999
-        http_rules:
-        - headers:
-          - name: ":path"
-            value: "/allow-c"
+        precedence: 1000
+        tier_last_precedence: 701
       - remotes: [44]
         deny: true
         precedence: 900
@@ -1803,7 +1824,7 @@ resources:
         - headers:
           - name: ":path"
             value: "/allow-b"
-      - remotes: [43]
+      - remotes: [43,44]
         precedence: 800
         http_rules:
         - headers:
@@ -1824,12 +1845,12 @@ egress:
   // Remote 43 is not passed, but both same-precedence allow rules remain effective.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allow-a"}}));
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/allow-b"}}));
-  // Remote 44 is denied by the higher-precedence deny and removed from allow-a.
+  // Remote 44 is denied by the higher-precedence deny before either allow rule is reached.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allow-a"}}));
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allow-b"}}));
-  // Pass remote 45 does not match /allow-a because only /allow-c is promoted for it.
+  // Pass remote 45 does not match /allow-a because only the lower wildcard allow matches it.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/allow-a"}}));
-  // Wildcard allow at precedence 700 is promoted to precedence 999 only for pass remote 45.
+  // Pass remote 45 reaches the lower wildcard allow at precedence 700.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/allow-c"}}));
   // Non-pass remotes not already denied at higher precedence still match the
   // original wildcard rule at precedence 700.
@@ -1837,12 +1858,11 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/allow-c"}}));
 
   //
-  // 13th update: inherited wildcard current-tier pass fully shadowed
+  // 13th update: inherited wildcard and local pass rules both remain
   //
-  // Wildcard port has a current-tier pass for remote 43, and specific port has
-  // a higher precedence pass for the same remote on the same tier. When the
-  // wildcard pass is inherited, it is fully shadowed and skipped, as evidenced by the
-  // precedence of the passed-to rule for remote 43, which is 999 rather than 899.
+  // Runtime pass handling keeps both pass rules visible in precedence order. The
+  // specific-port pass is checked before the inherited wildcard-port pass for the
+  // same remote, but neither rule is rewritten away.
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "13"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
@@ -1878,39 +1898,38 @@ resources:
     [80-80]:
     - rules:
       - remotes: [43]
-        precedence: 999
+        precedence: 1000
+        tier_last_precedence: 701
+      - remotes: [43]
+        precedence: 900
+        tier_last_precedence: 701
+      - remotes: []
+        deny: true
+        precedence: 800
+      - remotes: [43,44]
+        precedence: 700
         http_rules:
         - headers:
           - name: ":path"
             value: "/shadowed-inherited-pass"
-      - remotes: []
-        deny: true
-        precedence: 800
 egress:
   rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected13));
 
-  // Remote 43 is promoted above deny due to the specific-port pass.
+  // Remote 43 hits the specific-port pass before the intermediate deny.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/shadowed-inherited-pass"}}));
   // Remote 44 remains denied by the intermediate deny.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/shadowed-inherited-pass"}}));
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/shadowed-inherited-pass"}}));
 
   //
-  // 14th update: multiple wildcard pass tiers inherited by a specific port
+  // 14th update: multiple inherited pass tiers are handled at runtime
   //
-  // Wildcard port contributes two pass tiers:
-  // Tier boundaries are inclusive.
-  // - tier 1 pass (1300/1000) for remote 41: tier boundaries [1300..1000]
-  // - tier 2 pass (900/700) for remote 42: tier boundaries [999..700]
-  // For port 80:
-  // - deny at 850 is within tier 2, so it is promoted by tier 1 pass for remote 41 to 1150
-  // - allow [41,42,43] at 600 is split and promoted by both tiers:
-  //   - 41 to tier 1 precedence 900
-  //   - 42 to tier 2 precedence 800
-  //   - 43 remains at tier 3 at precedence 600
+  // The wildcard-port pass rules remain visible in the exact-port rule list. Remote 41
+  // still reaches the intermediate deny, while remote 42 matches the lower wildcard pass
+  // and skips that deny to the allow at precedence 600.
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "14"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
@@ -1946,28 +1965,31 @@ resources:
     [80-80]:
     - rules:
       - remotes: [41]
-        deny: true
-        precedence: 1050
+        precedence: 1300
+        tier_last_precedence: 1000
       - remotes: [42]
-        precedence: 800
+        precedence: 900
+        tier_last_precedence: 700
+      - remotes: []
+        deny: true
+        precedence: 750
+      - remotes: [41,42,43]
+        precedence: 600
         http_rules:
         - headers:
           - name: ":path"
             value: "/multi-tier"
-      - remotes: []
-        deny: true
-        precedence: 750
 egress:
   rules: []
 )EOF";
 
   EXPECT_TRUE(validate("10.1.2.3", expected14));
 
-  // Remote 41 hits the promoted deny from tier 1.
+  // Remote 41 does not match the lower pass tier, so it still hits the deny at 850.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 41, 80, {{":path", "/multi-tier"}}));
-  // Remote 42 is promoted by the lower wildcard tier
+  // Remote 42 matches the lower pass tier and skips the deny to the allow at precedence 600.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 42, 80, {{":path", "/multi-tier"}}));
-  // Remote 43 is not promoted and is denied.
+  // Remote 43 does not match either pass tier and is denied.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/multi-tier"}}));
 
   //
@@ -2010,11 +2032,10 @@ resources:
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 42, 80, {{":path", "/multi-tier"}}));
 
   //
-  // 16th update: inherited wildcard pass skips remaining rules on that tier
+  // 16th update: inherited wildcard pass skips remaining rules on that tier at runtime
   //
-  // Wildcard port has a wildcard pass (2000/700), which is inherited for port 80.
-  // Rules in that same tier [1999..700] are skipped; a lower-tier rule at 600 is
-  // retained and promoted to 1900 by the inherited wildcard pass.
+  // The pass rule and the skipped-tier rules remain present in the rendered policy, but a
+  // matching remote jumps past the 1200/1100 rules and reaches the lower-tier allow at 600.
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "16"
 resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
@@ -2053,8 +2074,20 @@ resources:
   rules:
     [80-80]:
     - rules:
+      - remotes: []
+        precedence: 2000
+        tier_last_precedence: 700
+      - remotes: [43]
+        deny: true
+        precedence: 1200
+      - remotes: [44]
+        precedence: 1100
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/should-skip"
       - remotes: [43,44]
-        precedence: 1900
+        precedence: 600
         http_rules:
         - headers:
           - name: ":path"
@@ -2065,15 +2098,15 @@ egress:
 
   EXPECT_TRUE(validate("10.1.2.3", expected16));
 
-  // Both remotes are allowed by the promoted lower-tier rule.
+  // Both remotes are allowed by the lower-tier rule reached after the wildcard pass.
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/promoted-after-skip"}}));
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/promoted-after-skip"}}));
-  // Tier rule at 800 is skipped by inherited wildcard pass.
+  // The 1100 rule remains present but is skipped by the inherited wildcard pass.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/should-skip"}}));
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/promoted-after-skip"}}));
 
   //
-  // 17th update: Shadowed rules are eliminated
+  // 17th update: overlapping lower rules remain visible under runtime pass handling
   //
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "17"
 resources:
@@ -2113,11 +2146,20 @@ resources:
   rules:
     [80-80]:
     - rules:
+      - remotes: []
+        precedence: 1000
+        tier_last_precedence: 901
       - remotes: [43]
         deny: true
-        precedence: 999
-      - remotes: [44]
-        precedence: 699
+        precedence: 900
+      - remotes: [43]
+        precedence: 800
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/should-skip"
+      - remotes: [43,44]
+        precedence: 600
         http_rules:
         - headers:
           - name: ":path"
@@ -2130,7 +2172,7 @@ egress:
 
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/partially-skipped"}}));
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 80, {{":path", "/partially-skipped"}}));
-  // Rule at 800 is shadowed by higher precedence deny
+  // Rule at 800 remains present, but the higher-precedence deny still wins for remote 43.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/should-skip"}}));
   // inapplicable identity
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/partially-skipped"}}));
