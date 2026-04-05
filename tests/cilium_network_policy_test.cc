@@ -1911,7 +1911,7 @@ resources:
       remote_policies: [ 42 ]
   - port: 80
     rules:
-    - precedence: 850
+    - precedence: 750
       deny: true
     - precedence: 600
       remote_policies: [ 41, 42, 43 ]
@@ -1930,10 +1930,16 @@ resources:
     - rules:
       - remotes: [41]
         deny: true
-        precedence: 1150
+        precedence: 1050
+      - remotes: [42]
+        precedence: 800
+        http_rules:
+        - headers:
+          - name: ":path"
+            value: "/multi-tier"
       - remotes: []
         deny: true
-        precedence: 850
+        precedence: 750
 egress:
   rules: []
 )EOF";
@@ -1942,8 +1948,8 @@ egress:
 
   // Remote 41 hits the promoted deny from tier 1.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 41, 80, {{":path", "/multi-tier"}}));
-  // Remote 42 is promoted by the lower wildcard tier, but remains below deny.
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 42, 80, {{":path", "/multi-tier"}}));
+  // Remote 42 is promoted by the lower wildcard tier
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 42, 80, {{":path", "/multi-tier"}}));
   // Remote 43 is not promoted and is denied.
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/multi-tier"}}));
 
@@ -1981,10 +1987,10 @@ resources:
                             EnvoyException,
                             "PortNetworkPolicy: Inconsistent pass precedence 600 != 700");
 
-  // Failed update must leave policy unchanged from version 10.
+  // Failed update must leave policy unchanged from version 14.
   EXPECT_TRUE(validate("10.1.2.3", expected14));
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 41, 80, {{":path", "/multi-tier"}}));
-  EXPECT_FALSE(ingressAllowed("10.1.2.3", 42, 80, {{":path", "/multi-tier"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 42, 80, {{":path", "/multi-tier"}}));
 
   //
   // 16th update: inherited wildcard pass skips remaining rules on that tier
