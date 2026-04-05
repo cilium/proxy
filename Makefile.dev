@@ -42,7 +42,7 @@ veryclean: force-non-root clean
 precheck: force-non-root
 	tools/check_repositories.sh
 
-FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/" "./go/" "./envoy_build_config/"
+FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/" "./go/" "./envoy_build_config/" "./work/" "./bin/"
 
 # The default set of sources assumes all relevant sources are dependecies of some tests!
 TIDY_SOURCES ?= $(shell bazel query 'kind("source file", deps(//tests/...))' 2>/dev/null | sed -n "s/\/\/cilium:/cilium\//p; s/\/\/tests:/tests\//p")
