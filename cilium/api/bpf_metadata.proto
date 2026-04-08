@@ -4,6 +4,7 @@ option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
 
 package cilium;
 
+import "envoy/config/core/v3/config_source.proto";
 import "google/protobuf/duration.proto";
 import "validate/validate.proto";
 
@@ -82,4 +83,7 @@ message BpfMetadata {
 
   // Cache is garbage collected at interval 10 times the ttl (default 30 ms).
   google.protobuf.Duration cache_gc_interval = 15;
+
+  // Configuration for the source of NPDS updates. Currently this field is not supported.
+  envoy.config.core.v3.ApiConfigSource npds_config = 16;
 }
