@@ -214,6 +214,9 @@ Config::Config(const ::cilium::BpfMetadata& config,
       ipcache_entry_ttl_(
           PROTOBUF_GET_MS_OR_DEFAULT(config, cache_entry_ttl, DEFAULT_CACHE_ENTRY_TTL_MS)),
       random_(context.serverFactoryContext().api().randomGenerator()) {
+  if (config.has_npds_config()) {
+    throw EnvoyException("cilium.bpf_metadata: npds_config is not yet supported");
+  }
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }

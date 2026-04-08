@@ -20,6 +20,9 @@ api_cc_py_proto_library(
 api_cc_py_proto_library(
     name = "bpf_metadata",
     srcs = ["bpf_metadata.proto"],
+    deps = [
+        "@envoy_api//envoy/config/core/v3:pkg",
+    ],
 )
 
 api_cc_py_proto_library(

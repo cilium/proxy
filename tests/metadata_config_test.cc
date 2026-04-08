@@ -224,6 +224,14 @@ resources:
   std::list<Init::TargetHandlePtr> target_handles_;
 };
 
+TEST_F(MetadataConfigTest, NpdsConfigNotSupported) {
+  ::cilium::BpfMetadata config{};
+  config.mutable_npds_config()->set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
+
+  EXPECT_THROW_WITH_MESSAGE(initialize(config), EnvoyException,
+                            "cilium.bpf_metadata: npds_config is not yet supported");
+}
+
 TEST_F(MetadataConfigTest, EmptyConfig) {
   ::cilium::BpfMetadata config{};
 
