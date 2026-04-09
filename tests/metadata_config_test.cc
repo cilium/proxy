@@ -224,12 +224,15 @@ resources:
   std::list<Init::TargetHandlePtr> target_handles_;
 };
 
-TEST_F(MetadataConfigTest, NpdsConfigNotSupported) {
+TEST_F(MetadataConfigTest, NpdsConfigSupported) {
   ::cilium::BpfMetadata config{};
+  config.set_use_original_source_address(true);
+  config.set_is_l7lb(true);
+  config.set_ipv4_source_address("127.0.0.1");
+  config.set_ipv6_source_address("::1");
   config.mutable_npds_config()->set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
 
-  EXPECT_THROW_WITH_MESSAGE(initialize(config), EnvoyException,
-                            "cilium.bpf_metadata: npds_config is not yet supported");
+  EXPECT_NO_THROW(initialize(config));
 }
 
 TEST_F(MetadataConfigTest, EmptyConfig) {

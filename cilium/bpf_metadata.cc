@@ -14,6 +14,7 @@
 
 #include "envoy/api/io_error.h"
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/core/v3/socket_option.pb.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
@@ -179,20 +180,23 @@ SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
 namespace {
 
 std::shared_ptr<const Cilium::PolicyHostMap>
-createHostMap(Server::Configuration::ListenerFactoryContext& context) {
+createHostMap(Server::Configuration::ListenerFactoryContext& context,
+              const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context] {
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context, npds_config] {
         auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
-        map->startSubscription(context.serverFactoryContext());
+        map->startSubscription(context.serverFactoryContext(), npds_config);
         return map;
       });
 }
 
 std::shared_ptr<const Cilium::NetworkPolicyMap>
-createPolicyMap(Server::Configuration::FactoryContext& context) {
+createPolicyMap(Server::Configuration::FactoryContext& context,
+                const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-      [&context] { return std::make_shared<Cilium::NetworkPolicyMap>(context, true); });
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, npds_config] {
+        return std::make_shared<Cilium::NetworkPolicyMap>(context, npds_config, true);
+      });
 }
 
 } // namespace
@@ -214,9 +218,6 @@ Config::Config(const ::cilium::BpfMetadata& config,
       ipcache_entry_ttl_(
           PROTOBUF_GET_MS_OR_DEFAULT(config, cache_entry_ttl, DEFAULT_CACHE_ENTRY_TTL_MS)),
       random_(context.serverFactoryContext().api().randomGenerator()) {
-  if (config.has_npds_config()) {
-    throw EnvoyException("cilium.bpf_metadata: npds_config is not yet supported");
-  }
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -234,9 +235,10 @@ Config::Config(const ::cilium::BpfMetadata& config,
         fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}",
                     config.ipv6_source_address()));
   }
-
+  const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config =
+      config.has_npds_config() ? absl::make_optional(config.npds_config()) : absl::nullopt;
   if (config.use_nphds()) {
-    hosts_ = createHostMap(context);
+    hosts_ = createHostMap(context, npds_config);
   }
 
   // Note: all instances use the bpf root of the first filter with non-empty
@@ -273,7 +275,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
   // instances!
   // Only created if either ipcache_ or hosts_ map exists
   if (ipcache_ || hosts_) {
-    npmap_ = createPolicyMap(context);
+    npmap_ = createPolicyMap(context, npds_config);
   }
 }
 

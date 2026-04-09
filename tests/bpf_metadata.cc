@@ -111,7 +111,7 @@ createPolicyMap(const std::string& config,
             policy_path, context.serverFactoryContext().api()));
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
-        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context);
+        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context, absl::nullopt);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
             context.serverFactoryContext().mainThreadDispatcher(),
             Envoy::Config::makePathConfigSource(policy_path), map->getImpl(),

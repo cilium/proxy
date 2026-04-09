@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/event/dispatcher.h"
 #include "envoy/server/factory_context.h"
@@ -24,6 +25,7 @@
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/api/nphds.pb.h"
 #include "cilium/grpc_subscription.h"
 
@@ -170,11 +172,13 @@ PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& contex
   scope_ = context.serverScope().createScope(name_);
 }
 
-void PolicyHostMap::startSubscription(Server::Configuration::CommonFactoryContext& context) {
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", context.localInfo(),
-                            context.clusterManager(), context.mainThreadDispatcher(),
-                            context.api().randomGenerator(), *scope_, *this,
-                            std::make_shared<Cilium::PolicyHostDecoder>());
+void PolicyHostMap::startSubscription(
+    Server::Configuration::CommonFactoryContext& context,
+    const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config) {
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", npds_config,
+                            context.localInfo(), context.clusterManager(),
+                            context.mainThreadDispatcher(), context.api().randomGenerator(),
+                            *scope_, *this, std::make_shared<Cilium::PolicyHostDecoder>());
   subscription_->start({});
 }
 

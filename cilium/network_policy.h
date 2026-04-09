@@ -15,6 +15,7 @@
 #include "envoy/common/pure.h"
 #include "envoy/common/regex.h"
 #include "envoy/config/core/v3/base.pb.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
 #include "envoy/network/address.h"
@@ -43,6 +44,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/optional.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/npds.pb.validate.h" // IWYU pragma: keep
@@ -235,7 +237,8 @@ public:
   NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context);
   ~NetworkPolicyMapImpl() override;
 
-  void startSubscription();
+  void
+  startSubscription(const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config);
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
@@ -339,7 +342,9 @@ class AllowAllEgressPolicyInstanceImpl;
 
 class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Logger::Id::config> {
 public:
-  NetworkPolicyMap(Server::Configuration::FactoryContext& context, bool subscribe = false);
+  NetworkPolicyMap(Server::Configuration::FactoryContext& context,
+                   const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config,
+                   bool subscribe = false);
   ~NetworkPolicyMap() override;
 
   // This is used for testing with a file-based subscription

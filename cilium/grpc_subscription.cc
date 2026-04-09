@@ -141,14 +141,19 @@ envoy::config::core::v3::ConfigSource getCiliumXDSAPIConfig() {
 envoy::config::core::v3::ConfigSource cilium_xds_api_config = getCiliumXDSAPIConfig();
 
 std::unique_ptr<Config::GrpcSubscriptionImpl>
-subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
-          Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-          Random::RandomGenerator& random, Stats::Scope& scope,
+subscribe(const std::string& type_url,
+          const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config,
+          const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
+          Event::Dispatcher& dispatcher, Random::RandomGenerator& random, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
           Config::OpaqueResourceDecoderSharedPtr resource_decoder,
           std::chrono::milliseconds init_fetch_timeout) {
-  const envoy::config::core::v3::ApiConfigSource& api_config_source =
-      cilium_xds_api_config.api_config_source();
+  envoy::config::core::v3::ApiConfigSource api_config_source;
+  if (npds_config.has_value()) {
+    api_config_source = npds_config.value();
+  } else {
+    api_config_source = cilium_xds_api_config.api_config_source();
+  }
   THROW_IF_NOT_OK(Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(
       cm.primaryClusters(), api_config_source));
 

@@ -20,6 +20,7 @@
 #include "envoy/common/optref.h"
 #include "envoy/config/core/v3/address.pb.h"
 #include "envoy/config/core/v3/base.pb.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
 #include "envoy/init/manager.h"
@@ -1823,7 +1824,9 @@ private:
 
 // Common base constructor
 // This is used directly for testing with a file-based subscription
-NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context, bool subscribe)
+NetworkPolicyMap::NetworkPolicyMap(
+    Server::Configuration::FactoryContext& context,
+    const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config, bool subscribe)
     : context_(context.serverFactoryContext()) {
   impl_ = std::make_unique<NetworkPolicyMapImpl>(context);
 
@@ -1837,7 +1840,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   }
 
   if (subscribe) {
-    getImpl().startSubscription();
+    getImpl().startSubscription(npds_config);
   }
 }
 
@@ -1891,11 +1894,12 @@ NetworkPolicyMapImpl::~NetworkPolicyMapImpl() {
   delete load();
 }
 
-void NetworkPolicyMapImpl::startSubscription() {
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", context_.localInfo(),
-                            context_.clusterManager(), context_.mainThreadDispatcher(),
-                            context_.api().randomGenerator(), *npds_stats_scope_, *this,
-                            std::make_shared<NetworkPolicyDecoder>());
+void NetworkPolicyMapImpl::startSubscription(
+    const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config) {
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", npds_config,
+                            context_.localInfo(), context_.clusterManager(),
+                            context_.mainThreadDispatcher(), context_.api().randomGenerator(),
+                            *npds_stats_scope_, *this, std::make_shared<NetworkPolicyDecoder>());
 }
 
 void NetworkPolicyMapImpl::tlsWrapperMissingPolicyInc() const {

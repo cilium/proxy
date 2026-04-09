@@ -16,6 +16,8 @@
 #include "source/extensions/config_subscription/grpc/grpc_mux_impl.h"
 #include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
 
+#include "absl/types/optional.h"
+
 namespace Envoy {
 namespace Cilium {
 
@@ -47,9 +49,10 @@ private:
 };
 
 std::unique_ptr<Config::GrpcSubscriptionImpl>
-subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
-          Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-          Random::RandomGenerator& random, Stats::Scope& scope,
+subscribe(const std::string& type_url,
+          const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config,
+          const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
+          Event::Dispatcher& dispatcher, Random::RandomGenerator& random, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
           Config::OpaqueResourceDecoderSharedPtr resource_decoder,
           std::chrono::milliseconds init_fetch_timeout = std::chrono::milliseconds(0));

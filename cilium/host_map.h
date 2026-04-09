@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/network/address.h"
 #include "envoy/protobuf/message_validator.h"
@@ -33,6 +34,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
+#include "absl/types/optional.h"
 #include "cilium/api/nphds.pb.h"
 #include "cilium/api/nphds.pb.validate.h" // IWYU pragma: keep
 #include "cilium/policy_id.h"
@@ -101,7 +103,9 @@ public:
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 
-  void startSubscription(Server::Configuration::CommonFactoryContext& context);
+  void
+  startSubscription(Server::Configuration::CommonFactoryContext& context,
+                    const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config);
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
