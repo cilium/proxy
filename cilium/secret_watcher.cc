@@ -23,7 +23,6 @@
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "cilium/api/npds.pb.h"
-#include "cilium/grpc_subscription.h"
 #include "cilium/network_policy.h"
 
 namespace Envoy {
@@ -32,15 +31,18 @@ namespace Cilium {
 namespace {
 
 // SDS config used in production
-envoy::config::core::v3::ConfigSource getCiliumSDSConfig(const std::string&) {
-  /* returned config_source has initial_fetch_timeout of 50 milliseconds. */
-  return Cilium::cilium_xds_api_config;
+envoy::config::core::v3::ConfigSource
+getCiliumSDSConfig(const std::string&, const envoy::config::core::v3::ConfigSource& config_source) {
+  // This is used in production, where the SDS config is always the same and does not need to
+  // be overridden.
+  return config_source;
 }
 
 Secret::GenericSecretConfigProviderSharedPtr
 secretProvider(Server::Configuration::TransportSocketFactoryContext& context,
-               const std::string& sds_name) {
-  envoy::config::core::v3::ConfigSource config_source = getSDSConfig(sds_name);
+               const std::string& sds_name, const NetworkPolicyMapImpl& parent) {
+  const envoy::config::core::v3::ConfigSource& config_source =
+      getSDSConfig(sds_name, parent.getConfigSource());
   return context.serverFactoryContext().secretManager().findOrCreateGenericSecretProvider(
       config_source, sds_name, context.serverFactoryContext(), context.initManager());
 }
@@ -53,7 +55,7 @@ void resetSDSConfigFunc() { getSDSConfig = &getCiliumSDSConfig; }
 
 SecretWatcher::SecretWatcher(const NetworkPolicyMapImpl& parent, const std::string& sds_name)
     : parent_(parent), name_(sds_name),
-      secret_provider_(secretProvider(parent.transportFactoryContext(), sds_name)),
+      secret_provider_(secretProvider(parent.transportFactoryContext(), sds_name, parent)),
       update_secret_(readAndWatchSecret()) {}
 
 SecretWatcher::~SecretWatcher() {
@@ -97,12 +99,13 @@ TLSContext::TLSContext(const NetworkPolicyMapImpl& parent, const std::string& na
 namespace {
 
 void setCommonConfig(const cilium::TLSContext config,
-                     envoy::extensions::transport_sockets::tls::v3::CommonTlsContext* tls_context) {
+                     envoy::extensions::transport_sockets::tls::v3::CommonTlsContext* tls_context,
+                     const NetworkPolicyMapImpl& parent) {
   if (!config.validation_context_sds_secret().empty()) {
     auto sds_secret = tls_context->mutable_validation_context_sds_secret_config();
     sds_secret->set_name(config.validation_context_sds_secret());
     auto* config_source = sds_secret->mutable_sds_config();
-    *config_source = getSDSConfig(config.validation_context_sds_secret());
+    *config_source = getSDSConfig(config.validation_context_sds_secret(), parent.getConfigSource());
   } else if (!config.trusted_ca().empty()) {
     auto validation_context = tls_context->mutable_validation_context();
     auto trusted_ca = validation_context->mutable_trusted_ca();
@@ -112,7 +115,7 @@ void setCommonConfig(const cilium::TLSContext config,
     auto sds_secret = tls_context->add_tls_certificate_sds_secret_configs();
     sds_secret->set_name(config.tls_sds_secret());
     auto* config_source = sds_secret->mutable_sds_config();
-    *config_source = getSDSConfig(config.tls_sds_secret());
+    *config_source = getSDSConfig(config.tls_sds_secret(), parent.getConfigSource());
   } else if (!config.certificate_chain().empty()) {
     auto tls_certificate = tls_context->add_tls_certificates();
     auto certificate_chain = tls_certificate->mutable_certificate_chain();
@@ -150,7 +153,7 @@ DownstreamTLSContext::DownstreamTLSContext(const NetworkPolicyMapImpl& parent,
     auto require_tls_certificate = context_config.mutable_require_client_certificate();
     require_tls_certificate->set_value(true);
   }
-  setCommonConfig(config, tls_context);
+  setCommonConfig(config, tls_context, parent);
 
   for (int i = 0; i < config.server_names_size(); i++) {
     server_names_.emplace_back(config.server_names(i));
@@ -195,7 +198,7 @@ UpstreamTLSContext::UpstreamTLSContext(const NetworkPolicyMapImpl& parent,
 
   envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext context_config;
   auto tls_context = context_config.mutable_common_tls_context();
-  setCommonConfig(config, tls_context);
+  setCommonConfig(config, tls_context, parent);
 
   if (config.server_names_size() > 0) {
     if (config.server_names_size() > 1) {

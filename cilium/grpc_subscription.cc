@@ -120,35 +120,14 @@ const Protobuf::MethodDescriptor& sotwGrpcMethod(absl::string_view type_url) {
       it->second.sotw_grpc_method_);
 }
 
-// Hard-coded Cilium gRPC cluster
-// Note: No rate-limit settings are used, consider if needed.
-envoy::config::core::v3::ConfigSource getCiliumXDSAPIConfig() {
-  auto config_source = envoy::config::core::v3::ConfigSource();
-  /* config_source.initial_fetch_timeout is set to 50 millliseconds.
-   * This applies only to SDS Secrets for now, as for NPDS and NPHDS we explicitly set the timeout
-   * as 0 (no timeout).
-   */
-  config_source.mutable_initial_fetch_timeout()->set_nanos(50000000);
-  config_source.set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
-  auto api_config_source = config_source.mutable_api_config_source();
-  api_config_source->set_set_node_on_first_message_only(true);
-  api_config_source->set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
-  api_config_source->set_transport_api_version(envoy::config::core::v3::ApiVersion::V3);
-  api_config_source->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name("xds-grpc-cilium");
-  return config_source;
-}
-
-envoy::config::core::v3::ConfigSource cilium_xds_api_config = getCiliumXDSAPIConfig();
-
 std::unique_ptr<Config::GrpcSubscriptionImpl>
-subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
-          Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-          Random::RandomGenerator& random, Stats::Scope& scope,
+subscribe(const std::string& type_url, const envoy::config::core::v3::ConfigSource& npds_config,
+          const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
+          Event::Dispatcher& dispatcher, Random::RandomGenerator& random, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
           Config::OpaqueResourceDecoderSharedPtr resource_decoder,
           std::chrono::milliseconds init_fetch_timeout) {
-  const envoy::config::core::v3::ApiConfigSource& api_config_source =
-      cilium_xds_api_config.api_config_source();
+  auto& api_config_source = npds_config.api_config_source();
   THROW_IF_NOT_OK(Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(
       cm.primaryClusters(), api_config_source));
 

@@ -38,6 +38,9 @@
 namespace Envoy {
 namespace Cilium {
 
+// Cilium XDS API config source. Used for all Cilium XDS.
+extern const envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
+
 #define ON_CALL_SDS_SECRET_PROVIDER(SECRET_MANAGER, PROVIDER_TYPE, API_TYPE)                       \
   ON_CALL(SECRET_MANAGER, findOrCreate##PROVIDER_TYPE##Provider(_, _, _, _))                       \
       .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,     \
@@ -71,7 +74,8 @@ protected:
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, TlsSessionTicketKeysContext, TlsSessionTicketKeys);
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, GenericSecret, GenericSecret);
 
-    policy_map_ = std::make_shared<NetworkPolicyMap>(factory_context_);
+    policy_map_ =
+        std::make_shared<NetworkPolicyMap>(factory_context_, Cilium::CILIUM_XDS_API_CONFIG);
   }
 
   void TearDown() override {

@@ -116,14 +116,15 @@ envoy_cc_test(
     srcs = ["cilium_network_policy_test.cc"],
     repository = "@envoy",
     deps = [
+        ":bpf_metadata_lib",
         "//cilium:network_policy_lib",
         "@envoy//test/mocks/server:factory_context_mocks",
     ],
 )
 
 envoy_cc_test(
-    name = "metadata_config_test",
-    srcs = ["metadata_config_test.cc"],
+    name = "bpf_metadata_config_test",
+    srcs = ["bpf_metadata_config_test.cc"],
     repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",

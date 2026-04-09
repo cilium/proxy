@@ -9,6 +9,7 @@
 
 #include "envoy/api/io_error.h"
 #include "envoy/common/random_generator.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/network/listener_filter_buffer.h"
@@ -30,6 +31,10 @@
 
 namespace Envoy {
 namespace Cilium {
+
+// Cilium XDS API config source. Used for all Cilium XDS.
+extern const envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
+
 namespace BpfMetadata {
 
 #define DEFAULT_CACHE_ENTRY_TTL_MS 3
@@ -168,6 +173,7 @@ public:
   std::string l7lb_policy_name_;
   std::chrono::milliseconds ipcache_entry_ttl_;
   Random::RandomGenerator& random_;
+  envoy::config::core::v3::ConfigSource npds_config_;
 
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
   Cilium::CtMapSharedPtr ct_maps_;

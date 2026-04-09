@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -25,8 +26,12 @@
 namespace Envoy {
 namespace Cilium {
 
+// Cilium XDS API config source. Used for all Cilium XDS.
+extern const envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
+
 // Facility for SDS config override for testing
-using GetSdsConfigFunc = envoy::config::core::v3::ConfigSource (*)(const std::string&);
+using GetSdsConfigFunc = std::function<const envoy::config::core::v3::ConfigSource(
+    const std::string&, const envoy::config::core::v3::ConfigSource&)>;
 extern GetSdsConfigFunc getSDSConfig;
 void setSDSConfigFunc(GetSdsConfigFunc);
 void resetSDSConfigFunc();

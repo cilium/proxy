@@ -14,6 +14,7 @@
 
 #include "envoy/api/io_error.h"
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/core/v3/socket_option.pb.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
@@ -169,6 +170,27 @@ REGISTER_FACTORY(UdpBpfMetadataConfigFactory,
 } // namespace Server
 
 namespace Cilium {
+
+// Hard-coded Cilium gRPC cluster
+// Note: No rate-limit settings are used, consider if needed.
+const envoy::config::core::v3::ConfigSource getCiliumXDSAPIConfig() {
+  auto config_source = envoy::config::core::v3::ConfigSource();
+  /* config_source.initial_fetch_timeout is set to 50 millliseconds.
+   * This applies only to SDS Secrets for now, as for NPDS and NPHDS we explicitly set the timeout
+   * as 0 (no timeout).
+   */
+  config_source.mutable_initial_fetch_timeout()->set_nanos(50000000);
+  config_source.set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
+  auto api_config_source = config_source.mutable_api_config_source();
+  api_config_source->set_set_node_on_first_message_only(true);
+  api_config_source->set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
+  api_config_source->set_transport_api_version(envoy::config::core::v3::ApiVersion::V3);
+  api_config_source->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name("xds-grpc-cilium");
+  return config_source;
+}
+
+const envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG = getCiliumXDSAPIConfig();
+
 namespace BpfMetadata {
 
 // Singleton registration via macro defined in envoy/singleton/manager.h
@@ -179,20 +201,23 @@ SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
 namespace {
 
 std::shared_ptr<const Cilium::PolicyHostMap>
-createHostMap(Server::Configuration::ListenerFactoryContext& context) {
+createHostMap(Server::Configuration::ListenerFactoryContext& context,
+              envoy::config::core::v3::ConfigSource& npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context] {
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context, npds_config] {
         auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
-        map->startSubscription(context.serverFactoryContext());
+        map->startSubscription(context.serverFactoryContext(), npds_config);
         return map;
       });
 }
 
 std::shared_ptr<const Cilium::NetworkPolicyMap>
-createPolicyMap(Server::Configuration::FactoryContext& context) {
+createPolicyMap(Server::Configuration::FactoryContext& context,
+                envoy::config::core::v3::ConfigSource& npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
-      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-      [&context] { return std::make_shared<Cilium::NetworkPolicyMap>(context, true); });
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, npds_config] {
+        return std::make_shared<Cilium::NetworkPolicyMap>(context, npds_config, true);
+      });
 }
 
 } // namespace
@@ -213,10 +238,9 @@ Config::Config(const ::cilium::BpfMetadata& config,
       l7lb_policy_name_(config.l7lb_policy_name()),
       ipcache_entry_ttl_(
           PROTOBUF_GET_MS_OR_DEFAULT(config, cache_entry_ttl, DEFAULT_CACHE_ENTRY_TTL_MS)),
-      random_(context.serverFactoryContext().api().randomGenerator()) {
-  if (config.has_npds_config()) {
-    throw EnvoyException("cilium.bpf_metadata: npds_config is not yet supported");
-  }
+      random_(context.serverFactoryContext().api().randomGenerator()),
+      npds_config_(config.has_npds_config() ? config.npds_config()
+                                            : Cilium::CILIUM_XDS_API_CONFIG) {
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -234,9 +258,8 @@ Config::Config(const ::cilium::BpfMetadata& config,
         fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}",
                     config.ipv6_source_address()));
   }
-
   if (config.use_nphds()) {
-    hosts_ = createHostMap(context);
+    hosts_ = createHostMap(context, npds_config_);
   }
 
   // Note: all instances use the bpf root of the first filter with non-empty
@@ -273,7 +296,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
   // instances!
   // Only created if either ipcache_ or hosts_ map exists
   if (ipcache_ || hosts_) {
-    npmap_ = createPolicyMap(context);
+    npmap_ = createPolicyMap(context, npds_config_);
   }
 }
 
