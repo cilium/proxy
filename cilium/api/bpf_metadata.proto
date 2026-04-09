@@ -85,5 +85,5 @@ message BpfMetadata {
   google.protobuf.Duration cache_gc_interval = 15;
 
   // Configuration for the source of NPDS updates. Currently this field is not supported.
-  envoy.config.core.v3.ApiConfigSource npds_config = 16;
+  envoy.config.core.v3.ConfigSource npds_config = 16;
 }
