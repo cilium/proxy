@@ -410,7 +410,7 @@ public:
 
     THROW_IF_NOT_OK(MessageUtil::loadFromFile(
         path, message, ProtobufMessage::getNullValidationVisitor(), *api_.get()));
-    Envoy::Cilium::PolicyHostMap hmap(tls);
+    Envoy::Cilium::PolicyHostMap hmap(tls, api_->rootScope());
     const auto decoded_resources =
         THROW_OR_RETURN_VALUE(Config::DecodedResourcesWrapper::create(
                                   host_decoder, message.resources(), message.version_info()),
@@ -451,7 +451,7 @@ resources:
 
   THROW_IF_NOT_OK(MessageUtil::loadFromFile(
       path, message, ProtobufMessage::getNullValidationVisitor(), *api_.get()));
-  auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(tls);
+  auto hmap = std::make_shared<Envoy::Cilium::PolicyHostMap>(tls, api_->rootScope());
   const auto decoded_resources =
       THROW_OR_RETURN_VALUE(Config::DecodedResourcesWrapper::create(
                                 host_decoder, message.resources(), message.version_info()),

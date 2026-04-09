@@ -16,6 +16,8 @@
 #include "envoy/config/subscription.h"
 #include "envoy/event/dispatcher.h"
 #include "envoy/server/factory_context.h"
+#include "envoy/stats/scope.h"
+#include "envoy/stats/stats_macros.h"
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/thread_local/thread_local_object.h"
 
@@ -24,12 +26,18 @@
 
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "cilium/api/nphds.pb.h"
 #include "cilium/grpc_subscription.h"
 
 namespace Envoy {
 namespace Cilium {
+
+namespace {
+
+static constexpr absl::string_view NetworkPolicyHostsTypeUrl =
+    "type.googleapis.com/cilium.NetworkPolicyHosts";
 
 template <typename T>
 unsigned int checkPrefix(T addr, bool have_prefix, unsigned int plen, absl::string_view host) {
@@ -46,6 +54,8 @@ unsigned int checkPrefix(T addr, bool have_prefix, unsigned int plen, absl::stri
   }
   return plen;
 }
+
+} // namespace
 
 struct ThreadLocalHostMapInitializer : public PolicyHostMap::ThreadLocalHostMap {
 protected:
@@ -154,7 +164,11 @@ protected:
 uint64_t PolicyHostMap::instance_id_ = 0;
 
 // This is used directly for testing with a file-based subscription
-PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls) : tls_(tls.allocateSlot()) {
+PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls, Stats::Scope& scope)
+    : tls_(tls.allocateSlot()),
+      name_(absl::StrCat("cilium.hostmap.", fmt::format("{}", instance_id_ + 1), ".")),
+      scope_(scope.createScope(name_)), stats_scope_(scope.createScope("cilium.hostmap.")),
+      stats_({CILIUM_POLICY_HOSTS_STATS(POOL_COUNTER(*stats_scope_))}) {
   instance_id_++;
   name_ = "cilium.hostmap." + fmt::format("{}", instance_id_) + ".";
   ENVOY_LOG(debug, "PolicyHostMap({}) created.", name_);
@@ -167,16 +181,36 @@ PolicyHostMap::PolicyHostMap(ThreadLocal::SlotAllocator& tls) : tls_(tls.allocat
 
 // This is used in production
 PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& context)
-    : PolicyHostMap(context.threadLocal()) {
-  scope_ = context.serverScope().createScope(name_);
+    : tls_(context.threadLocal().allocateSlot()),
+      name_(absl::StrCat("cilium.hostmap.", fmt::format("{}", instance_id_ + 1), ".")),
+      scope_(context.serverScope().createScope(name_)),
+      stats_scope_(context.serverScope().createScope("cilium.hostmap.")),
+      stats_({CILIUM_POLICY_HOSTS_STATS(POOL_COUNTER(*stats_scope_))}) {
+  instance_id_++;
+  ENVOY_LOG(debug, "PolicyHostMap({}) created.", name_);
+
+  auto empty_map = std::make_shared<ThreadLocalHostMapInitializer>();
+  tls_->set([empty_map](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
+    return empty_map;
+  });
 }
 
 void PolicyHostMap::startSubscription(Server::Configuration::CommonFactoryContext& context,
                                       const envoy::config::core::v3::ConfigSource& npds_config) {
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", npds_config,
-                            context.localInfo(), context.clusterManager(),
-                            context.mainThreadDispatcher(), context.api().randomGenerator(),
-                            *scope_, *this, std::make_shared<Cilium::PolicyHostDecoder>());
+  if (npds_config.config_source_specifier_case() == envoy::config::core::v3::ConfigSource::kAds) {
+    auto ads_mux = context.xdsManager().adsMux();
+    subscription_ = THROW_OR_RETURN_VALUE(
+        context.clusterManager().subscriptionFactory().subscriptionOverAdsGrpcMux(
+            ads_mux, npds_config, NetworkPolicyHostsTypeUrl, *scope_, *this,
+            std::make_shared<Cilium::PolicyHostDecoder>(), {}),
+        Config::SubscriptionPtr);
+  } else {
+    subscription_ = subscribe(NetworkPolicyHostsTypeUrl, npds_config, context.localInfo(),
+                              context.clusterManager(), context.mainThreadDispatcher(),
+                              context.api().randomGenerator(), *scope_, *this,
+                              std::make_shared<Cilium::PolicyHostDecoder>());
+  }
+
   subscription_->start({});
 }
 
@@ -211,6 +245,7 @@ PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRe
     return newmap;
   });
   logmaps("onConfigUpdate");
+  stats_.update_success_.inc();
   return absl::OkStatus();
 }
 

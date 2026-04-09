@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <memory>
-#include <string>
 
 #include "envoy/common/random_generator.h"
 #include "envoy/config/core/v3/config_source.pb.h"
@@ -15,6 +14,8 @@
 #include "source/extensions/config_subscription/grpc/grpc_mux_context.h"
 #include "source/extensions/config_subscription/grpc/grpc_mux_impl.h"
 #include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
+
+#include "absl/strings/string_view.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -44,7 +45,8 @@ private:
 };
 
 std::unique_ptr<Config::GrpcSubscriptionImpl>
-subscribe(const std::string& type_url, const envoy::config::core::v3::ConfigSource& npds_config,
+subscribe(const absl::string_view type_url,
+          const envoy::config::core::v3::ConfigSource& npds_config,
           const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
           Event::Dispatcher& dispatcher, Random::RandomGenerator& random, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
