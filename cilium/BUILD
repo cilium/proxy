@@ -46,7 +46,6 @@ envoy_cc_library(
         "//cilium:grpc_subscription_lib",
         "//cilium:ipcache_lib",
         "//cilium/api:npds_cc_proto",
-        "@envoy//envoy/config:subscription_interface",
         "@envoy//envoy/singleton:manager_interface",
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/config:opaque_resource_decoder_lib",
@@ -348,6 +347,7 @@ envoy_cc_library(
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/network:address_lib",
         "@envoy//source/common/router:config_utility_lib",
+        "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],
 )
 

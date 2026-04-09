@@ -19,9 +19,6 @@
 namespace Envoy {
 namespace Cilium {
 
-// Cilium XDS API config source. Used for all Cilium XDS.
-extern envoy::config::core::v3::ConfigSource cilium_xds_api_config;
-
 // GrpcMux wrapper to get access to control plane identifier
 class GrpcMuxImpl : public Config::GrpcMuxImpl {
 public:
@@ -47,9 +44,9 @@ private:
 };
 
 std::unique_ptr<Config::GrpcSubscriptionImpl>
-subscribe(const std::string& type_url, const LocalInfo::LocalInfo& local_info,
-          Upstream::ClusterManager& cm, Event::Dispatcher& dispatcher,
-          Random::RandomGenerator& random, Stats::Scope& scope,
+subscribe(const std::string& type_url, const envoy::config::core::v3::ConfigSource& npds_config,
+          const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
+          Event::Dispatcher& dispatcher, Random::RandomGenerator& random, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
           Config::OpaqueResourceDecoderSharedPtr resource_decoder,
           std::chrono::milliseconds init_fetch_timeout = std::chrono::milliseconds(0));

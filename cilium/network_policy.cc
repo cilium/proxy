@@ -20,6 +20,7 @@
 #include "envoy/common/optref.h"
 #include "envoy/config/core/v3/address.pb.h"
 #include "envoy/config/core/v3/base.pb.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
 #include "envoy/init/manager.h"
@@ -1821,9 +1822,11 @@ private:
 
 // Common base constructor
 // This is used directly for testing with a file-based subscription
-NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context, bool subscribe)
+NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context,
+                                   const envoy::config::core::v3::ConfigSource& npds_config,
+                                   bool subscribe)
     : context_(context.serverFactoryContext()) {
-  impl_ = std::make_unique<NetworkPolicyMapImpl>(context);
+  impl_ = std::make_unique<NetworkPolicyMapImpl>(context, npds_config);
 
   if (context_.admin().has_value()) {
     ENVOY_LOG(debug, "Registering NetworkPolicies to config tracker");
@@ -1858,7 +1861,8 @@ NetworkPolicyMap::~NetworkPolicyMap() {
   context_.mainThreadDispatcher().post([impl = std::move(impl_)]() {});
 }
 
-NetworkPolicyMapImpl::NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context)
+NetworkPolicyMapImpl::NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context,
+                                           const envoy::config::core::v3::ConfigSource& npds_config)
     : context_(context.serverFactoryContext()), map_ptr_(nullptr),
       npds_stats_scope_(context_.serverScope().createScope("cilium.npds.")),
       policy_stats_scope_(context_.serverScope().createScope("cilium.policy.")),
@@ -1872,6 +1876,7 @@ NetworkPolicyMapImpl::NetworkPolicyMapImpl(Server::Configuration::FactoryContext
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
               context_, *npds_stats_scope_,
               context_.messageValidationContext().dynamicValidationVisitor())),
+      npds_config_(npds_config),
       stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER(*policy_stats_scope_),
                                      POOL_HISTOGRAM(*policy_stats_scope_))} {
   // Use listener init manager for subscription initialization
@@ -1890,10 +1895,10 @@ NetworkPolicyMapImpl::~NetworkPolicyMapImpl() {
 }
 
 void NetworkPolicyMapImpl::startSubscription() {
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", context_.localInfo(),
-                            context_.clusterManager(), context_.mainThreadDispatcher(),
-                            context_.api().randomGenerator(), *npds_stats_scope_, *this,
-                            std::make_shared<NetworkPolicyDecoder>());
+  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", npds_config_,
+                            context_.localInfo(), context_.clusterManager(),
+                            context_.mainThreadDispatcher(), context_.api().randomGenerator(),
+                            *npds_stats_scope_, *this, std::make_shared<NetworkPolicyDecoder>());
 }
 
 void NetworkPolicyMapImpl::tlsWrapperMissingPolicyInc() const {
