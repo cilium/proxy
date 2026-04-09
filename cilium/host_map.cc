@@ -31,6 +31,10 @@
 namespace Envoy {
 namespace Cilium {
 
+namespace {
+
+  constexpr absl::string_view NetworkPolicyHostsTypeUrl = "type.googleapis.com/cilium.NetworkPolicyHosts";
+
 template <typename T>
 unsigned int checkPrefix(T addr, bool have_prefix, unsigned int plen, absl::string_view host) {
   const unsigned int plen_max = sizeof(T) * 8;
@@ -46,6 +50,9 @@ unsigned int checkPrefix(T addr, bool have_prefix, unsigned int plen, absl::stri
   }
   return plen;
 }
+
+}// namespace
+
 
 struct ThreadLocalHostMapInitializer : public PolicyHostMap::ThreadLocalHostMap {
 protected:
@@ -171,12 +178,23 @@ PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& contex
   scope_ = context.serverScope().createScope(name_);
 }
 
-void PolicyHostMap::startSubscription(Server::Configuration::CommonFactoryContext& context,
-                                      const envoy::config::core::v3::ConfigSource& npds_config) {
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", npds_config,
+
+void PolicyHostMap::startSubscription(
+    Server::Configuration::ServerFactoryContext& context,
+    const envoy::config::core::v3::ConfigSource& npds_config) {
+    if (npds_config.has_api_config_source() && npds_config.config_source_specifier_case() ==
+                                                        envoy::config::core::v3::ConfigSource::kAds) {  
+    subscription_ = THROW_OR_RETURN_VALUE(
+      context.clusterManager().subscriptionFactory().subscriptionOverAdsGrpcMux(
+        context.xdsManager().adsMux(), npds_config.value(), NetworkPolicyHostsTypeUrl,
+        *scope_, *this, std::make_shared<Cilium::PolicyHostDecoder>(), {}), Config::SubscriptionPtr);
+  } else {
+      subscription_ = subscribe(NetworkPolicyHostsTypeUrl, npds_config,
                             context.localInfo(), context.clusterManager(),
                             context.mainThreadDispatcher(), context.api().randomGenerator(),
                             *scope_, *this, std::make_shared<Cilium::PolicyHostDecoder>());
+  }
+
   subscription_->start({});
 }
 

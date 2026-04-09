@@ -200,23 +200,27 @@ SINGLETON_MANAGER_REGISTRATION(cilium_network_policy);
 
 namespace {
 
-std::shared_ptr<const Cilium::PolicyHostMap>
+absl::StatusOr<std::shared_ptr<const Cilium::PolicyHostMap>>
 createHostMap(Server::Configuration::ListenerFactoryContext& context,
               envoy::config::core::v3::ConfigSource& npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context, npds_config] {
         auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
+        absl::Status subscription_status = absl::OkStatus();
         map->startSubscription(context.serverFactoryContext(), npds_config);
         return map;
       });
 }
 
-std::shared_ptr<const Cilium::NetworkPolicyMap>
+absl::StatusOr<std::shared_ptr<const Cilium::NetworkPolicyMap>>
 createPolicyMap(Server::Configuration::FactoryContext& context,
                 envoy::config::core::v3::ConfigSource& npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, npds_config] {
-        return std::make_shared<Cilium::NetworkPolicyMap>(context, npds_config, true);
+        absl::Status creation_status = absl::OkStatus();
+        auto policy_map = std::make_shared<Cilium::NetworkPolicyMap>(context, npds_config, creation_status, true);
+        RETURN_IF_NOT_OK_REF(creation_status);
+        return policy_map;
       });
 }
 

@@ -237,9 +237,8 @@ public:
                        const envoy::config::core::v3::ConfigSource& npds_config);
   ~NetworkPolicyMapImpl() override;
 
-  void startSubscription();
-
-  const envoy::config::core::v3::ConfigSource& getConfigSource() const { return npds_config_; }
+  void
+  startSubscription(const envoy::config::core::v3::ConfigSource& npds_config);
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
@@ -346,7 +345,7 @@ class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Log
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context,
                    const envoy::config::core::v3::ConfigSource& npds_config,
-                   bool subscribe = false);
+                   absl::Status& creation_status, bool subscribe = false);
   ~NetworkPolicyMap() override;
 
   // This is used for testing with a file-based subscription

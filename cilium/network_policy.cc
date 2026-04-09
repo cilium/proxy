@@ -60,6 +60,12 @@
 #include "cilium/ipcache.h"
 #include "cilium/secret_watcher.h"
 
+namespace {
+
+  constexpr std::string NetworkPolicyTypeUrl = "type.googleapis.com/cilium.NetworkPolicy";
+
+}//namespace
+
 namespace fmt {
 
 template <> struct formatter<Envoy::Cilium::RuleVerdict> {
@@ -1838,7 +1844,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   }
 
   if (subscribe) {
-    getImpl().startSubscription();
+    getImpl().startSubscription(npds_config);
   }
 }
 
@@ -1894,11 +1900,22 @@ NetworkPolicyMapImpl::~NetworkPolicyMapImpl() {
   delete load();
 }
 
-void NetworkPolicyMapImpl::startSubscription() {
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", npds_config_,
-                            context_.localInfo(), context_.clusterManager(),
-                            context_.mainThreadDispatcher(), context_.api().randomGenerator(),
-                            *npds_stats_scope_, *this, std::make_shared<NetworkPolicyDecoder>());
+void NetworkPolicyMapImpl::startSubscription(
+    const envoy::config::core::v3::ConfigSource& npds_config) {
+    if (npds_config.value().has_api_config_source() && npds_config.value().config_source_specifier_case() ==
+                                                        envoy::config::core::v3::ConfigSource::kAds) {  
+    subscription_ = THROW_OR_RETURN_VALUE(
+      context_.clusterManager().subscriptionFactory().subscriptionOverAdsGrpcMux(
+        context_.xdsManager().adsMux(), npds_config.value(), NetworkPolicyTypeUrl,
+        *scope_, *this, std::make_shared<Cilium::PolicyHostDecoder>(), {}), Config::SubscriptionPtr);
+  } else {
+    subscription_ = subscribe(NetworkPolicyTypeUrl, npds_config,
+                              context_.localInfo(), context_.clusterManager(),
+                              context_.mainThreadDispatcher(), context_.api().randomGenerator(),
+                              *npds_stats_scope_, *this, std::make_shared<NetworkPolicyDecoder>());
+  }
+
+  subscription_->start({});
 }
 
 void NetworkPolicyMapImpl::tlsWrapperMissingPolicyInc() const {
