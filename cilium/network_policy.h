@@ -215,17 +215,18 @@ private:
  * All Cilium L7 filter stats. @see stats_macros.h
  */
 // clang-format off
-#define ALL_CILIUM_POLICY_STATS(COUNTER, HISTOGRAM)	\
+#define ALL_CILIUM_POLICY_STATS(COUNTER)	\
   COUNTER(updates_total)				\
   COUNTER(updates_rejected)				\
-  COUNTER(tls_wrapper_missing_policy)
+  COUNTER(tls_wrapper_missing_policy) \
+  COUNTER(update_success)
 // clang-format on
 
 /**
  * Struct definition for all policy stats. @see stats_macros.h
  */
 struct PolicyStats {
-  ALL_CILIUM_POLICY_STATS(GENERATE_COUNTER_STRUCT, GENERATE_HISTOGRAM_STRUCT)
+  ALL_CILIUM_POLICY_STATS(GENERATE_COUNTER_STRUCT)
 };
 
 using RawPolicyMap = absl::flat_hash_map<std::string, std::shared_ptr<const PolicyInstanceImpl>>;
@@ -237,14 +238,14 @@ public:
                        const envoy::config::core::v3::ConfigSource& npds_config);
   ~NetworkPolicyMapImpl() override;
 
-  void startSubscription();
-
-  const envoy::config::core::v3::ConfigSource& getConfigSource() const { return npds_config_; }
+  void startSubscription(const envoy::config::core::v3::ConfigSource& npds_config);
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
     subscription_ = std::move(subscription);
   }
+
+  const envoy::config::core::v3::ConfigSource& getConfigSource() const { return npds_config_; }
 
   // run the given function after all the threads have scheduled
   void runAfterAllThreads(std::function<void()>) const;

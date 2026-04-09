@@ -60,6 +60,13 @@
 #include "cilium/ipcache.h"
 #include "cilium/secret_watcher.h"
 
+namespace {
+
+static constexpr absl::string_view NetworkPolicyTypeUrl =
+    "type.googleapis.com/cilium.NetworkPolicy";
+
+} // namespace
+
 namespace fmt {
 
 template <> struct formatter<Envoy::Cilium::RuleVerdict> {
@@ -1838,7 +1845,7 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
   }
 
   if (subscribe) {
-    getImpl().startSubscription();
+    getImpl().startSubscription(npds_config);
   }
 }
 
@@ -1877,8 +1884,7 @@ NetworkPolicyMapImpl::NetworkPolicyMapImpl(Server::Configuration::FactoryContext
               context_, *npds_stats_scope_,
               context_.messageValidationContext().dynamicValidationVisitor())),
       npds_config_(npds_config),
-      stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER(*policy_stats_scope_),
-                                     POOL_HISTOGRAM(*policy_stats_scope_))} {
+      stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER(*policy_stats_scope_))} {
   // Use listener init manager for subscription initialization
   context.initManager().add(init_target_);
 
@@ -1894,11 +1900,23 @@ NetworkPolicyMapImpl::~NetworkPolicyMapImpl() {
   delete load();
 }
 
-void NetworkPolicyMapImpl::startSubscription() {
-  subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", npds_config_,
-                            context_.localInfo(), context_.clusterManager(),
-                            context_.mainThreadDispatcher(), context_.api().randomGenerator(),
-                            *npds_stats_scope_, *this, std::make_shared<NetworkPolicyDecoder>());
+void NetworkPolicyMapImpl::startSubscription(
+    const envoy::config::core::v3::ConfigSource& npds_config) {
+  if (npds_config.config_source_specifier_case() == envoy::config::core::v3::ConfigSource::kAds) {
+    auto ads_mux = context_.xdsManager().adsMux();
+    subscription_ = THROW_OR_RETURN_VALUE(
+        context_.clusterManager().subscriptionFactory().subscriptionOverAdsGrpcMux(
+            ads_mux, npds_config, NetworkPolicyTypeUrl, *npds_stats_scope_, *this,
+            std::make_shared<NetworkPolicyDecoder>(), {}),
+        Config::SubscriptionPtr);
+  } else {
+    subscription_ = subscribe(NetworkPolicyTypeUrl, npds_config, context_.localInfo(),
+                              context_.clusterManager(), context_.mainThreadDispatcher(),
+                              context_.api().randomGenerator(), *npds_stats_scope_, *this,
+                              std::make_shared<NetworkPolicyDecoder>());
+  }
+
+  subscription_->start({});
 }
 
 void NetworkPolicyMapImpl::tlsWrapperMissingPolicyInc() const {
@@ -2027,7 +2045,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
     // Clean-up in the main thread after all threads have scheduled
     delete old_map;
   });
-
+  stats_.update_success_.inc();
   return absl::OkStatus();
 }
 

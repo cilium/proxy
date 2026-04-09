@@ -21,6 +21,7 @@
 #include "envoy/server/factory_context.h"
 #include "envoy/singleton/instance.h"
 #include "envoy/stats/scope.h"
+#include "envoy/stats/stats_macros.h"
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/thread_local/thread_local_object.h"
 
@@ -91,13 +92,25 @@ private:
   ProtobufMessage::ValidationVisitor& validation_visitor_;
 };
 
+// clang-format off
+#define CILIUM_POLICY_HOSTS_STATS(COUNTER)	\
+  COUNTER(update_success)
+// clang-format on
+
+/**
+ * Struct definition for all policy stats. @see stats_macros.h
+ */
+struct PolicyHostsStats {
+  CILIUM_POLICY_HOSTS_STATS(GENERATE_COUNTER_STRUCT)
+};
+
 class PolicyHostMap : public Singleton::Instance,
                       public Config::SubscriptionCallbacks,
                       public std::enable_shared_from_this<PolicyHostMap>,
                       public Logger::Loggable<Logger::Id::config> {
 public:
   PolicyHostMap(Server::Configuration::CommonFactoryContext& context);
-  PolicyHostMap(ThreadLocal::SlotAllocator& tls);
+  PolicyHostMap(ThreadLocal::SlotAllocator& tls, Stats::Scope& scope);
   ~PolicyHostMap() override {
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
@@ -228,10 +241,12 @@ public:
 
 private:
   ThreadLocal::SlotPtr tls_;
+  std::string name_;
   Stats::ScopeSharedPtr scope_;
+  Stats::ScopeSharedPtr stats_scope_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   static uint64_t instance_id_;
-  std::string name_;
+  PolicyHostsStats stats_;
 };
 
 } // namespace Cilium
