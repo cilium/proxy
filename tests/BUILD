@@ -344,3 +344,17 @@ envoy_cc_test(
         "@envoy//test/test_common:utility_lib",
     ],
 )
+
+envoy_cc_test(
+    name = "bpf_metadata_integration_test",
+    srcs = ["bpf_metadata_integration_test.cc"],
+    repository = "@envoy",
+    deps = [
+        ":bpf_metadata_lib",
+        "//cilium:network_filter_lib",
+        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
+        "@envoy//source/extensions/clusters/static:static_cluster_lib",
+        "@envoy//source/extensions/filters/network/tcp_proxy:config",
+        "@envoy//test/integration:integration_lib",
+    ],
+)
