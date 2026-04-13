@@ -310,8 +310,7 @@ public:
 
         if (const auto v = dynamic_cast<Http::HeaderUtility::HeaderDataExactMatch*>(h.get())) {
           res.append(indent + 2, ' ').append("value: \"").append(v->expected_value_).append("\"\n");
-        } else if (const auto v =
-                       dynamic_cast<Http::HeaderUtility::HeaderDataRegexMatch*>(h.get())) {
+        } else if (dynamic_cast<Http::HeaderUtility::HeaderDataRegexMatch*>(h.get())) {
           res.append(indent + 2, ' ').append("regex: ").append("<hidden>\n");
         } else if (const auto v =
                        dynamic_cast<Http::HeaderUtility::HeaderDataRangeMatch*>(h.get())) {
@@ -335,8 +334,7 @@ public:
               .append("contains: \"")
               .append(v->expected_substr_)
               .append("\"\n");
-        } else if (const auto v =
-                       dynamic_cast<Http::HeaderUtility::HeaderDataStringMatch*>(h.get())) {
+        } else if (dynamic_cast<Http::HeaderUtility::HeaderDataStringMatch*>(h.get())) {
           res.append(indent + 2, ' ').append("string_match: ").append("<hidden>\n");
         }
 

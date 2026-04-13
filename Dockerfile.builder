@@ -3,7 +3,7 @@
 # Also note that if build fails due to C++ internal error or similar,
 # it is possible that the image build needs more RAM than available by
 # default on non-Linux docker installs.
-FROM docker.io/library/ubuntu:24.04@sha256:186072bba1b2f436cbb91ef2567abca677337cfc786c86e107d25b7072feef0c AS base
+FROM docker.io/library/ubuntu:24.04@sha256:84e77dee7d1bc93fb029a45e3c6cb9d8aa4831ccfcc7103d36e876938d28895b AS base
 LABEL maintainer="maintainer@cilium.io"
 ARG TARGETARCH
 # Setup TimeZone to prevent tzdata package asking for it interactively
@@ -31,6 +31,24 @@ RUN apt-get update && \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       clang-18 clang-tidy-18 clang-tools-18 llvm-18-dev lldb-18 lld-18 clang-format-18 libc++-18-dev libc++abi-18-dev && \
+    # Create unversioned symlinks so tools are available without -18 suffix
+    ln -sf /usr/bin/clang-18 /usr/bin/clang && \
+    ln -sf /usr/bin/clang++-18 /usr/bin/clang++ && \
+    ln -sf /usr/bin/clang-cpp-18 /usr/bin/clang-cpp && \
+    ln -sf /usr/bin/lld-18 /usr/bin/lld && \
+    ln -sf /usr/bin/ld.lld-18 /usr/bin/ld.lld && \
+    ln -sf /usr/bin/lldb-18 /usr/bin/lldb && \
+    ln -sf /usr/bin/clang-format-18 /usr/bin/clang-format && \
+    ln -sf /usr/bin/clang-tidy-18 /usr/bin/clang-tidy && \
+    ln -sf /usr/bin/run-clang-tidy-18 /usr/bin/run-clang-tidy && \
+    ln -sf /usr/bin/llvm-ar-18 /usr/bin/llvm-ar && \
+    ln -sf /usr/bin/llvm-nm-18 /usr/bin/llvm-nm && \
+    ln -sf /usr/bin/llvm-strip-18 /usr/bin/llvm-strip && \
+    ln -sf /usr/bin/llvm-objcopy-18 /usr/bin/llvm-objcopy && \
+    ln -sf /usr/bin/llvm-objdump-18 /usr/bin/llvm-objdump && \
+    ln -sf /usr/bin/llvm-dwp-18 /usr/bin/llvm-dwp && \
+    ln -sf /usr/bin/llvm-cov-18 /usr/bin/llvm-cov && \
+    ln -sf /usr/bin/llvm-config-18 /usr/bin/llvm-config && \
     apt-get purge --auto-remove && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
