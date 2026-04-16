@@ -103,9 +103,8 @@ public:
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 
-  void
-  startSubscription(Server::Configuration::CommonFactoryContext& context,
-                    const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config);
+  void startSubscription(Server::Configuration::CommonFactoryContext& context,
+                         const absl::optional<envoy::config::core::v3::ConfigSource> npds_config);
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {

@@ -44,7 +44,7 @@ envoy_cc_test_library(
 )
 
 envoy_cc_test_library(
-    name = "test_bpf_metadata_lib",
+    name = "bpf_metadata_lib",
     srcs = ["bpf_metadata.cc"],
     hdrs = ["bpf_metadata.h"],
     repository = "@envoy",
@@ -65,7 +65,7 @@ envoy_cc_test_library(
     repository = "@envoy",
     deps = [
         ":accesslog_server_lib",
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
         "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
         "@envoy//source/extensions/clusters/static:static_cluster_lib",
@@ -100,7 +100,7 @@ envoy_cc_test_library(
     repository = "@envoy",
     deps = [
         ":accesslog_server_lib",
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
         "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
         "@envoy//source/extensions/clusters/static:static_cluster_lib",
@@ -122,11 +122,11 @@ envoy_cc_test(
 )
 
 envoy_cc_test(
-    name = "bpf_metadata_config_test",
-    srcs = ["bpf_metadata_config_test.cc"],
+    name = "metadata_config_test",
+    srcs = ["metadata_config_test.cc"],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         "@envoy//envoy/network:filter_interface",
         "@envoy//test/mocks/server:listener_factory_context_mocks",
     ],
@@ -152,7 +152,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
         "//cilium:network_filter_lib",
         "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
@@ -171,7 +171,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
         ":cilium_tls_integration_lib",
         "//cilium:l7policy_lib",
@@ -193,7 +193,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
         ":cilium_tls_integration_lib",
         "//cilium:l7policy_lib",
@@ -214,7 +214,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
@@ -234,7 +234,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
         "//cilium:l7policy_lib",
         "//cilium:network_filter_lib",
@@ -256,7 +256,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
@@ -276,7 +276,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
@@ -295,7 +295,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
         ":cilium_tcp_integration_lib",
         "//cilium:l7policy_lib",
@@ -316,7 +316,7 @@ envoy_cc_test(
     ],
     repository = "@envoy",
     deps = [
-        ":test_bpf_metadata_lib",
+        ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
         "//cilium:network_filter_lib",
         "//cilium:websocket_lib",
@@ -342,22 +342,5 @@ envoy_cc_test(
         "@envoy//test/mocks/server:health_checker_factory_context_mocks",
         "@envoy//test/test_common:environment_lib",
         "@envoy//test/test_common:utility_lib",
-    ],
-)
-
-envoy_cc_test(
-    name = "bpf_metadata_integration_test",
-    srcs = ["bpf_metadata_integration_test.cc"],
-    repository = "@envoy",
-    deps = [
-        ":accesslog_server_lib",
-        "//cilium:bpf_metadata_lib",
-        "//cilium:network_filter_lib",
-        "//cilium:privileged_service_client_lib",
-        "@envoy//envoy/network:filter_interface",
-        "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
-        "@envoy//source/extensions/clusters/static:static_cluster_lib",
-        "@envoy//source/extensions/filters/network/tcp_proxy:config",
-        "@envoy//test/integration:integration_lib",
     ],
 )

@@ -1824,7 +1824,7 @@ private:
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(
     Server::Configuration::FactoryContext& context,
-    const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config, bool subscribe)
+    const absl::optional<envoy::config::core::v3::ConfigSource> npds_config, bool subscribe)
     : context_(context.serverFactoryContext()) {
   impl_ = std::make_unique<NetworkPolicyMapImpl>(context);
 
@@ -1893,7 +1893,7 @@ NetworkPolicyMapImpl::~NetworkPolicyMapImpl() {
 }
 
 void NetworkPolicyMapImpl::startSubscription(
-    const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config) {
+    const absl::optional<envoy::config::core::v3::ConfigSource> npds_config) {
   subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicy", npds_config,
                             context_.localInfo(), context_.clusterManager(),
                             context_.mainThreadDispatcher(), context_.api().randomGenerator(),

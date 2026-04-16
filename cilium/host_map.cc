@@ -174,7 +174,7 @@ PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& contex
 
 void PolicyHostMap::startSubscription(
     Server::Configuration::CommonFactoryContext& context,
-    const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config) {
+    const absl::optional<envoy::config::core::v3::ConfigSource> npds_config) {
   subscription_ = subscribe("type.googleapis.com/cilium.NetworkPolicyHosts", npds_config,
                             context.localInfo(), context.clusterManager(),
                             context.mainThreadDispatcher(), context.api().randomGenerator(),

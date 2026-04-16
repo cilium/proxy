@@ -181,7 +181,7 @@ namespace {
 
 std::shared_ptr<const Cilium::PolicyHostMap>
 createHostMap(Server::Configuration::ListenerFactoryContext& context,
-              const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config) {
+              const absl::optional<envoy::config::core::v3::ConfigSource> npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context, npds_config] {
         auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
@@ -192,7 +192,7 @@ createHostMap(Server::Configuration::ListenerFactoryContext& context,
 
 std::shared_ptr<const Cilium::NetworkPolicyMap>
 createPolicyMap(Server::Configuration::FactoryContext& context,
-                const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config) {
+                const absl::optional<envoy::config::core::v3::ConfigSource> npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, npds_config] {
         return std::make_shared<Cilium::NetworkPolicyMap>(context, npds_config, true);
@@ -235,7 +235,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
         fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}",
                     config.ipv6_source_address()));
   }
-  const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config =
+  const absl::optional<envoy::config::core::v3::ConfigSource> npds_config =
       config.has_npds_config() ? absl::make_optional(config.npds_config()) : absl::nullopt;
   if (config.use_nphds()) {
     hosts_ = createHostMap(context, npds_config);

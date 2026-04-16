@@ -142,7 +142,7 @@ envoy::config::core::v3::ConfigSource cilium_xds_api_config = getCiliumXDSAPICon
 
 std::unique_ptr<Config::GrpcSubscriptionImpl>
 subscribe(const std::string& type_url,
-          const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config,
+          const absl::optional<envoy::config::core::v3::ConfigSource> npds_config,
           const LocalInfo::LocalInfo& local_info, Upstream::ClusterManager& cm,
           Event::Dispatcher& dispatcher, Random::RandomGenerator& random, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
@@ -150,7 +150,7 @@ subscribe(const std::string& type_url,
           std::chrono::milliseconds init_fetch_timeout) {
   envoy::config::core::v3::ApiConfigSource api_config_source;
   if (npds_config.has_value()) {
-    api_config_source = npds_config.value();
+    api_config_source = npds_config.value().api_config_source();
   } else {
     api_config_source = cilium_xds_api_config.api_config_source();
   }

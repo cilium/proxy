@@ -237,8 +237,7 @@ public:
   NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context);
   ~NetworkPolicyMapImpl() override;
 
-  void
-  startSubscription(const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config);
+  void startSubscription(const absl::optional<envoy::config::core::v3::ConfigSource> npds_config);
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
@@ -343,7 +342,7 @@ class AllowAllEgressPolicyInstanceImpl;
 class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Logger::Id::config> {
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context,
-                   const absl::optional<envoy::config::core::v3::ApiConfigSource> npds_config,
+                   const absl::optional<envoy::config::core::v3::ConfigSource> npds_config,
                    bool subscribe = false);
   ~NetworkPolicyMap() override;
 
