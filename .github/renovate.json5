@@ -26,7 +26,6 @@
   pruneStaleBranches: true,
   baseBranchPatterns: [
     'main',
-    'v1.35',
   ],
   labels: [
     'kind/enhancement',
@@ -48,18 +47,6 @@
       ],
       matchBaseBranches: [
         'main',
-        'v1.35',
-      ],
-    },
-    {
-      matchPackageNames: [
-        'docker.io/library/golang',
-        'go',
-        'actions/setup-go'
-      ],
-      allowedVersions: '<1.26',
-      matchBaseBranches: [
-        'v1.35',
       ],
     },
     {
@@ -82,7 +69,6 @@
       ],
       matchBaseBranches: [
         'main',
-        'v1.35',
       ],
     },
     {
@@ -111,7 +97,6 @@
       ],
       matchBaseBranches: [
         'main',
-        'v1.35',
       ],
     },
     {
@@ -124,7 +109,6 @@
       allowedVersions: '24.04',
       matchBaseBranches: [
         'main',
-        'v1.35',
       ],
     },
     {
@@ -137,7 +121,6 @@
       allowedVersions: '24.04',
       matchBaseBranches: [
         'main',
-        'v1.35',
       ],
     },
     {
@@ -160,16 +143,6 @@
       allowedVersions: '<=1.24',
       matchBaseBranches: [
         'main',
-      ],
-    },
-    {
-      groupName: 'envoy 1.35.x',
-      matchDepNames: [
-        'envoyproxy/envoy',
-      ],
-      allowedVersions: '<=1.35',
-      matchBaseBranches: [
-        'v1.35',
       ],
     },
     {
