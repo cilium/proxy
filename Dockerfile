@@ -33,6 +33,7 @@ ARG DEBUG
 ARG BUILDARCH
 ARG TARGETARCH
 ENV TARGETARCH=$TARGETARCH
+RUN echo "cat"
 #
 # Clear runner's cache when building deps
 #
