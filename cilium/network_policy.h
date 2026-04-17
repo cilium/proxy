@@ -234,10 +234,13 @@ using RawPolicyMap = absl::flat_hash_map<std::string, std::shared_ptr<const Poli
 class NetworkPolicyMapImpl : public Envoy::Config::SubscriptionCallbacks,
                              public Logger::Loggable<Logger::Id::config> {
 public:
-  NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context);
+  NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context,
+                       const envoy::config::core::v3::ConfigSource& npds_config);
   ~NetworkPolicyMapImpl() override;
 
-  void startSubscription(const absl::optional<envoy::config::core::v3::ConfigSource> npds_config);
+  void startSubscription();
+
+  const envoy::config::core::v3::ConfigSource& getConfigSource() const { return npds_config_; }
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {
@@ -328,6 +331,7 @@ private:
       transport_factory_context_;
 
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
+  envoy::config::core::v3::ConfigSource npds_config_;
 
 protected:
   friend class NetworkPolicyMap;
@@ -342,7 +346,7 @@ class AllowAllEgressPolicyInstanceImpl;
 class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Logger::Id::config> {
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context,
-                   const absl::optional<envoy::config::core::v3::ConfigSource> npds_config,
+                   const envoy::config::core::v3::ConfigSource& npds_config,
                    bool subscribe = false);
   ~NetworkPolicyMap() override;
 

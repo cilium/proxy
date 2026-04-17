@@ -170,6 +170,27 @@ REGISTER_FACTORY(UdpBpfMetadataConfigFactory,
 } // namespace Server
 
 namespace Cilium {
+
+// Hard-coded Cilium gRPC cluster
+// Note: No rate-limit settings are used, consider if needed.
+envoy::config::core::v3::ConfigSource getCiliumXDSAPIConfig() {
+  auto config_source = envoy::config::core::v3::ConfigSource();
+  /* config_source.initial_fetch_timeout is set to 50 millliseconds.
+   * This applies only to SDS Secrets for now, as for NPDS and NPHDS we explicitly set the timeout
+   * as 0 (no timeout).
+   */
+  config_source.mutable_initial_fetch_timeout()->set_nanos(50000000);
+  config_source.set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
+  auto api_config_source = config_source.mutable_api_config_source();
+  api_config_source->set_set_node_on_first_message_only(true);
+  api_config_source->set_api_type(envoy::config::core::v3::ApiConfigSource::GRPC);
+  api_config_source->set_transport_api_version(envoy::config::core::v3::ApiVersion::V3);
+  api_config_source->add_grpc_services()->mutable_envoy_grpc()->set_cluster_name("xds-grpc-cilium");
+  return config_source;
+}
+
+envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG = getCiliumXDSAPIConfig();
+
 namespace BpfMetadata {
 
 // Singleton registration via macro defined in envoy/singleton/manager.h
@@ -181,7 +202,7 @@ namespace {
 
 std::shared_ptr<const Cilium::PolicyHostMap>
 createHostMap(Server::Configuration::ListenerFactoryContext& context,
-              const absl::optional<envoy::config::core::v3::ConfigSource> npds_config) {
+              envoy::config::core::v3::ConfigSource& npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map), [&context, npds_config] {
         auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
@@ -192,7 +213,7 @@ createHostMap(Server::Configuration::ListenerFactoryContext& context,
 
 std::shared_ptr<const Cilium::NetworkPolicyMap>
 createPolicyMap(Server::Configuration::FactoryContext& context,
-                const absl::optional<envoy::config::core::v3::ConfigSource> npds_config) {
+                envoy::config::core::v3::ConfigSource& npds_config) {
   return context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy), [&context, npds_config] {
         return std::make_shared<Cilium::NetworkPolicyMap>(context, npds_config, true);
@@ -217,7 +238,9 @@ Config::Config(const ::cilium::BpfMetadata& config,
       l7lb_policy_name_(config.l7lb_policy_name()),
       ipcache_entry_ttl_(
           PROTOBUF_GET_MS_OR_DEFAULT(config, cache_entry_ttl, DEFAULT_CACHE_ENTRY_TTL_MS)),
-      random_(context.serverFactoryContext().api().randomGenerator()) {
+      random_(context.serverFactoryContext().api().randomGenerator()),
+      npds_config_(config.has_npds_config() ? config.npds_config()
+                                            : Cilium::CILIUM_XDS_API_CONFIG) {
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -235,10 +258,8 @@ Config::Config(const ::cilium::BpfMetadata& config,
         fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}",
                     config.ipv6_source_address()));
   }
-  const absl::optional<envoy::config::core::v3::ConfigSource> npds_config =
-      config.has_npds_config() ? absl::make_optional(config.npds_config()) : absl::nullopt;
   if (config.use_nphds()) {
-    hosts_ = createHostMap(context, npds_config);
+    hosts_ = createHostMap(context, npds_config_);
   }
 
   // Note: all instances use the bpf root of the first filter with non-empty
@@ -275,7 +296,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
   // instances!
   // Only created if either ipcache_ or hosts_ map exists
   if (ipcache_ || hosts_) {
-    npmap_ = createPolicyMap(context, npds_config);
+    npmap_ = createPolicyMap(context, npds_config_);
   }
 }
 

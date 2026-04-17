@@ -30,6 +30,10 @@
 
 namespace Envoy {
 namespace Cilium {
+
+// Cilium XDS API config source. Used for all Cilium XDS.
+extern envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
+
 namespace BpfMetadata {
 
 #define DEFAULT_CACHE_ENTRY_TTL_MS 3
@@ -168,6 +172,7 @@ public:
   std::string l7lb_policy_name_;
   std::chrono::milliseconds ipcache_entry_ttl_;
   Random::RandomGenerator& random_;
+  envoy::config::core::v3::ConfigSource npds_config_;
 
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
   Cilium::CtMapSharedPtr ct_maps_;

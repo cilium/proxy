@@ -89,17 +89,17 @@ createPolicyMap(const std::string& config,
             THROW_IF_NOT_OK(Envoy::Config::Utility::checkFilesystemSubscriptionBackingPath(
                 sds_path, context.serverFactoryContext().api()));
           }
-          Cilium::setSDSConfigFunc(
-              [](const std::string& name) -> envoy::config::core::v3::ConfigSource {
-                auto file_config = envoy::config::core::v3::ConfigSource();
-                /* initial_fetch_timeout left at default 15 seconds. */
-                file_config.set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
-                auto sds_path =
-                    TestEnvironment::temporaryPath(fmt::sprintf("secret-%s.yaml", name));
-                *file_config.mutable_path_config_source() =
-                    Envoy::Config::makePathConfigSource(sds_path);
-                return file_config;
-              });
+          Cilium::setSDSConfigFunc([](const std::string& name,
+                                      absl::optional<const envoy::config::core::v3::ConfigSource>)
+                                       -> envoy::config::core::v3::ConfigSource {
+            auto file_config = envoy::config::core::v3::ConfigSource();
+            /* initial_fetch_timeout left at default 15 seconds. */
+            file_config.set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
+            auto sds_path = TestEnvironment::temporaryPath(fmt::sprintf("secret-%s.yaml", name));
+            *file_config.mutable_path_config_source() =
+                Envoy::Config::makePathConfigSource(sds_path);
+            return file_config;
+          });
         }
         // File subscription.
         policy_path = TestEnvironment::writeStringToFileForTest("network_policy.yaml", config);
@@ -111,7 +111,8 @@ createPolicyMap(const std::string& config,
             policy_path, context.serverFactoryContext().api()));
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
-        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context, absl::nullopt);
+        auto map =
+            std::make_shared<Cilium::NetworkPolicyMap>(context, Cilium::CILIUM_XDS_API_CONFIG);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
             context.serverFactoryContext().mainThreadDispatcher(),
             Envoy::Config::makePathConfigSource(policy_path), map->getImpl(),
