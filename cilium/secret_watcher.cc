@@ -42,7 +42,7 @@ getCiliumSDSConfig(const std::string&, const envoy::config::core::v3::ConfigSour
 Secret::GenericSecretConfigProviderSharedPtr
 secretProvider(Server::Configuration::TransportSocketFactoryContext& context,
                const std::string& sds_name, const NetworkPolicyMapImpl& parent) {
-  envoy::config::core::v3::ConfigSource config_source =
+  const envoy::config::core::v3::ConfigSource& config_source =
       getSDSConfig(sds_name, parent.getConfigSource());
   return context.serverFactoryContext().secretManager().findOrCreateGenericSecretProvider(
       config_source, sds_name, context.serverFactoryContext(), context.initManager());
