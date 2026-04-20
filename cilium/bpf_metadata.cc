@@ -173,7 +173,7 @@ namespace Cilium {
 
 // Hard-coded Cilium gRPC cluster
 // Note: No rate-limit settings are used, consider if needed.
-envoy::config::core::v3::ConfigSource getCiliumXDSAPIConfig() {
+const envoy::config::core::v3::ConfigSource getCiliumXDSAPIConfig() {
   auto config_source = envoy::config::core::v3::ConfigSource();
   /* config_source.initial_fetch_timeout is set to 50 millliseconds.
    * This applies only to SDS Secrets for now, as for NPDS and NPHDS we explicitly set the timeout
@@ -189,7 +189,7 @@ envoy::config::core::v3::ConfigSource getCiliumXDSAPIConfig() {
   return config_source;
 }
 
-envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG = getCiliumXDSAPIConfig();
+const envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG = getCiliumXDSAPIConfig();
 
 namespace BpfMetadata {
 

@@ -27,10 +27,10 @@ namespace Envoy {
 namespace Cilium {
 
 // Cilium XDS API config source. Used for all Cilium XDS.
-extern envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
+extern const envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
 
 // Facility for SDS config override for testing
-using GetSdsConfigFunc = std::function<envoy::config::core::v3::ConfigSource(
+using GetSdsConfigFunc = std::function<const envoy::config::core::v3::ConfigSource(
     const std::string&, const envoy::config::core::v3::ConfigSource&)>;
 extern GetSdsConfigFunc getSDSConfig;
 void setSDSConfigFunc(GetSdsConfigFunc);

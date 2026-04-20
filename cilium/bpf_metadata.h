@@ -33,7 +33,7 @@ namespace Envoy {
 namespace Cilium {
 
 // Cilium XDS API config source. Used for all Cilium XDS.
-extern envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
+extern const envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
 
 namespace BpfMetadata {
 
