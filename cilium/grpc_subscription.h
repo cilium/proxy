@@ -16,8 +16,6 @@
 #include "source/extensions/config_subscription/grpc/grpc_mux_impl.h"
 #include "source/extensions/config_subscription/grpc/grpc_subscription_impl.h"
 
-#include "absl/types/optional.h"
-
 namespace Envoy {
 namespace Cilium {
 

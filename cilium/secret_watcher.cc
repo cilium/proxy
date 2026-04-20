@@ -33,17 +33,17 @@ namespace {
 
 // SDS config used in production
 envoy::config::core::v3::ConfigSource
-getCiliumSDSConfig(const std::string&,
-                   const envoy::config::core::v3::ConfigSource& config_source) {
-    // This is used in production, where the SDS config is always the same and does not need to
-    // be overridden.
-    return config_source;
+getCiliumSDSConfig(const std::string&, const envoy::config::core::v3::ConfigSource& config_source) {
+  // This is used in production, where the SDS config is always the same and does not need to
+  // be overridden.
+  return config_source;
 }
 
 Secret::GenericSecretConfigProviderSharedPtr
 secretProvider(Server::Configuration::TransportSocketFactoryContext& context,
                const std::string& sds_name, const NetworkPolicyMapImpl& parent) {
-  envoy::config::core::v3::ConfigSource config_source = getSDSConfig(sds_name, parent.getConfigSource());
+  envoy::config::core::v3::ConfigSource config_source =
+      getSDSConfig(sds_name, parent.getConfigSource());
   return context.serverFactoryContext().secretManager().findOrCreateGenericSecretProvider(
       config_source, sds_name, context.serverFactoryContext(), context.initManager());
 }
