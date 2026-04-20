@@ -1,7 +1,11 @@
 name: Refresh test & build cache & build latest wth debug symbols
 on:
   workflow_dispatch:
-  
+
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build-envoy-images-release-debug:
     uses: ./.github/workflows/build-envoy-images-release-base.yaml
