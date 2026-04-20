@@ -34,24 +34,16 @@ namespace {
 // SDS config used in production
 envoy::config::core::v3::ConfigSource
 getCiliumSDSConfig(const std::string&,
-                   absl::optional<const envoy::config::core::v3::ConfigSource> config_source_opt) {
-  if (config_source_opt.has_value()) {
-    // This is used for testing with a file-based subscription, so that the SDS config can be
-    // overridden to point to the file-based subscription instead of the gRPC-based one.
-    return config_source_opt.value();
-  } else {
+                   const envoy::config::core::v3::ConfigSource& config_source) {
     // This is used in production, where the SDS config is always the same and does not need to
     // be overridden.
-    return Cilium::CILIUM_XDS_API_CONFIG;
-  }
+    return config_source;
 }
 
 Secret::GenericSecretConfigProviderSharedPtr
 secretProvider(Server::Configuration::TransportSocketFactoryContext& context,
                const std::string& sds_name, const NetworkPolicyMapImpl& parent) {
-  auto config_source_opt =
-      absl::make_optional<const envoy::config::core::v3::ConfigSource>(parent.getConfigSource());
-  envoy::config::core::v3::ConfigSource config_source = getSDSConfig(sds_name, config_source_opt);
+  envoy::config::core::v3::ConfigSource config_source = getSDSConfig(sds_name, parent.getConfigSource());
   return context.serverFactoryContext().secretManager().findOrCreateGenericSecretProvider(
       config_source, sds_name, context.serverFactoryContext(), context.initManager());
 }
@@ -114,9 +106,7 @@ void setCommonConfig(const cilium::TLSContext config,
     auto sds_secret = tls_context->mutable_validation_context_sds_secret_config();
     sds_secret->set_name(config.validation_context_sds_secret());
     auto* config_source = sds_secret->mutable_sds_config();
-    auto config_source_opt =
-        absl::make_optional<const envoy::config::core::v3::ConfigSource>(parent.getConfigSource());
-    *config_source = getSDSConfig(config.validation_context_sds_secret(), config_source_opt);
+    *config_source = getSDSConfig(config.validation_context_sds_secret(), parent.getConfigSource());
   } else if (!config.trusted_ca().empty()) {
     auto validation_context = tls_context->mutable_validation_context();
     auto trusted_ca = validation_context->mutable_trusted_ca();
@@ -126,9 +116,7 @@ void setCommonConfig(const cilium::TLSContext config,
     auto sds_secret = tls_context->add_tls_certificate_sds_secret_configs();
     sds_secret->set_name(config.tls_sds_secret());
     auto* config_source = sds_secret->mutable_sds_config();
-    auto config_source_opt =
-        absl::make_optional<const envoy::config::core::v3::ConfigSource>(parent.getConfigSource());
-    *config_source = getSDSConfig(config.tls_sds_secret(), config_source_opt);
+    *config_source = getSDSConfig(config.tls_sds_secret(), parent.getConfigSource());
   } else if (!config.certificate_chain().empty()) {
     auto tls_certificate = tls_context->add_tls_certificates();
     auto certificate_chain = tls_certificate->mutable_certificate_chain();

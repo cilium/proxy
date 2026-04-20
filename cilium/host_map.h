@@ -34,7 +34,6 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
-#include "absl/types/optional.h"
 #include "cilium/api/nphds.pb.h"
 #include "cilium/api/nphds.pb.validate.h" // IWYU pragma: keep
 #include "cilium/policy_id.h"

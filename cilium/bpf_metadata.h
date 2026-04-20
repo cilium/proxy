@@ -9,6 +9,7 @@
 
 #include "envoy/api/io_error.h"
 #include "envoy/common/random_generator.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/network/listener_filter_buffer.h"

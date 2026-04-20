@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -29,8 +30,8 @@ namespace Cilium {
 extern envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
 
 // Facility for SDS config override for testing
-using GetSdsConfigFunc = envoy::config::core::v3::ConfigSource (*)(
-    const std::string&, absl::optional<const envoy::config::core::v3::ConfigSource>);
+using GetSdsConfigFunc = std::function<envoy::config::core::v3::ConfigSource(
+    const std::string&, const envoy::config::core::v3::ConfigSource&)>;
 extern GetSdsConfigFunc getSDSConfig;
 void setSDSConfigFunc(GetSdsConfigFunc);
 void resetSDSConfigFunc();

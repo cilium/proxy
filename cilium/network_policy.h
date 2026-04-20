@@ -44,7 +44,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/npds.pb.validate.h" // IWYU pragma: keep

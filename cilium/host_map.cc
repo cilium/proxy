@@ -25,7 +25,6 @@
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "cilium/api/nphds.pb.h"
 #include "cilium/grpc_subscription.h"
 

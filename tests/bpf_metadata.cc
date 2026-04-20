@@ -90,7 +90,7 @@ createPolicyMap(const std::string& config,
                 sds_path, context.serverFactoryContext().api()));
           }
           Cilium::setSDSConfigFunc([](const std::string& name,
-                                      absl::optional<const envoy::config::core::v3::ConfigSource>)
+                                      const envoy::config::core::v3::ConfigSource&)
                                        -> envoy::config::core::v3::ConfigSource {
             auto file_config = envoy::config::core::v3::ConfigSource();
             /* initial_fetch_timeout left at default 15 seconds. */
