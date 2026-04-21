@@ -17,7 +17,7 @@ namespace Envoy {
 class AccessLogServer : public UDSServer {
 public:
   AccessLogServer(const std::string path);
-  ~AccessLogServer();
+  ~AccessLogServer() override;
 
   void clear();
   absl::optional<::cilium::LogEntry>

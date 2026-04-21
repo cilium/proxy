@@ -16,9 +16,11 @@
 namespace Envoy {
 
 AccessLogServer::AccessLogServer(const std::string path)
-    : UDSServer(path, std::bind(&AccessLogServer::msgCallback, this, std::placeholders::_1)) {}
+    : UDSServer(path, std::bind(&AccessLogServer::msgCallback, this, std::placeholders::_1)) {
+  startServerThread();
+}
 
-AccessLogServer::~AccessLogServer() = default;
+AccessLogServer::~AccessLogServer() { shutdownServerThread(); }
 
 void AccessLogServer::clear() {
   absl::MutexLock lock(&mutex_);

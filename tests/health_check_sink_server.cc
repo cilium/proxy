@@ -18,9 +18,10 @@ namespace Envoy {
 
 HealthCheckSinkServer::HealthCheckSinkServer(const std::string path)
     : UDSServer(path, std::bind(&HealthCheckSinkServer::msgCallback, this, std::placeholders::_1)) {
+  startServerThread();
 }
 
-HealthCheckSinkServer::~HealthCheckSinkServer() = default;
+HealthCheckSinkServer::~HealthCheckSinkServer() { shutdownServerThread(); }
 
 void HealthCheckSinkServer::clear() {
   absl::MutexLock lock(&mutex_);
