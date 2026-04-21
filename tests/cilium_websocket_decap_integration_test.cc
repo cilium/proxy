@@ -67,7 +67,6 @@ static_resources:
       - name: cilium.network.websocket.server
         typed_config:
           "@type": type.googleapis.com/cilium.WebSocketServer
-          access_log_path: "{{ test_udsdir }}/access_log.sock"
           origin: "jarno.cilium.rocks"
       - name: cilium.network
         typed_config:
@@ -363,12 +362,11 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   ASSERT_TRUE(fake_upstream_connection->close());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
-  // Wait for websocket close frame
+  // Wait for websocket close frame, has to be exactly 2 bytes
   response->waitForBodyData(2);
   absl::string_view close_frame{"\x88\0", 2};
   ASSERT_EQ(response->body(), close_frame);
-
-  cleanupUpstreamAndDownstream();
+  codec_client_->close();
 }
 
 } // namespace Envoy
