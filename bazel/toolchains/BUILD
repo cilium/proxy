@@ -157,6 +157,8 @@ cc_toolchain_config(
         # Needed by Envoy dependencies to build:
         "-Wno-unused-command-line-argument",  # tcmalloc needs this since -fuse-ld was added above
         "-Wno-deprecated-builtins",
+        # for quiche build
+        "-Wno-nullability-completeness"
     ],
     compiler = "clang",
     coverage_compile_flags = ["--coverage"],
