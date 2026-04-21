@@ -8,8 +8,6 @@
 
 #include "test/integration/base_integration_test.h"
 
-#include "tests/accesslog_server.h"
-
 namespace Envoy {
 
 class CiliumTcpIntegrationTest : public BaseIntegrationTest,
@@ -22,8 +20,6 @@ public:
   virtual std::string testPolicyFmt();
 
   void initialize() override;
-
-  AccessLogServer accessLogServer_;
 };
 
 } // namespace Envoy

@@ -40,8 +40,7 @@ resources:
 )EOF";
 
 CiliumTcpIntegrationTest::CiliumTcpIntegrationTest(const std::string& config)
-    : BaseIntegrationTest(GetParam(), config),
-      accessLogServer_(TestEnvironment::unixDomainSocketPath("access_log.sock")) {
+    : BaseIntegrationTest(GetParam(), config) {
   enableHalfClose(true);
 #if 1
   for (Logger::Logger& logger : Logger::Registry::loggers()) {

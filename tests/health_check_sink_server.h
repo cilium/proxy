@@ -19,7 +19,7 @@ namespace Envoy {
 class HealthCheckSinkServer : public UDSServer {
 public:
   HealthCheckSinkServer(const std::string path);
-  ~HealthCheckSinkServer();
+  ~HealthCheckSinkServer() override;
 
   void clear();
   absl::optional<envoy::data::core::v3::HealthCheckEvent>

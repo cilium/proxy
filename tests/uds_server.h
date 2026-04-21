@@ -15,10 +15,15 @@ namespace Envoy {
 class UDSServer : public Logger::Loggable<Logger::Id::router> {
 public:
   UDSServer(const std::string& path, std::function<void(const std::string&)> cb);
-  ~UDSServer();
+  virtual ~UDSServer();
+
+protected:
+  // Derived classes bind callbacks into their own state, so start the server thread only after
+  // the derived object has finished constructing.
+  void startServerThread();
+  void shutdownServerThread();
 
 private:
-  void close();
   void threadRoutine();
 
   std::function<void(const std::string&)> msg_cb_;

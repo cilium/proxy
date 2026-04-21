@@ -33,7 +33,15 @@ CiliumHttpIntegrationTest::CiliumHttpIntegrationTest(const std::string& config)
 #endif
 }
 
-CiliumHttpIntegrationTest::~CiliumHttpIntegrationTest() = default;
+CiliumHttpIntegrationTest::~CiliumHttpIntegrationTest() {
+  // Shut down live downstream/upstream traffic before the access log UDS server member is
+  // destroyed. Otherwise the UDS sink can disappear while HttpIntegrationTest base teardown is
+  // still closing HTTP connections and the Envoy test server.
+  cleanupUpstreamAndDownstream();
+  codec_client_.reset();
+  test_server_.reset();
+  fake_upstreams_.clear();
+}
 
 void CiliumHttpIntegrationTest::createEnvoy() {
   // fake upstreams have been created by now, use the port from the 1st upstream

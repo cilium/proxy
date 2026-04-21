@@ -1,7 +1,6 @@
 #include "tests/uds_server.h"
 
 #include <sys/socket.h>
-#include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
 
@@ -23,7 +22,7 @@ namespace Envoy {
 UDSServer::UDSServer(const std::string& path, std::function<void(const std::string&)> cb)
     : msg_cb_(cb), addr_(THROW_OR_RETURN_VALUE(Network::Address::PipeInstance::create(path),
                                                std::unique_ptr<Network::Address::PipeInstance>)),
-      fd2_(-1) {
+      fd_(-1), fd2_(-1) {
   ENVOY_LOG(trace, "Creating unix domain socket server: {}", addr_->asStringView());
   if (!addr_->pipe()->abstractNamespace()) {
     ::unlink(addr_->asString().c_str());
@@ -37,38 +36,52 @@ UDSServer::UDSServer(const std::string& path, std::function<void(const std::stri
   ENVOY_LOG(trace, "Binding to {}", addr_->asStringView());
   if (::bind(fd_, addr_->sockAddr(), addr_->sockAddrLen()) == -1) {
     ENVOY_LOG(warn, "Bind to {} failed: {}", addr_->asStringView(), Envoy::errorDetails(errno));
-    close();
+    ::close(fd_);
+    fd_ = -1;
     return;
   }
 
   ENVOY_LOG(trace, "Listening on {}", addr_->asStringView());
   if (::listen(fd_, 5) == -1) {
     ENVOY_LOG(warn, "Listen on {} failed: {}", addr_->asStringView(), Envoy::errorDetails(errno));
-    close();
+    ::close(fd_);
+    fd_ = -1;
+    if (!addr_->pipe()->abstractNamespace()) {
+      ::unlink(addr_->asString().c_str());
+    }
     return;
   }
+}
 
+UDSServer::~UDSServer() { shutdownServerThread(); }
+
+void UDSServer::startServerThread() {
+  if (fd_ < 0 || thread_ != nullptr) {
+    return;
+  }
   ENVOY_LOG(trace, "Starting unix domain socket server thread fd: {}", fd_.load());
-
   thread_ = Thread::threadFactoryForTest().createThread([this]() { threadRoutine(); });
 }
 
-UDSServer::~UDSServer() {
-  if (fd_ >= 0) {
-    close();
+void UDSServer::shutdownServerThread() {
+  const int fd = fd_.exchange(-1);
+  const int fd2 = fd2_.exchange(-1);
+
+  if (fd2 >= 0) {
+    ::shutdown(fd2, SHUT_RD);
+    ::close(fd2);
+  }
+  if (fd >= 0) {
+    ::shutdown(fd, SHUT_RD);
+    errno = 0;
+    ::close(fd);
+  }
+  if (thread_ != nullptr) {
     ENVOY_LOG(trace, "Waiting on unix domain socket server to close: {}",
               Envoy::errorDetails(errno));
     thread_->join();
     thread_.reset();
   }
-}
-
-void UDSServer::close() {
-  ::shutdown(fd_, SHUT_RD);
-  ::shutdown(fd2_, SHUT_RD);
-  errno = 0;
-  ::close(fd_);
-  fd_ = -1;
   if (!addr_->pipe()->abstractNamespace()) {
     ::unlink(addr_->asString().c_str());
   }
@@ -112,8 +125,10 @@ void UDSServer::threadRoutine() {
         }
       }
     }
-    ::close(fd2_);
-    fd2_ = -1;
+    const int fd2 = fd2_.exchange(-1);
+    if (fd2 >= 0) {
+      ::close(fd2);
+    }
   }
 }
 
