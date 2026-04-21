@@ -17,6 +17,7 @@
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
+#include "envoy/event/dispatcher_thread_deletable.h"
 #include "envoy/http/header_map.h"
 #include "envoy/network/address.h"
 #include "envoy/protobuf/message_validator.h"
@@ -231,6 +232,7 @@ struct PolicyStats {
 using RawPolicyMap = absl::flat_hash_map<std::string, std::shared_ptr<const PolicyInstanceImpl>>;
 
 class NetworkPolicyMapImpl : public Envoy::Config::SubscriptionCallbacks,
+                             public Envoy::Event::DispatcherThreadDeletable,
                              public Logger::Loggable<Logger::Id::config> {
 public:
   NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context,

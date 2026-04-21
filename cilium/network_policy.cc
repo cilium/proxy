@@ -22,6 +22,7 @@
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
+#include "envoy/event/dispatcher_thread_deletable.h"
 #include "envoy/http/header_map.h"
 #include "envoy/init/manager.h"
 #include "envoy/network/address.h"
@@ -1843,9 +1844,6 @@ NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& contex
 }
 
 NetworkPolicyMap::~NetworkPolicyMap() {
-  ENVOY_LOG(debug,
-            "Cilium L7 NetworkPolicyMap: posting NetworkPolicyMapImpl deletion to main thread");
-
   // Policy map destruction happens when the last listener with the Cilium bpf_metadata listener
   // filter has drained out and is finally removed, and last connection of the old listener is
   // closed. This does not happen if new listener(s) with references to policy map are created in
@@ -1853,12 +1851,18 @@ NetworkPolicyMap::~NetworkPolicyMap() {
   //
   // Destruction of the NetworkPolicyMapImpl must be made from the main thread to ensure integrity
   // of SDS subscription management. Since this can be called from a worker thread of the last
-  // connection we must post the destruction to the main thread dispatcher.
-  //
-  // Move the NetworkPolicyMapImpl to the lambda capture so that it goes out of scope and gets
-  // deleted in the main thread.
+  // connection we must post the destruction to the main thread dispatcher in that case.
+  if (Thread::MainThread::isMainOrTestThread()) {
+    ENVOY_LOG(debug, "Cilium L7 NetworkPolicyMap: deleting NetworkPolicyMapImpl in main thread");
+    impl_.reset();
+    return;
+  }
 
-  context_.mainThreadDispatcher().post([impl = std::move(impl_)]() {});
+  ENVOY_LOG(debug,
+            "Cilium L7 NetworkPolicyMap: posting NetworkPolicyMapImpl deletion to main thread");
+
+  context_.mainThreadDispatcher().deleteInDispatcherThread(
+      Event::DispatcherThreadDeletableConstPtr(impl_.release()));
 }
 
 NetworkPolicyMapImpl::NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context,
