@@ -1,0 +1,95 @@
+diff --git a/test/integration/fake_upstream.cc b/test/integration/fake_upstream.cc
+--- a/test/integration/fake_upstream.cc
++++ b/test/integration/fake_upstream.cc
+@@ -436,6 +436,16 @@
+       Network::ReadFilterSharedPtr{new ReadFilter(*this)});
+ }
+ 
++void FakeHttpConnection::initialize() {
++  FakeConnectionBase::initialize();
++  if (shared_connection_.connected() && !shared_connection_.connection().readEnabled()) {
++    // FakeUpstream::consumeConnection() may hand HTTP connections off before the codec/filter
++    // stack is initialized. Re-enable reads only after initialize() has attached the HTTP read
++    // filter, or early request bytes can be consumed without ever creating a FakeStream.
++    shared_connection_.connection().readDisable(false);
++  }
++}
++
+ AssertionResult FakeConnectionBase::close(std::chrono::milliseconds timeout) {
+   ENVOY_LOG(trace, "FakeConnectionBase close");
+   if (!shared_connection_.connected()) {
+@@ -749,7 +756,8 @@
+   // not lazily create for HTTP/3
+   if (http_type_ == Http::CodecType::HTTP3) {
+     quic_connections_.push_back(std::make_unique<FakeHttpConnection>(
+-        *this, consumeConnection(), http_type_, time_system_, config_.max_request_headers_kb_,
++        *this, consumeConnection(/*defer_read_enable=*/true), http_type_, time_system_,
++        config_.max_request_headers_kb_,
+         config_.max_request_headers_count_, config_.headers_with_underscores_action_));
+     quic_connections_.back()->initialize();
+   }
+@@ -820,7 +828,8 @@
+   return runOnDispatcherThreadAndWait([&]() {
+     absl::MutexLock lock(lock_);
+     connection = std::make_unique<FakeHttpConnection>(
+-        *this, consumeConnection(), http_type_, time_system_, config_.max_request_headers_kb_,
++        *this, consumeConnection(/*defer_read_enable=*/true), http_type_, time_system_,
++        config_.max_request_headers_kb_,
+         config_.max_request_headers_count_, config_.headers_with_underscores_action_);
+     connection->initialize();
+     return AssertionSuccess();
+@@ -857,7 +866,8 @@
+       EXPECT_TRUE(upstream.runOnDispatcherThreadAndWait([&]() {
+         absl::MutexLock lock(&upstream.lock_);
+         connection = std::make_unique<FakeHttpConnection>(
+-            upstream, upstream.consumeConnection(), upstream.http_type_, upstream.timeSystem(),
++            upstream, upstream.consumeConnection(/*defer_read_enable=*/true),
++            upstream.http_type_, upstream.timeSystem(),
+             Http::DEFAULT_MAX_REQUEST_HEADERS_KB, Http::DEFAULT_MAX_HEADERS_COUNT,
+             envoy::config::core::v3::HttpProtocolOptions::ALLOW);
+         connection->initialize();
+@@ -920,7 +930,7 @@
+   raw_connection.release();
+ }
+ 
+-SharedConnectionWrapper& FakeUpstream::consumeConnection() {
++SharedConnectionWrapper& FakeUpstream::consumeConnection(bool defer_read_enable) {
+   ASSERT(!new_connections_.empty());
+   auto* const connection_wrapper = new_connections_.front().get();
+   // Skip the thread safety check if the network connection has already been freed since there's no
+@@ -930,10 +940,11 @@
+   connection_wrapper->moveBetweenLists(new_connections_, consumed_connections_);
+   if (read_disable_on_new_connection_ && connection_wrapper->connected() &&
+       http_type_ != Http::CodecType::HTTP3 && !disable_and_do_not_enable_) {
+-    // Re-enable read and early close detection.
+     auto& connection = connection_wrapper->connection();
+     connection.detectEarlyCloseWhenReadDisabled(true);
+-    connection.readDisable(false);
++    if (!defer_read_enable) {
++      connection.readDisable(false);
++    }
+   }
+   return *connection_wrapper;
+ }
+diff --git a/test/integration/fake_upstream.h b/test/integration/fake_upstream.h
+--- a/test/integration/fake_upstream.h
++++ b/test/integration/fake_upstream.h
+@@ -547,6 +547,8 @@
+                      envoy::config::core::v3::HttpProtocolOptions::HeadersWithUnderscoresAction
+                          headers_with_underscores_action);
+ 
++  void initialize() override;
++
+   ABSL_MUST_USE_RESULT
+   testing::AssertionResult
+   waitForNewStream(Event::Dispatcher& client_dispatcher, FakeStreamPtr& stream,
+@@ -998,7 +1000,8 @@
+   };
+ 
+   void threadRoutine();
+-  SharedConnectionWrapper& consumeConnection() ABSL_EXCLUSIVE_LOCKS_REQUIRED(lock_);
++  SharedConnectionWrapper& consumeConnection(bool defer_read_enable = false)
++      ABSL_EXCLUSIVE_LOCKS_REQUIRED(lock_);
+   Network::FilterStatus onRecvDatagram(Network::UdpRecvData& data);
+   AssertionResult
+   runOnDispatcherThreadAndWait(std::function<AssertionResult()> cb,

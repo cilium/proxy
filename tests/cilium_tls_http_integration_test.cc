@@ -234,7 +234,6 @@ public:
 
   void initialize() override {
     CiliumHttpIntegrationTest::initialize();
-    fake_upstreams_[0]->setReadDisableOnNewConnection(false);
 
     // Set up the SSL client.
     Network::Address::InstanceConstSharedPtr address =
