@@ -155,6 +155,8 @@ $(DESTDIR)$(GLIBC_DIR): bazel-bin/cilium-envoy
 install: bazel-bin/cilium-envoy-starter bazel-bin/cilium-envoy
 	$(SUDO) $(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy-starter $(DESTDIR)$(BINDIR)/cilium-envoy-starter
+	$(SUDO) setcap 'cap_net_admin,cap_bpf+pe' $(DESTDIR)$(BINDIR)/cilium-envoy-starter
+	$(SUDO) chmod u+s $(DESTDIR)$(BINDIR)/cilium-envoy-starter
 	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy $(DESTDIR)$(BINDIR)/cilium-envoy
 
 install-glibc: install $(DESTDIR)$(GLIBC_DIR)
