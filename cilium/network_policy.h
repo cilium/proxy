@@ -33,6 +33,7 @@
 #include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
 #include "source/common/common/thread.h"
+#include "source/common/init/manager_impl.h"
 #include "source/common/init/target_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/protobuf.h"
@@ -328,6 +329,10 @@ private:
   Init::TargetImpl init_target_;
   std::shared_ptr<Server::Configuration::TransportSocketFactoryContextImpl>
       transport_factory_context_;
+  // Between policy updates, keep a dormant init manager installed so unexpected late init-target
+  // registrations do not hit the listener's already-initialized manager. If it accumulates targets
+  // while parked, log and rotate it out before making it active again.
+  std::unique_ptr<Init::ManagerImpl> parked_init_manager_;
 
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   envoy::config::core::v3::ConfigSource npds_config_;
