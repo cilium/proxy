@@ -15,6 +15,7 @@
 #include <utility>
 #include <vector>
 
+#include "envoy/admin/v3/init_dump.pb.h"
 #include "envoy/common/exception.h"
 #include "envoy/common/matchers.h"
 #include "envoy/common/optref.h"
@@ -1876,11 +1877,13 @@ NetworkPolicyMapImpl::NetworkPolicyMapImpl(Server::Configuration::FactoryContext
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
               context_, *npds_stats_scope_,
               context_.messageValidationContext().dynamicValidationVisitor())),
+      parked_init_manager_(std::make_unique<Init::ManagerImpl>("Cilium NetworkPolicyMap parked")),
       npds_config_(npds_config),
       stats_{ALL_CILIUM_POLICY_STATS(POOL_COUNTER(*policy_stats_scope_),
                                      POOL_HISTOGRAM(*policy_stats_scope_))} {
   // Use listener init manager for subscription initialization
   context.initManager().add(init_target_);
+  transport_factory_context_->setInitManager(*parked_init_manager_);
 
   // Allocate an initial policy map so that the map pointer is never a nullptr
   store(new RawPolicyMap());
@@ -1921,15 +1924,42 @@ bool NetworkPolicyMapImpl::isNewStream() {
 
 // removeInitManager must be called at the end of each policy update
 void NetworkPolicyMapImpl::removeInitManager() {
-  // Remove the local init manager from the transport factory context
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnull-dereference"
-#endif
-  transport_factory_context_->setInitManager(*static_cast<Init::Manager*>(nullptr));
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
+  RELEASE_ASSERT(parked_init_manager_ != nullptr, "parked init manager must exist");
+
+  const bool parked_wrong_state =
+      parked_init_manager_->state() != Init::Manager::State::Uninitialized;
+  if (parked_wrong_state) {
+    ENVOY_LOG(warn,
+              "Cilium NetworkPolicyMap parked init manager unexpectedly reached state {}; "
+              "replacing it before re-installing",
+              static_cast<int>(parked_init_manager_->state()));
+  }
+
+  envoy::admin::v3::UnreadyTargetsDumps parked_dumps;
+  parked_init_manager_->dumpUnreadyTargets(parked_dumps);
+  bool parked_has_targets = false;
+  for (const auto& parked_dump : parked_dumps.unready_targets_dumps()) {
+    if (!parked_dump.target_names().empty()) {
+      parked_has_targets = true;
+      ENVOY_LOG(
+          warn,
+          "Cilium NetworkPolicyMap parked init manager unexpectedly accumulated targets [{}]{}; "
+          "replacing it before re-installing",
+          fmt::join(parked_dump.target_names(), ", "),
+          parked_wrong_state
+              ? fmt::format(" in state {}", static_cast<int>(parked_init_manager_->state()))
+              : "");
+    }
+  }
+
+  // replace parked init manager if it got to a bad state
+  if (parked_wrong_state || parked_has_targets) {
+    parked_init_manager_ = std::make_unique<Init::ManagerImpl>("Cilium NetworkPolicyMap parked");
+  }
+
+  // Restore the parked init manager after a policy-version-specific init manager has been
+  // installed for the duration of the update.
+  transport_factory_context_->setInitManager(*parked_init_manager_);
 }
 
 // onConfigUpdate parses the new network policy resources, allocates a new policy map and atomically
