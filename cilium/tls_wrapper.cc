@@ -49,6 +49,17 @@ public:
   // Network::TransportSocket
   void setTransportSocketCallbacks(Network::TransportSocketCallbacks& callbacks) override {
     callbacks_ = &callbacks;
+
+    // Downstream listeners build the filter chain after transport socket callbacks are installed.
+    // Create the wrapped socket eagerly so connection().ssl() is already populated when network
+    // filters such as HCM initialize their SSL-specific connection stats.
+    //
+    // For upstream sockets this spot is likely too early, as the destination address, filter state,
+    // etc. might not be in place yet. So keep the current onConnected() site for socket preparation
+    // for the client sockets and for any server sockets that might have missed this call.
+    if (!socket_ && state_ == Extensions::TransportSockets::Tls::InitialState::Server) {
+      prepareSocket();
+    }
   }
 
   std::string protocol() const override { return socket_ ? socket_->protocol() : EMPTY_STRING; }
@@ -83,6 +94,17 @@ public:
   }
 
   void onConnected() override {
+    if (!socket_) {
+      prepareSocket();
+    }
+
+    if (socket_) {
+      socket_->onConnected();
+    }
+  }
+
+private:
+  void prepareSocket() {
     // Get the Cilium policy filter state from the callbacks in order to get the TLS
     // configuration.
     // Cilium socket option is only created if the (initial) policy for the local pod exists.
@@ -188,12 +210,9 @@ public:
                      "Policy (Cilium socket option not found)",
                      conn);
     }
-
-    if (socket_) {
-      socket_->onConnected();
-    }
   }
 
+public:
   Ssl::ConnectionInfoConstSharedPtr ssl() const override {
     return socket_ ? socket_->ssl() : nullptr;
   }
