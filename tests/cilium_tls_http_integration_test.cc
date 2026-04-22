@@ -330,6 +330,22 @@ public:
     cleanupUpstreamAndDownstream();
   }
 
+  void acceptedWithSslGaugeCheck(Http::TestRequestHeaderMapImpl&& headers) {
+    initialize();
+    auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
+
+    EXPECT_TRUE(response->complete());
+    EXPECT_EQ("200", response->headers().getStatusValue());
+    EXPECT_TRUE(upstream_request_->complete());
+    EXPECT_EQ(0, upstream_request_->bodyLength());
+
+    test_server_->waitForGaugeEq("http.config_test.downstream_cx_ssl_active", 1);
+
+    cleanupUpstreamAndDownstream();
+
+    test_server_->waitForGaugeEq("http.config_test.downstream_cx_ssl_active", 0);
+  }
+
   // Upstream
   bool upstream_tls_{true};
   std::string upstream_cert_name_{"upstreamlocalhost"};
@@ -355,6 +371,11 @@ TEST_P(CiliumTLSHttpIntegrationTest, DeniedPathPrefix) {
 
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefix) {
   accepted({{":method", "GET"}, {":path", "/allowed"}, {":authority", "localhost"}});
+}
+
+TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefixTracksSslActiveGauge) {
+  acceptedWithSslGaugeCheck(
+      {{":method", "GET"}, {":path", "/allowed"}, {":authority", "localhost"}});
 }
 
 TEST_P(CiliumTLSHttpIntegrationTest, AllowedPathPrefixStrippedHeader) {
