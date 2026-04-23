@@ -14,6 +14,7 @@
 
 include Makefile.defs
 
+MIN_CLANG_VERSION := 18.1.8
 COMPILER_DEP := clang.bazelrc
 
 ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy cilium-envoy-starter bazel-bin/cilium-envoy-starter
@@ -96,7 +97,18 @@ else
 
   # Install clang if needed
   define install_clang
-	$(SUDO) apt install -y clang clangd llvm llvm-dev lld lldb clang-format clang-tools clang-tidy libc++-dev libc++abi-dev
+	add_llvm_source() { \
+		if [ ! -f /etc/apt/trusted.gpg.d/apt.llvm.org.asc ]; then \
+		  $(SUDO) wget -q -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key; \
+		fi; \
+		local CODENAME=$$(lsb_release -cs); \
+		apt_source="deb http://apt.llvm.org/$$CODENAME/ llvm-toolchain-$$CODENAME-18 main" && \
+		$(SUDO) apt-add-repository -y "$${apt_source}" && \
+		$(SUDO) apt update; \
+	}; \
+	version="$$(dpkg-query -W -f='$${Version}' clang-18 2>/dev/null || echo 0)"; \
+	if ! dpkg --compare-versions "$$version" ge 1:$(MIN_CLANG_VERSION)~; then add_llvm_source; fi; \
+	$(SUDO) apt install -y clang-18 clangd-18 llvm-18-dev lld-18 lldb-18 clang-format-18 clang-tools-18 clang-tidy-18 libc++-18-dev libc++abi-18-dev
   endef
 endif
 
