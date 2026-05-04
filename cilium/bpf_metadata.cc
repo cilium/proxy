@@ -215,8 +215,8 @@ Config::Config(const ::cilium::BpfMetadata& config,
       ipcache_entry_ttl_(
           PROTOBUF_GET_MS_OR_DEFAULT(config, cache_entry_ttl, DEFAULT_CACHE_ENTRY_TTL_MS)),
       random_(context.serverFactoryContext().api().randomGenerator()),
-      npds_config_(config.has_npds_config() ? config.npds_config()
-                                            : Cilium::CILIUM_XDS_API_CONFIG) {
+      config_source_(config.has_config_source() ? config.config_source()
+                                                : Cilium::CILIUM_XDS_API_CONFIG) {
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
@@ -238,9 +238,9 @@ Config::Config(const ::cilium::BpfMetadata& config,
     hosts_ =
         context.serverFactoryContext().singletonManager().getTyped<const Cilium::PolicyHostMap>(
             SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map),
-            [&context, npds_config = npds_config_] {
+            [&context, config_source = config_source_] {
               auto map = std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext());
-              map->startSubscription(context.serverFactoryContext(), npds_config);
+              map->startSubscription(context.serverFactoryContext(), config_source);
               return map;
             });
   }
@@ -282,8 +282,8 @@ Config::Config(const ::cilium::BpfMetadata& config,
     npmap_ =
         context.serverFactoryContext().singletonManager().getTyped<const Cilium::NetworkPolicyMap>(
             SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-            [&context, npds_config = npds_config_] {
-              return std::make_shared<Cilium::NetworkPolicyMap>(context, npds_config, true);
+            [&context, config_source = config_source_] {
+              return std::make_shared<Cilium::NetworkPolicyMap>(context, config_source, true);
             });
   }
 }
