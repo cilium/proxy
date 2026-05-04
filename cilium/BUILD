@@ -28,6 +28,16 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "versioned_lib",
+    hdrs = ["versioned.h"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@envoy//source/common/common:assert_lib",
+    ],
+)
+
+envoy_cc_library(
     name = "network_policy_lib",
     srcs = [
         "network_policy.cc",
@@ -43,6 +53,8 @@ envoy_cc_library(
         "//cilium:conntrack_lib",
         "//cilium:grpc_subscription_lib",
         "//cilium:ipcache_lib",
+        "//cilium:versioned_lib",
+        "//cilium/api:bpf_metadata_cc_proto",
         "//cilium/api:npds_cc_proto",
         "@envoy//envoy/singleton:manager_interface",
         "@envoy//source/common/common:logger_lib",
@@ -106,6 +118,7 @@ envoy_cc_library(
         "grpc_subscription.h",
     ],
     deps = [
+        "//cilium/api:bpf_metadata_cc_proto",
         "@abseil-cpp//absl/strings",
         "@envoy//envoy/network:connection_interface",
         "@envoy//source/common/config:type_to_endpoint_lib",

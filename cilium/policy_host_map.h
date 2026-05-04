@@ -29,7 +29,6 @@
 #include "cilium/api/nphds.pb.validate.h" // IWYU pragma: keep
 #include "cilium/grpc_subscription.h"
 #include "cilium/host_map.h"
-#include "cilium/policy_id.h"
 
 namespace Envoy {
 namespace Cilium {

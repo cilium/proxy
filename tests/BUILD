@@ -153,6 +153,14 @@ envoy_benchmark_test(
 )
 
 envoy_cc_test(
+    name = "versioned_test",
+    srcs = ["versioned_test.cc"],
+    deps = [
+        "//cilium:versioned_lib",
+    ],
+)
+
+envoy_cc_test(
     name = "bpf_metadata_config_test",
     srcs = ["bpf_metadata_config_test.cc"],
     deps = [

@@ -30,6 +30,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "cilium/api/accesslog.pb.h"
+#include "cilium/host_map.h"
 #include "cilium/policy_host_map.h"
 #include "cilium/secret_watcher.h"
 #include "tests/bpf_metadata.h" // host_map_config

@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <string>
 
 #include "envoy/common/callback.h"
 #include "envoy/common/exception.h"
@@ -24,6 +23,11 @@ namespace Cilium {
 
 class CiliumTestPeer;
 
+inline constexpr absl::string_view NetworkPolicyTypeUrl =
+    "type.googleapis.com/cilium.NetworkPolicy";
+inline constexpr absl::string_view NetworkPolicyResourceTypeUrl =
+    "type.googleapis.com/cilium.NetworkPolicyResource";
+
 class ManagedGrpcSubscription : public Event::DispatcherThreadDeletable,
                                 public Envoy::Config::SubscriptionCallbacks,
                                 public Logger::Loggable<Logger::Id::config>,
@@ -41,16 +45,22 @@ public:
                           Stats::ScopeSharedPtr scope, bool subscribe = true);
   ~ManagedGrpcSubscription() override = default;
 
-  const envoy::config::core::v3::ConfigSource& getConfigSource() const { return config_source_; }
+  const envoy::config::core::v3::ConfigSource& getConfigSource() const {
+    return current_config_.config_source_;
+  }
 
-  // must be configured before subscribe()
+  // A healthy Delta NPRDS stream remains active until it closes.
   void configure(const envoy::config::core::v3::ConfigSource& config_source);
 
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason reason,
                             const EnvoyException* e) final;
 
 protected:
-  void subscribe();
+  void subscribe(absl::string_view type_url = {});
+
+  // A supported NPRDS server supplies a nonempty initial snapshot, even without local Endpoints.
+  // Empty later deltas are ordinary updates, not negotiation responses.
+  bool fallbackOnEmptyResponse(bool empty);
 
   void start() {
     if (subscription_ && !started_) {
@@ -61,11 +71,12 @@ protected:
 
   Stats::Scope& scope() { return *scope_; }
 
+  absl::string_view getTypeUrl() const { return current_config_.type_url_; }
   bool usesDeltaXds() const {
-    if (!config_source_.has_api_config_source()) {
+    if (!current_config_.config_source_.has_api_config_source()) {
       return false;
     }
-    const auto& api_type = config_source_.api_config_source().api_type();
+    const auto& api_type = current_config_.config_source_.api_config_source().api_type();
     return api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC ||
            api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC;
   }
@@ -79,14 +90,18 @@ private:
   friend class CiliumTestPeer;
 
   void create();
-  void maybeRecreateInDesiredMode(bool transport_closed);
+  void scheduleSubscribe(absl::string_view type_url);
 
-  const std::string type_url_;
-  // desired_config_source_ is used to store config updates from BpfMetadata filter.
-  // Listeners can ask for different configs, so we may keep the existing config_source_
-  // if it remains functional even if some BpfMetadata filters ask for something different.
-  envoy::config::core::v3::ConfigSource desired_config_source_;
-  envoy::config::core::v3::ConfigSource config_source_;
+  struct XdsConfig {
+    absl::string_view type_url_; // Refers to a static protocol type URL.
+    envoy::config::core::v3::ConfigSource config_source_;
+  };
+
+  // The desired type is fixed for the lifetime of the subscription. Policy streams prefer NPRDS
+  // and may fall back to NPDS until the transport closes; listener updates only change the source.
+  XdsConfig desired_config_;
+  XdsConfig current_config_;
+
   DecoderFactory decoder_factory_;
   Server::Configuration::CommonFactoryContext& context_;
   Stats::ScopeSharedPtr scope_;
@@ -95,8 +110,10 @@ private:
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   uint64_t subscription_id_{0};
   uint64_t stream_generation_{1};
+  uint64_t response_generation_{0};
   bool connected_{false};
   bool started_{false};
+  bool fallback_pending_{false};
 
   SubscriptionFactoryForTest factory_for_test_;
 };

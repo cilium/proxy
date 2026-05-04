@@ -290,25 +290,20 @@ Config::Config(const ::cilium::BpfMetadata& config,
     }
   }
 
-  // Get the shared policy provider, or create it if not already created.
-  // Note that the API config source is assumed to be the same for all filter
-  // instances!
-  // Only created if either ipcache_ or hosts_ map exists
-  if (ipcache_ || hosts_) {
-    bool created = false;
-    npmap_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::NetworkPolicyMap>(
-        SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-        [&context, &created, config_source = config_source_] {
-          created = true;
-          return std::make_shared<Cilium::NetworkPolicyMap>(context, config_source);
-        },
-        pin_for_ads);
-    // update desired config source on the map
-    npmap_->configure(config_source_);
-    // The listener that created the map may have been rejected before NPDS started.
-    if (!created) {
-      npmap_->maybeAddInitTarget(context.initManager());
-    }
+  // Start policy discovery even without a legacy identity source. Each stream probes NPRDS
+  // before falling back to NPDS; both still use NPHDS or ipcache for identities here.
+  bool created = false;
+  npmap_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::NetworkPolicyMap>(
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
+      [&context, &created, config_source = config_source_] {
+        created = true;
+        return std::make_shared<Cilium::NetworkPolicyMap>(context, config_source);
+      },
+      pin_for_ads);
+  npmap_->configure(config_source_);
+  // The listener that created the map may have been rejected before the subscription started.
+  if (!created) {
+    npmap_->maybeAddInitTarget(context.initManager());
   }
 }
 
@@ -388,16 +383,10 @@ const Network::Address::Ip* Config::selectIpVersion(const Network::Address::IpVe
 }
 
 const PolicyInstance Config::getPolicy(const std::string& pod_ip) const {
-  // Allow all traffic for egress without a policy when 'is_l7lb_' is true,
-  // or if configured without bpf (npmap_ == nullptr).
+  // Allow egress without a policy when 'is_l7lb_' is true.
   // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by Cilium
   // Ingress (which is implemented as an egress listener!).
   bool allow_egress = !enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_;
-  if (npmap_ == nullptr) {
-    return allow_egress ? NetworkPolicyMap::getAllowAllEgressPolicy()
-                        : NetworkPolicyMap::getDenyAllPolicy();
-  }
-
   return npmap_->getPolicyInstance(pod_ip, allow_egress);
 }
 
@@ -517,11 +506,9 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
     // Original source address is never used for north/south LB
     src_address = nullptr;
-  } else if (!use_original_source_address_ || (npmap_ != nullptr && npmap_->exists(other_ip))) {
+  } else if (!use_original_source_address_ || npmap_->exists(other_ip)) {
     // Otherwise only use the original source address if permitted and the destination is not
     // in the same node.
-    //
-    // If bpf root is not configured (npmap_ == nullptr) we assume all destinations are non-local!
     //
     // Original source address is not used
     src_address = nullptr;

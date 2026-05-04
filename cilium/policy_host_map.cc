@@ -8,13 +8,25 @@
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #include "envoy/common/exception.h"
 #include "envoy/event/dispatcher.h"
+#include "envoy/config/core/v3/config_source.pb.h"
+#include "envoy/config/subscription.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/stats/stats_macros.h"
+#include "envoy/thread_local/thread_local_object.h"
+
+#include "source/common/common/logger.h"
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "cilium/api/nphds.pb.h"
+#include "cilium/grpc_subscription.h"
+#include "cilium/host_map.h"
 
 namespace Envoy {
 namespace Cilium {

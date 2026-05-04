@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <fmt/format.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 
 #include <algorithm>
@@ -10,12 +11,17 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "envoy/common/exception.h"
+#include "envoy/network/address.h"
 
 #include "source/common/common/logger.h"
 #include "source/common/network/utility.h"
 
+#include "absl/container/flat_hash_set.h"
+#include "absl/numeric/int128.h"
+#include "absl/strings/string_view.h"
 #include "cilium/policy_id.h"
 
 namespace Envoy {

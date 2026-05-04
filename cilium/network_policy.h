@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 
+#include "envoy/common/exception.h"
 #include "envoy/common/regex.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
@@ -19,7 +20,6 @@
 #include "envoy/ssl/context_config.h"
 #include "envoy/stats/stats_macros.h" // IWYU pragma: keep
 
-#include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
 #include "source/common/protobuf/arena_wrapped_proto.h"
@@ -41,6 +41,7 @@ class Policy;
 class ManagedGrpcSubscription;
 class PortNetworkPolicyRules;
 class PolicySnapshot;
+using SelectorVersion = uint64_t;
 
 // PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
 // Methods then iterate through the set to determine if policy allows or denies. This is needed to
@@ -51,7 +52,7 @@ protected:
   friend class PortNetworkPolicy;
   friend class DenyAllPolicyImpl;
   friend class AllowAllEgressPolicyImpl;
-  PortPolicy(const PolicySnapshot& map, uint16_t port);
+  PortPolicy(const PolicySnapshot& map, uint16_t port, SelectorVersion selector_version);
 
 public:
   // If hasHttpRules() returns false, then HTTP policy enforcement can be skipped,
@@ -91,6 +92,7 @@ private:
   //   rules.
   const PortNetworkPolicyRules* port_rules_;
   const bool has_http_rules_;
+  const SelectorVersion selector_version_;
 };
 
 class IpAddressPair {
@@ -105,8 +107,8 @@ public:
   Network::Address::InstanceConstSharedPtr ipv6_;
 };
 
-// A borrowed policy. Like PortPolicy, the instance must be released before the worker returns
-// to its event loop.
+// A borrowed policy and selector version from one atomic publication. Like PortPolicy, the
+// instance must be released before the worker returns to its event loop. NPDS ignores the version.
 class PolicyInstance {
 public:
   const PortPolicy findPortPolicy(bool ingress, uint16_t port) const;
@@ -125,9 +127,11 @@ private:
   friend class NetworkPolicyMap;
   friend class NetworkPolicyMapImpl;
 
-  PolicyInstance(const Policy& policy) : policy_(policy) {}
+  PolicyInstance(const Policy& policy, SelectorVersion selector_version)
+      : policy_(policy), selector_version_(selector_version) {}
 
   const Policy& policy_;
+  const SelectorVersion selector_version_;
 };
 
 class NetworkPolicyDecoder : public Envoy::Config::OpaqueResourceDecoder {
@@ -152,6 +156,28 @@ public:
 
 private:
   ProtobufMessage::ValidationVisitor& validation_visitor_;
+};
+
+// NPRDS resource names come from the xDS Resource wrapper, not the payload.
+class NetworkPolicyResourceDecoder : public Envoy::Config::OpaqueResourceDecoder {
+public:
+  ArenaWrappedProto<Protobuf::Message> decodeResource(const Protobuf::Any& resource) override {
+    ArenaWrappedProto<cilium::NetworkPolicyResource> payload;
+    const auto status = MessageUtil::unpackTo(resource, *payload);
+    if (!status.ok()) {
+      // Carry decoding failures to the handler, where the wrapper's resource name is available.
+      ArenaWrappedProto<Protobuf::StringValue> error;
+      error->set_value(status.message());
+      return error;
+    }
+    // Unlike legacy NPDS, validation happens per named resource in the update handler.
+    return payload;
+  }
+
+  std::string resourceName(const Protobuf::Message&) override {
+    throw EnvoyException(
+        "NetworkPolicyResource does not carry a name and must be wrapped in Resource");
+  }
 };
 
 /**
