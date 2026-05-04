@@ -173,7 +173,7 @@ public:
   std::string l7lb_policy_name_;
   std::chrono::milliseconds ipcache_entry_ttl_;
   Random::RandomGenerator& random_;
-  envoy::config::core::v3::ConfigSource npds_config_;
+  envoy::config::core::v3::ConfigSource config_source_;
 
   std::shared_ptr<const Cilium::NetworkPolicyMap> npmap_;
   Cilium::CtMapSharedPtr ct_maps_;

@@ -196,16 +196,16 @@ PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& contex
 }
 
 void PolicyHostMap::startSubscription(Server::Configuration::CommonFactoryContext& context,
-                                      const envoy::config::core::v3::ConfigSource& npds_config) {
-  if (npds_config.config_source_specifier_case() == envoy::config::core::v3::ConfigSource::kAds) {
+                                      const envoy::config::core::v3::ConfigSource& config_source) {
+  if (config_source.config_source_specifier_case() == envoy::config::core::v3::ConfigSource::kAds) {
     auto ads_mux = context.xdsManager().adsMux();
     subscription_ = THROW_OR_RETURN_VALUE(
         context.clusterManager().subscriptionFactory().subscriptionOverAdsGrpcMux(
-            ads_mux, npds_config, NetworkPolicyHostsTypeUrl, *scope_, *this,
+            ads_mux, config_source, NetworkPolicyHostsTypeUrl, *scope_, *this,
             std::make_shared<Cilium::PolicyHostDecoder>(), {}),
         Config::SubscriptionPtr);
   } else {
-    subscription_ = subscribe(NetworkPolicyHostsTypeUrl, npds_config, context, *scope_, *this,
+    subscription_ = subscribe(NetworkPolicyHostsTypeUrl, config_source, context, *scope_, *this,
                               std::make_shared<Cilium::PolicyHostDecoder>());
   }
 

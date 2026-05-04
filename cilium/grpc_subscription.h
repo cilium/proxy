@@ -42,7 +42,7 @@ private:
 
 std::unique_ptr<Config::Subscription>
 subscribe(const absl::string_view type_url,
-          const envoy::config::core::v3::ConfigSource& npds_config,
+          const envoy::config::core::v3::ConfigSource& config_source,
           Server::Configuration::CommonFactoryContext& context, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
           Config::OpaqueResourceDecoderSharedPtr resource_decoder,
