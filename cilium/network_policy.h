@@ -190,7 +190,7 @@ class NetworkPolicyMapImpl;
 class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Logger::Id::config> {
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context,
-                   const envoy::config::core::v3::ConfigSource& npds_config,
+                   const envoy::config::core::v3::ConfigSource& config_source,
                    bool subscribe = false);
   ~NetworkPolicyMap() override;
 

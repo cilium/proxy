@@ -116,7 +116,7 @@ public:
   }
 
   void startSubscription(Server::Configuration::CommonFactoryContext& context,
-                         const envoy::config::core::v3::ConfigSource& npds_config);
+                         const envoy::config::core::v3::ConfigSource& config_source);
 
   // This is used for testing with a file-based subscription
   void startSubscription(std::unique_ptr<Envoy::Config::Subscription>&& subscription) {

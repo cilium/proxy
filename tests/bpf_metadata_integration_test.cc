@@ -102,7 +102,7 @@ public:
     });
   }
 
-  // Inject the cilium.bpf_metadata listener filter with npds_config into the listener.
+  // Inject the cilium.bpf_metadata listener filter with config_source into the listener.
   void addBpfMetadataListenerFilter(envoy::config::listener::v3::Listener& listener, bool) {
     auto* listener_filter = listener.add_listener_filters();
     listener_filter->set_name("cilium.bpf_metadata");
@@ -111,9 +111,9 @@ public:
     bpf_config.set_is_ingress(false);
     bpf_config.set_use_nphds(true);
 
-    auto* npds_config = bpf_config.mutable_npds_config();
-    npds_config->set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
-    npds_config->mutable_ads();
+    auto* config_source = bpf_config.mutable_config_source();
+    config_source->set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
+    config_source->mutable_ads();
 
     listener_filter->mutable_typed_config()->PackFrom(bpf_config);
   }
