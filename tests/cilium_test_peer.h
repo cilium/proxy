@@ -5,6 +5,7 @@
 #include <string>
 #include <utility>
 
+#include "absl/strings/string_view.h"
 #include "cilium/grpc_subscription.h"
 #include "cilium/policy_host_map.h"
 #include "cilium/network_policy.h"
@@ -19,9 +20,15 @@ public:
   using SubscriptionFactory = ManagedGrpcSubscription::SubscriptionFactoryForTest;
 
   static void setSubscription(ManagedGrpcSubscription& target,
-                              std::unique_ptr<Config::Subscription>&& subscription) {
+                              std::unique_ptr<Config::Subscription>&& subscription,
+                              absl::string_view type_url = {}) {
     target.subscription_ = std::move(subscription);
-    target.config_source_ = target.desired_config_source_;
+    target.current_config_ = target.desired_config_;
+    if (!type_url.empty()) {
+      target.current_config_.type_url_ = type_url;
+    }
+    target.fallback_pending_ = false;
+    target.response_generation_ = 0;
     target.connected_ = false;
     target.started_ = false;
   }
@@ -32,8 +39,13 @@ public:
   }
 
   static void setSubscription(NetworkPolicyMap& target,
-                              std::unique_ptr<Config::Subscription>&& subscription) {
-    setSubscription(target.managedSubscription(), std::move(subscription));
+                              std::unique_ptr<Config::Subscription>&& subscription,
+                              absl::string_view type_url = NetworkPolicyTypeUrl) {
+    setSubscription(target.managedSubscription(), std::move(subscription), type_url);
+  }
+
+  static absl::string_view subscriptionTypeUrl(NetworkPolicyMap& target) {
+    return target.managedSubscription().getTypeUrl();
   }
 
   static void setSubscriptionFactory(ManagedGrpcSubscription& target, SubscriptionFactory factory) {
@@ -44,12 +56,20 @@ public:
     setSubscriptionFactory(target.managedSubscription(), std::move(factory));
   }
 
+  static void subscribe(ManagedGrpcSubscription& target) { target.subscribe(); }
+  static void subscribe(PolicyHostMap& target) {
+    subscribe(static_cast<ManagedGrpcSubscription&>(target));
+  }
+  static void subscribe(NetworkPolicyMap& target) { subscribe(target.managedSubscription()); }
+
   static void start(ManagedGrpcSubscription& target) { target.start(); }
-
   static void start(PolicyHostMap& target) { start(static_cast<ManagedGrpcSubscription&>(target)); }
+  static void start(NetworkPolicyMap& target) { start(target.managedSubscription()); }
 
-  static void resetStream(ManagedGrpcSubscription& target) { ++target.stream_generation_; }
-
+  static void resetStream(ManagedGrpcSubscription& target) {
+    ++target.stream_generation_;
+    target.fallback_pending_ = false;
+  }
   static void resetStream(NetworkPolicyMap& target) { resetStream(target.managedSubscription()); }
 
   static uint64_t subscriptionId(ManagedGrpcSubscription& target) {

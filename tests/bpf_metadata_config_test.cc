@@ -13,6 +13,7 @@
 
 #include "envoy/api/api.h"
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/socket_option.pb.h"
 #include "envoy/filesystem/watcher.h"
 #include "envoy/init/target.h"
 #include "envoy/init/watcher.h"
@@ -227,8 +228,7 @@ resources:
 
 TEST_F(MetadataConfigTest, NpdsConfigSupported) {
   ::cilium::BpfMetadata config{};
-  config.mutable_cilium_config_source()->mutable_api_config_source()->set_api_type(
-      envoy::config::core::v3::ApiConfigSource::GRPC);
+  *config.mutable_cilium_config_source() = Cilium::CILIUM_XDS_API_CONFIG;
 
   EXPECT_NO_THROW(initialize(config));
 }
