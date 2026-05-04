@@ -120,12 +120,12 @@ const Protobuf::MethodDescriptor& sotwGrpcMethod(absl::string_view type_url) {
 
 std::unique_ptr<Config::Subscription>
 subscribe(const absl::string_view type_url,
-          const envoy::config::core::v3::ConfigSource& npds_config,
+          const envoy::config::core::v3::ConfigSource& config_source,
           Server::Configuration::CommonFactoryContext& context, Stats::Scope& scope,
           Config::SubscriptionCallbacks& callbacks,
           Config::OpaqueResourceDecoderSharedPtr resource_decoder,
           std::chrono::milliseconds init_fetch_timeout) {
-  auto& api_config_source = npds_config.api_config_source();
+  auto& api_config_source = config_source.api_config_source();
   THROW_IF_NOT_OK(Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(
       context.clusterManager().primaryClusters(), api_config_source));
 
