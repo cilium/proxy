@@ -713,6 +713,14 @@ var binaryTestCases = []testCase{
 			CheckOnData(t, 1, true, false, &[][]byte{getHelloResp}, []ExpFilterOp{
 				{proxylib.PASS, len(getHelloResp)}, {proxylib.INJECT, len(binarymemcache.DeniedMsgBase)},
 			}, proxylib.OK, string(binarymemcache.DeniedMsgBase))
+
+			CheckOnData(t, 1, false, false, &[][]byte{setHello, getHello}, []ExpFilterOp{
+				{proxylib.PASS, len(setHello)}, {proxylib.DROP, len(getHello)}, {proxylib.MORE, 24},
+			}, proxylib.OK, "")
+
+			CheckOnData(t, 1, true, false, &[][]byte{getHelloResp}, []ExpFilterOp{
+				{proxylib.PASS, len(getHelloResp)}, {proxylib.INJECT, len(binarymemcache.DeniedMsgBase)},
+			}, proxylib.OK, string(binarymemcache.DeniedMsgBase))
 		},
 	},
 }

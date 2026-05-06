@@ -121,8 +121,6 @@ func (p *Parser) OnData(reply, endStream bool, dataBuffers [][]byte) (proxylib.O
 		p.injectQueue = append(p.injectQueue, queuedInject{magic, p.requestCount})
 	}
 
-	p.injectQueue = append(p.injectQueue, queuedInject{magic, p.requestCount})
-
 	p.connection.Log(cilium.EntryType_Denied, logEntry)
 	return proxylib.DROP, int(bodyLength + headerSize)
 }
