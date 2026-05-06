@@ -223,11 +223,12 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
       test_server_->counter("tcp.tcp_stats.downstream_flow_control_paused_reading_total")->value();
   uint32_t downstream_resumes =
       test_server_->counter("tcp.tcp_stats.downstream_flow_control_resumed_reading_total")->value();
-  // Since we are receiving early data, downstream connection will already be read
-  // disabled so downstream pause metric is not emitted when upstream buffer hits high
-  // watermark. When the upstream buffer watermark goes down, downstream will be read
-  // enabled and downstream resume metric will be emitted.
-  EXPECT_EQ(downstream_pauses, 0);
+  // Early data usually has downstream reads disabled before the upstream buffer hits high
+  // watermark, which suppresses the downstream pause metric. If scheduling lets the pause
+  // happen first, it must still be balanced by the resume below.
+  EXPECT_TRUE(downstream_pauses == 0 || downstream_pauses == downstream_resumes)
+      << "downstream pauses: " << downstream_pauses
+      << ", downstream resumes: " << downstream_resumes;
   EXPECT_EQ(downstream_resumes, 1);
 }
 
