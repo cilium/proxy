@@ -345,16 +345,21 @@ public:
     cleanupUpstreamAndDownstream();
   }
 
-  void deniedL3(Http::TestRequestHeaderMapImpl&& headers) {
+  void deniedL3(Http::TestRequestHeaderMapImpl&&) {
     initialize();
-    codec_client_ = makeHttpConnection(lookupPort("http"));
-    auto response = codec_client_->makeHeaderOnlyRequest(headers);
+    codec_client_ = makeL3DeniedHttpConnection();
     ASSERT_TRUE(codec_client_->waitForDisconnect());
 
-    // Validate that request access log message is logged
-    absl::optional<std::string> maybe_x_request_id;
+    // Validate that the deny access log message is logged.
     EXPECT_TRUE(expectAccessLogDeniedTo([](const ::cilium::LogEntry&) { return true; }));
     cleanupUpstreamAndDownstream();
+  }
+
+  IntegrationCodecClientPtr makeL3DeniedHttpConnection() {
+    // L3/L4 policy denial happens in the network filter during connection setup, so the reset may
+    // reach the client before Envoy's HTTP test helper observes the connection as established.
+    return makeRawHttpConnection(makeClientConnection(lookupPort("http")), absl::nullopt,
+                                 absl::nullopt, /*wait_till_connected=*/false);
   }
 
   void accepted(Http::TestRequestHeaderMapImpl&& headers) {
@@ -996,9 +1001,7 @@ TEST_P(CiliumIntegrationPortRangeTest, InvalidRange) {
 
   // This would normally be allowed, but since the policy fails, everything will
   // be rejected.
-  Http::TestRequestHeaderMapImpl headers = {
-      {":method", "GET"}, {":path", "/allowed"}, {":authority", "host"}};
-  codec_client_ = makeHttpConnection(lookupPort("http"));
+  codec_client_ = makeL3DeniedHttpConnection();
   ASSERT_TRUE(codec_client_->waitForDisconnect());
   cleanupUpstreamAndDownstream();
 }

@@ -195,10 +195,11 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeNonHTTPResponse) 
                                               "world"));
   ASSERT_TRUE(fake_upstream_connection->close());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
-  tcp_client->waitForHalfClose();
-  tcp_client->close();
-
   test_server_->waitForCounterGe("websocket.handshake_not_http", 1);
+
+  // Handshake errors close the downstream with NoFlush, which may be observed as either a
+  // graceful FIN or an RST. The counter above is the behavior under test.
+  tcp_client->close();
 }
 
 static const char HANDSHAKE_RESPONSE_FMT[] =
@@ -227,7 +228,8 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeInvalidResponse) 
 
   test_server_->waitForCounterGe("websocket.handshake_invalid_websocket_response", 1);
 
-  tcp_client->waitForHalfClose();
+  // Handshake errors close the downstream with NoFlush, which may be observed as either a
+  // graceful FIN or an RST. The counter above is the behavior under test.
   tcp_client->close();
 }
 
