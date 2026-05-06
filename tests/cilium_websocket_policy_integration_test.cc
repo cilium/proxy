@@ -5,12 +5,15 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 
-#include "envoy/config/bootstrap/v3/bootstrap.pb.h"
+#include "envoy/network/address.h"
+#include "envoy/network/socket.h"
 
 #include "test/integration/fake_upstream.h"
 #include "test/integration/integration_tcp_client.h"
 #include "test/test_common/environment.h"
+#include "test/test_common/network_utility.h"
 #include "test/test_common/utility.h"
 
 #include "tests/cilium_tcp_integration.h"
@@ -67,19 +70,19 @@ static_resources:
             address:
               socket_address:
                 address: 127.0.0.1
-                port_value: 11111
+                port_value: {1}
   - name: internal-cluster2
     connect_timeout: 5s
     type: STATIC
     load_assignment:
-      cluster_name: internal-cluster
+      cluster_name: internal-cluster2
       endpoints:
       - lb_endpoints:
         - endpoint:
             address:
               socket_address:
                 address: 127.0.0.1
-                port_value: 22222
+                port_value: {2}
   listeners:
   - name: listener_0
     address:
@@ -106,7 +109,7 @@ static_resources:
     address:
       socket_address:
         address: 127.0.0.1
-        port_value: 11111
+        port_value: {1}
     listener_filters:
       name: test_bpf_metadata
       typed_config:
@@ -151,7 +154,7 @@ static_resources:
     address:
       socket_address:
         address: 127.0.0.1
-        port_value: 22222
+        port_value: {2}
     filter_chains:
     - filters:
       - name: cilium.network.websocket.server
@@ -169,21 +172,56 @@ static_resources:
 class CiliumWebSocketIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumWebSocketIntegrationTest()
-      : CiliumTcpIntegrationTest(fmt::format(
-            fmt::runtime(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam())),
-            "true")) {
-    config_helper_.addConfigModifier([this](envoy::config::bootstrap::v3::Bootstrap& bootstrap) {
-      // replace 0 port in "cluster1" with the fake backend port
-      bootstrap.mutable_static_resources()
-          ->mutable_clusters(0)
-          ->mutable_load_assignment()
-          ->mutable_endpoints(0)
-          ->mutable_lb_endpoints(0)
-          ->mutable_endpoint()
-          ->mutable_address()
-          ->mutable_socket_address()
-          ->set_port_value(fake_upstreams_[0]->localAddress()->ip()->port());
-    });
+      : CiliumWebSocketIntegrationTest(reserveInternalListenerPorts()) {}
+
+  void initialize() override {
+    CiliumTcpIntegrationTest::initialize();
+    reserved_internal_listener_ports_.release();
+  }
+
+  struct ReservedInternalListenerPorts {
+    ReservedInternalListenerPorts(uint32_t first_port, uint32_t second_port,
+                                  Network::SocketPtr first_socket, Network::SocketPtr second_socket)
+        : first_port_(first_port), second_port_(second_port),
+          first_socket_(std::move(first_socket)), second_socket_(std::move(second_socket)) {}
+
+    void release() {
+      first_socket_.reset();
+      second_socket_.reset();
+    }
+
+    const uint32_t first_port_;
+    const uint32_t second_port_;
+    Network::SocketPtr first_socket_;
+    Network::SocketPtr second_socket_;
+  };
+
+  static ReservedInternalListenerPorts reserveInternalListenerPorts() {
+    auto first_reserved = Network::Test::bindFreeLoopbackPort(Network::Address::IpVersion::v4,
+                                                              Network::Socket::Type::Stream, true);
+
+    constexpr uint32_t max_attempts = 16;
+    for (uint32_t attempt = 0; attempt < max_attempts; attempt++) {
+      auto second_reserved = Network::Test::bindFreeLoopbackPort(
+          Network::Address::IpVersion::v4, Network::Socket::Type::Stream, true);
+
+      const uint32_t first_port = first_reserved.first->ip()->port();
+      const uint32_t second_port = second_reserved.first->ip()->port();
+      if (second_port != first_port) {
+        return {first_port, second_port, std::move(first_reserved.second),
+                std::move(second_reserved.second)};
+      }
+    }
+
+    ADD_FAILURE() << "failed to reserve distinct loopback ports";
+    return {0, 0, std::move(first_reserved.second), nullptr};
+  }
+
+  static std::string makeConfig(Network::Address::IpVersion version,
+                                const ReservedInternalListenerPorts& reserved_ports) {
+    return fmt::format(
+        fmt::runtime(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, version)), "true",
+        reserved_ports.first_port_, reserved_ports.second_port_);
   }
 
   std::string testPolicyFmt() override {
@@ -204,6 +242,13 @@ resources:
 )EOF",
                                        GetParam());
   }
+
+private:
+  explicit CiliumWebSocketIntegrationTest(ReservedInternalListenerPorts reserved_ports)
+      : CiliumTcpIntegrationTest(makeConfig(GetParam(), reserved_ports)),
+        reserved_internal_listener_ports_(std::move(reserved_ports)) {}
+
+  ReservedInternalListenerPorts reserved_internal_listener_ports_;
 };
 
 INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumWebSocketIntegrationTest,
@@ -213,11 +258,15 @@ INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumWebSocketIntegrationTest,
 // Test upstream writing before downstream downstream does.
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
   initialize();
+  // sample the ping count before connecting
+  const uint64_t previous_ping_count = test_server_->counter("websocket.ping_sent_count")->value();
+
   IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
+  // wait for at least one more ping to arrive as proof that the handshake is ready
+  test_server_->waitForCounterGe("websocket.ping_sent_count", previous_ping_count + 1);
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
   tcp_client->waitForData("hello");
@@ -247,8 +296,6 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
   ASSERT_EQ(received, "hello");
 
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
-
   ASSERT_TRUE(fake_upstream_connection->write("world"));
   ASSERT_TRUE(fake_upstream_connection->close());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
@@ -272,8 +319,6 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_EQ(received, "hello");
   ASSERT_TRUE(fake_upstream_connection->write("world"));
   tcp_client->waitForData("world");
-
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
 
   ASSERT_TRUE(tcp_client->write("hello", true));
   ASSERT_TRUE(fake_upstream_connection->waitForData(10, &received));
@@ -299,8 +344,6 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_EQ(received, data);
   ASSERT_TRUE(fake_upstream_connection->write(data));
   tcp_client->waitForData(data);
-
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
 
   tcp_client->close();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());

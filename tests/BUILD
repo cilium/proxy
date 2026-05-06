@@ -306,6 +306,7 @@ envoy_cc_test(
         "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
         "@envoy//source/extensions/clusters/static:static_cluster_lib",
         "@envoy//source/extensions/clusters/strict_dns:strict_dns_cluster_lib",
+        "@envoy//test/test_common:network_utility_lib",
     ],
 )
 
