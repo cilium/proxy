@@ -172,7 +172,7 @@ static_resources:
 class CiliumWebSocketIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumWebSocketIntegrationTest()
-      : CiliumWebSocketIntegrationTest(reserveInternalListenerPorts()) {}
+      : CiliumWebSocketIntegrationTest(reserveInternalListenerPorts(GetParam())) {}
 
   void initialize() override {
     CiliumTcpIntegrationTest::initialize();
@@ -196,14 +196,15 @@ public:
     Network::SocketPtr second_socket_;
   };
 
-  static ReservedInternalListenerPorts reserveInternalListenerPorts() {
-    auto first_reserved = Network::Test::bindFreeLoopbackPort(Network::Address::IpVersion::v4,
-                                                              Network::Socket::Type::Stream, true);
+  static ReservedInternalListenerPorts
+  reserveInternalListenerPorts(Network::Address::IpVersion version) {
+    auto first_reserved =
+        Network::Test::bindFreeLoopbackPort(version, Network::Socket::Type::Stream, true);
 
     constexpr uint32_t max_attempts = 16;
     for (uint32_t attempt = 0; attempt < max_attempts; attempt++) {
-      auto second_reserved = Network::Test::bindFreeLoopbackPort(
-          Network::Address::IpVersion::v4, Network::Socket::Type::Stream, true);
+      auto second_reserved =
+          Network::Test::bindFreeLoopbackPort(version, Network::Socket::Type::Stream, true);
 
       const uint32_t first_port = first_reserved.first->ip()->port();
       const uint32_t second_port = second_reserved.first->ip()->port();
