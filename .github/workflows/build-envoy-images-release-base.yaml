@@ -150,7 +150,7 @@ jobs:
         push: true
         tags: |
           quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ env.BUILDER_DOCKER_HASH }}
-          quay.io/${{ github.repository_owner }}/cilium-envoy-builder:latest
+          quay.io/${{ github.repository_owner }}/cilium-envoy-builder:${{ github.ref_name }}
     - name: Multi-arch build & push of build artifact archive
       uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
       with:
@@ -170,7 +170,7 @@ jobs:
       uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
       with:
         path: /tmp/buildx-cache
-        key: docker-cache-main
+        key: docker-cache-${{ github.ref_name }}
 
     - name: Clear cache
       run: |
