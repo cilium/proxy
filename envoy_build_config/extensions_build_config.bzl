@@ -148,7 +148,7 @@ EXTENSIONS = {
     # "envoy.filters.http.cache_v2":                      "//source/extensions/filters/http/cache_v2:config",
     # "envoy.filters.http.cdn_loop":                      "//source/extensions/filters/http/cdn_loop:config",
     "envoy.filters.http.compressor":                    "//source/extensions/filters/http/compressor:config",
-    # "envoy.filters.http.cors":                          "//source/extensions/filters/http/cors:config",
+    "envoy.filters.http.cors":                          "//source/extensions/filters/http/cors:config",
     # "envoy.filters.http.composite":                     "//source/extensions/filters/http/composite:config",
     # "envoy.filters.http.connect_grpc_bridge":           "//source/extensions/filters/http/connect_grpc_bridge:config",
     # "envoy.filters.http.csrf":                          "//source/extensions/filters/http/csrf:config",
