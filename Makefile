@@ -70,12 +70,15 @@ ifneq ($(shell whoami),root)
   SUDO=$(shell if sudo -h 1>/dev/null 2>/dev/null; then echo "sudo"; fi)
 endif
 
-ifdef PKG_BUILD
-  $(info Registering C++ toolchains via BAZEL_BUILD_OPTS)
-  BAZEL_BUILD_OPTS += --extra_toolchains=//bazel/toolchains:all
-  # Use system LLVM instead of hermetic download to avoid libtinfo.so.5 mismatch
-  BAZEL_BUILD_OPTS += --repo_env=BAZEL_LLVM_PATH=/usr/lib/llvm-18
+# Use our own toolchain in all builds. Local builds need this to not pull in external Envoy sysroot
+# that only supports glibc 2.31, while for Ubuntu 24.04 builds we need at least 2.38, and actually
+# use 2.39.
+$(info Registering C++ toolchains via BAZEL_BUILD_OPTS)
+BAZEL_BUILD_OPTS += --extra_toolchains=//bazel/toolchains:all
+# Use system LLVM instead of hermetic download to avoid libtinfo.so.5 mismatch
+BAZEL_BUILD_OPTS += --repo_env=BAZEL_LLVM_PATH=/usr/lib/llvm-18
 
+ifdef PKG_BUILD
   all: cilium-envoy-starter cilium-envoy
 
   .PHONY: install-bazelisk
@@ -86,8 +89,6 @@ ifdef PKG_BUILD
 	echo "Clang assumed to be installed in the builder image"
   endef
 else
-  $(info Skip registering C++ toolchains via BAZEL_BUILD_OPTS. Local C++ toolchain needs to be available!)
-
   all: precheck cilium-envoy-starter cilium-envoy
 
   include Makefile.docker
