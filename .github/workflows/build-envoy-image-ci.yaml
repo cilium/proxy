@@ -55,8 +55,15 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "ENVOY_MINOR_RELEASE=$(cat ENVOY_VERSION | sed 's/envoy-\([0-9]\+\.[0-9]\+\)\..*/v\1/')" >> $GITHUB_ENV
-          echo "ENVOY_PATCH_RELEASE=$(cat ENVOY_VERSION | sed 's/^envoy-\([0-9]\+\.[0-9]\+\.[0-9]\+$\)/v\1/')" >> $GITHUB_ENV
+          VERSION=$(cat ENVOY_VERSION)
+          if [[ "$VERSION" =~ ^envoy-[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            PATCH="${VERSION#envoy-}"
+            MINOR="${PATCH%.*}"
+            echo "ENVOY_MINOR_RELEASE=v${MINOR}" >> $GITHUB_ENV
+            echo "ENVOY_PATCH_RELEASE=v${PATCH}" >> $GITHUB_ENV
+          else
+            echo "Invalid ENVOY_VERSION format: '$VERSION'" && exit 1
+          fi
           echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
 
       - name: Checking if cilium-envoy-builder image exists
