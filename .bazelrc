@@ -6,6 +6,14 @@
 # curl -sSL https://raw.githubusercontent.com/envoyproxy/envoy-wasm/master/.bazelrc > envoy.bazelrc
 import %workspace%/envoy.bazelrc
 
+# Rust crate repinning for repository rules.
+common --repo_env=CARGO_BAZEL_REPIN=true
+
+# Use our own toolchains in all builds. Local builds need this to not pull in external Envoy sysroot
+# that only supports glibc 2.31, while for Ubuntu 24.04 builds we need at least 2.38, and actually
+# use 2.39.
+build --extra_toolchains=//bazel/toolchains:all
+
 # Use platforms based toolchain resolution
 build --incompatible_enable_cc_toolchain_resolution
 build --platform_mappings=bazel/platform_mappings

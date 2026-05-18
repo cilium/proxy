@@ -53,9 +53,6 @@ endif
 
 # Extra opts are passed to docker targets, which will choose the bazel platform themselves
 EXTRA_BAZEL_BUILD_OPTS := $(BAZEL_BUILD_OPTS)
-BAZEL_PLATFORM := //bazel:linux_$(subst amd64,x86_64,$(subst arm64,aarch64,$(TARGETARCH)))
-$(info BUILDING on $(BUILDARCH) for $(TARGETARCH) using $(BAZEL_PLATFORM))
-BAZEL_BUILD_OPTS += --platforms=$(BAZEL_PLATFORM)
 
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
@@ -69,14 +66,6 @@ SUDO=
 ifneq ($(shell whoami),root)
   SUDO=$(shell if sudo -h 1>/dev/null 2>/dev/null; then echo "sudo"; fi)
 endif
-
-# Use our own toolchain in all builds. Local builds need this to not pull in external Envoy sysroot
-# that only supports glibc 2.31, while for Ubuntu 24.04 builds we need at least 2.38, and actually
-# use 2.39.
-$(info Registering C++ toolchains via BAZEL_BUILD_OPTS)
-BAZEL_BUILD_OPTS += --extra_toolchains=//bazel/toolchains:all
-# Use system LLVM instead of hermetic download to avoid libtinfo.so.5 mismatch
-BAZEL_BUILD_OPTS += --repo_env=BAZEL_LLVM_PATH=/usr/lib/llvm-18
 
 ifdef PKG_BUILD
   all: cilium-envoy-starter cilium-envoy
@@ -110,8 +99,12 @@ else
 		$(SUDO) apt update; \
 	}; \
 	version="$$(dpkg-query -W -f='$${Version}' clang-18 2>/dev/null || echo 0)"; \
-	if ! dpkg --compare-versions "$$version" ge 1:$(MIN_CLANG_VERSION)~; then add_llvm_source; fi; \
-	$(SUDO) apt install -y clang-18 clangd-18 llvm-18-dev lld-18 lldb-18 clang-format-18 clang-tools-18 clang-tidy-18 libc++-18-dev libc++abi-18-dev
+	if dpkg --compare-versions "$$version" ge 1:$(MIN_CLANG_VERSION)~ && [ -x /usr/lib/llvm-18/bin/llvm-config ]; then \
+		echo "clang-18 $$version satisfies minimum $(MIN_CLANG_VERSION); skipping apt install"; \
+	else \
+		add_llvm_source; \
+		$(SUDO) apt install -y clang-18 clangd-18 llvm-18-dev lld-18 lldb-18 clang-format-18 clang-tools-18 clang-tidy-18 libc++-18-dev libc++abi-18-dev; \
+	fi
   endef
 endif
 
@@ -121,14 +114,16 @@ BUILD_DEP_HASHES: $(BUILD_DEP_FILES)
 	sha256sum $^ >$@
 
 clang.bazelrc: bazel/setup_clang.sh
-	$(call install_clang)
+	@$(call install_clang)
 	bazel/setup_clang.sh /usr/lib/llvm-18
+	echo "# Use system LLVM instead of hermetic download to avoid libtinfo.so.5 mismatch" >> $@
+	echo "build:clang-local --repo_env=BAZEL_LLVM_PATH=/usr/lib/llvm-18" >> $@
 	echo "build --config=clang-local" >> $@
 
 .PHONY: bazel-bin/cilium-envoy
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
 	@$(ECHO_BAZEL)
-	CARGO_BAZEL_REPIN=true $(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 cilium-envoy: bazel-bin/cilium-envoy
 	mv $< $@
@@ -136,7 +131,7 @@ cilium-envoy: bazel-bin/cilium-envoy
 .PHONY: bazel-bin/cilium-envoy-starter
 bazel-bin/cilium-envoy-starter: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
 	@$(ECHO_BAZEL)
-	CARGO_BAZEL_REPIN=true $(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-starter $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-starter $(BAZEL_FILTER)
 
 cilium-envoy-starter: bazel-bin/cilium-envoy-starter
 	mv $< $@
@@ -180,14 +175,14 @@ proxylib/libcilium.so:
 .PHONY: envoy-test-deps
 envoy-test-deps: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
 	@$(ECHO_BAZEL)
-	CARGO_BAZEL_REPIN=true $(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
 
 .PHONY: envoy-tests
 envoy-tests: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
 	@$(ECHO_BAZEL)
 	# Upstream tcp_proxy_integration_test included to validate that our custom patches
 	# didn't break anything
-	CARGO_BAZEL_REPIN=true $(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
+	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
 
 .PHONY: \
 	install \

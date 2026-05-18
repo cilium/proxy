@@ -53,7 +53,7 @@ jobs:
         run: |
           bazel/setup_clang.sh bin/clang18.1.8
           bazelisk shutdown
-          CARGO_BAZEL_REPIN=true bazel build \
+          bazel build \
           -c fastbuild \
           --spawn_strategy=local \
           --discard_analysis_cache \
