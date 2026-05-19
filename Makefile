@@ -132,7 +132,9 @@ bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
 cilium-envoy: bazel-bin/cilium-envoy
-	mv $< $@
+	rm -f $@
+	cp -f $< $@
+	chmod 0755 $@
 
 .PHONY: bazel-bin/cilium-envoy-starter
 bazel-bin/cilium-envoy-starter: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
@@ -140,7 +142,9 @@ bazel-bin/cilium-envoy-starter: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-starter $(BAZEL_FILTER)
 
 cilium-envoy-starter: bazel-bin/cilium-envoy-starter
-	mv $< $@
+	rm -f $@
+	cp -f $< $@
+	chmod 0755 $@
 
 BAZEL_CACHE := $(subst --disk_cache=,,$(filter --disk_cache=%, $(BAZEL_BUILD_OPTS)))
 
