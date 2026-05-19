@@ -47,11 +47,30 @@ FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/" ".
 # The default set of sources assumes all relevant sources are dependecies of some tests!
 TIDY_SOURCES ?= $(shell bazel query 'kind("source file", deps(//tests/...))' 2>/dev/null | sed -n "s/\/\/cilium:/cilium\//p; s/\/\/tests:/tests\//p")
 
+COMPILATION_DATABASE_DEPS = \
+	WORKSPACE \
+	.bazelrc \
+	envoy.bazelrc \
+	bazel/BUILD \
+	bazel/envoy_dependency_imports.bzl \
+	bazel/local_llvm.bzl \
+	bazel/toolchains/BUILD \
+	bazel/toolchains/cc_toolchain_config.bzl \
+	cilium/BUILD \
+	cilium/api/BUILD \
+	envoy_build_config/BUILD \
+	envoy_build_config/extensions_build_config.bzl \
+	starter/BUILD \
+	tests/BUILD
+
 # Must pass our bazel options to avoid discarding the analysis cache due to different options
 # between this, check and build!
-# Depend on the WORKSPACE and TIDY_SOURCES so that the database will be re-built if
-# Envoy dependency or any of the source files has changed.
-compile_commands.json: WORKSPACE $(TIDY_SOURCES) force-non-root
+# Depend on build graph and configuration inputs that can change compile
+# commands. Do not list TIDY_SOURCES as prerequisites here: generating that list
+# requires a Bazel query over //tests/... and Make expands prerequisites while
+# reading the file, making unrelated targets like plain "make" pay the query
+# cost.
+compile_commands.json: $(COMPILATION_DATABASE_DEPS) force-non-root
 	BAZEL_STARTUP_OPTION_LIST="$(BAZEL_OPTS)" BAZEL_BUILD_OPTION_LIST="$(BAZEL_BUILD_OPTS)" tools/gen_compilation_database.py --include_all //cilium/... //starter/... //tests/...
 
 # Default number of jobs, derived from available memory
