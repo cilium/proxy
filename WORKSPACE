@@ -84,7 +84,7 @@ load("@envoy//bazel:python_dependencies.bzl", "envoy_python_dependencies")
 envoy_python_dependencies()
 
 load("@bazel_gazelle//:deps.bzl", "go_repository")
-load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
+load("//bazel:envoy_dependency_imports.bzl", "envoy_dependency_imports")
 
 go_repository(
     name = "org_golang_x_text",

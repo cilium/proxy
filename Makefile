@@ -120,6 +120,12 @@ clang.bazelrc: bazel/setup_clang.sh
 	echo "build:clang-local --repo_env=BAZEL_LLVM_PATH=/usr/lib/llvm-18" >> $@
 	echo "build --config=clang-local" >> $@
 
+.PHONY: cargo-repin
+cargo-repin: install-bazelisk
+	@$(ECHO_BAZEL)
+	test -e bazel/envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock || touch bazel/envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock
+	CARGO_BAZEL_REPIN=workspace CARGO_BAZEL_REPIN_ONLY=dynamic_modules_rust_sdk_crate_index bazel $(BAZEL_OPTS) sync --only=dynamic_modules_rust_sdk_crate_index
+
 .PHONY: bazel-bin/cilium-envoy
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
 	@$(ECHO_BAZEL)

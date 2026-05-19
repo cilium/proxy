@@ -71,6 +71,11 @@ This will write the image to the local Docker registry.
 Depending on hour host CPU and memory resources a fresh build can take
 an hour or more. Docker caching will speed up subsequent builds.
 
+When adding new C++ source files, run `make compile_commands.json` to
+refresh the compilation database used by clangd and clang-tidy if they
+do not see the new files. Most tracked BUILD and build-configuration
+changes refresh it automatically.
+
 > If your build fails due to a compiler failure the most likely reason
 > is the compiler running out of memory. You can mitigate this by
 > limiting the number of concurrent build jobs by passing environment
@@ -191,6 +196,13 @@ significantly. To do this you should update Envoy version in
 ```
 ARCH=multi NO_CACHE=1 NO_ARCHIVE=1 BUILDER_ARCHIVE_TAG=main-archive-latest make docker-builder-archive
 ```
+
+If the Envoy update changes the dynamic modules Rust SDK dependencies,
+refresh the Cilium-owned crate-universe lockfile with `make cargo-repin`
+and commit the resulting
+`bazel/envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock` update together
+with the Envoy bump. Normal builds use this checked-in lockfile and do
+not need to run Cargo repinning first.
 
 
 ## Updating the builder image

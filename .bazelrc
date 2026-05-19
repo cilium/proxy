@@ -6,8 +6,10 @@
 # curl -sSL https://raw.githubusercontent.com/envoyproxy/envoy-wasm/master/.bazelrc > envoy.bazelrc
 import %workspace%/envoy.bazelrc
 
-# Rust crate repinning for repository rules.
-common --repo_env=CARGO_BAZEL_REPIN=true
+# Rust crate repinning for repository rules. Inherit CARGO_BAZEL_REPIN from the
+# invocation environment so developers can repin explicitly without forcing
+# every normal Bazel invocation to recompute the crate index.
+common --repo_env=CARGO_BAZEL_REPIN
 
 # Use our own toolchains in all builds. Local builds need this to not pull in external Envoy sysroot
 # that only supports glibc 2.31, while for Ubuntu 24.04 builds we need at least 2.38, and actually
