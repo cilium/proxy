@@ -12,8 +12,8 @@ ENVOY_REPO = "envoy"
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.37.4
-ENVOY_SHA = "4de9a4b40f653bc2701f09dec7633ae118982ec4"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.38.1
+ENVOY_SHA = "5022e0b6cadc236414e98c74d611c9566ca398b8"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -127,7 +127,9 @@ go_repository(
     version = "v0.32.0",
 )
 
-envoy_dependency_imports()
+envoy_dependency_imports(
+    cargo_bazel_lockfile = "@//bazel:envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock",
+)
 
 load("@envoy//bazel:repo.bzl", "envoy_repo")
 
