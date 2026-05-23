@@ -67,7 +67,11 @@ ifneq ($(shell whoami),root)
   SUDO=$(shell if sudo -h 1>/dev/null 2>/dev/null; then echo "sudo"; fi)
 endif
 
+BAZEL_PLATFORM := //bazel:linux_$(subst amd64,x86_64,$(subst arm64,aarch64,$(TARGETARCH)))
 ifdef PKG_BUILD
+  $(info BUILDING on $(BUILDARCH) for $(TARGETARCH) using $(BAZEL_PLATFORM))
+  BAZEL_BUILD_OPTS += --platforms=$(BAZEL_PLATFORM)
+
   all: cilium-envoy-starter cilium-envoy
 
   .PHONY: install-bazelisk
@@ -78,6 +82,10 @@ ifdef PKG_BUILD
 	echo "Clang assumed to be installed in the builder image"
   endef
 else
+  ifneq ($(TARGETARCH),$(BUILDARCH))
+    $(error local cross-builds are not supported: BUILDARCH=$(BUILDARCH), TARGETARCH=$(TARGETARCH))
+  endif
+
   all: precheck cilium-envoy-starter cilium-envoy
 
   include Makefile.docker
