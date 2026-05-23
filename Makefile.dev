@@ -52,7 +52,6 @@ COMPILATION_DATABASE_DEPS = \
 	.bazelrc \
 	envoy.bazelrc \
 	bazel/BUILD \
-	bazel/envoy_dependency_imports.bzl \
 	bazel/local_llvm.bzl \
 	bazel/toolchains/BUILD \
 	bazel/toolchains/cc_toolchain_config.bzl \
