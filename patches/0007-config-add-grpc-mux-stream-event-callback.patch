@@ -14,7 +14,7 @@ diff --git a/envoy/config/grpc_mux.h b/envoy/config/grpc_mux.h
 +++ b/envoy/config/grpc_mux.h
 @@ -1,8 +1,10 @@
  #pragma once
-
+ 
 +#include <functional>
  #include <memory>
  
@@ -23,7 +23,7 @@ diff --git a/envoy/config/grpc_mux.h b/envoy/config/grpc_mux.h
  #include "envoy/common/exception.h"
  #include "envoy/common/pure.h"
  #include "envoy/config/custom_config_validators.h"
-@@ -17,6 +19,11 @@ namespace Envoy {
+@@ -19,6 +21,11 @@ namespace Envoy {
  namespace Config {
  
  using ScopedResume = std::unique_ptr<Cleanup>;
@@ -35,7 +35,7 @@ diff --git a/envoy/config/grpc_mux.h b/envoy/config/grpc_mux.h
  /**
   * All control plane related stats. @see stats_macros.h
   */
-@@ -61,6 +67,18 @@ public:
+@@ -65,6 +72,18 @@ public:
     */
    virtual void start() PURE;
  
@@ -57,10 +57,10 @@ diff --git a/envoy/config/grpc_mux.h b/envoy/config/grpc_mux.h
 diff --git a/source/common/config/BUILD b/source/common/config/BUILD
 --- a/source/common/config/BUILD
 +++ b/source/common/config/BUILD
-@@ -86,10 +86,19 @@ envoy_cc_library(
+@@ -87,11 +87,20 @@ envoy_cc_library(
+         "@abseil-cpp//absl/container:btree",
      ],
  )
--
 +envoy_cc_library(
 +    name = "grpc_mux_stream_event_tracker_lib",
 +    hdrs = ["grpc_mux_stream_event_tracker.h"],
@@ -69,7 +69,7 @@ diff --git a/source/common/config/BUILD b/source/common/config/BUILD
 +        "//source/common/common:callback_impl_lib",
 +    ],
 +)
-+
+ 
  envoy_cc_library(
      name = "null_grpc_mux_lib",
      hdrs = ["null_grpc_mux_impl.h"],
@@ -78,117 +78,6 @@ diff --git a/source/common/config/BUILD b/source/common/config/BUILD
          "//envoy/config:grpc_mux_interface",
      ],
  )
-diff --git a/source/common/config/null_grpc_mux_impl.h b/source/common/config/null_grpc_mux_impl.h
---- a/source/common/config/null_grpc_mux_impl.h
-+++ b/source/common/config/null_grpc_mux_impl.h
-@@ -1,6 +1,7 @@
- #pragma once
- 
- #include "envoy/config/grpc_mux.h"
-+#include "source/common/config/grpc_mux_stream_event_tracker.h"
- 
- namespace Envoy {
- namespace Config {
-@@ -11,5 +12,11 @@ class NullGrpcMuxImpl : public GrpcMux,
- public:
-   void start() override {}
-+  Common::CallbackHandlePtr
-+  addStreamEventCallback(GrpcMuxStreamEventCallback callback) override {
-+    return stream_event_tracker_.addStreamEventCallback(std::move(callback));
-+  }
-+
-+  bool grpcStreamConnected() const override { return false; }
-   ScopedResume pause(const std::string&) override {
-     return std::make_unique<Cleanup>([] {});
-   }
-@@ -40,6 +48,9 @@ public:
-   void onEstablishmentFailure(bool) override {}
-   void onDiscoveryResponse(std::unique_ptr<envoy::service::discovery::v3::DiscoveryResponse>&&,
-                            ControlPlaneStats&) override {}
-+
-+private:
-+  GrpcMuxStreamEventTracker stream_event_tracker_;
- };
- 
- } // namespace Config
-diff --git a/source/extensions/config_subscription/grpc/BUILD b/source/extensions/config_subscription/grpc/BUILD
---- a/source/extensions/config_subscription/grpc/BUILD
-+++ b/source/extensions/config_subscription/grpc/BUILD
-@@ -33,6 +33,7 @@ envoy_cc_extension(
-         ":eds_resources_cache_lib",
-         ":grpc_mux_context_lib",
-         ":grpc_mux_failover_lib",
-+        "//source/common/config:grpc_mux_stream_event_tracker_lib",
-         ":grpc_stream_lib",
-         ":xds_source_id_lib",
-         "//envoy/config:custom_config_validators_interface",
-@@ -65,6 +66,7 @@ envoy_cc_library(
-         ":grpc_mux_context_lib",
-         ":grpc_mux_failover_lib",
-         ":grpc_stream_lib",
-+        "//source/common/config:grpc_mux_stream_event_tracker_lib",
-         ":pausable_ack_queue_lib",
-         ":watch_map_lib",
-         "//envoy/config:custom_config_validators_interface",
-diff --git a/source/extensions/config_subscription/grpc/grpc_mux_impl.cc b/source/extensions/config_subscription/grpc/grpc_mux_impl.cc
---- a/source/extensions/config_subscription/grpc/grpc_mux_impl.cc
-+++ b/source/extensions/config_subscription/grpc/grpc_mux_impl.cc
-@@ -569,6 +569,7 @@ void GrpcMuxImpl::onStreamEstablished() {
-   for (const auto& type_url : subscriptions_) {
-     queueDiscoveryRequest(type_url);
-   }
-+  stream_event_tracker_.onStreamEstablished();
- }
- 
- void GrpcMuxImpl::onEstablishmentFailure(bool) {
-@@ -589,6 +590,7 @@ void GrpcMuxImpl::onEstablishmentFailure(bool) {
-       api_state.second->previously_fetched_data_ = true;
-     }
-   }
-+  stream_event_tracker_.onStreamClosed();
- }
- 
- void GrpcMuxImpl::queueDiscoveryRequest(absl::string_view queue_item) {
-diff --git a/source/extensions/config_subscription/grpc/grpc_mux_impl.h b/source/extensions/config_subscription/grpc/grpc_mux_impl.h
---- a/source/extensions/config_subscription/grpc/grpc_mux_impl.h
-+++ b/source/extensions/config_subscription/grpc/grpc_mux_impl.h
-@@ -3,6 +3,7 @@
- #include <cstdint>
- #include <memory>
- #include <queue>
-+#include <utility>
- 
- #include "envoy/common/random_generator.h"
- #include "envoy/common/time.h"
-@@ -29,5 +30,6 @@
- #include "source/extensions/config_subscription/grpc/grpc_mux_context.h"
- #include "source/extensions/config_subscription/grpc/grpc_mux_failover.h"
-+#include "source/common/config/grpc_mux_stream_event_tracker.h"
- 
- #include "absl/container/node_hash_map.h"
- #include "xds/core/v3/resource_name.pb.h"
-@@ -57,6 +59,13 @@ public:
- 
-   void start() override;
- 
-+  Common::CallbackHandlePtr
-+  addStreamEventCallback(GrpcMuxStreamEventCallback callback) override {
-+    return stream_event_tracker_.addStreamEventCallback(std::move(callback));
-+  }
-+
-+  bool grpcStreamConnected() const override { return stream_event_tracker_.grpcStreamConnected(); }
-+
-   // GrpcMux
-   ScopedResume pause(const std::string& type_url) override;
-   ScopedResume pause(const std::vector<std::string> type_urls) override;
-@@ -290,6 +299,7 @@ private:
-   const bool skip_subsequent_node_;
-   CustomConfigValidatorsPtr config_validators_;
-   XdsConfigTrackerOptRef xds_config_tracker_;
-+  GrpcMuxStreamEventTracker stream_event_tracker_;
-   XdsResourcesDelegateOptRef xds_resources_delegate_;
-   EdsResourcesCachePtr eds_resources_cache_;
-   const std::string target_xds_authority_;
 diff --git a/source/common/config/grpc_mux_stream_event_tracker.h b/source/common/config/grpc_mux_stream_event_tracker.h
 new file mode 100644
 --- /dev/null
@@ -230,18 +119,131 @@ new file mode 100644
 +
 +} // namespace Config
 +} // namespace Envoy
+diff --git a/source/common/config/null_grpc_mux_impl.h b/source/common/config/null_grpc_mux_impl.h
+--- a/source/common/config/null_grpc_mux_impl.h
++++ b/source/common/config/null_grpc_mux_impl.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include "envoy/config/grpc_mux.h"
++#include "source/common/config/grpc_mux_stream_event_tracker.h"
+ 
+ namespace Envoy {
+ namespace Config {
+@@ -10,6 +11,12 @@ class NullGrpcMuxImpl : public GrpcMux,
+                         GrpcStreamCallbacks<envoy::service::discovery::v3::DiscoveryResponse> {
+ public:
+   void start() override {}
++  Common::CallbackHandlePtr
++  addStreamEventCallback(GrpcMuxStreamEventCallback callback) override {
++    return stream_event_tracker_.addStreamEventCallback(std::move(callback));
++  }
++
++  bool grpcStreamConnected() const override { return false; }
+   ScopedResume pause(const std::string&) override {
+     return std::make_unique<Cleanup>([] {});
+   }
+@@ -43,6 +50,9 @@ public:
+   void onEstablishmentFailure(bool) override {}
+   void onDiscoveryResponse(std::unique_ptr<envoy::service::discovery::v3::DiscoveryResponse>&&,
+                            ControlPlaneStats&) override {}
++
++private:
++  GrpcMuxStreamEventTracker stream_event_tracker_;
+ };
+ 
+ } // namespace Config
+diff --git a/source/extensions/config_subscription/grpc/BUILD b/source/extensions/config_subscription/grpc/BUILD
+--- a/source/extensions/config_subscription/grpc/BUILD
++++ b/source/extensions/config_subscription/grpc/BUILD
+@@ -30,6 +30,7 @@ envoy_cc_extension(
+         ":eds_resources_cache_lib",
+         ":grpc_mux_context_lib",
+         ":grpc_mux_failover_lib",
++        "//source/common/config:grpc_mux_stream_event_tracker_lib",
+         ":grpc_stream_lib",
+         ":xds_source_id_lib",
+         "//envoy/config:custom_config_validators_interface",
+@@ -66,6 +67,7 @@ envoy_cc_library(
+         ":grpc_mux_context_lib",
+         ":grpc_mux_failover_lib",
+         ":grpc_stream_lib",
++        "//source/common/config:grpc_mux_stream_event_tracker_lib",
+         ":pausable_ack_queue_lib",
+         ":watch_map_lib",
+         "//envoy/config:custom_config_validators_interface",
+diff --git a/source/extensions/config_subscription/grpc/grpc_mux_impl.cc b/source/extensions/config_subscription/grpc/grpc_mux_impl.cc
+--- a/source/extensions/config_subscription/grpc/grpc_mux_impl.cc
++++ b/source/extensions/config_subscription/grpc/grpc_mux_impl.cc
+@@ -571,6 +571,7 @@ void GrpcMuxImpl::onStreamEstablished() {
+   for (const auto& type_url : subscriptions_) {
+     queueDiscoveryRequest(type_url);
+   }
++  stream_event_tracker_.onStreamEstablished();
+ }
+ 
+ void GrpcMuxImpl::onEstablishmentFailure(bool) {
+@@ -590,6 +591,7 @@ void GrpcMuxImpl::onEstablishmentFailure(bool) {
+       api_state.second->previously_fetched_data_ = true;
+     }
+   }
++  stream_event_tracker_.onStreamClosed();
+ }
+ 
+ void GrpcMuxImpl::queueDiscoveryRequest(absl::string_view queue_item) {
+diff --git a/source/extensions/config_subscription/grpc/grpc_mux_impl.h b/source/extensions/config_subscription/grpc/grpc_mux_impl.h
+--- a/source/extensions/config_subscription/grpc/grpc_mux_impl.h
++++ b/source/extensions/config_subscription/grpc/grpc_mux_impl.h
+@@ -3,6 +3,7 @@
+ #include <cstdint>
+ #include <memory>
+ #include <queue>
++#include <utility>
+ 
+ #include "envoy/common/random_generator.h"
+ #include "envoy/common/time.h"
+@@ -28,6 +29,7 @@
+ #include "source/common/config/xds_resource.h"
+ #include "source/extensions/config_subscription/grpc/grpc_mux_context.h"
+ #include "source/extensions/config_subscription/grpc/grpc_mux_failover.h"
++#include "source/common/config/grpc_mux_stream_event_tracker.h"
+ 
+ #include "absl/container/node_hash_map.h"
+ #include "xds/core/v3/resource_name.pb.h"
+@@ -56,6 +58,13 @@ public:
+ 
+   void start() override;
+ 
++  Common::CallbackHandlePtr
++  addStreamEventCallback(GrpcMuxStreamEventCallback callback) override {
++    return stream_event_tracker_.addStreamEventCallback(std::move(callback));
++  }
++
++  bool grpcStreamConnected() const override { return stream_event_tracker_.grpcStreamConnected(); }
++
+   // GrpcMux
+   ScopedResume pause(const std::string& type_url) override;
+   ScopedResume pause(const std::vector<std::string> type_urls) override;
+@@ -294,6 +303,7 @@ private:
+   const bool skip_subsequent_node_;
+   CustomConfigValidatorsPtr config_validators_;
+   XdsConfigTrackerOptRef xds_config_tracker_;
++  GrpcMuxStreamEventTracker stream_event_tracker_;
+   XdsResourcesDelegateOptRef xds_resources_delegate_;
+   EdsResourcesCachePtr eds_resources_cache_;
+   const std::string target_xds_authority_;
 diff --git a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.cc b/source/extensions/config_subscription/grpc/new_grpc_mux_impl.cc
 --- a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.cc
 +++ b/source/extensions/config_subscription/grpc/new_grpc_mux_impl.cc
-@@ -194,6 +194,7 @@ void NewGrpcMuxImpl::onStreamEstablished() {
-   }
+@@ -198,6 +198,7 @@ void NewGrpcMuxImpl::onStreamEstablished() {
+   first_request_on_stream_ = true;
    pausable_ack_queue_.clear();
    trySendDiscoveryRequests();
 +  stream_event_tracker_.onStreamEstablished();
  }
  
  void NewGrpcMuxImpl::onEstablishmentFailure(bool next_attempt_may_send_initial_resource_version) {
-@@ -215,6 +216,7 @@ void NewGrpcMuxImpl::onEstablishmentFailure(bool next_attempt_may_send_initial_resource_version) {
+@@ -219,6 +220,7 @@ void NewGrpcMuxImpl::onEstablishmentFailure(bool next_attempt_may_send_initial_r
      }
    } while (all_subscribed.size() != subscriptions_.size());
    should_send_initial_resource_versions_ = next_attempt_may_send_initial_resource_version;
@@ -260,7 +262,7 @@ diff --git a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h b/so
  
  #include "envoy/common/random_generator.h"
  #include "envoy/common/token_bucket.h"
-@@ -20,6 +21,7 @@
+@@ -19,6 +20,7 @@
  #include "source/extensions/config_subscription/grpc/grpc_mux_context.h"
  #include "source/extensions/config_subscription/grpc/grpc_mux_failover.h"
  #include "source/extensions/config_subscription/grpc/pausable_ack_queue.h"
@@ -268,7 +270,7 @@ diff --git a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h b/so
  #include "source/extensions/config_subscription/grpc/watch_map.h"
  
  namespace Envoy {
-@@ -50,6 +52,13 @@ public:
+@@ -46,6 +48,13 @@ public:
    static void shutdownAll();
  
    void shutdown() { shutdown_ = true; }
@@ -282,18 +284,18 @@ diff --git a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h b/so
  
    GrpcMuxWatchPtr addWatch(const std::string& type_url,
                             const absl::flat_hash_set<std::string>& resources,
-@@ -217,6 +226,7 @@ private:
+@@ -220,6 +229,7 @@ private:
  
    const LocalInfo::LocalInfo& local_info_;
    CustomConfigValidatorsPtr config_validators_;
 +  GrpcMuxStreamEventTracker stream_event_tracker_;
    Common::CallbackHandlePtr dynamic_update_callback_handle_;
    XdsConfigTrackerOptRef xds_config_tracker_;
-   EdsResourcesCachePtr eds_resources_cache_;
+   const bool skip_subsequent_node_;
 diff --git a/source/extensions/config_subscription/grpc/xds_mux/BUILD b/source/extensions/config_subscription/grpc/xds_mux/BUILD
 --- a/source/extensions/config_subscription/grpc/xds_mux/BUILD
 +++ b/source/extensions/config_subscription/grpc/xds_mux/BUILD
-@@ -72,6 +72,7 @@ envoy_cc_extension(
+@@ -71,6 +71,7 @@ envoy_cc_extension(
          "//source/extensions/config_subscription/grpc:eds_resources_cache_lib",
          "//source/extensions/config_subscription/grpc:grpc_mux_context_lib",
          "//source/extensions/config_subscription/grpc:grpc_mux_failover_lib",
@@ -304,7 +306,7 @@ diff --git a/source/extensions/config_subscription/grpc/xds_mux/BUILD b/source/e
 diff --git a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.cc b/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.cc
 --- a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.cc
 +++ b/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.cc
-@@ -322,6 +322,7 @@ void GrpcMuxImpl<S, F, RQ, RS>::handleEstablishedStream() {
+@@ -323,6 +323,7 @@ void GrpcMuxImpl<S, F, RQ, RS>::handleEstablishedStream() {
    maybeUpdateQueueSizeStat(0);
    pausable_ack_queue_.clear();
    trySendDiscoveryRequests();
@@ -312,7 +314,7 @@ diff --git a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.cc
  }
  
  template <class S, class F, class RQ, class RS>
-@@ -346,6 +347,7 @@ void GrpcMuxImpl<S, F, RQ, RS>::handleStreamEstablishmentFailure(
+@@ -347,6 +348,7 @@ void GrpcMuxImpl<S, F, RQ, RS>::handleStreamEstablishmentFailure(
      }
    } while (all_subscribed.size() != subscriptions_.size());
    should_send_initial_resource_versions_ = next_attempt_may_send_initial_resource_version;
@@ -339,7 +341,7 @@ diff --git a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h 
  #include "source/extensions/config_subscription/grpc/pausable_ack_queue.h"
  #include "source/extensions/config_subscription/grpc/watch_map.h"
  #include "source/extensions/config_subscription/grpc/xds_mux/delta_subscription_state.h"
-@@ -82,6 +84,13 @@ public:
+@@ -81,6 +83,13 @@ public:
                                     SubscriptionCallbacks& callbacks,
                                     OpaqueResourceDecoderSharedPtr resource_decoder,
                                     const SubscriptionOptions& options) override;
@@ -353,7 +355,7 @@ diff --git a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h 
    void updateWatch(const std::string& type_url, Watch* watch,
                     const absl::flat_hash_set<std::string>& resources,
                     const SubscriptionOptions& options);
-@@ -239,6 +248,7 @@ private:
+@@ -241,6 +250,7 @@ private:
    // this one is up to GrpcMux.
    const LocalInfo::LocalInfo& local_info_;
    Common::CallbackHandlePtr dynamic_update_callback_handle_;
@@ -361,7 +363,7 @@ diff --git a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h 
    CustomConfigValidatorsPtr config_validators_;
    XdsConfigTrackerOptRef xds_config_tracker_;
    XdsResourcesDelegateOptRef xds_resources_delegate_;
-@@ -291,6 +301,13 @@ private:
+@@ -293,6 +303,13 @@ private:
  class NullGrpcMuxImpl : public GrpcMux {
  public:
    void start() override {}
@@ -375,21 +377,20 @@ diff --git a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h 
  
    ScopedResume pause(const std::string&) override {
      return std::make_unique<Cleanup>([]() {});
-@@ -313,6 +330,9 @@ public:
-   void requestOnDemandUpdate(const std::string&, const absl::flat_hash_set<std::string>&) override {
-     ENVOY_BUG(false, "unexpected request for on demand update");
-   }
+@@ -319,6 +336,9 @@ public:
  
-   EdsResourcesCacheOptRef edsResourcesCache() override { return {}; }
+   Upstream::LoadStatsReporter* loadStatsReporter() const override { return nullptr; }
+   Upstream::LoadStatsReporter* maybeCreateLoadStatsReporter() override { return nullptr; }
 +
 +private:
 +  GrpcMuxStreamEventTracker stream_event_tracker_;
  };
+ 
+ } // namespace XdsMux
 diff --git a/test/common/config/grpc_subscription_impl_test.cc b/test/common/config/grpc_subscription_impl_test.cc
 --- a/test/common/config/grpc_subscription_impl_test.cc
 +++ b/test/common/config/grpc_subscription_impl_test.cc
-@@ -64,6 +64,42 @@ TEST_P(GrpcSubscriptionImplTest, RemoteStreamClose) {
-   timer_->invokeCallback();
+@@ -65,6 +65,42 @@ TEST_P(GrpcSubscriptionImplTest, RemoteStreamClose) {
    EXPECT_TRUE(statsAre(2, 0, 0, 1, 0, 0, 0, ""));
  }
  

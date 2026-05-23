@@ -7,14 +7,13 @@
 # Refresh bazel/envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock after Envoy
 # changes the Rust SDK dependencies with:
 #
-#   CARGO_BAZEL_REPIN=workspace CARGO_BAZEL_REPIN_ONLY=dynamic_modules_rust_sdk_crate_index bazel sync --only=dynamic_modules_rust_sdk_crate_index
+#   CARGO_BAZEL_REPIN=workspace CARGO_BAZEL_REPIN_ONLY=envoy_rust_crate_index bazel sync --only=envoy_rust_crate_index
 load("@aspect_bazel_lib//lib:repositories.bzl", "register_jq_toolchains", "register_yq_toolchains")
 load("@base_pip3//:requirements.bzl", pip_dependencies = "install_deps")
 load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies", "go_repository")
 load("@build_bazel_rules_apple//apple:repositories.bzl", "apple_rules_dependencies")
-load("@com_github_aignas_rules_shellcheck//:deps.bzl", "shellcheck_dependencies")
+load("@cel-cpp//bazel:deps.bzl", "parser_deps")
 load("@com_github_chrusty_protoc_gen_jsonschema//:deps.bzl", protoc_gen_jsonschema_go_dependencies = "go_dependencies")
-load("@com_google_cel_cpp//bazel:deps.bzl", "parser_deps")
 load("@dev_pip3//:requirements.bzl", pip_dev_dependencies = "install_deps")
 load("@emsdk//:emscripten_deps.bzl", "emscripten_deps")
 load("@emsdk//:toolchains.bzl", "register_emscripten_toolchains")
@@ -31,8 +30,8 @@ load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
 load("@rules_proto_grpc//:repositories.bzl", "rules_proto_grpc_toolchains")
 load("@rules_rust//crate_universe:defs.bzl", "crates_repository")
 load("@rules_rust//crate_universe:repositories.bzl", "crate_universe_dependencies")
-load("@rules_rust//rust:defs.bzl", "rust_common")
 load("@rules_rust//rust:repositories.bzl", "rules_rust_dependencies", "rust_register_toolchains", "rust_repository_set")
+load("@shellcheck//:deps.bzl", "shellcheck_dependencies")
 
 # go version for rules_go
 GO_VERSION = "1.24.6"
@@ -48,7 +47,12 @@ def envoy_dependency_imports(
         jq_version = JQ_VERSION,
         yq_version = YQ_VERSION,
         buf_sha = BUF_SHA,
-        buf_version = BUF_VERSION):
+        buf_version = BUF_VERSION,
+        # This allows the downstream repo to point to a different locally re-generated lockfile,
+        # which can be used to workaround a rules_rust bug. See:
+        # - https://github.com/bazelbuild/rules_rust/issues/3521
+        # - https://github.com/envoyproxy/envoy/issues/38951
+        cargo_bazel_lockfile = "@envoy//:Cargo.Bazel.lock"):
     compatibility_proxy_repo()
     rules_foreign_cc_dependencies()
     go_rules_dependencies()
@@ -71,17 +75,21 @@ def envoy_dependency_imports(
             "wasm32-unknown-unknown",
             "wasm32-wasi",
         ],
-        versions = [rust_common.default_version],
+        versions = ["1.88.0"],
     )
     rules_rust_dependencies()
     rust_register_toolchains(
         extra_target_triples = [
             "wasm32-unknown-unknown",
             "wasm32-wasi",
+            # Unconditionally specify the target triples for x-compilations.
+            # Note that the toolchain won't be fetched/used unless the target triple is actually used in the build.
+            "x86_64-unknown-linux-gnu",
+            "aarch64-unknown-linux-gnu",
         ],
     )
     crate_universe_dependencies()
-    crates_repositories()
+    crates_repositories(cargo_bazel_lockfile = cargo_bazel_lockfile)
     grcov_repository()
     shellcheck_dependencies()
     proxy_wasm_rust_sdk_dependencies()
@@ -93,10 +101,10 @@ def envoy_dependency_imports(
     register_yq_toolchains(version = yq_version)
     parser_deps()
 
-    rules_buf_toolchains(**{
-        "sha256": buf_sha,
-        "version": buf_version,
-    })
+    rules_buf_toolchains(
+        sha256 = buf_sha,
+        version = buf_version,
+    )
 
     setup_sanitizer_libs()
 
@@ -165,7 +173,7 @@ def envoy_dependency_imports(
         version = "v1.36.10",
     )
     go_repository(
-        name = "com_github_cncf_xds_go",
+        name = "xds_go",
         importpath = "github.com/cncf/xds/go",
         sum = "h1:gt7U1Igw0xbJdyaCM5H2CnlAlPSkzrhsebQB6WQWjLA=",
         version = "v0.0.0-20251110193048-8bfbf64dc13e",
@@ -248,10 +256,10 @@ def envoy_download_go_sdks(go_version):
         version = go_version,
     )
 
-def crates_repositories():
+def crates_repositories(cargo_bazel_lockfile):
     crates_repository(
-        name = "dynamic_modules_rust_sdk_crate_index",
-        cargo_lockfile = "@envoy//source/extensions/dynamic_modules/sdk/rust:Cargo.lock",
-        lockfile = Label("@//bazel:envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock"),
-        manifests = ["@envoy//source/extensions/dynamic_modules/sdk/rust:Cargo.toml"],
+        name = "envoy_rust_crate_index",
+        cargo_lockfile = "@envoy//:Cargo.lock",
+        lockfile = Label(cargo_bazel_lockfile),
+        manifests = ["@envoy//:Cargo.toml"],
     )
