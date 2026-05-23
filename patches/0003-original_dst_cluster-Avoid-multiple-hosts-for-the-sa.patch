@@ -1,4 +1,4 @@
-From 8c6ca69f1bdbc6697216e1831659da33c95282b9 Mon Sep 17 00:00:00 2001
+From 435f56e14770f787d97b91c568b93eecb9206056 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 24 May 2024 18:27:28 +0200
 Subject: [PATCH 3/7] original_dst_cluster: Avoid multiple hosts for the same
@@ -25,12 +25,12 @@ map updates.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- .../original_dst/original_dst_cluster.cc      | 261 +++++++++++-------
+ .../original_dst/original_dst_cluster.cc      | 259 +++++++++++-------
  .../original_dst/original_dst_cluster.h       |  47 ++--
- 2 files changed, 192 insertions(+), 116 deletions(-)
+ 2 files changed, 191 insertions(+), 115 deletions(-)
 
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.cc b/source/extensions/clusters/original_dst/original_dst_cluster.cc
-index 2536292562..eb2d9a30ad 100644
+index 25362925..c8063ed8 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.cc
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.cc
 @@ -29,6 +29,19 @@ OriginalDstClusterHandle::~OriginalDstClusterHandle() {
@@ -127,9 +127,6 @@ index 2536292562..eb2d9a30ad 100644
 -    // The first worker that creates a host for the address defines the primary
 -    // host structure.
 -    new_host_map->emplace(address, std::make_shared<HostsForAddress>(host));
--  }
--  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
--  setHostMap(new_host_map);
 +// getHost returns the host for the address. A new host is created when needed.
 +// Called from the worker threads.
 +// When multiple worker threads call this at the same time the updates of the
@@ -147,7 +144,9 @@ index 2536292562..eb2d9a30ad 100644
 +  if (dst_ip == nullptr) {
 +    ENVOY_LOG(debug, "Cannot create host for non-IP address {}.", address);
 +    return nullptr;
-+  }
+   }
+-  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
+-  setHostMap(new_host_map);
 +
 +  // Scope the lock for reading the host_map_
 +  {
@@ -356,7 +355,7 @@ index 2536292562..eb2d9a30ad 100644
  
    cleanup_timer_->enableTimer(cleanup_interval_ms_);
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.h b/source/extensions/clusters/original_dst/original_dst_cluster.h
-index 55905560bd..3152af8664 100644
+index 55905560..3152af86 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.h
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.h
 @@ -22,25 +22,21 @@ namespace Upstream {
@@ -454,5 +453,5 @@ index 55905560bd..3152af8664 100644
    absl::optional<Config::MetadataKey> metadata_key_;
    absl::optional<uint32_t> port_override_;
 -- 
-2.43.0
+2.54.0
 
