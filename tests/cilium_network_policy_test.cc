@@ -516,6 +516,62 @@ egress:
   // No egress is allowed:
   EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 8080));
   EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 8080));
+
+  // Validate no overflow when splitting port ranges with existing port range containing U16 max.
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "10.1.2.3"
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 32768
+    end_port: 65534
+    rules:
+    - remote_policies: [ 43 ]
+  - port: 32768
+    end_port: 65535
+    rules:
+    - remote_policies: [ 44 ]
+  - port: 1024
+    end_port: 65535
+    rules:
+    - remote_policies: [ 45 ]
+)EOF"));
+
+  expected = R"EOF(ingress:
+  rules:
+    [1024-32767]:
+    - rules:
+      - remotes: [45]
+    [32768-65534]:
+    - rules:
+      - remotes: [43]
+      - remotes: [44]
+      - remotes: [45]
+    [65535-65535]:
+    - rules:
+      - remotes: [44]
+      - remotes: [45]
+egress:
+  rules: []
+)EOF";
+
+  EXPECT_TRUE(validate("10.1.2.3", expected));
+
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 40000));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 65535));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 44, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 40000));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 44, 65535));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 45, 8080));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 45, 40000));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 45, 65535));
+
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 43, 40000));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 44, 65535));
+  EXPECT_FALSE(egressAllowed("10.1.2.3", 45, 8080));
 }
 
 TEST_F(CiliumNetworkPolicyTest, DuplicatePorts) {
