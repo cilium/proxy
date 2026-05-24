@@ -1,38 +1,62 @@
-"""Repository rule to provide llvm_toolchain_llvm when using a local LLVM toolchain.
+"""Provide @llvm_toolchain_llvm when building with a local LLVM (BAZEL_LLVM_PATH).
 
-When BAZEL_LLVM_PATH is set (local toolchain mode), the toolchains_llvm
-llvm_toolchain() macro skips creating the llvm_toolchain_llvm repository.
-Envoy's tools/clang-format target still depends on @llvm_toolchain_llvm//:clang-format,
-so we need to provide it.
+In local LLVM mode envoy_toolchains() creates @llvm_toolchain_llvm without the
+//:clang-format target that @envoy//tools/clang-format depends on. Pre-creating
+the repo here (before envoy_toolchains(), which skips existing repos) adds that
+target. No-op when BAZEL_LLVM_PATH is unset: the hermetic toolchain already
+provides //:clang-format.
 """
 
-def _local_llvm_repo_impl(repository_ctx):
-    llvm_path = repository_ctx.os.environ.get("BAZEL_LLVM_PATH", "")
-    clang_format = None
+load("@envoy_repo//:compiler.bzl", "LLVM_PATH")
 
-    if llvm_path:
-        candidate = repository_ctx.path(llvm_path + "/bin/clang-format")
-        if candidate.exists:
-            clang_format = candidate
-
-    if not clang_format:
-        clang_format = repository_ctx.which("clang-format")
-
-    if not clang_format:
-        fail("Could not find clang-format. Set BAZEL_LLVM_PATH or ensure clang-format is on PATH.")
-
-    repository_ctx.symlink(clang_format, "bin/clang-format")
-    repository_ctx.file("BUILD.bazel", """\
+# This repo replaces the one envoy_toolchains() would create, so it must define every
+# target Envoy's _LLVM_LOCAL_BUILD (bazel/toolchains.bzl) does, plus clang-format. The
+# globs below are deliberately a superset of Envoy's exact file lists so that upstream
+# adding a file to _LLVM_LOCAL_BUILD does not silently break the local LLVM build.
+_LLVM_LOCAL_BUILD = """\
 package(default_visibility = ["//visibility:public"])
+
+exports_files(glob(
+    [
+        "bin/*",
+        "lib/**",
+        "lib64/**",
+        "include/**",
+    ],
+    allow_empty = True,
+))
+
+filegroup(
+    name = "include",
+    srcs = glob([
+        "include/**/c++/**",
+        "lib/clang/*/include/**",
+    ]),
+)
+
+filegroup(
+    name = "all_includes",
+    srcs = glob(
+        ["include/**"],
+        allow_empty = True,
+    ),
+)
+
+filegroup(
+    name = "symbolizer",
+    srcs = glob(["bin/llvm-symbolizer*"]),
+)
 
 filegroup(
     name = "clang-format",
     srcs = ["bin/clang-format"],
 )
-""")
+"""
 
-local_llvm_repo = repository_rule(
-    implementation = _local_llvm_repo_impl,
-    environ = ["BAZEL_LLVM_PATH", "PATH"],
-    local = True,
-)
+def local_llvm_repo(name):
+    if LLVM_PATH:
+        native.new_local_repository(
+            name = name,
+            path = LLVM_PATH,
+            build_file_content = _LLVM_LOCAL_BUILD,
+        )
