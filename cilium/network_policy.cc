@@ -1597,7 +1597,7 @@ public:
           // 'start_key' is updated as needed below.
           auto start_range = it->first;
 
-          // split the current entry due to partial overlap in the beginning?
+          // split the current entry due to partial overlap in the beginning.
           // For example, if the current entry is 80-8080 and we are adding 4040-9999,
           // the current entry should be split to two ranges 80-4039 and 4040-8080,
           // both of which should retain their current rules, but new rules should only be
@@ -1620,6 +1620,7 @@ public:
           }
 
           // scan the range of the new rule, filling the gaps with new (partial) ranges
+          bool new_range_end_covered = false;
           for (; it != rules_.end() && port <= end_port && end_port >= it->first.first; it++) {
             auto range = it->first;
             // create a new entry below the current one?
@@ -1644,7 +1645,7 @@ public:
               port = range.first;
             }
             RELEASE_ASSERT(port == range.first, "port should match the start of the current range");
-            // split the current range into two due to partial overlap in the end?
+            // split the current range into two due to partial overlap in the end.
             if (end_port < range.second) {
               auto rules = it->second;
               PortRange range1 = it->first;
@@ -1661,12 +1662,17 @@ public:
               port = end_port + 1; // one past the end
               break;
             } else {
+              // Current range iterator completely covers the range to insert at the end.
+              if (range.second == end_port) {
+                new_range_end_covered = true;
+                break;
+              }
               // current entry completely covered by the new range, skip to the next
               port = range.second + 1;
             }
           }
-          // create a new entry covering the end?
-          if (port <= end_port) {
+          // create a new entry covering the end(if not already covered).
+          if (!new_range_end_covered && port <= end_port) {
             auto new_range = std::make_pair(port, end_port);
             auto new_pair = rules_.emplace(new_range, PortNetworkPolicyRules{});
             RELEASE_ASSERT(new_pair.second,
