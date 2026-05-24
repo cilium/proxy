@@ -1,5 +1,6 @@
 # Dot files, disallow by default, and enable explicitly
 \.*
+!/\.bazelignore
 !\.bazelrc
 !\.bazelversion
 !\.clangd
