@@ -241,6 +241,19 @@ Config::Config(const ::cilium::BpfMetadata& config,
       random_(context.serverFactoryContext().api().randomGenerator()),
       npds_config_(config.has_npds_config() ? config.npds_config()
                                             : Cilium::CILIUM_XDS_API_CONFIG) {
+  // Delta xDS is not yet supported, override if present.
+  // This is needed for upgrade/downgrade compatibility.
+  if (npds_config_.config_source_specifier_case() ==
+      envoy::config::core::v3::ConfigSource::kApiConfigSource) {
+    const auto& api_type = npds_config_.api_config_source().api_type();
+    if (api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC) {
+      npds_config_.mutable_api_config_source()->set_api_type(
+          envoy::config::core::v3::ApiConfigSource::GRPC);
+    } else if (api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC) {
+      npds_config_.mutable_api_config_source()->set_api_type(
+          envoy::config::core::v3::ApiConfigSource::AGGREGATED_GRPC);
+    }
+  }
   if (is_l7lb_ && is_ingress_) {
     throw EnvoyException("cilium.bpf_metadata: is_l7lb may not be set with is_ingress");
   }
