@@ -44,32 +44,51 @@ namespace Cilium {
 // Cilium XDS API config source. Used for all Cilium XDS.
 extern const envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
 
+// Creates a real SdsApi provider, registering it with the init manager if one was supplied.
+template <typename SdsApi>
+auto createSdsSecretProvider(const envoy::config::core::v3::ConfigSource& sds_config_source,
+                             const std::string& config_name,
+                             Server::Configuration::ServerFactoryContext& server_context,
+                             OptRef<Init::Manager> init_manager) {
+  auto secret_provider =
+      SdsApi::create(server_context, sds_config_source, config_name, []() {}, false);
+  if (init_manager.has_value()) {
+    init_manager->add(*secret_provider->initTarget());
+  }
+  return secret_provider;
+}
+
+// findOrCreate*Provider signatures are not uniform: TlsCertificate and GenericSecret take an
+// OptRef<Init::Manager> (and TlsCertificate an extra bool warm), the rest take Init::Manager&.
+// Hence one macro per shape, all sharing createSdsSecretProvider() above.
 #define ON_CALL_SDS_SECRET_PROVIDER(SECRET_MANAGER, PROVIDER_TYPE, API_TYPE)                       \
   ON_CALL(SECRET_MANAGER, findOrCreate##PROVIDER_TYPE##Provider(_, _, _, _))                       \
       .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,     \
                                const std::string& config_name,                                     \
                                Server::Configuration::ServerFactoryContext& server_context,        \
                                Init::Manager& init_manager) {                                      \
-        auto secret_provider = Secret::API_TYPE##SdsApi::create(                                   \
-            server_context, sds_config_source, config_name, []() {}, false);                       \
-        init_manager.add(*secret_provider->initTarget());                                          \
-        return secret_provider;                                                                    \
+        return createSdsSecretProvider<Secret::API_TYPE##SdsApi>(                                  \
+            sds_config_source, config_name, server_context, makeOptRef(init_manager));             \
       }))
 
-// TlsCertificateProvider has a different signature in envoy 1.37:
-// OptRef<Init::Manager> instead of Init::Manager&, plus bool warm.
+#define ON_CALL_SDS_SECRET_PROVIDER_OPT_INIT(SECRET_MANAGER, PROVIDER_TYPE, API_TYPE)              \
+  ON_CALL(SECRET_MANAGER, findOrCreate##PROVIDER_TYPE##Provider(_, _, _, _))                       \
+      .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,     \
+                               const std::string& config_name,                                     \
+                               Server::Configuration::ServerFactoryContext& server_context,        \
+                               OptRef<Init::Manager> init_manager) {                               \
+        return createSdsSecretProvider<Secret::API_TYPE##SdsApi>(sds_config_source, config_name,   \
+                                                                 server_context, init_manager);    \
+      }))
+
 #define ON_CALL_SDS_TLS_CERTIFICATE_PROVIDER(SECRET_MANAGER, API_TYPE)                             \
   ON_CALL(SECRET_MANAGER, findOrCreateTlsCertificateProvider(_, _, _, _, _))                       \
       .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,     \
                                const std::string& config_name,                                     \
                                Server::Configuration::ServerFactoryContext& server_context,        \
                                OptRef<Init::Manager> init_manager, bool /*warm*/) {                \
-        auto secret_provider = Secret::API_TYPE##SdsApi::create(                                   \
-            server_context, sds_config_source, config_name, []() {}, false);                       \
-        if (init_manager.has_value()) {                                                            \
-          init_manager->add(*secret_provider->initTarget());                                       \
-        }                                                                                          \
-        return secret_provider;                                                                    \
+        return createSdsSecretProvider<Secret::API_TYPE##SdsApi>(sds_config_source, config_name,   \
+                                                                 server_context, init_manager);    \
       }))
 
 class CiliumNetworkPolicyTest : public ::testing::Test {
@@ -91,7 +110,7 @@ protected:
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, CertificateValidationContext,
                                 CertificateValidationContext);
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, TlsSessionTicketKeysContext, TlsSessionTicketKeys);
-    ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, GenericSecret, GenericSecret);
+    ON_CALL_SDS_SECRET_PROVIDER_OPT_INIT(secret_manager_, GenericSecret, GenericSecret);
 
     policy_map_ =
         std::make_shared<NetworkPolicyMap>(factory_context_, Cilium::CILIUM_XDS_API_CONFIG, false);

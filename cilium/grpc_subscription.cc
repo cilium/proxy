@@ -184,6 +184,7 @@ void ManagedGrpcSubscription::create() {
         /*target_xds_authority_=*/"",
         /*eds_resources_cache_=*/nullptr, // EDS cache is only used for ADS.
         /*skip_subsequent_node_=*/api_config_source.set_node_on_first_message_only(),
+        /*load_stats_reporter_factory_=*/nullptr,
     };
 
     grpc_mux = use_delta ? std::static_pointer_cast<Config::GrpcMux>(

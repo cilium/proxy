@@ -111,7 +111,7 @@ envoy_cc_library(
     ],
     repository = "@envoy",
     deps = [
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/strings",
         "@envoy//envoy/network:connection_interface",
         "@envoy//source/common/config:type_to_endpoint_lib",
         "@envoy//source/extensions/config_subscription/grpc:grpc_subscription_lib",
@@ -337,7 +337,7 @@ envoy_cc_library(
         "//cilium:socket_option_lib",
         "//cilium/api:bpf_metadata_cc_proto",
         "//cilium/api:nphds_cc_proto",
-        "@com_google_absl//absl/strings",
+        "@abseil-cpp//absl/strings",
         "@envoy//envoy/buffer:buffer_interface",
         "@envoy//envoy/config:subscription_interface",
         "@envoy//envoy/network:connection_interface",
