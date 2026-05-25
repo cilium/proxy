@@ -101,6 +101,7 @@ resources:
 - "@type": type.googleapis.com/cilium.NetworkPolicy
   endpoint_ips:
   - '{{ ntop_ip_loopback_address }}'
+  endpoint_id: 42
   policy: 3
   ingress_per_port_policies:
   - port: {0}
