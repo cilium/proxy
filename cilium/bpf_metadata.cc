@@ -215,8 +215,8 @@ Config::Config(const ::cilium::BpfMetadata& config,
       ipcache_entry_ttl_(
           PROTOBUF_GET_MS_OR_DEFAULT(config, cache_entry_ttl, DEFAULT_CACHE_ENTRY_TTL_MS)),
       random_(context.serverFactoryContext().api().randomGenerator()),
-      config_source_(config.has_config_source() ? config.config_source()
-                                                : Cilium::CILIUM_XDS_API_CONFIG) {
+      config_source_(config.has_cilium_config_source() ? config.cilium_config_source()
+                                                       : Cilium::CILIUM_XDS_API_CONFIG) {
   // Delta xDS is not yet supported, override if present.
   // This is needed for upgrade/downgrade compatibility.
   if (config_source_.config_source_specifier_case() ==
