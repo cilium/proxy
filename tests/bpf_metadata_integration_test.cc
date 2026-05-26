@@ -111,7 +111,7 @@ public:
     bpf_config.set_is_ingress(false);
     bpf_config.set_use_nphds(true);
 
-    auto* config_source = bpf_config.mutable_config_source();
+    auto* config_source = bpf_config.mutable_cilium_config_source();
     config_source->set_resource_api_version(envoy::config::core::v3::ApiVersion::V3);
     config_source->mutable_ads();
 
