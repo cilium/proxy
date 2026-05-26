@@ -226,7 +226,7 @@ resources:
 
 TEST_F(MetadataConfigTest, NpdsConfigSupported) {
   ::cilium::BpfMetadata config{};
-  config.mutable_config_source()->mutable_api_config_source()->set_api_type(
+  config.mutable_cilium_config_source()->mutable_api_config_source()->set_api_type(
       envoy::config::core::v3::ApiConfigSource::GRPC);
 
   EXPECT_NO_THROW(initialize(config));
