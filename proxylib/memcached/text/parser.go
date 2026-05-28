@@ -87,6 +87,11 @@ func (p *Parser) OnData(reply, endStream bool, dataBuffers [][]byte) (proxylib.O
 	// Tokenizing in memcached is done by spaces: https://github.com/memcached/memcached/blob/master/memcached.c#L2978
 	tokens := bytes.Fields(data[:linefeed])
 
+	if len(tokens) == 0 {
+		logrus.Error("Could not parse text memcache frame: empty command line")
+		return proxylib.ERROR, 0
+	}
+
 	if !reply {
 		meta := meta.MemcacheMeta{
 			Command: string(tokens[0]),
@@ -101,10 +106,18 @@ func (p *Parser) OnData(reply, endStream bool, dataBuffers [][]byte) (proxylib.O
 			if bytes.HasPrefix(command, []byte("get")) {
 				meta.Keys = tokens[1:]
 			} else if bytes.HasPrefix(command, []byte("gat")) {
+				if len(tokens) < 2 {
+					logrus.Error("Could not parse text memcache gat command: missing exptime")
+					return proxylib.ERROR, 0
+				}
 				meta.Keys = tokens[2:]
 			}
 		case p.isCommandStorage(command):
-			// storage commands
+			// storage commands: <cmd> <key> <flags> <exptime> <bytes> [noreply]
+			if len(tokens) < 5 {
+				logrus.Error("Could not parse text memcache storage command: too few tokens")
+				return proxylib.ERROR, 0
+			}
 			meta.Keys = tokens[1:2]
 			nBytes, err := strconv.Atoi(string(tokens[4]))
 			if err != nil {
@@ -120,12 +133,24 @@ func (p *Parser) OnData(reply, endStream bool, dataBuffers [][]byte) (proxylib.O
 				hasNoreply = len(tokens) == storageWithNoreplyFields
 			}
 		case p.isCommandDelete(command):
+			if len(tokens) < 2 {
+				logrus.Error("Could not parse text memcache delete command: missing key")
+				return proxylib.ERROR, 0
+			}
 			meta.Keys = tokens[1:2]
 			hasNoreply = len(tokens) == deleteWithNoreplyFields
 		case p.isCommandIncrDecr(command):
+			if len(tokens) < 2 {
+				logrus.Error("Could not parse text memcache incr/decr command: missing key")
+				return proxylib.ERROR, 0
+			}
 			meta.Keys = tokens[1:2]
 			hasNoreply = len(tokens) == incrWithNoreplyFields
 		case bytes.Equal(command, []byte("touch")):
+			if len(tokens) < 2 {
+				logrus.Error("Could not parse text memcache touch command: missing key")
+				return proxylib.ERROR, 0
+			}
 			meta.Keys = tokens[1:2]
 			hasNoreply = len(tokens) == touchWithNoreplyFields
 		case bytes.Equal(command, []byte("slabs")),
@@ -190,6 +215,10 @@ func (p *Parser) OnData(reply, endStream bool, dataBuffers [][]byte) (proxylib.O
 	//reply
 	logrus.Debugf("reply, parsing to figure out if we have it all")
 
+	if len(p.replyQueue) == 0 {
+		logrus.Error("Unexpected text memcache reply: no pending request in queue")
+		return proxylib.ERROR, 0
+	}
 	intent := p.replyQueue[0]
 
 	logEntry := &cilium.LogEntry_GenericL7{

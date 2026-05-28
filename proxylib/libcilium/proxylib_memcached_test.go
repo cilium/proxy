@@ -571,6 +571,39 @@ var textTestCases = []testCase{
 			}, proxylib.OK, "")
 		},
 	},
+	{
+		"text empty command line returns error",
+		"",
+		func(t *testing.T) {
+			CheckOnData(t, 1, false, false, &[][]byte{[]byte("\r\n")}, []ExpFilterOp{},
+				proxylib.PARSER_ERROR, "")
+		},
+	},
+	{
+		"text malformed storage command returns error",
+		"",
+		func(t *testing.T) {
+			// storage command missing flags/exptime/bytes fields
+			CheckOnData(t, 1, false, false, &[][]byte{[]byte("set key\r\n")}, []ExpFilterOp{},
+				proxylib.PARSER_ERROR, "")
+		},
+	},
+	{
+		"text malformed delete command returns error",
+		"",
+		func(t *testing.T) {
+			CheckOnData(t, 1, false, false, &[][]byte{[]byte("delete\r\n")}, []ExpFilterOp{},
+				proxylib.PARSER_ERROR, "")
+		},
+	},
+	{
+		"text malformed gat command returns error",
+		"",
+		func(t *testing.T) {
+			CheckOnData(t, 1, false, false, &[][]byte{[]byte("gat\r\n")}, []ExpFilterOp{},
+				proxylib.PARSER_ERROR, "")
+		},
+	},
 }
 
 var binaryTestCases = []testCase{
