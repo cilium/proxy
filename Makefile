@@ -107,8 +107,12 @@ else
 		$(SUDO) apt update; \
 	}; \
 	version="$$(dpkg-query -W -f='$${Version}' clang-18 2>/dev/null || echo 0)"; \
-	if ! dpkg --compare-versions "$$version" ge 1:$(MIN_CLANG_VERSION)~; then add_llvm_source; fi; \
-	$(SUDO) apt install -y clang-18 clangd-18 llvm-18-dev lld-18 lldb-18 clang-format-18 clang-tools-18 clang-tidy-18 libc++-18-dev libc++abi-18-dev
+	if dpkg --compare-versions "$$version" ge 1:$(MIN_CLANG_VERSION)~ && [ -x /usr/lib/llvm-18/bin/llvm-config ]; then \
+		echo "clang-18 $$version satisfies minimum $(MIN_CLANG_VERSION); skipping apt install"; \
+	else \
+		add_llvm_source; \
+		$(SUDO) apt install -y clang-18 clangd-18 llvm-18-dev lld-18 lldb-18 clang-format-18 clang-tools-18 clang-tidy-18 libc++-18-dev libc++abi-18-dev; \
+	fi
   endef
 endif
 
