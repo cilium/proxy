@@ -61,7 +61,7 @@ jobs:
           retention-days: 5
 
   tidy:
-    timeout-minutes: 60
+    timeout-minutes: 120
     name: Lint source style
     runs-on: ubuntu-24.04
     steps:
