@@ -1,6 +1,7 @@
 #include "cilium/host_map.h"
 
 #include <arpa/inet.h>
+#include <charconv>
 #include <fmt/format.h>
 #include <sys/socket.h>
 
@@ -8,9 +9,11 @@
 #include <cstring>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <vector>
 
+#include "absl/container/flat_hash_set.h"
 #include "envoy/common/exception.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
@@ -170,6 +173,29 @@ protected:
           fmt::format("NetworkPolicyHosts: Invalid host entry \'{}\' for policy {}", host, policy));
     }
   }
+
+  template <typename MapVec>
+  void prunePolicyMapVec(MapVec& maps, const absl::flat_hash_set<uint64_t>& nids) {
+    for (auto vec_it = maps.begin(); vec_it != maps.end();) {
+      auto& map = vec_it->second;
+      for (auto map_it = map.begin(); map_it != map.end();) {
+        auto it = map_it++;
+        if (nids.contains(it->second)) {
+          map.erase(it);
+        }
+      }
+      if (map.empty()) {
+        vec_it = maps.erase(vec_it);
+      } else {
+        ++vec_it;
+      }
+    }
+  }
+
+  void remove(const absl::flat_hash_set<uint64_t>& removed_nids) {
+    prunePolicyMapVec(ipv4_to_policy_, removed_nids);
+    prunePolicyMapVec(ipv6_to_policy_, removed_nids);
+  }
 };
 
 uint64_t PolicyHostMap::instance_id_ = 0;
@@ -199,10 +225,62 @@ absl::Status
 PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRef>& added_resources,
                               const Protobuf::RepeatedPtrField<std::string>& removed_resources,
                               const std::string& system_version_info) {
-  // NOT IMPLEMENTED YET.
-  UNREFERENCED_PARAMETER(added_resources);
-  UNREFERENCED_PARAMETER(removed_resources);
-  UNREFERENCED_PARAMETER(system_version_info);
+  const auto stream_generation = streamGeneration();
+  const bool is_new_stream = stream_generation != accepted_stream_generation_;
+  ENVOY_LOG(
+      debug,
+      "PolicyHostMap::onConfigUpdate({}), {} added_resources, {} removed_resources, version: {}, "
+      "stream: {}, accepted_stream: {}, is_new_stream: {}",
+      name_, added_resources.size(), removed_resources.size(), system_version_info,
+      stream_generation, accepted_stream_generation_, is_new_stream);
+
+  auto newmap =
+      std::make_shared<ThreadLocalHostMapInitializer>(is_new_stream ? nullptr : getHostMap());
+
+  absl::flat_hash_set<uint64_t> to_remove;
+  to_remove.reserve(added_resources.size() + removed_resources.size());
+
+  for (const auto& name : removed_resources) {
+    uint64_t nid = 0;
+    auto [ptr, ec] = std::from_chars(name.data(), name.data() + name.size(), nid);
+    if (ec != std::errc{} || ptr != name.data() + name.size()) {
+      throw EnvoyException(fmt::format("Invalid removed resource name '{}'", name));
+    }
+    ENVOY_LOG(trace,
+              "Removing NetworkPolicyHosts for policy {} in delta onConfigUpdate() version {}", nid,
+              system_version_info);
+    to_remove.insert(nid);
+  }
+  for (const auto& resource : added_resources) {
+    const auto& config = dynamic_cast<const cilium::NetworkPolicyHosts&>(resource.get().resource());
+    to_remove.insert(config.policy());
+  }
+  newmap->remove(to_remove);
+
+  for (const auto& resource : added_resources) {
+    const auto& config = dynamic_cast<const cilium::NetworkPolicyHosts&>(resource.get().resource());
+    ENVOY_LOG(trace,
+              "Received NetworkPolicyHosts for policy {} in delta onConfigUpdate() version {}",
+              config.policy(), system_version_info);
+    newmap->insert(config);
+  }
+
+  // Force 'this' to be not deleted for as long as the lambda stays
+  // alive. Note that generally capturing a shared pointer is
+  // dangerous as it may happen that there is a circular reference
+  // from 'this' to itself via the lambda capture, leading to 'this'
+  // never being released. It should happen in this case, though.
+  std::shared_ptr<ManagedGrpcSubscription> shared_this = shared_from_this();
+
+  // Assign the new map to all threads.
+  tls_->set([shared_this, newmap](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
+    UNREFERENCED_PARAMETER(shared_this);
+    ENVOY_LOG(trace, "PolicyHostMap: Assigning new map");
+    return newmap;
+  });
+  logmaps("delta onConfigUpdate");
+  accepted_stream_generation_ = stream_generation;
+  stats_.update_success_.inc();
   return absl::OkStatus();
 }
 
