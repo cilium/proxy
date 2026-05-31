@@ -26,6 +26,10 @@ service NetworkPolicyHostsDiscoveryService {
       body: "*"
     };
   }
+
+  rpc DeltaNetworkPolicyHosts(stream envoy.service.discovery.v3.DeltaDiscoveryRequest)
+      returns (stream envoy.service.discovery.v3.DeltaDiscoveryResponse) {
+  }
 }
 
 // The mapping of a network policy identifier to the IP addresses of all the
