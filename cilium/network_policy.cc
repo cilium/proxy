@@ -182,6 +182,13 @@ public:
 
 protected:
   bool isNewStream() const {
+    // In ADS mode, policies arrive over the shared ADS stream managed by the
+    // Cilium agent. Stream reconnection detection is not needed because an
+    // agent restart recreates everything including the ipcache.
+    if (config_source_.config_source_specifier_case() ==
+        envoy::config::core::v3::ConfigSource::kAds) {
+      return false;
+    }
     auto sub = dynamic_cast<Config::GrpcSubscriptionImpl*>(subscription_.get());
     if (!sub) {
       ENVOY_LOG(error, "Cilium NetworkPolicyMapImpl: Cannot get GrpcSubscriptionImpl");

@@ -19,8 +19,11 @@
 #include "test/config/utility.h"
 #include "test/integration/base_integration_test.h"
 #include "test/integration/fake_upstream.h"
+#include "test/test_common/logging.h"
 #include "test/test_common/resources.h"
 #include "test/test_common/utility.h"
+
+#include "gmock/gmock.h"
 
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/api/npds.pb.h"
@@ -265,6 +268,45 @@ TEST_P(BpfMetadataIntegrationTest, BpfMetadataWithNpdsAndNpdhsViaAds) {
   test_server_->waitForCounterGe("cilium.policy.update_success", 1);
   sendNphdsResponse("1");
   test_server_->waitForCounterGe("cilium.hostmap.update_success", 1);
+}
+
+// Verify that when using ADS for NPDS, the isNewStream() early return prevents
+// the "Cannot get GrpcMuxImpl" error that would occur when trying to downcast
+// the ADS mux to Cilium::GrpcMuxImpl.
+TEST_P(BpfMetadataIntegrationTest, AdsNpdsUpdateDoesNotLogGrpcMuxImplError) {
+  on_server_init_function_ = [&]() {
+    createAdsStream();
+    addBpfMetadataListenerFilter(listener_config_, /*use_ads=*/true);
+    EXPECT_TRUE(compareDiscoveryRequest(
+        Config::TestTypeUrl::get().Cluster, "", {}, {}, {},
+        /*expect_node=*/true, Envoy::Grpc::Status::WellKnownGrpcStatus::Ok, "", ads_stream_.get()));
+    sendCdsResponse("1");
+    EXPECT_TRUE(compareDiscoveryRequest(
+        Config::TestTypeUrl::get().Listener, "", {}, {}, {}, /*expect_node=*/false,
+        Grpc::Status::WellKnownGrpcStatus::Ok, "", ads_stream_.get()));
+    sendLdsResponse({MessageUtil::getYamlStringFromMessage(listener_config_)}, "1");
+  };
+  initialize();
+
+  test_server_->waitForCounterGe("listener_manager.lds.update_success", 1);
+
+  // Start recording logs to verify no "Cannot get GrpcMuxImpl" error appears.
+  LogLevelSetter save_levels(spdlog::level::trace);
+  StartStopRecording recording(GetLogSink());
+
+  // Send multiple NPDS updates to exercise the isNewStream() code path repeatedly.
+  sendNpdsResponse("1");
+  test_server_->waitForCounterGe("cilium.policy.update_success", 1);
+
+  sendNpdsResponse("2");
+  test_server_->waitForCounterGe("cilium.policy.update_success", 2);
+
+  // Verify no "Cannot get GrpcMuxImpl" or "Cannot get GrpcSubscriptionImpl" error was logged.
+  // In ADS mode, isNewStream() should return false immediately without attempting the downcast.
+  for (const std::string& message : recording.messages()) {
+    EXPECT_THAT(message, ::testing::Not(::testing::HasSubstr("Cannot get GrpcMuxImpl")));
+    EXPECT_THAT(message, ::testing::Not(::testing::HasSubstr("Cannot get GrpcSubscriptionImpl")));
+  }
 }
 
 } // namespace
