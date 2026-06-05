@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,7 +29,6 @@
 
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
-#include "absl/types/optional.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/host_map.h"
 #include "cilium/secret_watcher.h"
@@ -323,7 +323,7 @@ public:
     ASSERT_TRUE(response->waitForEndStream());
 
     // Validate that request access log message with x-request-id is logged
-    absl::optional<std::string> maybe_x_request_id;
+    std::optional<std::string> maybe_x_request_id;
     EXPECT_TRUE(expectAccessLogDeniedTo([&maybe_x_request_id](const ::cilium::LogEntry& entry) {
       maybe_x_request_id = getHeader(entry.http().headers(), "x-request-id");
       return entry.http().status() == 0;
@@ -331,7 +331,7 @@ public:
     ASSERT_TRUE(maybe_x_request_id.has_value());
 
     // Validate that response x-request-id is the same as in request
-    absl::optional<std::string> maybe_x_request_id_resp;
+    std::optional<std::string> maybe_x_request_id_resp;
     EXPECT_TRUE(
         expectAccessLogResponseTo([&maybe_x_request_id_resp](const ::cilium::LogEntry& entry) {
           maybe_x_request_id_resp = getHeader(entry.http().headers(), "x-request-id");
@@ -358,8 +358,8 @@ public:
   IntegrationCodecClientPtr makeL3DeniedHttpConnection() {
     // L3/L4 policy denial happens in the network filter during connection setup, so the reset may
     // reach the client before Envoy's HTTP test helper observes the connection as established.
-    return makeRawHttpConnection(makeClientConnection(lookupPort("http")), absl::nullopt,
-                                 absl::nullopt, /*wait_till_connected=*/false);
+    return makeRawHttpConnection(makeClientConnection(lookupPort("http")), std::nullopt,
+                                 std::nullopt, /*wait_till_connected=*/false);
   }
 
   void accepted(Http::TestRequestHeaderMapImpl&& headers) {
@@ -368,7 +368,7 @@ public:
     auto response = sendRequestAndWaitForResponse(headers, 0, default_response_headers_, 0);
 
     // Validate that request access log message with x-request-id is logged
-    absl::optional<std::string> maybe_x_request_id;
+    std::optional<std::string> maybe_x_request_id;
     EXPECT_TRUE(expectAccessLogRequestTo([&maybe_x_request_id](const ::cilium::LogEntry& entry) {
       maybe_x_request_id = getHeader(entry.http().headers(), "x-request-id");
       return entry.http().status() == 0;
@@ -376,7 +376,7 @@ public:
     ASSERT_TRUE(maybe_x_request_id.has_value());
 
     // Validate that response x-request-id is the same as in request
-    absl::optional<std::string> maybe_x_request_id_resp;
+    std::optional<std::string> maybe_x_request_id_resp;
     EXPECT_TRUE(
         expectAccessLogResponseTo([&maybe_x_request_id_resp](const ::cilium::LogEntry& entry) {
           maybe_x_request_id_resp = getHeader(entry.http().headers(), "x-request-id");

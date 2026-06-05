@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "envoy/buffer/buffer.h"
@@ -15,7 +16,6 @@
 #include "source/common/common/logger.h"
 
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/l7policy.pb.h"
@@ -114,7 +114,7 @@ private:
   AccessLog::Entry* log_entry_ = nullptr;
 
   OptRef<Http::RequestHeaderMap> latched_headers_;
-  absl::optional<bool> latched_end_stream_;
+  std::optional<bool> latched_end_stream_;
 };
 
 } // namespace Cilium
