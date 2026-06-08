@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 
+#include "envoy/buffer/buffer.h"
 #include "envoy/common/time.h"
 #include "envoy/http/codes.h"
 #include "envoy/http/filter.h"
@@ -303,6 +304,20 @@ void AccessFilter::onStreamComplete() {
   if (log_entry_ && !log_entry_->request_logged_) {
     config_->log(*log_entry_, ::cilium::EntryType::Request);
   }
+
+  if (!response_logged_ && response_headers_.has_value()) {
+    logResponse();
+  }
+}
+
+void AccessFilter::logResponse() {
+  if (response_logged_ || log_entry_ == nullptr || !response_headers_.has_value()) {
+    return;
+  }
+
+  log_entry_->updateFromResponse(*response_headers_, config_->time_source_);
+  config_->log(*log_entry_, ::cilium::EntryType::Response);
+  response_logged_ = true;
 }
 
 Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& headers, bool) {
@@ -374,10 +389,24 @@ Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& h
     config_->log(*log_entry_, log_type);
   }
 
-  // Log the response
-  log_entry_->updateFromResponse(headers, config_->time_source_);
-  config_->log(*log_entry_, ::cilium::EntryType::Response);
+  response_headers_ = headers;
+
+  // Note: We intentionally do NOT call logResponse() here even when end_stream is true.
+  // Other encode filters (e.g. ext_proc with BUFFERED body mode) may still mutate
+  // response headers after we return. We defer logging to onStreamComplete() so that
+  // the access log captures the final, post-mutation header state regardless of where
+  // cilium.l7policy sits in the HCM filter chain.
   return Http::FilterHeadersStatus::Continue;
+}
+
+Http::FilterDataStatus AccessFilter::encodeData(Buffer::Instance&, bool) {
+  // See encodeHeaders(): logging is deferred to onStreamComplete().
+  return Http::FilterDataStatus::Continue;
+}
+
+Http::FilterTrailersStatus AccessFilter::encodeTrailers(Http::ResponseTrailerMap&) {
+  // See encodeHeaders(): logging is deferred to onStreamComplete().
+  return Http::FilterTrailersStatus::Continue;
 }
 
 } // namespace Cilium

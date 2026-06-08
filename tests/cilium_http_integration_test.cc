@@ -908,6 +908,48 @@ TEST_P(CiliumIntegrationTest, AcceptedMethod) {
   }));
 }
 
+TEST_P(CiliumIntegrationTest, AcceptedResponsePreservesArbitraryHeaders) {
+  initialize();
+  codec_client_ = makeHttpConnection(lookupPort("http"));
+
+  Http::TestResponseHeaderMapImpl response_headers{
+      {":status", "200"}, {"x-ai-model", "llama3.1-8b-instruct"}, {"x-ai-total-tokens", "17"}};
+  auto response = sendRequestAndWaitForResponse(
+      {{":method", "PUT"}, {":path", "/public/opinions"}, {":authority", "host"}}, 0,
+      response_headers, 0);
+
+  absl::optional<std::string> maybe_x_request_id;
+  EXPECT_TRUE(expectAccessLogRequestTo([&maybe_x_request_id](const ::cilium::LogEntry& entry) {
+    maybe_x_request_id = getHeader(entry.http().headers(), "x-request-id");
+    return entry.http().status() == 0;
+  }));
+  ASSERT_TRUE(maybe_x_request_id.has_value());
+
+  absl::optional<std::string> maybe_x_request_id_resp;
+  absl::optional<std::string> maybe_model;
+  absl::optional<std::string> maybe_total_tokens;
+  EXPECT_TRUE(expectAccessLogResponseTo([&maybe_x_request_id_resp, &maybe_model,
+                                         &maybe_total_tokens](const ::cilium::LogEntry& entry) {
+    maybe_x_request_id_resp = getHeader(entry.http().headers(), "x-request-id");
+    maybe_model = getHeader(entry.http().headers(), "x-ai-model");
+    maybe_total_tokens = getHeader(entry.http().headers(), "x-ai-total-tokens");
+    return entry.http().status() == 200;
+  }));
+
+  ASSERT_TRUE(maybe_x_request_id_resp.has_value());
+  EXPECT_EQ(maybe_x_request_id.value(), maybe_x_request_id_resp.value());
+  ASSERT_TRUE(maybe_model.has_value());
+  EXPECT_EQ("llama3.1-8b-instruct", maybe_model.value());
+  ASSERT_TRUE(maybe_total_tokens.has_value());
+  EXPECT_EQ("17", maybe_total_tokens.value());
+
+  EXPECT_TRUE(response->complete());
+  EXPECT_EQ("200", response->headers().getStatusValue());
+  EXPECT_TRUE(upstream_request_->complete());
+  EXPECT_EQ(0, upstream_request_->bodyLength());
+  cleanupUpstreamAndDownstream();
+}
+
 TEST_P(CiliumIntegrationTest, L3DeniedPath) {
   denied({{":method", "GET"}, {":path", "/only-2-allowed"}, {":authority", "host"}});
 
