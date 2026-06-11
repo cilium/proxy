@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -37,7 +38,6 @@
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/api/bpf_metadata.pb.validate.h" // IWYU pragma: keep
 #include "cilium/conntrack.h"
@@ -390,7 +390,7 @@ const PolicyInstance& Config::getPolicy(const std::string& pod_ip) const {
 
 bool Config::exists(const std::string& pod_ip) const { return npmap_->exists(pod_ip); }
 
-absl::optional<Cilium::BpfMetadata::SocketMetadata>
+std::optional<Cilium::BpfMetadata::SocketMetadata>
 Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   Network::Address::InstanceConstSharedPtr src_address =
       socket.connectionInfoProvider().remoteAddress();
@@ -403,7 +403,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   if (!sip || !dip) {
     ENVOY_LOG(debug, "Non-IP addresses: src: {} dst: {}", src_address->asString(),
               dst_address->asString());
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   std::string pod_ip, other_ip, ingress_policy_name;
@@ -452,7 +452,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
                 "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
                 "source address: {}",
                 pod_ip);
-      return absl::nullopt;
+      return std::nullopt;
     }
     // Use original source address with L7 LB for local endpoint sources if requested, as policy
     // enforcement after the proxy depends on it (i.e., for "east/west" LB).
@@ -472,7 +472,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
           "cilium.bpf_metadata (north/south L7 LB): No local Ingress IP source address configured "
           "for the family of {}",
           sip->addressAsString());
-      return absl::nullopt;
+      return std::nullopt;
     }
 
     // Enforce pod policy only for local pods.
@@ -495,7 +495,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
                 "cilium.bpf_metadata (north/south L7 LB): Unknown local Ingress IP source address "
                 "configured: {}",
                 ingress_ip->addressAsString());
-      return absl::nullopt;
+      return std::nullopt;
     }
 
     // Original source address is never used for north/south LB
