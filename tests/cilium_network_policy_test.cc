@@ -56,6 +56,20 @@ extern const envoy::config::core::v3::ConfigSource CILIUM_XDS_API_CONFIG;
         return secret_provider;                                                                    \
       }))
 
+#define ON_CALL_SDS_SECRET_PROVIDER_OPT_INIT(SECRET_MANAGER, PROVIDER_TYPE, API_TYPE)              \
+  ON_CALL(SECRET_MANAGER, findOrCreate##PROVIDER_TYPE##Provider(_, _, _, _))                       \
+      .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,     \
+                               const std::string& config_name,                                     \
+                               Server::Configuration::ServerFactoryContext& server_context,        \
+                               OptRef<Init::Manager> init_manager) {                               \
+        auto secret_provider = Secret::API_TYPE##SdsApi::create(                                   \
+            server_context, sds_config_source, config_name, []() {}, false);                       \
+        if (init_manager.has_value()) {                                                            \
+          init_manager->add(*secret_provider->initTarget());                                       \
+        }                                                                                          \
+        return secret_provider;                                                                    \
+      }))
+
 // TlsCertificateProvider has a different signature in envoy 1.37:
 // OptRef<Init::Manager> instead of Init::Manager&, plus bool warm.
 #define ON_CALL_SDS_TLS_CERTIFICATE_PROVIDER(SECRET_MANAGER, API_TYPE)                             \
@@ -91,7 +105,7 @@ protected:
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, CertificateValidationContext,
                                 CertificateValidationContext);
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, TlsSessionTicketKeysContext, TlsSessionTicketKeys);
-    ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, GenericSecret, GenericSecret);
+    ON_CALL_SDS_SECRET_PROVIDER_OPT_INIT(secret_manager_, GenericSecret, GenericSecret);
 
     policy_map_ =
         std::make_shared<NetworkPolicyMap>(factory_context_, Cilium::CILIUM_XDS_API_CONFIG, false);

@@ -126,13 +126,16 @@ clang.bazelrc: bazel/setup_clang.sh
 	bazel/setup_clang.sh /usr/lib/llvm-18
 	echo "# Use system LLVM instead of hermetic download to avoid libtinfo.so.5 mismatch" >> $@
 	echo "build:clang-local --repo_env=BAZEL_LLVM_PATH=/usr/lib/llvm-18" >> $@
+	echo "# Disable module_maps/layering_check — abseil module maps are incompatible with system clang" >> $@
+	echo "build --features=-module_maps --features=-layering_check" >> $@
+	echo "build --host_features=-module_maps --host_features=-layering_check" >> $@
 	echo "build --config=clang-local" >> $@
 
 .PHONY: cargo-repin
 cargo-repin: install-bazelisk
 	@$(ECHO_BAZEL)
 	test -e bazel/envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock || touch bazel/envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock
-	CARGO_BAZEL_REPIN=workspace CARGO_BAZEL_REPIN_ONLY=dynamic_modules_rust_sdk_crate_index bazel $(BAZEL_OPTS) sync --only=dynamic_modules_rust_sdk_crate_index
+	CARGO_BAZEL_REPIN=workspace CARGO_BAZEL_REPIN_ONLY=envoy_rust_crate_index bazel $(BAZEL_OPTS) sync --only=envoy_rust_crate_index
 
 .PHONY: bazel-bin/cilium-envoy
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
