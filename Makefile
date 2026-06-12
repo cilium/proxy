@@ -54,6 +54,8 @@ endif
 # Extra opts are passed to docker targets, which will choose the bazel platform themselves
 EXTRA_BAZEL_BUILD_OPTS := $(BAZEL_BUILD_OPTS)
 
+BAZEL_BUILD_OPTS += --config=clang
+
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
 else ifdef RELEASE_DEBUG
