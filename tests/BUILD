@@ -158,6 +158,17 @@ envoy_cc_test(
 )
 
 envoy_cc_test(
+    name = "network_filter_test",
+    srcs = ["network_filter_test.cc"],
+    repository = "@envoy",
+    deps = [
+        "//cilium:network_filter_lib",
+        "@envoy//test/mocks/network:network_mocks",
+        "@envoy//test/mocks/server:listener_factory_context_mocks",
+    ],
+)
+
+envoy_cc_test(
     name = "cilium_tcp_integration_test",
     srcs = ["cilium_tcp_integration_test.cc"],
     data = [
