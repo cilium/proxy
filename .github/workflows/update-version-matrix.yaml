@@ -1,0 +1,46 @@
+name: Update version compatibility matrix
+
+on:
+  schedule:
+    # Mondays, matching Renovate's cadence.
+    - cron: '0 6 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  update-matrix:
+    name: Refresh README version compatibility matrix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Refresh README matrix
+        run: ./tools/update_version_matrix.sh
+
+      - name: Open PR if the matrix changed
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          commit-message: 'docs: refresh README version compatibility matrix'
+          title: 'docs: refresh README version compatibility matrix'
+          body: |
+            Automated refresh of the README version compatibility matrix
+            via `tools/update_version_matrix.sh`.
+
+            This mirrors the current `cilium/cilium` release tags and the
+            Envoy version each release ships (read from its
+            `images/cilium/Dockerfile`). No code paths or build logic change.
+          branch: automation/version-matrix
+          delete-branch: true
+          add-paths: README.md
+          signoff: true
+          labels: |
+            kind/enhancement
+            release-note/misc
