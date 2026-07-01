@@ -462,16 +462,18 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     // North/south L7 LB, assume the source security identity of the configured source addresses,
     // if any and policy for this identity exists.
 
-    // Pick the local ingress source address of the same family as the incoming connection
-    const Network::Address::Ip* ingress_ip = selectIpVersion(sip->version(), source_addresses);
+    // Pick the local ingress source address of the same family as the destination connection.
+    // The incoming source family may differ when an IPv6 client reaches an IPv4-only load-balancer
+    // path via PROXY protocol.
+    const Network::Address::Ip* ingress_ip = selectIpVersion(dip->version(), source_addresses);
 
     if (!ingress_ip) {
-      // IP family of the connection has no configured local ingress source address
+      // IP family of the destination has no configured local ingress source address
       ENVOY_LOG(
           warn,
           "cilium.bpf_metadata (north/south L7 LB): No local Ingress IP source address configured "
           "for the family of {}",
-          sip->addressAsString());
+          dip->addressAsString());
       return absl::nullopt;
     }
 

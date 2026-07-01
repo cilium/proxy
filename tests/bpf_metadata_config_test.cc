@@ -326,6 +326,48 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbMetadata) {
               (cilium_mark_socket_option->mark_ >> 16) == 8);
 }
 
+TEST_F(MetadataConfigTest, NorthSouthL7LbMetadataMixedSourceAndDestinationFamily) {
+  // Use external IPv6 remote address, as seen after a TCP load-balancer forwards
+  // an IPv6 client address via PROXY protocol to an IPv4-only node path.
+  remote_address_ =
+      std::make_shared<Network::Address::Ipv6Instance>("2003:fa:c701:ff01::10f6", 12345);
+
+  ::cilium::BpfMetadata config{};
+  config.set_is_l7lb(true);
+  config.set_ipv4_source_address("10.1.1.42");
+
+  EXPECT_NO_THROW(initialize(config));
+
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  EXPECT_NE(nullptr, policy_fs);
+
+  EXPECT_EQ(8, policy_fs->source_identity_);
+  EXPECT_EQ(false, policy_fs->ingress_);
+  EXPECT_EQ(true, policy_fs->is_l7lb_);
+  EXPECT_EQ(80, policy_fs->port_);
+  EXPECT_EQ("", policy_fs->pod_ip_);
+  EXPECT_EQ("", policy_fs->ingress_policy_name_);
+  EXPECT_EQ(0, policy_fs->ingress_source_identity_);
+
+  auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
+  EXPECT_NE(nullptr, source_addresses_socket_option);
+  EXPECT_EQ(-1, source_addresses_socket_option->linger_time_);
+
+  EXPECT_EQ(nullptr, source_addresses_socket_option->original_source_address_);
+  EXPECT_EQ("10.1.1.42:0", source_addresses_socket_option->ipv4_source_address_->asString());
+  EXPECT_EQ(nullptr, source_addresses_socket_option->ipv6_source_address_);
+
+  auto cilium_mark_socket_option = socket_metadata->buildCiliumMarkSocketOption();
+  EXPECT_NE(nullptr, cilium_mark_socket_option);
+
+  // Check that Ingress security ID is used in the socket mark.
+  EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
+              (cilium_mark_socket_option->mark_ >> 16) == 8);
+}
+
 TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   // Use external remote address
   remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.1.1", 12345);
