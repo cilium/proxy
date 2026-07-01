@@ -27,6 +27,8 @@ namespace Envoy {
 namespace Filter {
 namespace CiliumL3 {
 
+class NetworkFilterTestPeer;
+
 /**
  * Shared configuration for Cilium network filter worker
  * Instances. Each new network connection (on each worker thread)
@@ -67,6 +69,8 @@ public:
   Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;
 
 private:
+  friend class NetworkFilterTestPeer;
+
   // helper to be used either directly from onNewConnection (no L7 LB),
   // or from upstream callback (l7 lb)
   bool enforceNetworkPolicy(const Cilium::CiliumPolicyFilterState* policy_fs,
