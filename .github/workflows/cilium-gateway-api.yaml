@@ -91,6 +91,7 @@ jobs:
           kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_referencegrants.yaml
           kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_grpcroutes.yaml
           kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_backendtlspolicies.yaml
+          kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_listenersets.yaml
           ## TLSRoute is only available in experimental channel in v0.7.0
           kubectl apply --server-side -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gateway_api_version/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml
 
@@ -103,6 +104,7 @@ jobs:
           kubectl wait --for condition=Established crd/tcproutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
           kubectl wait --for condition=Established crd/udproutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
           kubectl wait --for condition=Established crd/referencegrants.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/listenersets.gateway.networking.k8s.io --timeout=${{ env.timeout }}
 
       - name: Install Cilium
         timeout-minutes: 10
