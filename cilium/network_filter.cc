@@ -312,7 +312,11 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
     go_parser_->setOrigEndStream(end_stream);
   } else if (!l7proto_.empty()) {
     const auto& metadata = conn.streamInfo().dynamicMetadata();
-    bool changed = log_entry_.updateFromMetadata(l7proto_, metadata.filter_metadata().at(l7proto_));
+    const auto& filter_metadata = metadata.filter_metadata();
+    const auto metadata_it = filter_metadata.find(l7proto_);
+    const Protobuf::Struct empty_metadata;
+    bool changed = log_entry_.updateFromMetadata(
+        l7proto_, metadata_it != filter_metadata.end() ? metadata_it->second : empty_metadata);
 
     // Policy may have changed since the connection was established, get fresh policy
     const auto policy_fs =
