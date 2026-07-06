@@ -54,6 +54,9 @@ endif
 # Extra opts are passed to docker targets, which will choose the bazel platform themselves
 EXTRA_BAZEL_BUILD_OPTS := $(BAZEL_BUILD_OPTS)
 
+BAZEL_ASAN_BUILD_OPTS ?= $(EXTRA_BAZEL_BUILD_OPTS) -c dbg --config=asan --config=clang-asan
+BAZEL_ASAN_TEST_OPTS ?= --jobs=HOST_RAM*.0001 --test_timeout=600 --local_test_jobs=2 --flaky_test_attempts=1 --test_output=errors
+
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
 else ifdef RELEASE_DEBUG
@@ -201,6 +204,10 @@ envoy-tests: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
 	# Upstream tcp_proxy_integration_test included to validate that our custom patches
 	# didn't break anything
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
+
+.PHONY: envoy-asan-tests
+envoy-asan-tests:
+	$(MAKE) envoy-tests BAZEL_BUILD_OPTS="$(BAZEL_ASAN_BUILD_OPTS)" BAZEL_TEST_OPTS="$(BAZEL_ASAN_TEST_OPTS)"
 
 .PHONY: \
 	install \
