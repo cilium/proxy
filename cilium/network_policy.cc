@@ -520,9 +520,9 @@ public:
           return true; // nothing to remove
         }
 
-        // Remove the header with an incorrect value
-        headers.remove(name_);
+        // Log the incorrect value before removing its backing header storage.
         logRejected(log_entry, header_value.result().value());
+        headers.remove(name_);
         return true;
       case cilium::HeaderMatch::REPLACE_ON_MISMATCH:
         // Log the wrong value as rejected, if the header existed with a wrong value
