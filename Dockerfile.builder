@@ -63,7 +63,7 @@ RUN case "$TARGETARCH" in \
     # toolchain binaries referenced by //bazel/toolchains plus clang-format and
     # clang-tidy, and drop static archives, tooling shared libs and docs.
     cd /usr/lib/llvm-18/bin && \
-    keep=" clang-18 lld clang-format clang-tidy clang-apply-replacements run-clang-tidy llvm-ar llvm-nm llvm-strip llvm-objcopy llvm-objdump llvm-dwp llvm-cov llvm-config " && \
+    keep=" clang-18 lld clang-format clang-tidy clang-apply-replacements run-clang-tidy llvm-ar llvm-nm llvm-strip llvm-objcopy llvm-objdump llvm-dwp llvm-cov llvm-config llvm-symbolizer " && \
     for f in $(find . -maxdepth 1 -type f -printf '%f\n'); do case "$keep" in *" $f "*) : ;; *) rm -f "$f" ;; esac; done && \
     cd /usr/lib/llvm-18 && \
     find lib -maxdepth 1 -name '*.a' ! -name 'libc++*.a' ! -name 'libunwind*.a' -delete && \
@@ -71,10 +71,11 @@ RUN case "$TARGETARCH" in \
     rm -rf share libexec && \
     # Create unversioned and -18 suffixed symlinks so tools are on PATH either way
     for tool in clang clang++ clang-cpp lld ld.lld clang-format clang-tidy run-clang-tidy clang-apply-replacements \
-                llvm-ar llvm-nm llvm-strip llvm-objcopy llvm-objdump llvm-dwp llvm-cov llvm-config; do \
+                llvm-ar llvm-nm llvm-strip llvm-objcopy llvm-objdump llvm-dwp llvm-cov llvm-config llvm-symbolizer; do \
       ln -sf /usr/lib/llvm-18/bin/$tool /usr/bin/$tool && \
       ln -sf /usr/lib/llvm-18/bin/$tool /usr/bin/$tool-18; \
-    done
+    done && \
+    /usr/lib/llvm-18/bin/llvm-symbolizer --version
 
 #
 # Install Bazelisk
