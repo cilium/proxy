@@ -44,13 +44,14 @@ RUN apt-get update && \
 # (deliberately, alongside Envoy upgrades) rather than via automated updates.
 ENV LLVM_VERSION=18.1.8
 ENV LIBTINFO5_VERSION=6.3-2ubuntu0.1
+ENV UBUNTU_SNAPSHOT=20240501T120000Z
 RUN case "$TARGETARCH" in \
-      amd64) LLVM_ARCH=x86_64-linux-gnu-ubuntu-18.04; TINFO_MIRROR=http://archive.ubuntu.com/ubuntu ;; \
-      arm64) LLVM_ARCH=aarch64-linux-gnu;             TINFO_MIRROR=http://ports.ubuntu.com/ubuntu-ports ;; \
+      amd64) LLVM_ARCH=x86_64-linux-gnu-ubuntu-18.04 ;; \
+      arm64) LLVM_ARCH=aarch64-linux-gnu ;; \
       *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
     esac && \
     # libtinfo.so.5 compat ABI, required to run the upstream clang on noble
-    curl -sfL "${TINFO_MIRROR}/pool/universe/n/ncurses/libtinfo5_${LIBTINFO5_VERSION}_${TARGETARCH}.deb" -o /tmp/libtinfo5.deb && \
+    curl -sfL "https://snapshot.ubuntu.com/ubuntu/${UBUNTU_SNAPSHOT}/pool/universe/n/ncurses/libtinfo5_${LIBTINFO5_VERSION}_${TARGETARCH}.deb" -o /tmp/libtinfo5.deb && \
     dpkg -i /tmp/libtinfo5.deb && \
     rm /tmp/libtinfo5.deb && \
     # upstream LLVM toolchain, extracted into the path the bazel toolchain expects
