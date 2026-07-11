@@ -43,7 +43,7 @@ RUN apt-get update && \
 # LLVM_VERSION must match MIN_CLANG_VERSION in the Makefile; bump both together
 # (deliberately, alongside Envoy upgrades) rather than via automated updates.
 ENV LLVM_VERSION=18.1.8
-ENV LIBTINFO5_VERSION=6.3-2ubuntu0.1
+ENV LIBTINFO5_VERSION=6.3-2ubuntu0.2
 RUN case "$TARGETARCH" in \
       amd64) LLVM_ARCH=x86_64-linux-gnu-ubuntu-18.04; TINFO_MIRROR=http://archive.ubuntu.com/ubuntu ;; \
       arm64) LLVM_ARCH=aarch64-linux-gnu;             TINFO_MIRROR=http://ports.ubuntu.com/ubuntu-ports ;; \
