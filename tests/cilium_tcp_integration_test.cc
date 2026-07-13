@@ -5,7 +5,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <cstring>
 #include <string>
 
 #include "test/integration/fake_upstream.h"
@@ -746,10 +745,9 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectBufferOverfl
   ASSERT_TRUE(tcp_client->write("26:INJECT reply direction\n"));
   ASSERT_TRUE(tcp_client->write("27:DROP original direction\n"));
 
-  char buf[5000];
-  memset(buf, 'A', sizeof buf);
-  strncpy(buf, "5000:INSERT original direction", 30);
-  buf[sizeof buf - 1] = '\n';
+  std::string buf(5000, 'A');
+  buf.replace(0, 30, "5000:INSERT original direction");
+  buf.back() = '\n';
 
   ASSERT_TRUE(tcp_client->write(buf));
   tcp_client->waitForData("26:INJECT reply direction\n", false);
