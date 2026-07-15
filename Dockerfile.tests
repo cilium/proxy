@@ -19,9 +19,17 @@ ARG ARCHIVE_IMAGE=builder-fresh
 
 FROM --platform=$BUILDPLATFORM $PROXYLIB_BUILDER AS proxylib
 WORKDIR /go/src/github.com/cilium/proxy
+ENV PATH=/usr/local/go/bin:$PATH
 ARG TARGETARCH
-RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/proxy --mount=mode=0777,target=/cilium/proxy/.cache,type=cache --mount=mode=0777,target=/go/pkg,type=cache \
-    GOARCH=${TARGETARCH} make -C proxylib all && mv proxylib/libcilium.so /tmp/libcilium.so
+ARG PROXYLIB_CC=gcc
+ARG PROXYLIB_GO_BUILD_FLAGS
+ARG PROXYLIB_GOCACHE
+RUN --mount=type=bind,target=/go/src/github.com/cilium/proxy \
+    --mount=mode=0777,target=/cilium/proxy/.cache,type=cache \
+    --mount=mode=0777,target=/go/pkg,type=cache \
+    --mount=mode=0777,uid=1337,gid=1337,target=/tmp/go-build,type=cache \
+    if [ -n "${PROXYLIB_GOCACHE}" ]; then export GOCACHE="${PROXYLIB_GOCACHE}"; fi && \
+    CC="${PROXYLIB_CC}" GOARCH="${TARGETARCH}" GO_BUILD_FLAGS="${PROXYLIB_GO_BUILD_FLAGS}" make -C proxylib TARGET=/tmp/libcilium.so all
 
 FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder-fresh
 LABEL maintainer="maintainer@cilium.io"

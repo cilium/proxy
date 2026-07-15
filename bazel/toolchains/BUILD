@@ -4,6 +4,14 @@ load(":cc_toolchain_config.bzl", "cc_toolchain_config")
 # Using platform-provided files
 filegroup(name = "empty")
 
+config_setting(
+    name = "msan_target_build",
+    constraint_values = [
+        "//bazel:cilium_target_platform_enabled",
+    ],
+    values = {"define": "ENVOY_CONFIG_MSAN=1"},
+)
+
 toolchain(
     name = "aarch64_linux_cc_toolchain",
     exec_compatible_with = ["@platforms//os:linux"],
@@ -168,7 +176,10 @@ cc_toolchain_config(
         "/usr/x86_64-linux-gnu/include",
         "/usr/include",
     ],
-    cxx_flags = ["-std=c++0x"],
+    cxx_flags = ["-std=c++0x"] + select({
+        "@envoy//bazel:msan_build": ["-stdlib=libc++"],
+        "//conditions:default": [],
+    }),
     dbg_compile_flags = ["-g"],
     host_system_name = "local",
     link_flags = [
@@ -177,11 +188,26 @@ cc_toolchain_config(
         "-Wl,-no-as-needed",
         "-Wl,-z,relro,-z,now",
         "-lm",
-    ],
-    link_libs = [
-        "-l:libstdc++.a",
-        "-latomic",
-    ],
+    ] + select({
+        "@envoy//bazel:msan_build": ["-L/usr/lib/llvm-18/lib"],
+        "//conditions:default": [],
+    }),
+    # Envoy supplies instrumented libc++ for MSAN targets. Non-instrumented
+    # Bazel exec tools use the system libc++ runtime below.
+    link_libs = select({
+        ":msan_target_build": [
+            "-latomic",
+        ],
+        "@envoy//bazel:msan_build": [
+            "-l:libc++.a",
+            "-l:libc++abi.a",
+            "-latomic",
+        ],
+        "//conditions:default": [
+            "-l:libstdc++.a",
+            "-latomic",
+        ],
+    }),
     opt_compile_flags = [
         "-g0",
         "-O2",

@@ -57,6 +57,11 @@ EXTRA_BAZEL_BUILD_OPTS := $(BAZEL_BUILD_OPTS)
 BAZEL_ASAN_BUILD_OPTS ?= $(EXTRA_BAZEL_BUILD_OPTS) -c dbg --config=asan --config=clang-asan
 BAZEL_ASAN_TEST_OPTS ?= --jobs=HOST_RAM*.0001 --test_timeout=600 --local_test_jobs=2 --flaky_test_attempts=1 --test_output=errors
 
+BAZEL_MSAN_BUILD_OPTS ?= --config=msan $(EXTRA_BAZEL_BUILD_OPTS) -c dbg
+BAZEL_MSAN_TEST_OPTS ?= --jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --flaky_test_attempts=1 --test_output=errors
+PROXYLIB_MSAN_CC ?= clang
+PROXYLIB_MSAN_GO_BUILD_FLAGS ?= -msan -buildvcs=false
+
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
 else ifdef RELEASE_DEBUG
@@ -208,6 +213,14 @@ envoy-tests: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
 .PHONY: envoy-asan-tests
 envoy-asan-tests:
 	$(MAKE) envoy-tests BAZEL_BUILD_OPTS="$(BAZEL_ASAN_BUILD_OPTS)" BAZEL_TEST_OPTS="$(BAZEL_ASAN_TEST_OPTS)"
+
+.PHONY: proxylib-msan
+proxylib-msan:
+	$(MAKE) -C proxylib all CC="$(PROXYLIB_MSAN_CC)" GO_BUILD_FLAGS="$(PROXYLIB_MSAN_GO_BUILD_FLAGS)"
+
+.PHONY: envoy-msan-tests
+envoy-msan-tests: proxylib-msan
+	$(MAKE) envoy-tests BAZEL_BUILD_OPTS="$(BAZEL_MSAN_BUILD_OPTS)" BAZEL_TEST_OPTS="$(BAZEL_MSAN_TEST_OPTS)"
 
 .PHONY: \
 	install \

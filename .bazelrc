@@ -6,6 +6,10 @@
 # curl -sSL https://raw.githubusercontent.com/envoyproxy/envoy-wasm/master/.bazelrc > envoy.bazelrc
 import %workspace%/envoy.bazelrc
 
+# MSAN does not recognize host libc's stat() as initializing Bazel's runfiles buffer.
+# Scope zero initialization to this helper so proxy and Envoy sources remain fully checked.
+build:msan --per_file_copt=external/bazel_tools/tools/cpp/runfiles/runfiles[.]cc@-ftrivial-auto-var-init=zero
+
 # Rust crate repinning for repository rules. Inherit CARGO_BAZEL_REPIN from the
 # invocation environment so developers can repin explicitly without forcing
 # every normal Bazel invocation to recompute the crate index.
