@@ -15,7 +15,8 @@ ifeq ($(CROSS_ARCH),arm64)
 else ifeq ($(CROSS_ARCH),amd64)
     CGO_CC = CC=x86_64-linux-gnu-gcc
 endif
-GO_BUILD_WITH_CGO = CGO_ENABLED=1 $(CGO_CC) $(GO) build
+GO_BUILD_FLAGS ?=
+GO_BUILD_WITH_CGO = CGO_ENABLED=1 $(CGO_CC) $(GO) build $(GO_BUILD_FLAGS)
 
 EXTRA_GO_BUILD_LDFLAGS = -extldflags -Wl,-soname,libcilium.so
 
