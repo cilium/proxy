@@ -62,6 +62,8 @@ BAZEL_MSAN_TEST_OPTS ?= --jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_j
 PROXYLIB_MSAN_CC ?= clang
 PROXYLIB_MSAN_GO_BUILD_FLAGS ?= -msan -buildvcs=false
 
+BAZEL_BUILD_OPTS += --config=clang
+
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
 else ifdef RELEASE_DEBUG
