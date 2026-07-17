@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <memory>
 
 #include "envoy/http/protocol.h"
@@ -85,6 +86,16 @@ TEST_F(CiliumTest, AccessLog) {
   EXPECT_STREQ(log.entry_.http().headers(1).key().c_str(), "my-response-header");
   EXPECT_STREQ(log.entry_.http().headers(1).value().c_str(), "response");
 }
+
+#ifdef MEMORY_SANITIZER
+TEST(MsanCanaryTest, DetectsUninitializedHeapRead) {
+  auto* value = static_cast<unsigned char*>(std::malloc(1));
+  ASSERT_NE(value, nullptr);
+
+  EXPECT_EQ(*value, 0);
+  std::free(value);
+}
+#endif
 
 } // namespace Cilium
 } // namespace Envoy
