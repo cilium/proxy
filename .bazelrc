@@ -20,6 +20,16 @@ common --repo_env=CARGO_BAZEL_REPIN
 # use 2.39.
 build --extra_toolchains=//bazel/toolchains:all
 
+coverage --config=coverage
+
+build:coverage --combined_report=lcov
+build:coverage --action_env=CC=clang-18 --host_action_env=CC=clang-18
+build:coverage --action_env=CXX=clang++-18 --host_action_env=CXX=clang++-18
+#build:coverage --test_arg="--log-path /dev/null"
+build:coverage --test_tag_filters=-nocoverage,-fuzz_target
+build:coverage --remote_download_minimal
+build:coverage --coverage_report_generator=//tools/coverage:cilium_report_generator
+
 # Use platforms based toolchain resolution
 build --incompatible_enable_cc_toolchain_resolution
 build --platform_mappings=bazel/platform_mappings
