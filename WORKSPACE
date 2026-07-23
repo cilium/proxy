@@ -12,8 +12,8 @@ ENVOY_REPO = "envoy"
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.37.5
-ENVOY_SHA = "f97695a50e11f5ff6719e129a466bf9204b64a7f"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.38.3
+ENVOY_SHA = "0ebfcfe5b0484b89ca85b761da9e05ce75dbda8d"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -85,7 +85,7 @@ load("@envoy//bazel:python_dependencies.bzl", "envoy_python_dependencies")
 envoy_python_dependencies()
 
 load("@bazel_gazelle//:deps.bzl", "go_repository")
-load("//bazel:envoy_dependency_imports.bzl", "envoy_dependency_imports")
+load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
 
 go_repository(
     name = "org_golang_x_text",
@@ -127,22 +127,30 @@ go_repository(
     version = "v0.32.0",
 )
 
-envoy_dependency_imports()
+# rules_rust hashes the crate manifest label into the crate_universe lockfile, so
+# Envoy's own Cargo.Bazel.lock never matches when Envoy is embedded as @envoy.
+# Point the crate index at a Cilium-owned lockfile instead. Refresh it with
+# `make cargo-repin` whenever Envoy changes its Rust dependencies.
+envoy_dependency_imports(
+    cargo_bazel_lockfile = "@//bazel:envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock",
+)
 
 load("@envoy//bazel:repo.bzl", "envoy_repo")
 
 envoy_repo()
 
-load("@envoy//bazel:toolchains.bzl", "envoy_toolchains")
-
-envoy_toolchains()
-
-# When BAZEL_LLVM_PATH is set, envoy_toolchains() skips creating the
-# llvm_toolchain_llvm repo, but envoy's clang-format target still depends on it.
-# Provide it only if it wasn't already created.
+# Pre-create @llvm_toolchain_llvm from the local LLVM (BAZEL_LLVM_PATH) BEFORE
+# envoy_toolchains(). envoy_toolchains() (and toolchains_llvm's llvm_toolchain())
+# only create @llvm_toolchain_llvm when it does not already exist, and the repo
+# envoy would create lacks the //:clang-format target that the format check needs.
+# Providing a complete repo here makes both compilation and the format check work.
 load("//bazel:local_llvm.bzl", "local_llvm_repo")
 
 local_llvm_repo(name = "llvm_toolchain_llvm")
+
+load("@envoy//bazel:toolchains.bzl", "envoy_toolchains")
+
+envoy_toolchains()
 
 load("@envoy//bazel:dependency_imports_extra.bzl", "envoy_dependency_imports_extra")
 
