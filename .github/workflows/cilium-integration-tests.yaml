@@ -53,7 +53,7 @@ jobs:
           echo "PROXY_GITHUB_REPO=github.com/${{ inputs.repository }}" >> $GITHUB_ENV
 
       - name: Checkout Cilium ${{ env.CILIUM_REPO_REF }}
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ env.CILIUM_REPO_OWNER }}/cilium # Be aware that this is the Cilium repository and not the one of the proxy itself!
           ref: ${{ env.CILIUM_REPO_REF }}
@@ -86,10 +86,10 @@ jobs:
           cluster_name: 'kind'
 
       - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # renovate: datasource=golang-version depName=go
-          go-version: 1.26.4
+          go-version: 1.26.5
 
       - name: Install Cilium
         timeout-minutes: 10
