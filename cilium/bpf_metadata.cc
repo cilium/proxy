@@ -244,13 +244,19 @@ Config::Config(const ::cilium::BpfMetadata& config,
         fmt::format("cilium.bpf_metadata: ipv6_source_address is not an IPv6 address: {}",
                     config.ipv6_source_address()));
   }
+  // Keep policy maps alive with the shared ADS stream to avoid leaving stale
+  // wildcard subscriptions when the last filter instance is destroyed.
+  const bool pin_for_ads =
+      config_source_.config_source_specifier_case() == envoy::config::core::v3::ConfigSource::kAds;
+
   if (config.use_nphds()) {
     hosts_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::PolicyHostMap>(
         SINGLETON_MANAGER_REGISTERED_NAME(cilium_host_map),
         [&context, config_source = config_source_] {
           return std::make_shared<Cilium::PolicyHostMap>(context.serverFactoryContext(),
                                                          config_source);
-        });
+        },
+        pin_for_ads);
     // update desired config source on the map
     hosts_->configure(config_source_);
   }
@@ -293,7 +299,8 @@ Config::Config(const ::cilium::BpfMetadata& config,
         SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
         [&context, config_source = config_source_] {
           return std::make_shared<Cilium::NetworkPolicyMap>(context, config_source);
-        });
+        },
+        pin_for_ads);
     // update desired config source on the map
     npmap_->configure(config_source_);
   }
