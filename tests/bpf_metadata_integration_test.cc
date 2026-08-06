@@ -416,14 +416,19 @@ public:
     stream.sendGrpcMessage(response);
   }
 
-  void sendNphdsResponse(FakeStream& stream, const std::string& version) {
+  void sendNphdsResponse(FakeStream& stream, const std::string& version,
+                         const std::vector<std::string>& policy_host_configs = {policy_host1,
+                                                                                policy_host2}) {
     envoy::service::discovery::v3::DiscoveryResponse response;
     response.set_version_info(version);
     response.set_nonce(version);
     response.set_type_url(NetworkPolicyHostsTypeUrl);
     std::vector<cilium::NetworkPolicyHosts> proto_configs;
-    proto_configs.emplace_back(TestUtility::parseYaml<cilium::NetworkPolicyHosts>(policy_host1));
-    proto_configs.emplace_back(TestUtility::parseYaml<cilium::NetworkPolicyHosts>(policy_host2));
+    proto_configs.reserve(policy_host_configs.size());
+    for (const auto& policy_host_config : policy_host_configs) {
+      proto_configs.emplace_back(
+          TestUtility::parseYaml<cilium::NetworkPolicyHosts>(policy_host_config));
+    }
     for (const auto& policy_host_config : proto_configs) {
       response.add_resources()->PackFrom(policy_host_config);
     }
@@ -595,6 +600,53 @@ TEST_P(BpfMetadataIntegrationTest, BpfMetadataWithNpdsAndNpdhsViaAds) {
   test_server_->waitForCounterGe("cilium.policy.update_success", 1);
   sendNphdsResponse(*ads_stream_, "1");
   test_server_->waitForCounterGe("cilium.hostmap.update_success", 1);
+}
+
+TEST_P(BpfMetadataIntegrationTest, AdsPolicyMapsSurviveLastListenerRemoval) {
+  on_server_init_function_ = [&]() {
+    createAdsStream();
+    addBpfMetadataListenerFilter(listener_config_, /*use_ads=*/true);
+    EXPECT_TRUE(compareDiscoveryRequest(
+        Config::TestTypeUrl::get().Cluster, "", {}, {}, {},
+        /*expect_node=*/true, Envoy::Grpc::Status::WellKnownGrpcStatus::Ok, "", ads_stream_.get()));
+    sendCdsResponse(*ads_stream_, "1");
+    EXPECT_TRUE(compareDiscoveryRequest(
+        Config::TestTypeUrl::get().Listener, "", {}, {}, {}, /*expect_node=*/false,
+        Grpc::Status::WellKnownGrpcStatus::Ok, "", ads_stream_.get()));
+    sendLdsResponse(*ads_stream_, {MessageUtil::getYamlStringFromMessage(listener_config_)}, "1");
+  };
+  initializeAds();
+
+  test_server_->waitForCounterGe("listener_manager.lds.update_success", 1);
+  sendNpdsResponse(*ads_stream_, "1");
+  test_server_->waitForCounterGe("cilium.policy.update_success", 1);
+  sendNphdsResponse(*ads_stream_, "1");
+  test_server_->waitForCounterGe("cilium.hostmap.update_success", 1);
+
+  {
+    const auto policy_map = networkPolicyMap();
+    EXPECT_TRUE(policy_map->exists("10.1.1.1"));
+    EXPECT_TRUE(policy_map->exists("10.2.2.2"));
+  }
+  EXPECT_EQ(resolveHostPolicyId("10.1.1.1"), 111);
+  EXPECT_EQ(resolveHostPolicyId("10.2.2.2"), 222);
+
+  sendLdsResponse(*ads_stream_, std::vector<envoy::config::listener::v3::Listener>{}, "2");
+  test_server_->waitForCounterGe("listener_manager.lds.update_success", 2);
+  test_server_->waitForCounterEq("listener_manager.listener_removed", 1);
+  test_server_->waitForGaugeEq("listener_manager.total_listeners_draining", 0);
+  EXPECT_TRUE(test_server_->server().listenerManager().listeners().empty());
+
+  sendNpdsResponse(*ads_stream_, "2", {policy2});
+  test_server_->waitForCounterGe("cilium.policy.update_success", 2);
+  sendNphdsResponse(*ads_stream_, "2", {policy_host2});
+  test_server_->waitForCounterGe("cilium.hostmap.update_success", 2);
+
+  const auto policy_map = networkPolicyMap();
+  EXPECT_FALSE(policy_map->exists("10.1.1.1"));
+  EXPECT_TRUE(policy_map->exists("10.2.2.2"));
+  EXPECT_EQ(resolveHostPolicyId("10.1.1.1"), Cilium::ID::UNKNOWN);
+  EXPECT_EQ(resolveHostPolicyId("10.2.2.2"), 222);
 }
 
 TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedAdsGrpcStreams) {
