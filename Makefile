@@ -62,6 +62,12 @@ BAZEL_MSAN_TEST_OPTS ?= --jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_j
 PROXYLIB_MSAN_CC ?= clang
 PROXYLIB_MSAN_GO_BUILD_FLAGS ?= -msan -buildvcs=false
 
+BAZEL_TSAN_BUILD_OPTS ?= --config=tsan $(EXTRA_BAZEL_BUILD_OPTS) -c dbg
+BAZEL_TSAN_TEST_OPTS ?= --jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --flaky_test_attempts=1 --test_output=errors
+PROXYLIB_TSAN_CC ?= clang
+PROXYLIB_TSAN_CGO_CFLAGS ?= -fsanitize=thread
+PROXYLIB_TSAN_GO_BUILD_FLAGS ?= -installsuffix=tsan -buildvcs=false
+
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
 else ifdef RELEASE_DEBUG
@@ -224,6 +230,14 @@ proxylib-msan:
 .PHONY: envoy-msan-tests
 envoy-msan-tests: proxylib-msan
 	$(MAKE) envoy-tests BAZEL_BUILD_OPTS="$(BAZEL_MSAN_BUILD_OPTS)" BAZEL_TEST_OPTS="$(BAZEL_MSAN_TEST_OPTS)"
+
+.PHONY: proxylib-tsan
+proxylib-tsan:
+	$(MAKE) -C proxylib all CC="$(PROXYLIB_TSAN_CC)" CGO_CFLAGS="$(PROXYLIB_TSAN_CGO_CFLAGS)" GO_BUILD_FLAGS="$(PROXYLIB_TSAN_GO_BUILD_FLAGS)"
+
+.PHONY: envoy-tsan-tests
+envoy-tsan-tests: proxylib-tsan
+	$(MAKE) envoy-tests BAZEL_BUILD_OPTS="$(BAZEL_TSAN_BUILD_OPTS)" BAZEL_TEST_OPTS="$(BAZEL_TSAN_TEST_OPTS)"
 
 .PHONY: \
 	install \

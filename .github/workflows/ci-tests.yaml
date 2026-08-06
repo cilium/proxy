@@ -187,3 +187,58 @@ jobs:
             BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress --test_env=MSAN_SYMBOLIZER_PATH=/usr/lib/llvm-18/bin/llvm-symbolizer
           cache-from: type=local,src=/tmp/buildx-cache
           push: false
+
+  tsan-tests:
+    timeout-minutes: 360
+    name: Run TSAN integration tests on amd64
+    runs-on: ${{ vars.PROXY_BUILD_GITHUB_RUNNER || 'oracle-vm-32cpu-128gb-x86-64' }}
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Cache Docker layers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/buildx-cache
+          key: docker-cache-tests-tsan
+          restore-keys: docker-cache-tests
+
+      - name: Checkout PR Source Code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Prep for build
+        run: |
+          echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
+          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
+
+      - name: Wait for build image
+        uses: ./.github/workflows/wait-for-image
+        with:
+          SHA: ${{ env.BUILDER_DOCKER_HASH }}
+          repo: cilium
+          images: cilium-envoy-builder-dev
+
+      - name: Run TSAN integration tests on amd64
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        id: docker_tsan_tests_ci
+        with:
+          provenance: false
+          context: .
+          file: ./Dockerfile.tests
+          platforms: linux/amd64
+          build-args: |
+            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
+            PROXYLIB_BUILDER=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
+            PROXYLIB_CC=/usr/lib/llvm-18/bin/clang
+            PROXYLIB_CGO_CFLAGS=-fsanitize=thread
+            PROXYLIB_GO_BUILD_FLAGS=-installsuffix=tsan -buildvcs=false
+            PROXYLIB_GOCACHE=/tmp/go-build
+            ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
+            DEBUG=1
+            BAZEL_BUILD_OPTS=--config=tsan --remote_upload_local_results=false
+            BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress --test_env=TSAN_OPTIONS=report_atomic_races=0:halt_on_error=1:external_symbolizer_path=/usr/lib/llvm-18/bin/llvm-symbolizer:strip_path_prefix=/proc/self/cwd/
+          cache-from: type=local,src=/tmp/buildx-cache
+          push: false
