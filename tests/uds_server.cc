@@ -69,18 +69,20 @@ void UDSServer::shutdownServerThread() {
 
   if (fd2 >= 0) {
     ::shutdown(fd2, SHUT_RD);
-    ::close(fd2);
   }
   if (fd >= 0) {
     ::shutdown(fd, SHUT_RD);
-    errno = 0;
-    ::close(fd);
   }
   if (thread_ != nullptr) {
-    ENVOY_LOG(trace, "Waiting on unix domain socket server to close: {}",
-              Envoy::errorDetails(errno));
+    ENVOY_LOG(trace, "Waiting on unix domain socket server thread");
     thread_->join();
     thread_.reset();
+  }
+  if (fd2 >= 0 && ::close(fd2) == -1) {
+    ENVOY_LOG(warn, "Closing UDS client socket {} failed: {}", fd2, Envoy::errorDetails(errno));
+  }
+  if (fd >= 0 && ::close(fd) == -1) {
+    ENVOY_LOG(warn, "Closing UDS server socket {} failed: {}", fd, Envoy::errorDetails(errno));
   }
   if (!addr_->pipe()->abstractNamespace()) {
     ::unlink(addr_->asString().c_str());
