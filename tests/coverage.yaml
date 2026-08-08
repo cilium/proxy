@@ -1,0 +1,7 @@
+thresholds:
+  total: 95.0
+  per_directory: 95.0
+
+directories:
+  cilium: 95.0
+  linux: 95.0
