@@ -18,7 +18,6 @@
 #include "envoy/network/address.h"
 #include "envoy/network/connection.h"
 #include "envoy/network/transport_socket.h"
-#include "envoy/ssl/connection.h"
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/buffer/watermark_buffer.h"
@@ -119,12 +118,23 @@ public:
   }
 
   AssertionResult
-  waitForTlsHandshake(const FakeRawConnection& connection,
+  waitForTlsHandshake(FakeRawConnection& connection,
                       std::chrono::milliseconds timeout = TestUtility::DefaultTimeout) {
     Event::TestTimeSystem::RealTimeBound bound(timeout);
     while (true) {
-      const auto downstream_timing = connection.connection().streamInfo().downstreamTiming();
-      if (downstream_timing.downstreamHandshakeComplete().has_value()) {
+      bool handshake_complete = false;
+      const auto state_result = connection.sharedConnection().executeOnDispatcher(
+          [&handshake_complete](Network::Connection& upstream_connection) {
+            handshake_complete = upstream_connection.streamInfo()
+                                     .downstreamTiming()
+                                     .downstreamHandshakeComplete()
+                                     .has_value();
+          });
+      if (!state_result) {
+        return state_result;
+      }
+
+      if (handshake_complete) {
         return AssertionSuccess();
       }
 
@@ -134,13 +144,33 @@ public:
       timeSystem().advanceTimeWait(std::chrono::milliseconds(1));
 
       if (timeout != std::chrono::milliseconds::zero() && !bound.withinBound()) {
-        const Ssl::ConnectionInfoConstSharedPtr ssl = connection.connection().ssl();
-        return AssertionFailure() << "Timed out waiting for TLS handshake. ssl=" << (ssl != nullptr)
-                                  << " handshake_complete="
-                                  << downstream_timing.downstreamHandshakeComplete().has_value()
-                                  << " tls_version=" << (ssl != nullptr ? ssl->tlsVersion() : "")
-                                  << " ciphersuite="
-                                  << (ssl != nullptr ? ssl->ciphersuiteString() : "");
+        bool has_ssl = false;
+        std::string tls_version;
+        std::string ciphersuite;
+        const auto diagnostic_result = connection.sharedConnection().executeOnDispatcher(
+            [&](Network::Connection& upstream_connection) {
+              handshake_complete = upstream_connection.streamInfo()
+                                       .downstreamTiming()
+                                       .downstreamHandshakeComplete()
+                                       .has_value();
+              const auto ssl = upstream_connection.ssl();
+              has_ssl = ssl != nullptr;
+              if (ssl != nullptr) {
+                tls_version = std::string(ssl->tlsVersion());
+                ciphersuite = std::string(ssl->ciphersuiteString());
+              }
+            });
+        if (!diagnostic_result) {
+          return diagnostic_result;
+        }
+        if (handshake_complete) {
+          return AssertionSuccess();
+        }
+
+        return AssertionFailure() << "Timed out waiting for TLS handshake. ssl=" << has_ssl
+                                  << " handshake_complete=" << handshake_complete
+                                  << " tls_version=" << tls_version
+                                  << " ciphersuite=" << ciphersuite;
       }
     }
   }
