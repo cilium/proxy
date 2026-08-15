@@ -172,6 +172,9 @@ jobs:
     with:
       repository: ${{ github.event.pull_request.head.repo.full_name }}
       commit_ref: ${{ github.event.pull_request.head.sha }}
+      # pull_request_target runs the default-branch workflow files, so the Cilium
+      # branch is derived from the PR base branch here instead of per-branch overrides.
+      cilium_ref: ${{ github.base_ref == 'v1.37' && 'v1.20' || github.base_ref == 'v1.36' && 'v1.19' || 'main' }}
     secrets: inherit
 
   cilium-gateway-api-tests:
@@ -185,4 +188,5 @@ jobs:
     with:
       repository: ${{ github.event.pull_request.head.repo.full_name }}
       commit_ref: ${{ github.event.pull_request.head.sha }}
+      cilium_ref: ${{ github.base_ref == 'v1.37' && 'v1.20' || github.base_ref == 'v1.36' && 'v1.19' || 'main' }}
     secrets: inherit

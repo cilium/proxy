@@ -11,6 +11,10 @@ on:
         description: 'Git commit ref for image.'
         type: string
         required: true
+      cilium_ref:
+        description: 'Cilium branch or tag to run the tests against.'
+        type: string
+        default: main
 
 concurrency:
   group: gateway-api-${{ github.workflow }}-${{ inputs.repository }}-${{ github.event.pull_request.number || github.event.after || inputs.commit_ref }}
@@ -27,7 +31,7 @@ env:
   # renovate: datasource=github-releases depName=kubernetes-sigs/kind
   KIND_VERSION: v0.32.0
   CILIUM_REPO_OWNER: cilium
-  CILIUM_REPO_REF: main
+  CILIUM_REPO_REF: ${{ inputs.cilium_ref }}
   CILIUM_CLI_REF: latest
   CURL_PARALLEL: ${{ vars.CURL_PARALLEL || 10 }}
 
