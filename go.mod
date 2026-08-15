@@ -2,13 +2,13 @@ module github.com/cilium/proxy
 
 go 1.25.0
 
-toolchain go1.26.5
+toolchain go1.26.6
 
 require (
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
-	github.com/sirupsen/logrus v1.9.4
+	github.com/sirupsen/logrus v1.10.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.47.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20260810153831-ec0a7760b754
