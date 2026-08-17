@@ -416,7 +416,7 @@ TEST_P(CiliumWebSocketIntegrationTest, UnmaskedClientFrameRejected) {
   client_connection->write(frame_buffer, false);
   client_connection->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
-  test_server_->waitForCounterGe("websocket.protocol_error", 1);
+  test_server_->waitForCounter("websocket.protocol_error", testing::Ge(1));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   ASSERT_TRUE(codec_client_->waitForDisconnect());
 }

@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -26,7 +27,6 @@
 #include "test/test_common/environment.h"
 
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/bpf_metadata.h"
 #include "cilium/host_map.h"
@@ -164,7 +164,7 @@ TestConfig::~TestConfig() {
   npmap.reset();
 }
 
-absl::optional<Cilium::BpfMetadata::SocketMetadata>
+std::optional<Cilium::BpfMetadata::SocketMetadata>
 TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
   // TLS filter chain matches this, make namespace part of this (e.g.,
   // "default")?

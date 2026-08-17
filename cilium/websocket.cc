@@ -128,11 +128,9 @@ void Instance::initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callb
 
   // Tell TcpProxy to not disable read so that we do WebSocket handshake before upstream
   // connection is established.
-  // Use Mutable StateType so that tests can have both client and server filters in the same
-  // filter chain.
   callbacks_->connection().streamInfo().filterState()->setData(
       TcpProxy::ReceiveBeforeConnectKey, std::make_unique<StreamInfo::BoolAccessorImpl>(true),
-      StreamInfo::FilterState::StateType::Mutable, StreamInfo::FilterState::LifeSpan::Connection);
+      StreamInfo::FilterState::LifeSpan::Connection);
 
   // After both directions of a WebSocket tunnel have ended, TcpProxy must flush the final data
   // and CLOSE frame and wait for the peer's transport FIN. Closing immediately can generate an
@@ -142,7 +140,7 @@ void Instance::initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callb
       config_->client_ ? TcpProxy::UpstreamFlushWaitTimeoutMs
                        : TcpProxy::DownstreamFlushWaitTimeoutMs,
       std::make_unique<StreamInfo::UInt64AccessorImpl>(WebSocketTransportCloseTimeout.count()),
-      StreamInfo::FilterState::StateType::ReadOnly, StreamInfo::FilterState::LifeSpan::Connection);
+      StreamInfo::FilterState::LifeSpan::Connection);
 }
 
 Network::FilterStatus Instance::onNewConnection() {

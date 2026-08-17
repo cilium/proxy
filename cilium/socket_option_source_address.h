@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include "envoy/config/core/v3/socket_option.pb.h"
@@ -10,7 +11,6 @@
 
 #include "source/common/common/logger.h"
 
-#include "absl/types/optional.h"
 #include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
 
@@ -33,10 +33,10 @@ public:
       std::shared_ptr<CiliumDestinationFilterState> dest_fs = nullptr,
       std::shared_ptr<CiliumPolicyFilterState> policy_fs = nullptr);
 
-  absl::optional<Network::Socket::Option::Details>
+  std::optional<Network::Socket::Option::Details>
   getOptionDetails(const Network::Socket&,
                    envoy::config::core::v3::SocketOption::SocketState) const override {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   bool setOption(Network::Socket& socket,

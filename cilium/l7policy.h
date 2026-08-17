@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "envoy/buffer/buffer.h"
@@ -11,11 +12,11 @@
 #include "envoy/http/metadata_interface.h"
 #include "envoy/stats/scope.h"
 #include "envoy/stats/stats_macros.h" // IWYU pragma: keep
+#include "envoy/upstream/host_description.h"
 
 #include "source/common/common/logger.h"
 
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/l7policy.pb.h"
@@ -72,6 +73,9 @@ public:
   AccessFilter(ConfigSharedPtr& config) : config_(config) {}
 
   // UpstreamCallbacks
+  // Upstream host authorization is enforced by the Cilium network filter via the network-level
+  // upstream authorization callbacks, so nothing is done here.
+  void onHostSelected(const Upstream::HostDescriptionConstSharedPtr&) override {}
   void onUpstreamConnectionEstablished() override;
 
   // Http::StreamFilterBase
@@ -114,7 +118,7 @@ private:
   AccessLog::Entry* log_entry_ = nullptr;
 
   OptRef<Http::RequestHeaderMap> latched_headers_;
-  absl::optional<bool> latched_end_stream_;
+  std::optional<bool> latched_end_stream_;
 };
 
 } // namespace Cilium
