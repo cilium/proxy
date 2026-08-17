@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <list>
+#include <optional>
 #include <string>
 
 #include "envoy/data/core/v3/health_check_event.pb.h"
@@ -11,7 +12,6 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/optional.h"
 #include "tests/uds_server.h"
 
 namespace Envoy {
@@ -22,7 +22,7 @@ public:
   ~HealthCheckSinkServer() override;
 
   void clear();
-  absl::optional<envoy::data::core::v3::HealthCheckEvent>
+  std::optional<envoy::data::core::v3::HealthCheckEvent>
   waitForEvent(std::chrono::milliseconds timeout = TestUtility::DefaultTimeout);
 
   template <typename P>
