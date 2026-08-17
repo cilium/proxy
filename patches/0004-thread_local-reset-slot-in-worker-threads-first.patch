@@ -1,7 +1,7 @@
-From 2c201ef341cf0090b5bf2507351c923fd7d37173 Mon Sep 17 00:00:00 2001
+From f8c8cff10b0e498cf0e4f5edce427bf93774da38 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 23 Dec 2024 22:43:15 +0100
-Subject: [PATCH 4/7] thread_local: reset slot in worker threads first
+Subject: [PATCH 4/6] thread_local: reset slot in worker threads first
 
 Thread local slots refer to their data via shared pointers. Reset the
 shared pointer first in the worker threads, and last in the main thread
@@ -18,7 +18,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  4 files changed, 36 insertions(+), 2 deletions(-)
 
 diff --git a/envoy/thread_local/thread_local.h b/envoy/thread_local/thread_local.h
-index 13ff7496..da982cce 100644
+index 13ff7496ff..da982ccea5 100644
 --- a/envoy/thread_local/thread_local.h
 +++ b/envoy/thread_local/thread_local.h
 @@ -248,6 +248,13 @@ public:
@@ -36,7 +36,7 @@ index 13ff7496..da982cce 100644
  
  } // namespace ThreadLocal
 diff --git a/source/common/thread_local/thread_local_impl.cc b/source/common/thread_local/thread_local_impl.cc
-index 2a49789a..e57b2fd7 100644
+index 1231c044f7..f0c3696bd1 100644
 --- a/source/common/thread_local/thread_local_impl.cc
 +++ b/source/common/thread_local/thread_local_impl.cc
 @@ -165,7 +165,8 @@ void InstanceImpl::removeSlot(uint32_t slot) {
@@ -87,7 +87,7 @@ index 2a49789a..e57b2fd7 100644
    if (thread_local_data_.data_.size() <= index) {
      thread_local_data_.data_.resize(index + 1);
 diff --git a/source/common/thread_local/thread_local_impl.h b/source/common/thread_local/thread_local_impl.h
-index 71941899..685457af 100644
+index a2aa9351f0..01af0cc83a 100644
 --- a/source/common/thread_local/thread_local_impl.h
 +++ b/source/common/thread_local/thread_local_impl.h
 @@ -29,6 +29,7 @@ public:
@@ -99,7 +99,7 @@ index 71941899..685457af 100644
  private:
    // On destruction returns the slot index to the deferred delete queue (detaches it). This allows
 diff --git a/test/mocks/thread_local/mocks.h b/test/mocks/thread_local/mocks.h
-index 09dff237..88d7cea1 100644
+index 7ca4fa8147..171bc4a1bb 100644
 --- a/test/mocks/thread_local/mocks.h
 +++ b/test/mocks/thread_local/mocks.h
 @@ -27,6 +27,10 @@ public:
@@ -114,5 +114,5 @@ index 09dff237..88d7cea1 100644
    SlotPtr allocateSlotMock() { return SlotPtr{new SlotImpl(*this, current_slot_++)}; }
    void runOnAllThreads1(std::function<void()> cb) { cb(); }
 -- 
-2.54.0
+2.55.0
 
