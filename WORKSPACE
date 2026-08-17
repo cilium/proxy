@@ -34,8 +34,11 @@ local_repository(
 git_repository(
     name = "envoy",
     commit = ENVOY_SHA,
-    patch_args = ["apply"],
-    patch_tool = "git",
+    # Use Bazel's native patch implementation. `patch_tool = "git"` must not be
+    # used: since Bazel 8, `git_repository` carries a `patch_strip` attribute and
+    # prepends its `-pN` to `patch_args`, which `git apply` rejects as an unknown
+    # global option.
+    patch_strip = 1,
     patches = [
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
         "@//patches:0002-listener-add-socket-options.patch",
