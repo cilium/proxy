@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <format>
 #include <functional>
 #include <memory>
 #include <ranges>
@@ -57,6 +58,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
@@ -86,13 +88,18 @@ using RuleVerdict = enum {
 } // namespace Cilium
 } // namespace Envoy
 
-namespace fmt {
+// Envoy routes ENVOY_LOG() through spdlog, which is built with SPDLOG_USE_STD_FORMAT, so this
+// has to be a std::formatter rather than a fmt::formatter.
+namespace std {
 
-template <> struct formatter<Envoy::Cilium::RuleVerdict> {
-  constexpr auto parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
+// NOLINTNEXTLINE(readability-identifier-naming)
+template <> struct formatter<Envoy::Cilium::RuleVerdict, char> {
+  template <class ParseContext> constexpr ParseContext::iterator parse(ParseContext& ctx) {
+    return ctx.begin();
+  }
 
-  template <typename FormatContext>
-  auto format(Envoy::Cilium::RuleVerdict verdict, FormatContext& ctx) const {
+  template <class FmtContext>
+  FmtContext::iterator format(Envoy::Cilium::RuleVerdict verdict, FmtContext& ctx) const {
     absl::string_view name;
     switch (verdict) {
     case Envoy::Cilium::RuleVerdict::None:
@@ -115,7 +122,7 @@ template <> struct formatter<Envoy::Cilium::RuleVerdict> {
   }
 };
 
-} // namespace fmt
+} // namespace std
 
 namespace Envoy {
 namespace Cilium {
@@ -2110,7 +2117,7 @@ void NetworkPolicyMapImpl::removeInitManager() {
           warn,
           "Cilium NetworkPolicyMap parked init manager unexpectedly accumulated targets [{}]{}; "
           "replacing it before re-installing",
-          fmt::join(parked_dump.target_names(), ", "),
+          absl::StrJoin(parked_dump.target_names(), ", "),
           parked_wrong_state
               ? fmt::format(" in state {}", static_cast<int>(parked_init_manager_->state()))
               : "");
