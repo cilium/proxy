@@ -135,6 +135,7 @@ envoy_cc_library(
         "//cilium:network_policy_lib",
         "//cilium/api:l7policy_cc_proto",
         "@envoy//envoy/config:subscription_interface",
+        "@envoy//envoy/upstream:host_description_interface",
         "@envoy//source/common/http:utility_lib",
         "@envoy//source/common/network:upstream_server_name_lib",
         "@envoy//source/common/network:upstream_subject_alt_names_lib",

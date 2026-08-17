@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -31,7 +32,6 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/api/l7policy.pb.h"
@@ -98,7 +98,7 @@ void AccessFilter::onDestroy() {}
 
 void AccessFilter::sendLocalError(absl::string_view details) {
   ENVOY_LOG(warn, details);
-  callbacks_->sendLocalReply(Http::Code::InternalServerError, "", nullptr, absl::nullopt,
+  callbacks_->sendLocalReply(Http::Code::InternalServerError, "", nullptr, std::nullopt,
                              StringUtil::replaceAllEmptySpace(details));
 }
 
@@ -112,7 +112,6 @@ void AccessFilter::setDecoderFilterCallbacks(Http::StreamDecoderFilterCallbacks&
     auto log_entry = std::make_unique<AccessLog::Entry>();
     log_entry_ = log_entry.get();
     callbacks_->streamInfo().filterState()->setData(AccessLogKey, std::move(log_entry),
-                                                    StreamInfo::FilterState::StateType::Mutable,
                                                     StreamInfo::FilterState::LifeSpan::Request);
   }
 
@@ -202,7 +201,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
       if (!allowed) {
         config_->log(*log_entry_, ::cilium::EntryType::Denied);
         callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr,
-                                   absl::nullopt, absl::string_view());
+                                   std::nullopt, absl::string_view());
         return Http::FilterHeadersStatus::StopIteration;
       }
 
@@ -272,7 +271,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
       if (!allowed) {
         config_->log(*log_entry_, ::cilium::EntryType::Denied);
         callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr,
-                                   absl::nullopt, absl::string_view());
+                                   std::nullopt, absl::string_view());
         return Http::FilterHeadersStatus::StopIteration;
       }
     }
@@ -288,7 +287,7 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
       if (!allowed) {
         config_->log(*log_entry_, ::cilium::EntryType::Denied);
         callbacks_->sendLocalReply(Http::Code::Forbidden, config_->denied_403_body_, nullptr,
-                                   absl::nullopt, absl::string_view());
+                                   std::nullopt, absl::string_view());
         return Http::FilterHeadersStatus::StopIteration;
       }
     }

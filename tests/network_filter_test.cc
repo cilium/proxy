@@ -82,7 +82,7 @@ TEST(CiliumNetworkFilterTest, MissingMetadataNamespaceDoesNotCrash) {
       std::make_shared<Cilium::CiliumPolicyFilterState>(
           0, 456, false, false, 80, std::string("pod"), std::string(""),
           std::make_shared<DenyAllPolicyResolver>(), 7, ""),
-      StreamInfo::FilterState::StateType::ReadOnly, StreamInfo::FilterState::LifeSpan::Connection);
+      StreamInfo::FilterState::LifeSpan::Connection);
   instance.initializeReadFilterCallbacks(callbacks);
   Filter::CiliumL3::NetworkFilterTestPeer::setL7Proto(instance, "test.l7");
 
