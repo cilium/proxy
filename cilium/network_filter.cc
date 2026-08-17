@@ -12,7 +12,6 @@
 #include "envoy/registry/registry.h"
 #include "envoy/server/factory_context.h"
 #include "envoy/server/filter_config.h"
-#include "envoy/stream_info/filter_state.h"
 #include "envoy/stream_info/stream_info.h"
 #include "envoy/upstream/host_description.h"
 
@@ -196,12 +195,10 @@ Network::FilterStatus Instance::onNewConnection() {
         Network::UpstreamSubjectAltNames::key());
     if (!have_sni && !have_san) {
       filter_state->setData(Network::UpstreamServerName::key(),
-                            std::make_unique<Network::UpstreamServerName>(sni),
-                            StreamInfo::FilterState::StateType::Mutable);
+                            std::make_unique<Network::UpstreamServerName>(sni));
       filter_state->setData(Network::UpstreamSubjectAltNames::key(),
                             std::make_unique<Network::UpstreamSubjectAltNames>(
-                                std::vector<std::string>{std::string(sni)}),
-                            StreamInfo::FilterState::StateType::Mutable);
+                                std::vector<std::string>{std::string(sni)}));
     }
   }
 

@@ -105,6 +105,8 @@ static_resources:
               "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
           - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
           route_config:
             name: policy_enabled
             virtual_hosts:
@@ -136,6 +138,8 @@ static_resources:
               "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
           - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
           route_config:
             name: policy_enabled
             virtual_hosts:
@@ -338,11 +342,11 @@ public:
     EXPECT_TRUE(upstream_request_->complete());
     EXPECT_EQ(0, upstream_request_->bodyLength());
 
-    test_server_->waitForGaugeEq("http.config_test.downstream_cx_ssl_active", 1);
+    test_server_->waitForGauge("http.config_test.downstream_cx_ssl_active", testing::Eq(1));
 
     cleanupUpstreamAndDownstream();
 
-    test_server_->waitForGaugeEq("http.config_test.downstream_cx_ssl_active", 0);
+    test_server_->waitForGauge("http.config_test.downstream_cx_ssl_active", testing::Eq(0));
   }
 
   // Upstream

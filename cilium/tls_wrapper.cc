@@ -73,9 +73,9 @@ public:
   // Override if need to intercept client socket connect() call.
   // Api::SysCallIntResult connect(Network::ConnectionSocket& socket) override
 
-  void closeSocket(Network::ConnectionEvent type) override {
+  void closeSocket(Network::ConnectionEvent type, bool abort_reset) override {
     if (socket_) {
-      socket_->closeSocket(type);
+      socket_->closeSocket(type, abort_reset);
     }
   }
 

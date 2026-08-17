@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -9,7 +10,6 @@
 #include "envoy/network/listen_socket.h"
 #include "envoy/server/factory_context.h"
 
-#include "absl/types/optional.h"
 #include "cilium/bpf_metadata.h"
 #include "cilium/host_map.h"
 #include "cilium/network_policy.h"
@@ -47,7 +47,7 @@ public:
              Server::Configuration::ListenerFactoryContext& context);
   ~TestConfig() override;
 
-  absl::optional<Cilium::BpfMetadata::SocketMetadata>
+  std::optional<Cilium::BpfMetadata::SocketMetadata>
   extractSocketMetadata(Network::ConnectionSocket& socket) override;
 
   // Prevent socket options that require NET_ADMIN privileges from being applied during test

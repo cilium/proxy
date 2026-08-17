@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -18,7 +19,6 @@
 #include "source/common/common/logger.h"
 
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/conntrack.h"
 #include "cilium/filter_state_cilium_destination.h"
@@ -156,7 +156,7 @@ public:
   const PolicyInstance& getPolicy(const std::string&) const override;
   bool exists(const std::string&) const override;
 
-  virtual absl::optional<SocketMetadata> extractSocketMetadata(Network::ConnectionSocket& socket);
+  virtual std::optional<SocketMetadata> extractSocketMetadata(Network::ConnectionSocket& socket);
 
   // Possibility to prevent socket options that require
   // NET_ADMIN privileges from being applied. Used by tests.
