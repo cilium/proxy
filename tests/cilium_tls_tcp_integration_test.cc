@@ -7,9 +7,9 @@
 
 #include <chrono>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "envoy/buffer/buffer.h"
@@ -33,6 +33,7 @@
 #include "test/test_common/test_time_system.h"
 #include "test/test_common/utility.h"
 
+#include "absl/functional/any_invocable.h"
 #include "tests/cilium_tcp_integration.h"
 #include "tests/cilium_tls_integration.h"
 
@@ -197,20 +198,23 @@ public:
 
     EXPECT_CALL(*mock_buffer_factory_, createBuffer_(_, _, _))
         .Times(AtLeast(1))
-        .WillOnce(Invoke([&](std::function<void()> below_low, std::function<void()> above_high,
-                             std::function<void()> above_overflow) -> Buffer::Instance* {
-          client_write_buffer_ =
-              new NiceMock<MockWatermarkBuffer>(below_low, above_high, above_overflow);
-          ON_CALL(*client_write_buffer_, move(_))
-              .WillByDefault(Invoke(client_write_buffer_, &MockWatermarkBuffer::baseMove));
-          ON_CALL(*client_write_buffer_, drain(_))
-              .WillByDefault(Invoke(client_write_buffer_, &MockWatermarkBuffer::trackDrains));
-          return client_write_buffer_;
-        }))
-        .WillRepeatedly(Invoke([](std::function<void()> below_low, std::function<void()> above_high,
-                                  std::function<void()> above_overflow) -> Buffer::Instance* {
-          return new Buffer::WatermarkBuffer(below_low, above_high, above_overflow);
-        }));
+        .WillOnce(
+            Invoke([&](absl::AnyInvocable<void()> below_low, absl::AnyInvocable<void()> above_high,
+                       absl::AnyInvocable<void()> above_overflow) -> Buffer::Instance* {
+              client_write_buffer_ = new NiceMock<MockWatermarkBuffer>(
+                  std::move(below_low), std::move(above_high), std::move(above_overflow));
+              ON_CALL(*client_write_buffer_, move(_))
+                  .WillByDefault(Invoke(client_write_buffer_, &MockWatermarkBuffer::baseMove));
+              ON_CALL(*client_write_buffer_, drain(_))
+                  .WillByDefault(Invoke(client_write_buffer_, &MockWatermarkBuffer::trackDrains));
+              return client_write_buffer_;
+            }))
+        .WillRepeatedly(
+            Invoke([](absl::AnyInvocable<void()> below_low, absl::AnyInvocable<void()> above_high,
+                      absl::AnyInvocable<void()> above_overflow) -> Buffer::Instance* {
+              return new Buffer::WatermarkBuffer(std::move(below_low), std::move(above_high),
+                                                 std::move(above_overflow));
+            }));
     // Set up the SSL client.
     Network::Address::InstanceConstSharedPtr address =
         Ssl::getSslAddress(version_, lookupPort("tcp_proxy"));
@@ -466,8 +470,8 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyDownstreamFlush) {
 
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
 
-  test_server_->waitForCounterGe("cluster.tls-cluster.upstream_flow_control_paused_reading_total",
-                                 1);
+  test_server_->waitForCounter("cluster.tls-cluster.upstream_flow_control_paused_reading_total",
+                               testing::Ge(1));
   EXPECT_EQ(test_server_->counter("cluster.tls-cluster.upstream_flow_control_resumed_reading_total")
                 ->value(),
             0);
@@ -512,7 +516,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlush) {
 
   ASSERT_TRUE(tcp_client->write(data, true, true, std::chrono::milliseconds(30000)));
 
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(1));
   ASSERT_TRUE(fake_upstream_connection->readDisable(false));
   ASSERT_TRUE(
       fake_upstream_connection->waitForData(data.size(), nullptr, 3 * TestUtility::DefaultTimeout));
@@ -522,7 +526,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlush) {
   tcp_client->waitForHalfClose();
 
   EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(0));
 }
 
 // Test that Envoy doesn't crash or assert when shutting down with an upstream
@@ -552,7 +556,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamFlushEnvoyExit) {
 
   ASSERT_TRUE(tcp_client->write(data, true));
 
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(1));
   test_server_.reset();
   ASSERT_TRUE(fake_upstream_connection->close());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());

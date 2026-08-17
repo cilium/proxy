@@ -199,7 +199,8 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyDownstreamFlush) {
 
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
 
-  test_server_->waitForCounterGe("cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
+  test_server_->waitForCounter("cluster.cluster1.upstream_flow_control_paused_reading_total",
+                               testing::Ge(1));
   EXPECT_EQ(test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
                 ->value(),
             0);
@@ -239,7 +240,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamFlush) {
 
   ASSERT_TRUE(tcp_client->write(data, true, true, std::chrono::milliseconds(30000)));
 
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(1));
   ASSERT_TRUE(fake_upstream_connection->readDisable(false));
   ASSERT_TRUE(fake_upstream_connection->waitForData(data.size()));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
@@ -247,7 +248,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamFlush) {
   tcp_client->waitForHalfClose();
 
   EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(0));
 }
 
 // Test that Envoy doesn't crash or assert when shutting down with an upstream
@@ -273,7 +274,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamFlushEnvoyExit) {
 
   ASSERT_TRUE(tcp_client->write(data, true));
 
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(1));
   test_server_.reset();
   ASSERT_TRUE(fake_upstream_connection->close());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());

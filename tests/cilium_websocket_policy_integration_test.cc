@@ -268,7 +268,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   // wait for at least one more ping to arrive as proof that the handshake is ready
-  test_server_->waitForCounterGe("websocket.ping_sent_count", previous_ping_count + 1);
+  test_server_->waitForCounter("websocket.ping_sent_count", testing::Ge(previous_ping_count + 1));
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
   tcp_client->waitForData("hello");
