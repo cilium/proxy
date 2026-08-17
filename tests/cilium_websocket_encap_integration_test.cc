@@ -195,7 +195,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeNonHTTPResponse) 
                                               "world"));
   ASSERT_TRUE(fake_upstream_connection->close());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
-  test_server_->waitForCounterGe("websocket.handshake_not_http", 1);
+  test_server_->waitForCounter("websocket.handshake_not_http", testing::Ge(1));
 
   // Handshake errors close the downstream with NoFlush, which may be observed as either a
   // graceful FIN or an RST. The counter above is the behavior under test.
@@ -226,7 +226,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeInvalidResponse) 
       fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "invalid-hash");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
-  test_server_->waitForCounterGe("websocket.handshake_invalid_websocket_response", 1);
+  test_server_->waitForCounter("websocket.handshake_invalid_websocket_response", testing::Ge(1));
 
   // Handshake errors close the downstream with NoFlush, which may be observed as either a
   // graceful FIN or an RST. The counter above is the behavior under test.
@@ -452,7 +452,8 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   ASSERT_TRUE(fake_upstream_connection->write("\x82\x7f\x03\x20\0\0"s));
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
 
-  test_server_->waitForCounterGe("cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
+  test_server_->waitForCounter("cluster.cluster1.upstream_flow_control_paused_reading_total",
+                               testing::Ge(1));
   EXPECT_EQ(test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
                 ->value(),
             0);
@@ -512,7 +513,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForHalfClose();
 
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(0));
   EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
 }
 
@@ -551,7 +552,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
 
   ASSERT_TRUE(tcp_client->write(data, true));
 
-  // test_server_->waitForCounterGe("tcp.tcp_stats.upstream_flush_total", 1);
+  // test_server_->waitForCounter("tcp.tcp_stats.upstream_flush_total", testing::Ge(1));
 
   test_server_.reset();
   ASSERT_TRUE(fake_upstream_connection->close());

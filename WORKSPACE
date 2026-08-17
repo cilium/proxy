@@ -12,8 +12,8 @@ ENVOY_REPO = "envoy"
 #
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.38.3
-ENVOY_SHA = "0ebfcfe5b0484b89ca85b761da9e05ce75dbda8d"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.39.0
+ENVOY_SHA = "8eea3285d6bdb89f8ea34632cfe7ce1608a8f374"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -34,17 +34,18 @@ local_repository(
 git_repository(
     name = "envoy",
     commit = ENVOY_SHA,
-    patch_args = ["apply"],
-    patch_tool = "git",
+    # Use Bazel's native patch implementation. `patch_tool = "git"` must not be
+    # used: since Bazel 8, `git_repository` carries a `patch_strip` attribute and
+    # prepends its `-pN` to `patch_args`, which `git apply` rejects as an unknown
+    # global option.
+    patch_strip = 1,
     patches = [
         "@//patches:0001-network-Add-callback-for-upstream-authorization.patch",
         "@//patches:0002-listener-add-socket-options.patch",
         "@//patches:0003-original_dst_cluster-Avoid-multiple-hosts-for-the-sa.patch",
         "@//patches:0004-thread_local-reset-slot-in-worker-threads-first.patch",
         "@//patches:0005-http-header-expose-attribute.patch",
-        "@//patches:0006-test-integration-Defer-fake-upstream-read-enable-un.patch",
-        "@//patches:0007-config-add-grpc-mux-stream-event-callback.patch",
-        "@//patches:0008-repo-Make-yq-dependency-optional-for-CI-config-parsi.patch",
+        "@//patches:0006-config-add-grpc-mux-stream-event-callback.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",

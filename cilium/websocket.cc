@@ -123,11 +123,9 @@ void Instance::initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callb
 
   // Tell TcpProxy to not disable read so that we do WebSocket handshake before upstream
   // connection is established.
-  // Use Mutable StateType so that tests can have both client and server filters in the same
-  // filter chain.
   callbacks_->connection().streamInfo().filterState()->setData(
       TcpProxy::ReceiveBeforeConnectKey, std::make_unique<StreamInfo::BoolAccessorImpl>(true),
-      StreamInfo::FilterState::StateType::Mutable, StreamInfo::FilterState::LifeSpan::Connection);
+      StreamInfo::FilterState::LifeSpan::Connection);
 }
 
 Network::FilterStatus Instance::onNewConnection() {
