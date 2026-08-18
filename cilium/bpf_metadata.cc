@@ -399,9 +399,17 @@ bool Config::exists(const std::string& pod_ip) const { return npmap_->exists(pod
 
 absl::optional<Cilium::BpfMetadata::SocketMetadata>
 Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
+  // connectionInfoProvider may provide original addresses as carried in PROXY protocol. Thus the
+  // source address may be of a different address family than the destination address.
   Network::Address::InstanceConstSharedPtr src_address =
       socket.connectionInfoProvider().remoteAddress();
   const auto sip = src_address->ip();
+  // Destination address is taken from the socket, as that way we get the original/restored
+  // destinatino address as seen before TPROXY redirection, while the Envoy listener address may be,
+  // e.g., a loopback address. This is the address used as the upstream destination for non-L7LB
+  // cases, while L7LB listener is expected to choose a different destination address.
+  // The family (IPv4/IPv6) of this address is used to select the upstream source address when
+  // original source address is not used.
   const auto dst_address = THROW_OR_RETURN_VALUE(socket.ioHandle().localAddress(),
                                                  Network::Address::InstanceConstSharedPtr);
   const auto dip = dst_address->ip();

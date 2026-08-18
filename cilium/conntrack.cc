@@ -142,7 +142,14 @@ uint32_t CtMap::lookupSrcIdentity(const Network::Address::Ip* sip, const Network
     key6.nexthdr = 6; // TCP only for now
     key6.flags = ingress ? TUPLE_F_IN : TUPLE_F_OUT;
   } else {
-    ENVOY_LOG(info, "cilium.bpf_metadata: Address type mismatch: Source: {}, Dest: {}",
+    // Address family mismatch is expected when an incoming IPv6 request is forwarded as IPv4 by a
+    // load balancer as we use the original IPv6 source address as preserved via the PROXY protocol
+    // in that case.
+    //
+    // NOTE: Do not change to locate the conntrack entry based on the direct source address which in
+    // this case would be the address of the load balancer, as CIDR policy enforcement depends on
+    // the original source address.
+    ENVOY_LOG(debug, "cilium.bpf_metadata: Address type mismatch: Source: {}, Dest: {}",
               sip->addressAsString(), dip->addressAsString());
     return 0;
   }
