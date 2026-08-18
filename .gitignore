@@ -29,6 +29,9 @@
 # Emacs backup files
 *~
 
+# Python bytecode caches
+__pycache__/
+
 # To run Envoy tests under gdb do "cd envoy && make debug && ln -s bazel-envoy/external external"
 /external
 
