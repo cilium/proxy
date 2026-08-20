@@ -3,6 +3,9 @@
 #include <fmt/format.h>
 
 #include <atomic>
+#include <chrono>
+#include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -17,9 +20,11 @@
 #include "source/common/common/logger.h"
 #include "source/common/common/thread.h"
 #include "source/common/config/datasource.h"
+#include "source/common/protobuf/utility.h"
 #include "source/common/tls/context_config_impl.h"
 #include "source/common/tls/server_context_config_impl.h"
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/synchronization/mutex.h"
 #include "cilium/api/npds.pb.h"
@@ -103,7 +108,7 @@ TLSContext::TLSContext(Server::Configuration::TransportSocketFactoryContext& con
 
 namespace {
 
-void setCommonConfig(const cilium::TLSContext config,
+void setCommonConfig(const cilium::TLSContext& config,
                      const envoy::config::core::v3::ConfigSource& config_source,
                      envoy::extensions::transport_sockets::tls::v3::CommonTlsContext* tls_context) {
   if (!config.validation_context_sds_secret().empty()) {
@@ -144,7 +149,7 @@ void setCommonConfig(const cilium::TLSContext config,
 
 DownstreamTLSContext::DownstreamTLSContext(
     Server::Configuration::TransportSocketFactoryContext& context,
-    const envoy::config::core::v3::ConfigSource& config_source, const cilium::TLSContext config)
+    const envoy::config::core::v3::ConfigSource& config_source, const cilium::TLSContext& config)
     : TLSContext(context, "server") {
   // Server config always needs the TLS certificate to present to the client
   if (config.tls_sds_secret().empty() && config.certificate_chain().empty()) {
@@ -194,7 +199,7 @@ DownstreamTLSContext::DownstreamTLSContext(
 
 UpstreamTLSContext::UpstreamTLSContext(
     Server::Configuration::TransportSocketFactoryContext& context,
-    const envoy::config::core::v3::ConfigSource& config_source, cilium::TLSContext config)
+    const envoy::config::core::v3::ConfigSource& config_source, const cilium::TLSContext& config)
     : TLSContext(context, "client") {
   // Client context always needs the trusted CA for server certificate validation
   // TODO: Default to system default trusted CAs?
@@ -238,6 +243,133 @@ UpstreamTLSContext::UpstreamTLSContext(
   } else {
     context.initManager().add(init_target_);
   }
+}
+
+namespace {
+
+constexpr std::chrono::seconds PolicySecretCachePruneInterval{1};
+
+template <typename Cache> void pruneExpired(Cache& cache) {
+  for (auto it = cache.begin(); it != cache.end();) {
+    if (it->second.expired()) {
+      auto expired = it++;
+      cache.erase(expired);
+    } else {
+      ++it;
+    }
+  }
+}
+
+template <typename Cache, typename Key, typename Factory>
+auto getOrCreate(bool caching_enabled, Cache& cache, const Key& key, Factory&& factory) {
+  if (!caching_enabled) {
+    return factory();
+  }
+
+  auto it = cache.find(key);
+  if (it != cache.end()) {
+    if (auto cached = it->second.lock()) {
+      return cached;
+    }
+    cache.erase(it);
+  }
+
+  auto value = factory();
+  cache.emplace(key, value);
+  return value;
+}
+
+} // namespace
+
+class PolicySecretCache::Impl {
+public:
+  template <typename Context>
+  using TLSContextMap =
+      absl::flat_hash_map<cilium::TLSContext, std::weak_ptr<Context>, MessageUtil, MessageUtil>;
+  using SecretWatcherMap = absl::flat_hash_map<std::string, std::weak_ptr<SecretWatcher>>;
+
+  Impl(std::shared_ptr<Server::Configuration::TransportSocketFactoryContext> context,
+       std::reference_wrapper<const envoy::config::core::v3::ConfigSource> config_source,
+       bool caching_enabled)
+      : context_(std::move(context)), config_source_(config_source),
+        caching_enabled_(caching_enabled),
+        next_prune_time_(context_->serverFactoryContext().timeSource().monotonicTime() +
+                         PolicySecretCachePruneInterval) {}
+
+  void reset() {
+    ASSERT_IS_MAIN_OR_TEST_THREAD();
+    downstream_cache_.clear();
+    upstream_cache_.clear();
+    secret_watcher_cache_.clear();
+    next_prune_time_ = context_->serverFactoryContext().timeSource().monotonicTime() +
+                       PolicySecretCachePruneInterval;
+  }
+
+  void prune() {
+    ASSERT_IS_MAIN_OR_TEST_THREAD();
+    if (!caching_enabled_) {
+      return;
+    }
+    const MonotonicTime now = context_->serverFactoryContext().timeSource().monotonicTime();
+    if (now < next_prune_time_) {
+      return;
+    }
+
+    // Advance the deadline before scanning so that frequent policy updates cannot trigger more
+    // than one complete cache scan per interval.
+    next_prune_time_ = now + PolicySecretCachePruneInterval;
+    pruneExpired(downstream_cache_);
+    pruneExpired(upstream_cache_);
+    pruneExpired(secret_watcher_cache_);
+  }
+
+  std::shared_ptr<Server::Configuration::TransportSocketFactoryContext> context_;
+  std::reference_wrapper<const envoy::config::core::v3::ConfigSource> config_source_;
+  const bool caching_enabled_;
+  TLSContextMap<DownstreamTLSContext> downstream_cache_;
+  TLSContextMap<UpstreamTLSContext> upstream_cache_;
+  SecretWatcherMap secret_watcher_cache_;
+  MonotonicTime next_prune_time_;
+};
+
+PolicySecretCache::PolicySecretCache(
+    std::shared_ptr<Server::Configuration::TransportSocketFactoryContext> context,
+    std::reference_wrapper<const envoy::config::core::v3::ConfigSource> config_source,
+    bool caching_enabled)
+    : impl_(std::make_unique<Impl>(std::move(context), config_source, caching_enabled)) {}
+
+PolicySecretCache::~PolicySecretCache() = default;
+
+void PolicySecretCache::reset() { impl_->reset(); }
+
+void PolicySecretCache::prune() { impl_->prune(); }
+
+DownstreamTLSContextSharedPtr
+PolicySecretCache::getOrCreateDownstream(const cilium::TLSContext& config) const {
+  ASSERT_IS_MAIN_OR_TEST_THREAD();
+  return getOrCreate(impl_->caching_enabled_, impl_->downstream_cache_, config, [this, &config]() {
+    return DownstreamTLSContextSharedPtr(
+        new DownstreamTLSContext(*impl_->context_, impl_->config_source_.get(), config));
+  });
+}
+
+UpstreamTLSContextSharedPtr
+PolicySecretCache::getOrCreateUpstream(const cilium::TLSContext& config) const {
+  ASSERT_IS_MAIN_OR_TEST_THREAD();
+  return getOrCreate(impl_->caching_enabled_, impl_->upstream_cache_, config, [this, &config]() {
+    return UpstreamTLSContextSharedPtr(
+        new UpstreamTLSContext(*impl_->context_, impl_->config_source_.get(), config));
+  });
+}
+
+SecretWatcherSharedPtr
+PolicySecretCache::getOrCreateSecretWatcher(const std::string& sds_name) const {
+  ASSERT_IS_MAIN_OR_TEST_THREAD();
+  return getOrCreate(impl_->caching_enabled_, impl_->secret_watcher_cache_, sds_name,
+                     [this, &sds_name]() {
+                       return std::make_shared<SecretWatcher>(
+                           *impl_->context_, impl_->config_source_.get(), sds_name);
+                     });
 }
 
 } // namespace Cilium
