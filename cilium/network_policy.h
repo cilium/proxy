@@ -197,7 +197,7 @@ class NetworkPolicyMap : public Singleton::Instance, public Logger::Loggable<Log
 public:
   NetworkPolicyMap(Server::Configuration::FactoryContext& context,
                    const envoy::config::core::v3::ConfigSource& config_source,
-                   bool subscribe = true);
+                   bool subscribe = true, bool policy_secret_cache_enabled = true);
   ~NetworkPolicyMap() override;
 
   bool exists(const std::string& endpoint_policy_name) const;

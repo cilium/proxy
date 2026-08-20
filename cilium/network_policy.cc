@@ -299,7 +299,8 @@ class NetworkPolicyMapImpl : public ManagedGrpcSubscription {
 public:
   friend class PortNetworkPolicyRule;
   NetworkPolicyMapImpl(Server::Configuration::FactoryContext& context,
-                       const envoy::config::core::v3::ConfigSource& config_source, bool subscribe);
+                       const envoy::config::core::v3::ConfigSource& config_source, bool subscribe,
+                       bool policy_secret_cache_enabled);
   ~NetworkPolicyMapImpl() override;
 
   // Config::SubscriptionCallbacks
@@ -309,8 +310,27 @@ public:
                               const Protobuf::RepeatedPtrField<std::string>& removed_resources,
                               const std::string& system_version_info) override;
 
+  std::shared_ptr<NetworkPolicyMapImpl> sharedFromThis() {
+    return std::static_pointer_cast<NetworkPolicyMapImpl>(
+        ManagedGrpcSubscription::shared_from_this());
+  }
+
+  std::weak_ptr<NetworkPolicyMapImpl> weakFromThis() { return sharedFromThis(); }
+
   Server::Configuration::TransportSocketFactoryContext& transportFactoryContext() const {
     return *transport_factory_context_;
+  }
+
+  DownstreamTLSContextSharedPtr getDownstreamTlsContext(const cilium::TLSContext& config) const {
+    return policy_secret_cache_.getOrCreateDownstream(config);
+  }
+
+  UpstreamTLSContextSharedPtr getUpstreamTlsContext(const cilium::TLSContext& config) const {
+    return policy_secret_cache_.getOrCreateUpstream(config);
+  }
+
+  SecretWatcherSharedPtr getSecretWatcher(const std::string& sds_name) const {
+    return policy_secret_cache_.getOrCreateSecretWatcher(sds_name);
   }
 
   Regex::Engine& regexEngine() const { return context_.regexEngine(); }
@@ -402,6 +422,9 @@ private:
   Init::TargetImpl init_target_;
   std::shared_ptr<Server::Configuration::TransportSocketFactoryContextImpl>
       transport_factory_context_;
+  // Declared after transport_factory_context_ so that the cache, which retains a shared reference
+  // to the factory context, is destroyed first.
+  PolicySecretCache policy_secret_cache_;
   // Between policy updates, keep a dormant init manager installed so unexpected late init-target
   // registrations do not hit the listener's already-initialized manager. If it accumulates targets
   // while parked, log and rotate it out before making it active again.
@@ -440,8 +463,7 @@ public:
       : name_(config.name()), value_(config.value()), match_action_(config.match_action()),
         mismatch_action_(config.mismatch_action()) {
     if (!config.value_sds_secret().empty()) {
-      secret_ = std::make_unique<SecretWatcher>(
-          parent.transportFactoryContext(), parent.getConfigSource(), config.value_sds_secret());
+      secret_ = parent.getSecretWatcher(config.value_sds_secret());
     }
   }
 
@@ -565,7 +587,9 @@ public:
   std::string value_;
   cilium::HeaderMatch::MatchAction match_action_;
   cilium::HeaderMatch::MismatchAction mismatch_action_;
-  SecretWatcherPtr secret_;
+  // Shared state contains only the SDS resource name and its atomically published value. Header
+  // matching behavior and the optional inline fallback remain local to this HeaderMatch.
+  SecretWatcherSharedPtr secret_;
 };
 
 class HttpNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
@@ -797,14 +821,10 @@ public:
       remotes_.emplace(remote);
     }
     if (rule.has_downstream_tls_context()) {
-      auto config = rule.downstream_tls_context();
-      server_context_ = std::make_unique<DownstreamTLSContext>(parent.transportFactoryContext(),
-                                                               parent.getConfigSource(), config);
+      server_context_ = parent.getDownstreamTlsContext(rule.downstream_tls_context());
     }
     if (rule.has_upstream_tls_context()) {
-      auto config = rule.upstream_tls_context();
-      client_context_ = std::make_unique<UpstreamTLSContext>(parent.transportFactoryContext(),
-                                                             parent.getConfigSource(), config);
+      client_context_ = parent.getUpstreamTlsContext(rule.upstream_tls_context());
     }
     for (const auto& sni : rule.server_names()) {
       ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule(): {} SNI {} by rule {}", verdict_, sni,
@@ -1894,9 +1914,10 @@ void ResourceMapOverlay::erasePolicyResource(
 // This is used directly for testing with a file-based subscription
 NetworkPolicyMap::NetworkPolicyMap(Server::Configuration::FactoryContext& context,
                                    const envoy::config::core::v3::ConfigSource& config_source,
-                                   bool subscribe)
+                                   bool subscribe, bool policy_secret_cache_enabled)
     : context_(context.serverFactoryContext()) {
-  impl_ = std::make_shared<NetworkPolicyMapImpl>(context, config_source, subscribe);
+  impl_ = std::make_shared<NetworkPolicyMapImpl>(context, config_source, subscribe,
+                                                 policy_secret_cache_enabled);
 }
 
 NetworkPolicyMap::~NetworkPolicyMap() {
@@ -1941,7 +1962,8 @@ NetworkPolicyMap::getPolicyInstanceShared(const std::string& endpoint_policy_nam
 
 NetworkPolicyMapImpl::NetworkPolicyMapImpl(
     Server::Configuration::FactoryContext& context,
-    const envoy::config::core::v3::ConfigSource& config_source, bool subscribe)
+    const envoy::config::core::v3::ConfigSource& config_source, bool subscribe,
+    bool policy_secret_cache_enabled)
     : ManagedGrpcSubscription(
           NetworkPolicyTypeUrl, []() { return std::make_shared<NetworkPolicyDecoder>(); },
           config_source, context.serverFactoryContext(),
@@ -1958,6 +1980,8 @@ NetworkPolicyMapImpl::NetworkPolicyMapImpl(
       transport_factory_context_(
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
               context_, scope(), context_.messageValidationContext().dynamicValidationVisitor())),
+      policy_secret_cache_(transport_factory_context_, std::cref(getConfigSource()),
+                           policy_secret_cache_enabled),
       parked_init_manager_(std::make_unique<Init::ManagerImpl>("Cilium NetworkPolicyMap parked")),
       stats_{ALL_CILIUM_POLICY_COUNTERS(POOL_COUNTER(*policy_stats_scope_))
                  ALL_CILIUM_POLICY_GAUGES(POOL_GAUGE(*policy_stats_scope_))} {
@@ -2107,9 +2131,18 @@ void NetworkPolicyMapImpl::scheduleDeferredDeletion(const PolicyMapSnapshot* old
   if (old_policy_map == nullptr) {
     return;
   }
-  runAfterAllThreads([old_policy_map]() {
+  const auto weak_this = weakFromThis();
+
+  runAfterAllThreads([old_policy_map, weak_this]() {
     // Clean-up in the main thread after all worker threads have scheduled.
     delete old_policy_map;
+
+    // Prune only after the old policy snapshot has released its secret-derived resource
+    // references. This worker-quiescence completion callback already runs on the main dispatcher,
+    // outside the policy update call.
+    if (auto policy_map = weak_this.lock()) {
+      policy_map->policy_secret_cache_.prune();
+    }
   });
 }
 
@@ -2148,6 +2181,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
     // so open it before the workers get a chance to enforce policy on the new IDs.
     if (is_new_stream) {
       ENVOY_LOG(info, "New NetworkPolicy stream {}", stream_generation);
+      policy_secret_cache_.reset();
       reopenIpcache();
     }
 
@@ -2241,6 +2275,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
     // so open it before the workers get a chance to enforce policy on the new IDs.
     if (is_new_stream) {
       ENVOY_LOG(info, "New NetworkPolicy stream {}", stream_generation);
+      policy_secret_cache_.reset();
       reopenIpcache();
     }
 
