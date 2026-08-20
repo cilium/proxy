@@ -19,6 +19,7 @@
 #include "envoy/protobuf/message_validator.h"
 #include "envoy/server/factory_context.h"
 #include "envoy/singleton/instance.h"
+#include "envoy/stats/scope.h"
 #include "envoy/stats/stats_macros.h"
 #include "envoy/thread_local/thread_local.h"
 #include "envoy/thread_local/thread_local_object.h"
@@ -222,6 +223,7 @@ private:
   std::string name_;
   uint64_t accepted_stream_generation_{0};
   static uint64_t instance_id_;
+  Stats::ScopeSharedPtr host_stats_scope_;
   PolicyHostsStats stats_;
 };
 
