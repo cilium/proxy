@@ -1,5 +1,7 @@
 load(
     "@envoy//bazel:envoy_build_system.bzl",
+    "envoy_benchmark_test",
+    "envoy_cc_benchmark_binary",
     "envoy_cc_test",
     "envoy_cc_test_library",
     "envoy_package",
@@ -132,6 +134,31 @@ envoy_cc_test(
         "//cilium:network_policy_lib",
         "@envoy//test/mocks/server:factory_context_mocks",
     ],
+)
+
+envoy_cc_benchmark_binary(
+    name = "cilium_network_policy_benchmark",
+    srcs = ["cilium_network_policy_benchmark.cc"],
+    data = ["@envoy//test/config/integration/certs:upstreamcacert.pem"],
+    external_deps = ["bazel_runfiles"],
+    repository = "@envoy",
+    deps = [
+        ":bpf_metadata_lib",
+        ":cilium_test_peer_lib",
+        "//cilium:network_policy_lib",
+        "@benchmark",
+        "@envoy//source/common/memory:stats_lib",
+        "@envoy//source/common/secret:sds_api_lib",
+        "@envoy//test/mocks/secret:secret_mocks",
+        "@envoy//test/mocks/server:factory_context_mocks",
+        "@envoy//test/test_common:environment_lib",
+    ],
+)
+
+envoy_benchmark_test(
+    name = "cilium_network_policy_benchmark_test",
+    benchmark_binary = "cilium_network_policy_benchmark",
+    repository = "@envoy",
 )
 
 envoy_cc_test(

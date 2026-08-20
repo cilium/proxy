@@ -255,6 +255,23 @@ protected:
     return tlsAllowed(false, pod_ip, remote_id, port, sni, tls_socket_required, raw_socket_allowed);
   }
 
+  const Ssl::ContextConfig* tlsContextConfig(const PolicyInstance& policy, bool ingress,
+                                             uint64_t remote_id, uint16_t port) {
+    auto port_policy = policy.findPortPolicy(ingress, port);
+    const Ssl::ContextConfig* config = nullptr;
+    bool raw_socket_allowed = false;
+    if (ingress) {
+      static_cast<void>(
+          port_policy.getServerTlsContext(proxy_id_, remote_id, "", config, raw_socket_allowed));
+    } else {
+      static_cast<void>(
+          port_policy.getClientTlsContext(proxy_id_, remote_id, "", config, raw_socket_allowed));
+    }
+    EXPECT_FALSE(raw_socket_allowed);
+    EXPECT_NE(config, nullptr);
+    return config;
+  }
+
   std::string updatesRejectedStatName() {
     return CiliumTestPeer::policyStats(*policy_map_).updates_rejected_.name();
   }
@@ -2806,6 +2823,162 @@ resources:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 8080, {{":path", "/allowed"}}));
   // Wrong path:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{":path", "/notallowed"}}));
+}
+
+TEST_F(CiliumNetworkPolicyTest, TlsContextsAreDeduplicatedWithinStream) {
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips: [ "10.1.2.3" ]
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 443
+    rules:
+    - remote_policies: [ 43 ]
+      downstream_tls_context:
+        tls_sds_secret: "shared-cert"
+        validation_context_sds_secret: "shared-ca"
+  egress_per_port_policies:
+  - port: 443
+    rules:
+    - remote_policies: [ 43 ]
+      upstream_tls_context:
+        tls_sds_secret: "shared-cert"
+        validation_context_sds_secret: "shared-ca"
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips: [ "10.1.2.4" ]
+  endpoint_id: 44
+  ingress_per_port_policies:
+  - port: 443
+    rules:
+    - remote_policies: [ 43 ]
+      downstream_tls_context:
+        tls_sds_secret: "shared-cert"
+        validation_context_sds_secret: "shared-ca"
+  egress_per_port_policies:
+  - port: 443
+    rules:
+    - remote_policies: [ 43 ]
+      upstream_tls_context:
+        tls_sds_secret: "shared-cert"
+        validation_context_sds_secret: "shared-ca"
+)EOF"));
+
+  const auto& first = policy_map_->getPolicyInstance("10.1.2.3", false);
+  const auto& second = policy_map_->getPolicyInstance("10.1.2.4", false);
+
+  const auto* first_downstream = tlsContextConfig(first, true, 43, 443);
+  const auto* second_downstream = tlsContextConfig(second, true, 43, 443);
+  const auto* first_upstream = tlsContextConfig(first, false, 43, 443);
+  const auto* second_upstream = tlsContextConfig(second, false, 43, 443);
+
+  EXPECT_EQ(first_downstream, second_downstream);
+  EXPECT_EQ(first_upstream, second_upstream);
+  EXPECT_NE(first_downstream, first_upstream);
+}
+
+TEST_F(CiliumNetworkPolicyTest, SecretWatchersAreDeduplicatedWithinStream) {
+  EXPECT_CALL(secret_manager_, findOrCreateGenericSecretProvider(_, "shared-header-secret", _, _));
+
+  EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips: [ "10.1.2.3" ]
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - header_matches:
+          - name: "x-shared-secret"
+            value: "first-header-value"
+            value_sds_secret: "shared-header-secret"
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips: [ "10.1.2.4" ]
+  endpoint_id: 44
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - header_matches:
+          - name: "x-shared-secret"
+            value: "second-header-value"
+            value_sds_secret: "shared-header-secret"
+)EOF"));
+
+  // The missing shared SDS value leaves each HeaderMatch's own inline fallback in effect.
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{"x-shared-secret", "first-header-value"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.3", 43, 80, {{"x-shared-secret", "second-header-value"}}));
+  EXPECT_TRUE(ingressAllowed("10.1.2.4", 43, 80, {{"x-shared-secret", "second-header-value"}}));
+  EXPECT_FALSE(ingressAllowed("10.1.2.4", 43, 80, {{"x-shared-secret", "first-header-value"}}));
+}
+
+TEST_F(CiliumNetworkPolicyTest, SecretWatcherCacheIsResetForNewStream) {
+  EXPECT_CALL(secret_manager_, findOrCreateGenericSecretProvider(_, "header-secret", _, _))
+      .Times(2);
+
+  const auto policy_yaml = R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips: [ "10.1.2.3" ]
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 43 ]
+      http_rules:
+        http_rules:
+        - header_matches:
+          - name: "x-secret"
+            value: "header-value"
+            value_sds_secret: "header-secret"
+)EOF";
+
+  EXPECT_NO_THROW(updateFromYaml(policy_yaml));
+  auto old_policy = CiliumTestPeer::policyInstanceShared(*policy_map_, "10.1.2.3");
+  ASSERT_NE(old_policy, nullptr);
+
+  CiliumTestPeer::resetStream(*policy_map_);
+  EXPECT_NO_THROW(updateFromYaml(policy_yaml));
+
+  Http::TestRequestHeaderMapImpl old_headers{{"x-secret", "header-value"}};
+  Cilium::AccessLog::Entry old_log_entry;
+  EXPECT_TRUE(old_policy->allowed(true, proxy_id_, 43, 80, old_headers, old_log_entry));
+  EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{"x-secret", "header-value"}}));
+}
+
+TEST_F(CiliumNetworkPolicyTest, TlsContextCacheIsResetForNewStream) {
+  const auto policy_yaml = R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips: [ "10.1.2.3" ]
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 443
+    rules:
+    - remote_policies: [ 43 ]
+      downstream_tls_context:
+        tls_sds_secret: "shared-cert"
+)EOF";
+
+  EXPECT_NO_THROW(updateFromYaml(policy_yaml));
+  auto old_policy = CiliumTestPeer::policyInstanceShared(*policy_map_, "10.1.2.3");
+  ASSERT_NE(old_policy, nullptr);
+  const auto* old_config = tlsContextConfig(*old_policy, true, 43, 443);
+
+  CiliumTestPeer::resetStream(*policy_map_);
+  EXPECT_NO_THROW(updateFromYaml(policy_yaml));
+
+  const auto& new_policy = policy_map_->getPolicyInstance("10.1.2.3", false);
+  const auto* new_config = tlsContextConfig(new_policy, true, 43, 443);
+  EXPECT_NE(old_config, new_config);
+
+  // Resetting the cache must not invalidate contexts retained by the old policy map.
+  EXPECT_EQ(old_config, tlsContextConfig(*old_policy, true, 43, 443));
 }
 
 TEST_F(CiliumNetworkPolicyTest, TlsPolicyUpdate) {
