@@ -40,11 +40,13 @@ envoy_cc_library(
 envoy_cc_library(
     name = "network_policy_lib",
     srcs = [
+        "host_map.cc",
         "network_policy.cc",
         "secret_watcher.cc",
         "secret_watcher.h",
     ],
     hdrs = [
+        "host_map.h",
         "network_policy.h",
         "policy_id.h",
     ],
@@ -304,12 +306,10 @@ envoy_cc_library(
     name = "bpf_metadata_lib",
     srcs = [
         "bpf_metadata.cc",
-        "host_map.cc",
         "policy_host_map.cc",
     ],
     hdrs = [
         "bpf_metadata.h",
-        "host_map.h",
         "policy_host_map.h",
     ],
     deps = [

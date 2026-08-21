@@ -104,13 +104,18 @@ const NetworkPolicyResourceConfig policy42 = {"policy-42", "1", R"EOF(
 
 const NetworkPolicyResourceConfig policy42_resource = {"policy-42", "1", R"EOF(
   policy:
-    endpoint_ips:
-    - "10.1.2.3"
-    endpoint_id: 42
     ingress_per_port_policies:
     - port: 80
       rules:
       - selectors: [ "selector-1" ]
+)EOF"};
+
+const NetworkPolicyResourceConfig endpoint42_resource = {"endpoint-42", "1", R"EOF(
+  endpoint:
+    ips:
+    - "10.1.2.3"
+    epid: 42
+    policy: "policy-42"
 )EOF"};
 
 const NetworkPolicyResourceConfig policy43 = {"policy-43", "1", R"EOF(
@@ -125,13 +130,18 @@ const NetworkPolicyResourceConfig policy43 = {"policy-43", "1", R"EOF(
 
 const NetworkPolicyResourceConfig policy43_resource = {"policy-43", "1", R"EOF(
   policy:
-    endpoint_ips:
-    - "10.2.3.4"
-    endpoint_id: 43
     ingress_per_port_policies:
     - port: 81
       rules:
       - selectors: [ "selector-2" ]
+)EOF"};
+
+const NetworkPolicyResourceConfig endpoint43_resource = {"endpoint-43", "1", R"EOF(
+  endpoint:
+    ips:
+    - "10.2.3.4"
+    epid: 43
+    policy: "policy-43"
 )EOF"};
 
 const NetworkPolicyResourceConfig policy42_new_stream = {"policy-42", "2", R"EOF(
@@ -146,9 +156,6 @@ const NetworkPolicyResourceConfig policy42_new_stream = {"policy-42", "2", R"EOF
 
 const NetworkPolicyResourceConfig policy42_new_stream_resource = {"policy-42", "2", R"EOF(
   policy:
-    endpoint_ips:
-    - "10.1.2.3"
-    endpoint_id: 42
     ingress_per_port_policies:
     - port: 8080
       rules:
@@ -492,7 +499,7 @@ public:
   void sendNprdsResponse(FakeStream& stream, const std::string& version,
                          const std::vector<NetworkPolicyResourceConfig>& resource_configs = {
                              selector1_resource, selector2_resource, policy42_resource,
-                             policy43_resource}) {
+                             endpoint42_resource, policy43_resource, endpoint43_resource}) {
     envoy::service::discovery::v3::DiscoveryResponse response;
     response.set_version_info(version);
     response.set_nonce(version);
@@ -677,7 +684,7 @@ public:
     // TLS-backed host map directly here is unsafe. Posting the resolve to the server dispatcher
     // keeps the lookup on a valid Envoy TLS thread while still letting the test read the result.
     test_server_->server().dispatcher().post([&, map, parsed_address]() {
-      policy_id = map->resolve(parsed_address->ip());
+      policy_id = map->resolve(parsed_address->ip()).identity_;
       lock.Lock();
       resolved = true;
       lock.Unlock();
@@ -890,13 +897,15 @@ TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedSotwGrpcN
   EXPECT_EQ(policyStreamGeneration(), 0);
 
   sendNprdsResponse(*nprds_stream_, "1",
-                    {selector1_resource, selector2_resource, policy42_resource, policy43_resource});
+                    {selector1_resource, selector2_resource, policy42_resource, endpoint42_resource,
+                     policy43_resource, endpoint43_resource});
   test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(1));
   const uint64_t first_generation = waitForPolicyStreamGenerationAfter(0);
   EXPECT_TRUE(policy_map->exists("10.1.2.3"));
   EXPECT_TRUE(policy_map->exists("10.2.3.4"));
 
-  sendNprdsResponse(*nprds_stream_, "2", {selector3_resource, policy42_new_stream_resource});
+  sendNprdsResponse(*nprds_stream_, "2",
+                    {selector3_resource, policy42_new_stream_resource, endpoint42_resource});
   test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(2));
   EXPECT_EQ(policyStreamGeneration(), first_generation);
   EXPECT_TRUE(policy_map->exists("10.1.2.3"));
@@ -906,7 +915,8 @@ TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedSotwGrpcN
   EXPECT_EQ(policyStreamGeneration(), first_generation);
 
   createStreamsUntil("2", NetworkPolicyResourceTypeUrl);
-  sendNprdsResponse(*nprds_stream_, "3", {selector3_resource, policy42_new_stream_resource});
+  sendNprdsResponse(*nprds_stream_, "3",
+                    {selector3_resource, policy42_new_stream_resource, endpoint42_resource});
   test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(3));
   waitForPolicyStreamGenerationAfter(first_generation);
   EXPECT_TRUE(policy_map->exists("10.1.2.3"));
@@ -1003,9 +1013,9 @@ TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedDeltaNprd
   EXPECT_EQ(policyStreamGeneration(), sotw_generation);
 
   // Step 5: accept the first Delta NPRDS update and retire the prior SotW policy resources.
-  sendNprdsDeltaResponse(
-      *nprds_stream_, "1",
-      {selector1_resource, selector2_resource, policy42_resource, policy43_resource});
+  sendNprdsDeltaResponse(*nprds_stream_, "1",
+                         {selector1_resource, selector2_resource, policy42_resource,
+                          endpoint42_resource, policy43_resource, endpoint43_resource});
   EXPECT_TRUE(compareNprdsAck());
   const uint64_t first_generation = waitForPolicyStreamGenerationAfter(sotw_generation);
   EXPECT_FALSE(policy_map->exists("10.1.1.1"));
@@ -1029,7 +1039,8 @@ TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedDeltaNprd
   EXPECT_TRUE(policy_map->exists("10.2.3.4"));
 
   // Step 9: accept the first update on the new stream and retire resources from the old stream.
-  sendNprdsDeltaResponse(*nprds_stream_, "3", {selector3_resource, policy42_new_stream_resource});
+  sendNprdsDeltaResponse(*nprds_stream_, "3",
+                         {selector3_resource, policy42_new_stream_resource, endpoint42_resource});
   waitForPolicyStreamGenerationAfter(first_generation);
   EXPECT_TRUE(policy_map->exists("10.1.2.3"));
   EXPECT_FALSE(policy_map->exists("10.2.3.4"));

@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "envoy/common/exception.h"
@@ -31,6 +32,7 @@
 #include "cilium/accesslog.h"
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/npds.pb.validate.h" // IWYU pragma: keep
+#include "cilium/host_map.h"
 #include "re2/re2.h"
 
 namespace Envoy {
@@ -41,6 +43,7 @@ class Policy;
 class ManagedGrpcSubscription;
 class PortNetworkPolicyRules;
 class PolicySnapshot;
+class NamedPolicySnapshot;
 using SelectorVersion = uint64_t;
 
 // PortPolicy holds a reference to a set of rules in a policy map that apply to the given port.
@@ -53,6 +56,9 @@ protected:
   friend class DenyAllPolicyImpl;
   friend class AllowAllEgressPolicyImpl;
   PortPolicy(const PolicySnapshot& map, uint16_t port, SelectorVersion selector_version);
+  PortPolicy(const PolicySnapshot& map, const NamedPolicySnapshot& named_map, uint16_t port,
+             const NamedPortsConstSharedPtr& destination_named_ports,
+             SelectorVersion selector_version);
 
 public:
   // If hasHttpRules() returns false, then HTTP policy enforcement can be skipped,
@@ -91,6 +97,9 @@ private:
   //   returning to the event loop, so after the posted lambda executes it is safe to delete the old
   //   rules.
   const PortNetworkPolicyRules* port_rules_;
+  const NamedPolicySnapshot* named_rules_;
+  const NamedPorts* destination_named_ports_;
+  const uint16_t port_;
   const bool has_http_rules_;
   const SelectorVersion selector_version_;
 };
@@ -102,6 +111,7 @@ public:
                 Network::Address::InstanceConstSharedPtr& ipv6)
       : ipv4_(ipv4), ipv6_(ipv6) {};
   IpAddressPair(const cilium::NetworkPolicy& proto);
+  IpAddressPair(const cilium::Endpoint& proto);
 
   Network::Address::InstanceConstSharedPtr ipv4_;
   Network::Address::InstanceConstSharedPtr ipv6_;
@@ -111,12 +121,12 @@ public:
 // instance must be released before the worker returns to its event loop. NPDS ignores the version.
 class PolicyInstance {
 public:
-  const PortPolicy findPortPolicy(bool ingress, uint16_t port) const;
-
-  bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
-               Http::RequestHeaderMap& headers, AccessLog::Entry& log_entry) const;
-  bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, absl::string_view sni,
-               uint16_t port) const;
+  // NPRDS pod ingress uses the bound Endpoint's named ports; egress uses peer mappings.
+  // Legacy NPDS receives numeric ports resolved by the agent.
+  const PortPolicy findIngressPortPolicy(uint16_t port) const;
+  const PortPolicy
+  findEgressPortPolicy(uint16_t port,
+                       const NamedPortsConstSharedPtr& destination_named_ports) const;
 
   uint32_t getEndpointID() const;
   const IpAddressPair& getEndpointIPs() const;
@@ -126,10 +136,8 @@ public:
 private:
   friend class NetworkPolicyMap;
   friend class NetworkPolicyMapImpl;
-
   PolicyInstance(const Policy& policy, SelectorVersion selector_version)
       : policy_(policy), selector_version_(selector_version) {}
-
   const Policy& policy_;
   const SelectorVersion selector_version_;
 };
@@ -212,6 +220,9 @@ public:
   ~NetworkPolicyMap() override;
 
   bool exists(const std::string& endpoint_policy_name) const;
+  // Copy one NPRDS peer lookup, or return nullopt when the published policy uses legacy NPDS.
+  // Called on the main thread or an Envoy worker; the returned value can outlive that callback.
+  std::optional<PolicyInfo> resolvePolicyInfo(const Network::Address::Ip* ip) const;
   void configure(const envoy::config::core::v3::ConfigSource& config_source);
   void maybeAddInitTarget(Init::Manager& init_manager);
 

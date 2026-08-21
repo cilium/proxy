@@ -62,6 +62,27 @@ unsigned int checkPrefix(T addr, bool have_prefix, unsigned int plen, absl::stri
 
 } // namespace
 
+NamedPortsConstSharedPtr makeNamedPorts(NamedPorts named_ports) {
+  if (named_ports.empty()) {
+    return nullptr;
+  }
+  std::ranges::sort(named_ports, [](const NamedPort& lhs, const NamedPort& rhs) {
+    return lhs.name_ < rhs.name_ || (lhs.name_ == rhs.name_ && lhs.port_ < rhs.port_);
+  });
+  named_ports.erase(std::ranges::unique(named_ports).begin(), named_ports.end());
+  return std::make_shared<const NamedPorts>(std::move(named_ports));
+}
+
+const PolicyInfo& HostMap::unknownPolicyInfo() {
+  static const PolicyInfo info{ID::UNKNOWN};
+  return info;
+}
+
+const PolicyInfo& HostMap::worldPolicyInfo() {
+  static const PolicyInfo info{ID::WORLD};
+  return info;
+}
+
 HostMapBuilder::HostMapBuilder(const HostMap* host_map) {
   if (host_map != nullptr) {
     static_cast<HostMap&>(*this) = *host_map;
@@ -93,14 +114,7 @@ M& HostMapBuilder::getMap(std::vector<std::pair<unsigned int, M>>& maps, unsigne
 
 void HostMapBuilder::insert(uint64_t policy, const Protobuf::RepeatedPtrField<std::string>& hosts,
                             NamedPorts named_ports) {
-  PolicyInfo info{policy, nullptr};
-  if (!named_ports.empty()) {
-    std::ranges::sort(named_ports, [](const NamedPort& lhs, const NamedPort& rhs) {
-      return lhs.name_ < rhs.name_ || (lhs.name_ == rhs.name_ && lhs.port_ < rhs.port_);
-    });
-    named_ports.erase(std::ranges::unique(named_ports).begin(), named_ports.end());
-    info.named_ports_ = std::make_shared<const NamedPorts>(std::move(named_ports));
-  }
+  PolicyInfo info{policy, std::move(named_ports)};
 
   std::string buf;
   for (const auto& host : hosts) {
@@ -137,7 +151,7 @@ void HostMapBuilder::insert(uint64_t policy, const Protobuf::RepeatedPtrField<st
     if (rc == 1) {
       plen = checkPrefix(addr4, have_prefix, plen, host);
       if (!getMap(ipv4_to_policy_, plen).emplace(addr4, info).second) {
-        uint64_t existing_policy = resolve(addr4);
+        uint64_t existing_policy = resolve(addr4).identity_;
         throw EnvoyException(fmt::format("Duplicate host entry \'{}\' for "
                                          "policy {}, already mapped to {}",
                                          host, policy, existing_policy));
@@ -149,7 +163,7 @@ void HostMapBuilder::insert(uint64_t policy, const Protobuf::RepeatedPtrField<st
     if (rc == 1) {
       plen = checkPrefix(addr6, have_prefix, plen, host);
       if (!getMap(ipv6_to_policy_, plen).emplace(addr6, info).second) {
-        uint64_t existing_policy = resolve(addr6);
+        uint64_t existing_policy = resolve(addr6).identity_;
         throw EnvoyException(fmt::format("Duplicate host entry \'{}\' for "
                                          "policy {}, already mapped to {}",
                                          host, policy, existing_policy));
@@ -216,27 +230,27 @@ void HostMap::logmaps(const std::string& msg) const {
   ENVOY_LOG(debug, "HostMap::{}: IPv4: [{}], IPv6: [{}]", msg, ip4, ip6);
 }
 
-uint64_t HostMap::resolve(uint32_t addr4) const {
+const PolicyInfo& HostMap::resolve(uint32_t addr4) const {
   for (const auto& pair : ipv4_to_policy_) {
     auto it = pair.second.find(masked(addr4, pair.first));
     if (it != pair.second.end()) {
-      return it->second.identity_;
+      return it->second;
     }
   }
-  return ID::UNKNOWN;
+  return unknownPolicyInfo();
 }
 
-uint64_t HostMap::resolve(absl::uint128 addr6) const {
+const PolicyInfo& HostMap::resolve(absl::uint128 addr6) const {
   for (const auto& pair : ipv6_to_policy_) {
     auto it = pair.second.find(masked(addr6, pair.first));
     if (it != pair.second.end()) {
-      return it->second.identity_;
+      return it->second;
     }
   }
-  return ID::UNKNOWN;
+  return unknownPolicyInfo();
 }
 
-uint64_t HostMap::resolve(const Network::Address::Ip* addr) const {
+const PolicyInfo& HostMap::resolve(const Network::Address::Ip* addr) const {
   auto* ipv4 = addr->ipv4();
   if (ipv4) {
     return resolve(ipv4->address());
@@ -245,7 +259,7 @@ uint64_t HostMap::resolve(const Network::Address::Ip* addr) const {
   if (ipv6) {
     return resolve(ipv6->address());
   }
-  return ID::WORLD;
+  return worldPolicyInfo();
 }
 
 } // namespace Cilium

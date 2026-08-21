@@ -165,7 +165,10 @@ envoy_cc_test(
     srcs = ["bpf_metadata_config_test.cc"],
     deps = [
         ":bpf_metadata_lib",
+        ":cilium_test_peer_lib",
+        "//cilium/api:npds_cc_proto",
         "@envoy//envoy/network:filter_interface",
+        "@envoy//test/mocks/config:config_mocks",
         "@envoy//test/mocks/server:listener_factory_context_mocks",
     ],
 )

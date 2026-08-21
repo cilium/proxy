@@ -78,9 +78,9 @@ public:
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 
-  uint64_t resolve(const Network::Address::Ip* addr) const {
+  const PolicyInfo& resolve(const Network::Address::Ip* addr) const {
     const HostMap* hostmap = getHostMap();
-    return hostmap != nullptr ? hostmap->resolve(addr) : ID::UNKNOWN;
+    return hostmap != nullptr ? hostmap->resolve(addr) : HostMap::unknownPolicyInfo();
   }
 
   // Config::SubscriptionCallbacks

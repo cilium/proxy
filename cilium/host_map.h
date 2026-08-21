@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,22 +29,43 @@ struct NamedPort {
 };
 
 using NamedPorts = std::vector<NamedPort>;
+using NamedPortsConstSharedPtr = std::shared_ptr<const NamedPorts>;
 
+// Store immutable named ports sorted by name and then port, without duplicate mappings.
+// An empty list is represented by a null shared pointer.
+NamedPortsConstSharedPtr makeNamedPorts(NamedPorts named_ports);
+
+// Identity and immutable named ports returned together by a host lookup.
+// Named ports are sorted by name and port, with no duplicates.
 struct PolicyInfo {
+  explicit PolicyInfo(uint64_t identity = 0) : identity_(identity) {}
+  PolicyInfo(uint64_t identity, NamedPorts named_ports)
+      : identity_(identity), named_ports_(makeNamedPorts(std::move(named_ports))) {}
+
   uint64_t identity_;
-  // Shared by all addresses of this identity; sorted by name and port, with no duplicates.
-  std::shared_ptr<const NamedPorts> named_ports_;
+  NamedPortsConstSharedPtr named_ports_;
+
+  std::span<const NamedPort> namedPorts() const {
+    return named_ports_ ? std::span<const NamedPort>(*named_ports_) : std::span<const NamedPort>{};
+  }
 };
 
 // An address-to-identity and named-port index shared as an immutable snapshot by its owner.
+// Lookup references are valid while the snapshot is retained; copy PolicyInfo to retain a result
+// independently.
 class HostMap : public Logger::Loggable<Logger::Id::config> {
 public:
   void logmaps(const std::string& msg) const;
 
   // Return the longest prefix match, or UNKNOWN when no address entry matches.
-  uint64_t resolve(uint32_t addr4) const;
-  uint64_t resolve(absl::uint128 addr6) const;
-  uint64_t resolve(const Network::Address::Ip* addr) const;
+  const PolicyInfo& resolve(uint32_t addr4) const;
+  const PolicyInfo& resolve(absl::uint128 addr6) const;
+  const PolicyInfo& resolve(const Network::Address::Ip* addr) const;
+
+  bool empty() const { return ipv4_to_policy_.empty() && ipv6_to_policy_.empty(); }
+
+  static const PolicyInfo& unknownPolicyInfo();
+  static const PolicyInfo& worldPolicyInfo();
 
 private:
   friend class HostMapBuilder;

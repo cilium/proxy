@@ -22,6 +22,7 @@
 #include "cilium/conntrack.h"
 #include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
+#include "cilium/host_map.h"
 #include "cilium/policy_host_map.h"
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
@@ -40,8 +41,8 @@ namespace BpfMetadata {
 
 struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
   SocketMetadata(uint32_t mark, uint32_t ingress_source_identity, uint32_t source_identity,
-                 bool ingress, bool l7lb, uint16_t port, std::string&& pod_ip,
-                 std::string&& ingress_policy_name,
+                 PolicyInfo original_destination, bool ingress, bool l7lb, uint16_t port,
+                 std::string&& pod_ip, std::string&& ingress_policy_name,
                  Network::Address::InstanceConstSharedPtr original_source_address,
                  Network::Address::InstanceConstSharedPtr source_address_ipv4,
                  Network::Address::InstanceConstSharedPtr source_address_ipv6,
@@ -49,7 +50,8 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
                  const PolicyResolverSharedPtr& policy_resolver, uint16_t proxy_id,
                  absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
-        ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
+        original_destination_(std::move(original_destination)), ingress_(ingress), is_l7lb_(l7lb),
+        port_(port), pod_ip_(std::move(pod_ip)),
         ingress_policy_name_(std::move(ingress_policy_name)), proxy_id_(proxy_id), sni_(sni),
         policy_resolver_(policy_resolver), mark_(mark),
         original_source_address_(std::move(original_source_address)),
@@ -59,8 +61,9 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
 
   std::shared_ptr<Envoy::Cilium::CiliumPolicyFilterState> buildCiliumPolicyFilterState() {
     return std::make_shared<Envoy::Cilium::CiliumPolicyFilterState>(
-        ingress_source_identity_, source_identity_, ingress_, is_l7lb_, port_, std::move(pod_ip_),
-        std::move(ingress_policy_name_), policy_resolver_, proxy_id_, sni_);
+        ingress_source_identity_, source_identity_, std::move(original_destination_), ingress_,
+        is_l7lb_, port_, std::move(pod_ip_), std::move(ingress_policy_name_), policy_resolver_,
+        proxy_id_, sni_);
   };
 
   std::shared_ptr<Envoy::Cilium::CiliumDestinationFilterState> buildCiliumDestinationFilterState() {
@@ -101,6 +104,7 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
 
   uint32_t ingress_source_identity_;
   uint32_t source_identity_;
+  PolicyInfo original_destination_;
   bool ingress_;
   bool is_l7lb_;
   uint16_t port_;
@@ -133,7 +137,7 @@ public:
   ~Config() override = default;
 
   // PolicyResolver
-  uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
+  PolicyInfo resolvePolicyInfo(const Network::Address::Ip*) const override;
   const PolicyInstance getPolicy(const std::string&) const override;
   bool exists(const std::string&) const override;
 

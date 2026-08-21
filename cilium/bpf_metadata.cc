@@ -43,6 +43,7 @@
 #include "cilium/conntrack.h"
 #include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
+#include "cilium/host_map.h"
 #include "cilium/policy_host_map.h"
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
@@ -290,8 +291,8 @@ Config::Config(const ::cilium::BpfMetadata& config,
     }
   }
 
-  // Start policy discovery even without a legacy identity source. Each stream probes NPRDS
-  // before falling back to NPDS; both still use NPHDS or ipcache for identities here.
+  // Keep the legacy identity source available for fallback. Only a published NPDS snapshot
+  // uses it; NPRDS peer lookups remain authoritative while NPRDS policies are active.
   bool created = false;
   npmap_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::NetworkPolicyMap>(
       SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
@@ -307,27 +308,29 @@ Config::Config(const ::cilium::BpfMetadata& config,
   }
 }
 
-uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
-  uint32_t id = 0;
-
-  if (hosts_ != nullptr) {
-    id = hosts_->resolve(ip);
+PolicyInfo Config::resolvePolicyInfo(const Network::Address::Ip* ip) const {
+  PolicyInfo info;
+  const auto peer = npmap_->resolvePolicyInfo(ip);
+  if (peer) {
+    info = *peer;
+  } else if (hosts_ != nullptr) {
+    info = hosts_->resolve(ip);
   } else if (ipcache_ != nullptr) {
     std::chrono::microseconds ttl = ipcache_entry_ttl_;
     // subtract random jitter (0-1ms) if configured as at least 1ms
     if (ttl >= std::chrono::milliseconds(1)) {
       ttl -= std::chrono::microseconds(random_.random() % 1000);
     }
-    id = ipcache_->resolve(ip, ttl);
+    info = PolicyInfo{ipcache_->resolve(ip, ttl)};
   }
 
   // default destination identity to the world if needed
-  if (id == 0) {
-    id = Cilium::ID::WORLD;
+  if (info.identity_ == 0) {
+    info = HostMap::worldPolicyInfo();
     ENVOY_LOG(trace, "bpf_metadata: Identity for IP defaults to WORLD", ip->addressAsString());
   }
 
-  return id;
+  return info;
 }
 
 uint32_t Config::resolveSourceIdentity(const Network::Address::Ip* sip,
@@ -338,11 +341,10 @@ uint32_t Config::resolveSourceIdentity(const Network::Address::Ip* sip,
   if (ct_maps_ != nullptr) {
     source_identity = ct_maps_->lookupSrcIdentity(sip, dip, ingress);
   }
-  // Fall back to ipcache lookup if conntrack entry can not be located
+  // Fall back to host map or ipcache lookup if conntrack entry can not be located.
   if (source_identity == 0) {
-    source_identity = resolvePolicyId(sip);
+    source_identity = resolvePolicyInfo(sip).identity_;
   }
-
   return source_identity;
 }
 
@@ -433,8 +435,13 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   // Resolve the source security ID from conntrack map, or from ip cache
   uint32_t source_identity = resolveSourceIdentity(sip, dip, is_ingress_);
 
-  // ingress_source_identity is non-zero when the egress path l7 LB should also enforce
-  // the ingress path policy using the original source identity.
+  // Resolve the original destination once. NPRDS egress uses its named ports and may refresh
+  // them after upstream selection. NPRDS pod ingress uses the bound Endpoint's named ports;
+  // legacy NPDS receives numeric ports resolved by the agent.
+  auto original_destination = resolvePolicyInfo(dip);
+
+  // The ingress source identity is non-zero when the egress path L7 LB should also enforce the
+  // ingress path policy using the original source identity.
   uint32_t ingress_source_identity = 0;
 
   // Use the configured IPv4/IPv6 Ingress IPs as starting point for the sources addresses
@@ -493,7 +500,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
           l7lb_policy_name_.empty() ? ingress_ip->addressAsString() : l7lb_policy_name_;
     }
 
-    // Resolve source identity for the Ingress address
+    // Resolve the source identity for the configured Ingress address.
     source_identity = resolvePolicyId(ingress_ip);
     if (source_identity == Cilium::ID::WORLD) {
       // No security ID available for the configured source IP
@@ -535,10 +542,10 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
             mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_,
             ingress_policy_name, dip->port(), pod_ip);
   return {Cilium::BpfMetadata::SocketMetadata(
-      mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
-      std::move(pod_ip), std::move(ingress_policy_name), std::move(src_address),
-      std::move(source_addresses.ipv4_), std::move(source_addresses.ipv6_), std::move(dst_address),
-      shared_from_this(), proxy_id_, sni)};
+      mark, ingress_source_identity, source_identity, std::move(original_destination), is_ingress_,
+      is_l7lb_, dip->port(), std::move(pod_ip), std::move(ingress_policy_name),
+      std::move(src_address), std::move(source_addresses.ipv4_), std::move(source_addresses.ipv6_),
+      std::move(dst_address), shared_from_this(), proxy_id_, sni)};
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {

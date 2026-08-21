@@ -8,6 +8,7 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -18,15 +19,18 @@
 #include "envoy/init/watcher.h"
 #include "envoy/network/address.h"
 #include "envoy/network/socket.h"
+#include "envoy/service/discovery/v3/discovery.pb.h"
 
 #include "source/common/common/base_logger.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/statusor.h"
+#include "source/common/config/decoded_resource_impl.h"
 #include "source/common/init/watcher_impl.h"
 #include "source/common/network/address_impl.h"
 #include "source/common/network/socket_impl.h"
 #include "source/common/stats/isolated_store_impl.h"
 
+#include "test/mocks/config/mocks.h"
 #include "test/mocks/filesystem/mocks.h"
 #include "test/mocks/network/connection.h"
 #include "test/mocks/network/io_handle.h"
@@ -39,8 +43,14 @@
 #include "absl/strings/string_view.h"
 #include "cilium/accesslog.h"
 #include "cilium/api/bpf_metadata.pb.h"
+#include "cilium/api/npds.pb.h"
 #include "cilium/bpf_metadata.h"
+#include "cilium/host_map.h"
+#include "cilium/network_policy.h"
+#include "cilium/policy_host_map.h"
+#include "cilium/policy_id.h"
 #include "tests/bpf_metadata.h"
+#include "tests/cilium_test_peer.h"
 
 using testing::Mock;
 using testing::NiceMock;
@@ -232,6 +242,243 @@ TEST_F(MetadataConfigTest, NpdsConfigSupported) {
   EXPECT_NO_THROW(initialize(config));
 }
 
+TEST_F(MetadataConfigTest, NprdsIngressUsesEndpointNamedPortsWithoutAnExternalHostMap) {
+  ::cilium::BpfMetadata config;
+  config.set_is_ingress(true);
+  config.mutable_cilium_config_source()->mutable_ads();
+  auto mux = std::make_shared<NiceMock<Config::MockGrpcMux>>();
+  ON_CALL(context_.server_factory_context_.xds_manager_, adsMux())
+      .WillByDefault(testing::Return(mux));
+  config_ = std::make_shared<Cilium::BpfMetadata::Config>(config, context_);
+  socket_.connection_info_provider_ =
+      std::make_shared<Network::ConnectionInfoSetterImpl>(local_address_, remote_address_);
+  auto& singletons = context_.server_factory_context_.singletonManager();
+  EXPECT_EQ(singletons.getTyped<PolicyHostMap>("cilium_host_map_singleton"), nullptr);
+  const auto policy_map = singletons.getTyped<NetworkPolicyMap>("cilium_network_policy_singleton");
+  ASSERT_NE(policy_map, nullptr);
+  EXPECT_EQ(config_->resolvePolicyInfo(original_dst_address->ip()).identity_, ID::WORLD);
+
+  const std::vector<std::pair<std::string, std::string>> resources{
+      {"destination", R"EOF(
+peer:
+  identity: 222
+  ips: [10.2.2.2]
+  named_ports: [{name: http, port: 8081}]
+)EOF"},
+      {"source", R"EOF(
+peer:
+  identity: 111
+  ips: [10.1.1.1]
+  named_ports: [{name: source-http, port: 80}]
+)EOF"},
+      {"source-selector", "selector: {identities: [111]}"},
+      {"pod", R"EOF(
+endpoint:
+  epid: 42
+  ips: [10.2.2.2]
+  named_ports: [{name: http, port: 80}]
+  policy: pod-policy
+)EOF"},
+      {"pod-policy", R"EOF(
+policy:
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - selectors: [source-selector]
+      deny: true
+      precedence: 100
+  - port_name: http
+    rules:
+    - selectors: [source-selector]
+      precedence: 200
+      http_rules:
+        http_rules:
+        - headers:
+          - {name: ":path", exact_match: /allowed}
+)EOF"}};
+  NetworkPolicyResourceDecoder decoder;
+  Config::DecodedResourcesWrapper decoded;
+  for (const auto& [name, yaml] : resources) {
+    envoy::service::discovery::v3::Resource resource;
+    resource.set_name(name);
+    resource.set_version("1");
+    std::ignore = resource.mutable_resource()->PackFrom(
+        TestUtility::parseYaml<::cilium::NetworkPolicyResource>(yaml));
+    decoded.pushBack(Config::DecodedResourceImpl::fromResource(decoder, resource));
+  }
+  auto& callbacks = CiliumTestPeer::subscriptionCallbacks(*policy_map);
+  EXPECT_TRUE(callbacks.onConfigUpdate(decoded.refvec_, {}, "1").ok());
+
+  const auto retained = config_->resolvePolicyInfo(original_dst_address->ip());
+  EXPECT_EQ(retained.identity_, 222);
+  EXPECT_THAT(retained.namedPorts(), testing::ElementsAre(NamedPort{8081, "http"}));
+
+  // Pod ingress must use its Endpoint even when its peer mapping disagrees or is removed.
+  for (bool remove_peer : {false, true}) {
+    SCOPED_TRACE(remove_peer);
+    if (remove_peer) {
+      Protobuf::RepeatedPtrField<std::string> removed;
+      removed.Add("destination");
+      EXPECT_TRUE(callbacks.onConfigUpdate({}, removed, "2").ok());
+      EXPECT_EQ(config_->resolvePolicyInfo(original_dst_address->ip()).identity_, ID::WORLD);
+    }
+    auto socket_metadata = config_->extractSocketMetadata(socket_);
+    ASSERT_TRUE(socket_metadata);
+    auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+    ASSERT_NE(policy_fs, nullptr);
+    EXPECT_EQ(policy_fs->source_identity_, 111);
+    AccessLog::Entry log_entry;
+
+    EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, policy_fs->original_destination_, 80, "",
+                                                log_entry));
+    Http::TestRequestHeaderMapImpl allowed_headers{{":path", "/allowed"}};
+    EXPECT_TRUE(policy_fs->enforcePodHTTPPolicy(conn_, policy_fs->original_destination_, 80,
+                                                allowed_headers, log_entry));
+    Http::TestRequestHeaderMapImpl denied_headers{{":path", "/denied"}};
+    EXPECT_FALSE(policy_fs->enforcePodHTTPPolicy(conn_, policy_fs->original_destination_, 80,
+                                                 denied_headers, log_entry));
+  }
+  EXPECT_THAT(retained.namedPorts(), testing::ElementsAre(NamedPort{8081, "http"}));
+}
+
+TEST_F(MetadataConfigTest, NprdsEgressNamedPortsUseDestinationPeers) {
+  const std::vector<std::pair<std::string, std::string>> resources{
+      {"source", "peer: {identity: 111, ips: [10.1.1.1]}"},
+      {"destination", R"EOF(
+peer:
+  identity: 222
+  ips: [10.2.2.2]
+  named_ports: [{name: http, port: 80}]
+)EOF"},
+      {"backend", R"EOF(
+peer:
+  identity: 333
+  ips: [10.3.3.3]
+  named_ports: [{name: selected-http, port: 8080}]
+)EOF"},
+      {"destination-selector", "selector: {identities: [222]}"},
+      {"backend-selector", "selector: {identities: [333]}"},
+      {"pod", R"EOF(
+endpoint:
+  epid: 42
+  ips: [10.1.1.1, "f00d::1:1:1"]
+  policy: pod-policy
+)EOF"},
+      {"pod-policy", R"EOF(
+policy:
+  egress_per_port_policies:
+  - port: 80
+    rules:
+    - selectors: [destination-selector]
+      deny: true
+      precedence: 100
+  - port_name: http
+    rules:
+    - selectors: [destination-selector]
+      precedence: 200
+  - port_name: selected-http
+    rules:
+    - selectors: [backend-selector]
+      precedence: 200
+)EOF"}};
+  auto mux = std::make_shared<NiceMock<Config::MockGrpcMux>>();
+  ON_CALL(context_.server_factory_context_.xds_manager_, adsMux())
+      .WillByDefault(testing::Return(mux));
+  socket_.connection_info_provider_ =
+      std::make_shared<Network::ConnectionInfoSetterImpl>(local_address_, remote_address_);
+
+  for (bool l7lb : {false, true}) {
+    SCOPED_TRACE(l7lb);
+    ::cilium::BpfMetadata config;
+    config.set_is_l7lb(l7lb);
+    config.set_use_original_source_address(l7lb);
+    config.mutable_cilium_config_source()->mutable_ads();
+    config_ = std::make_shared<Cilium::BpfMetadata::Config>(config, context_);
+    ASSERT_NE(config_->npmap_, nullptr);
+    NetworkPolicyResourceDecoder decoder;
+    Config::DecodedResourcesWrapper decoded;
+    for (const auto& [name, yaml] : resources) {
+      envoy::service::discovery::v3::Resource resource;
+      resource.set_name(name);
+      resource.set_version("1");
+      std::ignore = resource.mutable_resource()->PackFrom(
+          TestUtility::parseYaml<::cilium::NetworkPolicyResource>(yaml));
+      decoded.pushBack(Config::DecodedResourceImpl::fromResource(decoder, resource));
+    }
+    EXPECT_TRUE(CiliumTestPeer::subscriptionCallbacks(*config_->npmap_)
+                    .onConfigUpdate(decoded.refvec_, {}, "1")
+                    .ok());
+    auto socket_metadata = config_->extractSocketMetadata(socket_);
+    ASSERT_TRUE(socket_metadata);
+    auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+    ASSERT_NE(policy_fs, nullptr);
+    EXPECT_EQ(policy_fs->original_destination_.identity_, 222);
+    ASSERT_NE(policy_fs->original_destination_.named_ports_, nullptr);
+    EXPECT_THAT(*policy_fs->original_destination_.named_ports_,
+                testing::ElementsAre(NamedPort{80, "http"}));
+
+    AccessLog::Entry log_entry;
+
+    EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, policy_fs->original_destination_, 80, "",
+                                                log_entry));
+    EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, PolicyInfo{222}, 80, "", log_entry));
+    if (l7lb) {
+      const auto backend =
+          policy_fs->resolvePolicyInfo(Network::Address::Ipv4Instance("10.3.3.3").ip());
+      EXPECT_EQ(backend.identity_, 333);
+      EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, backend, 8080, "", log_entry));
+      auto backend_with_original_ports = backend;
+      backend_with_original_ports.named_ports_ = policy_fs->original_destination_.named_ports_;
+      EXPECT_FALSE(
+          policy_fs->enforceNetworkPolicy(conn_, backend_with_original_ports, 8080, "", log_entry));
+    }
+  }
+}
+
+TEST_F(MetadataConfigTest, EgressPolicyUsesInitialHostIdentity) {
+  ::cilium::BpfMetadata config{};
+  EXPECT_NO_THROW(initialize(config));
+
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  ASSERT_TRUE(socket_metadata);
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  ASSERT_NE(nullptr, policy_fs);
+
+  ASSERT_EQ(policy_fs->original_destination_.identity_, 222);
+  EXPECT_EQ(nullptr, policy_fs->original_destination_.named_ports_);
+
+  Protobuf::RepeatedPtrField<std::string> removed_resources;
+  removed_resources.Add("222");
+  ASSERT_TRUE(hostmap->onConfigUpdate({}, removed_resources, "2").ok());
+  const auto current_destination = policy_fs->resolvePolicyInfo(original_dst_address->ip());
+  ASSERT_NE(policy_fs->original_destination_.identity_, current_destination.identity_);
+
+  AccessLog::Entry log_entry;
+  EXPECT_TRUE(
+      policy_fs->enforceNetworkPolicy(conn_, policy_fs->original_destination_, 80, "", log_entry));
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, current_destination, 80, "", log_entry));
+}
+
+TEST_F(MetadataConfigTest, IngressPolicyUsesSourceIdentity) {
+  ::cilium::BpfMetadata config{};
+  config.set_is_ingress(true);
+  EXPECT_NO_THROW(initialize(config));
+
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  ASSERT_TRUE(socket_metadata);
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  ASSERT_NE(nullptr, policy_fs);
+
+  ASSERT_TRUE(policy_fs->ingress_);
+  ASSERT_EQ(policy_fs->source_identity_, 111);
+  ASSERT_EQ(policy_fs->original_destination_.identity_, 222);
+  EXPECT_EQ(nullptr, policy_fs->original_destination_.named_ports_);
+
+  AccessLog::Entry log_entry;
+  EXPECT_TRUE(
+      policy_fs->enforceNetworkPolicy(conn_, policy_fs->original_destination_, 80, "", log_entry));
+}
+
 TEST_F(MetadataConfigTest, EmptyConfig) {
   ::cilium::BpfMetadata config{};
 
@@ -397,7 +644,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   log_entry.entry_.set_policy_name("pod");
 
   // Expect policy accepts security ID 12345678 on ingress on port 80
-  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", log_entry));
+  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, PolicyInfo{12345678}, 80, "", log_entry));
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
@@ -451,7 +698,7 @@ resources:
   ASSERT_NE(nullptr, policy_fs);
 
   AccessLog::Entry network_log_entry;
-  ASSERT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 222, 8080, "", network_log_entry));
+  ASSERT_TRUE(policy_fs->enforceNetworkPolicy(conn_, PolicyInfo{222}, 8080, "", network_log_entry));
 
   const struct {
     const char* path;
@@ -464,8 +711,8 @@ resources:
     SCOPED_TRACE(test_case.path);
     Http::TestRequestHeaderMapImpl headers{{":method", "GET"}, {":path", test_case.path}};
     AccessLog::Entry log_entry;
-    EXPECT_EQ(test_case.allowed,
-              policy_fs->enforceIngressHTTPPolicy(conn_, 222, 8080, headers, log_entry));
+    EXPECT_EQ(test_case.allowed, policy_fs->enforceIngressHTTPPolicy(conn_, PolicyInfo{222}, 8080,
+                                                                     headers, log_entry));
   }
 }
 
@@ -515,19 +762,19 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbPodAndIngressEnforcedMetadata) {
   log_entry.entry_.set_policy_name("pod");
 
   // Expect pod policy denies security ID 12345678 on port 80 (only 222 allowed)
-  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", log_entry));
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, PolicyInfo{12345678}, 80, "", log_entry));
   EXPECT_EQ("pod", log_entry.entry_.policy_name());
 
   // Expect pod policy allows egress to security ID 222 on port 80
   // Ingress policy allows ingress from 9999 (pod's security ID)
   // Ingress policy allows 222 egress
-  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 222, 80, "", log_entry));
+  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, PolicyInfo{222}, 80, "", log_entry));
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
   // Expect pod policy allows egress to security ID 333 on port 80
   // Ingress policy allows ingress from 9999
   // Ingress policy denies 333 egress
-  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 333, 80, "", log_entry));
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, PolicyInfo{333}, 80, "", log_entry));
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
@@ -575,7 +822,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   log_entry.entry_.set_policy_name("pod");
 
   // Expect policy does not accept security ID 2 on port 80
-  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 2, 80, "", log_entry));
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, PolicyInfo{2}, 80, "", log_entry));
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
