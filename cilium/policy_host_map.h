@@ -29,7 +29,6 @@
 #include "cilium/api/nphds.pb.validate.h" // IWYU pragma: keep
 #include "cilium/grpc_subscription.h"
 #include "cilium/host_map.h"
-#include "cilium/policy_id.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -79,9 +78,9 @@ public:
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);
   }
 
-  uint64_t resolve(const Network::Address::Ip* addr) const {
+  const PolicyInfo& resolve(const Network::Address::Ip* addr) const {
     const HostMap* hostmap = getHostMap();
-    return hostmap != nullptr ? hostmap->resolve(addr) : ID::UNKNOWN;
+    return hostmap != nullptr ? hostmap->resolve(addr) : HostMap::unknownPolicyInfo();
   }
 
   // Config::SubscriptionCallbacks
