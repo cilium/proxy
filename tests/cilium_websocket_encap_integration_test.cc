@@ -350,8 +350,9 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(frame_offset > 0);
   ASSERT_EQ(frame_offset, 6);
 
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x4last\x88\0", 8}, true));
+  tcp_client->waitForData("worldlast");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
 }
@@ -396,9 +397,13 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_TRUE(fake_upstream_connection->write("\x82\x7e\x80\x00"s));
   ASSERT_TRUE(fake_upstream_connection->write(data));
   tcp_client->waitForData(data);
-  tcp_client->close();
+  ASSERT_TRUE(tcp_client->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(
+      expected_handshake.length() + 2 * 8 + data.size() + 6, &received_data));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x88\0", 2}));
+  tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
-  ASSERT_TRUE(fake_upstream_connection->close());
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   uint32_t upstream_pauses =
@@ -443,14 +448,16 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   tcp_client->readDisable(true);
   ASSERT_TRUE(tcp_client->write("", true));
 
-  // This ensures that readDisable(true) has been run on it's thread
-  // before tcp_client starts writing.
-  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  // Waiting for the encoded CLOSE ensures that readDisable(true) has run on its thread before the
+  // peer starts writing.
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(expected_handshake.length() + 6, &received_data));
 
   // writing data in one large chunk
 
-  ASSERT_TRUE(fake_upstream_connection->write("\x82\x7f\x03\x20\0\0"s));
-  ASSERT_TRUE(fake_upstream_connection->write(data, true));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x7f\0\0\0\0\x03\x20\0\0", 10}));
+  ASSERT_TRUE(fake_upstream_connection->write(data));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x88\0", 2}));
 
   test_server_->waitForCounterGe("cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
   EXPECT_EQ(test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
@@ -460,6 +467,8 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   tcp_client->waitForData(data);
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   uint32_t upstream_pauses =
       test_server_->counter("cluster.cluster1.upstream_flow_control_paused_reading_total")->value();
