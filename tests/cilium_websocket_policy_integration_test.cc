@@ -326,7 +326,8 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(10, &received));
   ASSERT_EQ(received, "hellohello");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->write("upstream final", true));
+  tcp_client->waitForData("worldupstream final");
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
 }

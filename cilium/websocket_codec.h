@@ -126,6 +126,7 @@ private:
   Event::TimerPtr handshake_timer_{nullptr};
   Buffer::OwnedImpl handshake_buffer_;
   bool accepted_{false};
+  bool encoded_end_stream_sent_{false};
 };
 using CodecPtr = std::unique_ptr<Codec>;
 

@@ -381,7 +381,14 @@ void Codec::encode(Buffer::Instance& data, bool end_stream) {
     if (encoder_.hasData()) {
       resetPingTimer();
     }
-    parent_->injectEncoded(encoder_.data(), encoder_.endStream());
+    // A WebSocket CLOSE represents the FIN for this direction of the tunneled TCP connection.
+    // RFC 6455 section 7.1.1 recommends that the server close the underlying transport after both
+    // sides have sent CLOSE. Keep the client transport open so that its final frames are flushed
+    // before the server closes the connection.
+    const bool transport_end_stream =
+        !config()->client_ && encoder_.endStream() && decoder_.endStream();
+    encoded_end_stream_sent_ |= transport_end_stream;
+    parent_->injectEncoded(encoder_.data(), transport_end_stream);
   }
 }
 
@@ -586,9 +593,9 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
         return closeOnError(handshake_buffer_, "Invalid WebSocket response");
       }
 
-      // Kick write on the other direction
-      parent_->injectEncoded(encoder_.data(), encoder_.endStream());
-
+      // Kick the buffered write. This is the client codec, so the server remains responsible for
+      // ending the underlying WebSocket transport.
+      parent_->injectEncoded(encoder_.data(), false);
     } else {
       // Server needs to wait for a valid handshake request before accepting any data
       RequestParser parser;
@@ -659,7 +666,19 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
     resetPingTimer();
   }
 
-  parent_->injectDecoded(decoder_.data(), decoder_.endStream());
+  // Record decoder end_stream before injecting the corresponding TCP FIN (via
+  // end_stream=true). That injection may synchronously report the reverse-direction FIN through
+  // encode(..., end_stream=true).
+  const bool decoded_end_stream = decoder_.endStream();
+  parent_->injectDecoded(decoder_.data(), decoded_end_stream);
+
+  // Complete the CLOSE handshake by ending the underlying transport from the server side. RFC 6455
+  // section 7.1.1 recommends that the client wait for the server to close the connection.
+  if (!config->client_ && decoded_end_stream && encoder_.endStream() && !encoded_end_stream_sent_) {
+    Buffer::OwnedImpl empty;
+    encoded_end_stream_sent_ = true;
+    parent_->injectEncoded(empty, true);
+  }
 }
 
 bool Codec::ping(const void* payload, size_t len) {
@@ -669,7 +688,7 @@ bool Codec::ping(const void* payload, size_t len) {
   Buffer::OwnedImpl buf(payload, len);
   encoder_.encode(buf, false, OPCODE_PING);
   parent_->config()->stats_.ping_sent_count_.inc();
-  parent_->injectEncoded(encoder_.data(), encoder_.endStream());
+  parent_->injectEncoded(encoder_.data(), false);
   return true;
 }
 
@@ -679,7 +698,7 @@ bool Codec::pong(const void* payload, size_t len) {
   }
   Buffer::OwnedImpl buf(payload, len);
   encoder_.encode(buf, false, OPCODE_PONG);
-  parent_->injectEncoded(encoder_.data(), encoder_.endStream());
+  parent_->injectEncoded(encoder_.data(), false);
   return true;
 }
 
