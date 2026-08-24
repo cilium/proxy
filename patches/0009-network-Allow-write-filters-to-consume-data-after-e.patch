@@ -1,0 +1,65 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Cilium Authors <dev@cilium.io>
+Date: Mon, 24 Aug 2026 08:00:00 +0200
+Subject: [PATCH] network: Allow write filters to consume data after end stream
+
+A protocol filter may synthesize an end stream for the data it exposes while
+the underlying transport remains open for protocol control frames. Give write
+filters an opportunity to consume such frames after the connection write side
+has been half-closed.
+
+The connection still rejects any data that a filter does not consume, so this
+does not permit application data to be written to the transport after FIN.
+---
+ source/common/network/connection_impl.cc | 22 ++++++++++++----------
+ 1 file changed, 12 insertions(+), 10 deletions(-)
+
+diff --git a/source/common/network/connection_impl.cc b/source/common/network/connection_impl.cc
+index 21a263323b..042f12d65d 100644
+--- a/source/common/network/connection_impl.cc
++++ b/source/common/network/connection_impl.cc
+@@ -596,30 +596,32 @@ void ConnectionImpl::write(Buffer::Instance& data, bool end_stream) {
+ void ConnectionImpl::write(Buffer::Instance& data, bool end_stream, bool through_filter_chain) {
+   ASSERT(!end_stream || enable_half_close_);
+   ASSERT(dispatcher_.isThreadSafe());
+ 
+-  if (write_end_stream_) {
+-    // It is an API violation to write more data after writing end_stream, but a duplicate
+-    // end_stream with no data is harmless. This catches misuse of the API that could result in data
+-    // being lost.
+-    ASSERT(data.length() == 0 && end_stream);
+-
+-    return;
+-  }
+-
+-  if (through_filter_chain) {
++  // A filter may synthesize end_stream for its decoded data while its underlying protocol remains
++  // open for control frames. In that case, give write filters a chance to consume subsequent data.
++  // Any data left unconsumed is still rejected below and cannot reach the transport after FIN.
++  if (through_filter_chain && (!write_end_stream_ || data.length() > 0)) {
+     // NOTE: This is kind of a hack, but currently we don't support restart/continue on the write
+     //       path, so we just pass around the buffer passed to us in this function. If we ever
+     //       support buffer/restart/continue on the write path this needs to get more complicated.
+     current_write_buffer_ = &data;
+     current_write_end_stream_ = end_stream;
+     FilterStatus status = filter_manager_.onWrite();
+     current_write_buffer_ = nullptr;
+
+     if (FilterStatus::StopIteration == status) {
+       return;
+     }
+   }
+ 
++  if (write_end_stream_) {
++    // Any data left after the filters ran is an API violation and cannot be written after FIN. An
++    // empty write is harmless regardless of whether it repeats end_stream.
++    ASSERT(data.length() == 0);
++
++    return;
++  }
++
+   write_end_stream_ = end_stream;
+   if (data.length() > 0 || end_stream) {
+     ENVOY_CONN_LOG(trace, "writing {} bytes, end_stream {}", *this, data.length(), end_stream);
+-- 
+2.43.0
