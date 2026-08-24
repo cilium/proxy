@@ -350,6 +350,12 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(frame_offset > 0);
   ASSERT_EQ(frame_offset, 6);
 
+  // The locally generated CLOSE represents only the tunneled downstream FIN. It must not also send
+  // FIN on the outer WebSocket transport while the peer's tunneled direction remains open.
+  EXPECT_FALSE(fake_upstream_connection->waitForHalfClose(std::chrono::milliseconds(100)));
+
+  // The fake WebSocket server sends its final data and CLOSE, then ends the transport as
+  // recommended by RFC 6455 section 7.1.1.
   ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x4last\x88\0", 8}, true));
   tcp_client->waitForData("worldlast");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
