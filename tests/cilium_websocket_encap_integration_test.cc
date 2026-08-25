@@ -363,6 +363,45 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   tcp_client->waitForDisconnect();
 }
 
+// Once both tunneled TCP directions have ended, keep the outer WebSocket transport open long
+// enough for the server to perform the transport close. Closing it immediately can turn the
+// server's pending CLOSE or other control traffic into an RST.
+TEST_P(CiliumWebSocketIntegrationTest, WaitForPeerWebSocketTransportClose) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  std::string expected_handshake =
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
+  std::string received_data;
+  ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
+
+  std::string handshake_response =
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+  ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
+
+  // The peer's CLOSE ends the upstream-to-downstream tunneled direction while deliberately
+  // leaving the outer WebSocket transport open.
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x88\0", 2}));
+  tcp_client->waitForHalfClose();
+
+  // The downstream FIN ends the reverse tunneled direction and fully closes the downstream TCP
+  // connection. Wait until its WebSocket CLOSE has reached the server.
+  ASSERT_TRUE(tcp_client->write("", true));
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(expected_handshake.length() + 6, &received_data));
+
+  // TcpProxy must not immediately close the upstream transport after the downstream connection
+  // disappears. The WebSocket server is responsible for closing the transport after the closing
+  // handshake and has not done so yet.
+  EXPECT_FALSE(fake_upstream_connection->waitForHalfClose(std::chrono::milliseconds(100)));
+
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+}
+
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   config_helper_.setBufferLimits(1024, 1024);
   initialize();
