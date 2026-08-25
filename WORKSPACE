@@ -46,6 +46,7 @@ git_repository(
         "@//patches:0007-config-add-grpc-mux-stream-event-callback.patch",
         "@//patches:0008-repo-Make-yq-dependency-optional-for-CI-config-parsi.patch",
         "@//patches:0009-network-Allow-write-filters-to-consume-data-after-e.patch",
+        "@//patches:0010-tcp_proxy-Allow-filters-to-wait-for-upstream-close.patch",
     ],
     # // clang-format off: Envoy's format check: Only repository_locations.bzl may contains URL references
     remote = "https://github.com/envoyproxy/envoy.git",
