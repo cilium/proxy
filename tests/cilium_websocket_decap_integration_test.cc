@@ -388,4 +388,50 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   codec_client_->close();
 }
 
+TEST_P(CiliumWebSocketIntegrationTest, CloseResponseWaitsForReverseFin) {
+  enableHalfClose(true);
+  initialize();
+  auto request_headers = Http::TestRequestHeaderMapImpl{
+      {":method", "GET"},
+      {":path", "/"},
+      {":authority", "host"},
+      {"Upgrade", "websocket"},
+      {"Connection", "Upgrade"},
+      {"Origin", "jarno.cilium.rocks"},
+      {"Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ=="},
+      {"Sec-WebSocket-Version", "13"},
+      {"x-request-id", "000000ff-0000-0000-0000-000000000001"},
+      {"x-envoy-original-dst-host", original_dst_address->asString()}};
+  codec_client_ = makeHttpConnection(lookupPort("http"));
+
+  IntegrationStreamDecoderPtr response = codec_client_->makeHeaderOnlyRequest(request_headers);
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  response->waitForHeaders();
+  ASSERT_EQ("101", response->headers().getStatusValue());
+
+  // A masked CLOSE carrying status 1000 and reason "done".
+  const uint8_t masked_close[] = {0x88, 0x86, 0, 0, 0, 0, 0x03, 0xe8, 'd', 'o', 'n', 'e'};
+  Buffer::OwnedImpl close_buffer(masked_close, sizeof(masked_close));
+  auto* client_connection = codec_client_->connection();
+  client_connection->write(close_buffer, false);
+  client_connection->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+
+  // The received CLOSE represents a FIN toward the upstream TCP connection, but that connection's
+  // reverse direction remains usable.
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->write("reverse", true));
+
+  // The reverse data frame precedes the delayed, unmasked CLOSE response, which echoes the status
+  // and reason from the peer's CLOSE.
+  const uint8_t expected_response[] = {0x82, 0x07, 'r',  'e',  'v', 'e', 'r', 's', 'e',
+                                       0x88, 0x06, 0x03, 0xe8, 'd', 'o', 'n', 'e'};
+  response->waitForBodyData(sizeof(expected_response));
+  ASSERT_EQ(response->body(), absl::string_view(reinterpret_cast<const char*>(expected_response),
+                                                sizeof(expected_response)));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+
+  codec_client_->close();
+}
+
 } // namespace Envoy
