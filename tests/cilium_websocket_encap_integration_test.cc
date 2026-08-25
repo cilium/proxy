@@ -472,10 +472,10 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
 
 // Test that an upstream flush works correctly (all data is flushed)
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
-  // Use a very large size to make sure it is larger than the kernel socket read
-  // buffer.
+  // Keep the payload larger than the kernel socket read buffer so that an upstream flush is needed,
+  // while leaving buffer-limit headroom for WebSocket framing and control traffic.
   const uint32_t size = 50 * 1024 * 1024;
-  config_helper_.setBufferLimits(size, size);
+  config_helper_.setBufferLimits(2 * size, 2 * size);
   initialize();
 
   std::string data(size, 'a');
@@ -519,10 +519,10 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
 // Test that Envoy doesn't crash or assert when shutting down with an upstream
 // flush active
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
-  // Use a very large size to make sure it is larger than the kernel socket read
-  // buffer.
+  // Keep the payload larger than the kernel socket read buffer so that an upstream flush is needed,
+  // while leaving buffer-limit headroom for WebSocket framing and control traffic.
   const uint32_t size = 50 * 1024 * 1024;
-  config_helper_.setBufferLimits(size, size);
+  config_helper_.setBufferLimits(2 * size, 2 * size);
   initialize();
 
   std::string data(size, 'a');
