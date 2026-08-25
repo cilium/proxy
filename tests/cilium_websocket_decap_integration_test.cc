@@ -3,7 +3,9 @@
 #include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 #include "envoy/event/dispatcher.h"
@@ -22,6 +24,42 @@
 using namespace std::literals;
 
 namespace Envoy {
+
+namespace {
+
+enum class PayloadLengthEncoding { Minimal, Uint16, Uint64 };
+
+std::string maskedClientFrame(absl::string_view payload,
+                              PayloadLengthEncoding encoding = PayloadLengthEncoding::Minimal) {
+  constexpr std::array<uint8_t, 4> mask = {0x12, 0x34, 0x56, 0x78};
+  std::string frame;
+  frame.reserve(14 + payload.size());
+  frame.push_back('\x82'); // FIN and binary opcode
+
+  if (encoding == PayloadLengthEncoding::Minimal && payload.size() < 126) {
+    frame.push_back(static_cast<char>(0x80 | payload.size()));
+  } else if (encoding == PayloadLengthEncoding::Uint16 ||
+             (encoding == PayloadLengthEncoding::Minimal && payload.size() <= UINT16_MAX)) {
+    frame.push_back(static_cast<char>(0x80 | 126));
+    frame.push_back(static_cast<char>(payload.size() >> 8));
+    frame.push_back(static_cast<char>(payload.size()));
+  } else {
+    frame.push_back(static_cast<char>(0x80 | 127));
+    for (int shift = 56; shift >= 0; shift -= 8) {
+      frame.push_back(static_cast<char>(payload.size() >> shift));
+    }
+  }
+
+  for (uint8_t byte : mask) {
+    frame.push_back(static_cast<char>(byte));
+  }
+  for (size_t i = 0; i < payload.size(); ++i) {
+    frame.push_back(static_cast<char>(static_cast<uint8_t>(payload[i]) ^ mask[i % mask.size()]));
+  }
+  return frame;
+}
+
+} // namespace
 
 // params: is_ingress ("true", "false")
 const std::string cilium_tcp_proxy_config_fmt = R"EOF(
@@ -158,9 +196,8 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   auto client_conn = codec_client_->connection();
 
-  // Create websocket framed data & write it on the client connection
-  Buffer::OwnedImpl buf{"\x82\x5"
-                        "hello"};
+  // Create masked WebSocket framed data and write it on the client connection.
+  Buffer::OwnedImpl buf{maskedClientFrame("hello")};
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -181,12 +218,9 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   // Send multiple frames back-to-back
   ASSERT_EQ(buf.length(), 0);
-  buf.add("\x82\x6"
-          "hello2"
-          "\x82\x7"
-          "hello21"
-          "\x82\x3"
-          "foo");
+  buf.add(maskedClientFrame("hello2"));
+  buf.add(maskedClientFrame("hello21"));
+  buf.add(maskedClientFrame("foo"));
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -207,9 +241,7 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   // Officially optimal length formats must be used, but our implementation
   // accepts larger formats with less data, which makes testing easier.
   ASSERT_EQ(buf.length(), 0);
-  absl::string_view frame16{"\x82\x7e\0\x5"
-                            "len16",
-                            9};
+  const std::string frame16 = maskedClientFrame("len16", PayloadLengthEncoding::Uint16);
   buf.add(frame16);
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
@@ -234,9 +266,7 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   // Officially optimal length formats must be used, but our implementation
   // accepts larger formats with less data, which makes testing easier.
   ASSERT_EQ(buf.length(), 0);
-  absl::string_view frame64{"\x82\x7f\0\0\0\0\0\0\0\x5"
-                            "len64",
-                            15};
+  const std::string frame64 = maskedClientFrame("len64", PayloadLengthEncoding::Uint64);
   buf.add(frame64);
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
@@ -255,10 +285,11 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
 
   // Gaps within a frame
   ASSERT_EQ(buf.length(), 0);
-  buf.add("\x82\x5"
-          "hello"
-          "\x82\xe"
-          "gap ");
+  const std::string hello_frame = maskedClientFrame("hello");
+  const std::string gap_frame = maskedClientFrame("gap in between");
+  buf.add(hello_frame);
+  // Send the second frame's header, masking key, and first four payload bytes.
+  buf.add(gap_frame.substr(0, 10));
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -270,9 +301,8 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   ASSERT_TRUE(fake_upstream_connection->write("bar42"));
 
   ASSERT_EQ(buf.length(), 0);
-  buf.add("in between"
-          "\x82\x3"
-          "foo");
+  buf.add(gap_frame.substr(10));
+  buf.add(maskedClientFrame("foo"));
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -287,17 +317,10 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
                                "bar42");
   response->clearBody();
 
-  // Masked frames
+  // Masked frame
   ASSERT_EQ(buf.length(), 0);
   auto msg = "heello there\r\n"s;
-  unsigned char mask[4] = {0x12, 0x34, 0x56, 0x78};
-  auto masked = msg;
-  for (size_t i = 0; i < msg.length(); i++) {
-    masked[i] = msg[i] ^ mask[i % 4];
-  }
-  buf.add("\x82\x8e");
-  buf.add(mask, 4);
-  buf.add(masked.data(), masked.length());
+  buf.add(maskedClientFrame(msg));
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -315,23 +338,18 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
                                 "heello there\r\n");
   response->clearBody();
 
-  // 2nd masked frame
+  // Split masked frame
   ASSERT_EQ(buf.length(), 0);
   auto msg2 = "hello there\r\n"s;
-  unsigned char mask2[4] = {0x90, 0xab, 0xcd, 0xef};
-  auto masked2 = msg2;
-  for (size_t i = 0; i < msg2.length(); i++) {
-    masked2[i] = msg2[i] ^ mask2[i % 4];
-  }
-  // Write frame header
-  buf.add("\x82\x8d");
-  buf.add(mask2, 4);
+  const std::string masked2 = maskedClientFrame(msg2);
+  // Write the frame header and masking key.
+  buf.add(masked2.substr(0, 6));
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
 
   // Write 5 first bytes
-  buf.add(masked2.data(), 5);
+  buf.add(masked2.substr(6, 5));
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
@@ -341,7 +359,7 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   seen_data_len = data.length();
 
   // Write remaining bytes
-  buf.add(masked2.data() + 5, masked2.length() - 5);
+  buf.add(masked2.substr(11));
   client_conn->write(buf, false);
   // Run the dispatcher so that the write event is handled
   client_conn->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
