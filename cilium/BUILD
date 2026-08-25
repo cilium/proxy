@@ -160,6 +160,7 @@ envoy_cc_library(
         "//cilium:accesslog_lib",
         "//cilium:filter_state_lib",
         "//cilium/api:websocket_cc_proto",
+        "@com_google_protobuf//third_party/utf8_range:utf8_validity",
         "@envoy//bazel/external/http_parser",
         "@envoy//envoy/common/crypto:crypto_interface",
         "@envoy//source/common/common:base64_lib",
