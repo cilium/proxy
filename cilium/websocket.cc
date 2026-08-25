@@ -1,5 +1,6 @@
 #include "cilium/websocket.h"
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -19,7 +20,9 @@
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 #include "source/common/stream_info/bool_accessor_impl.h"
+#include "source/common/stream_info/uint64_accessor_impl.h"
 #include "source/common/tcp_proxy/tcp_proxy.h"
+#include "source/common/tcp_proxy/upstream.h"
 
 #include "absl/status/statusor.h"
 #include "cilium/api/websocket.pb.h"
@@ -33,6 +36,8 @@ namespace Cilium {
 namespace WebSocket {
 
 namespace {
+
+constexpr std::chrono::milliseconds WebSocketTransportCloseTimeout{1000};
 
 Http::RegisterCustomInlineHeader<Http::CustomInlineHeaderRegistry::Type::RequestHeaders>
     origin_handle(Http::CustomHeaders::get().Origin);
@@ -128,6 +133,16 @@ void Instance::initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callb
   callbacks_->connection().streamInfo().filterState()->setData(
       TcpProxy::ReceiveBeforeConnectKey, std::make_unique<StreamInfo::BoolAccessorImpl>(true),
       StreamInfo::FilterState::StateType::Mutable, StreamInfo::FilterState::LifeSpan::Connection);
+
+  // After both directions of a WebSocket tunnel have ended, TcpProxy must flush the final data
+  // and CLOSE frame and wait for the peer's transport FIN. Closing immediately can generate an
+  // RST if a peer control frame is still unread, losing the just-flushed frames. On the client the
+  // WebSocket transport is upstream from TcpProxy, while on the server it is downstream.
+  callbacks_->connection().streamInfo().filterState()->setData(
+      config_->client_ ? TcpProxy::UpstreamFlushWaitTimeoutMs
+                       : TcpProxy::DownstreamFlushWaitTimeoutMs,
+      std::make_unique<StreamInfo::UInt64AccessorImpl>(WebSocketTransportCloseTimeout.count()),
+      StreamInfo::FilterState::StateType::ReadOnly, StreamInfo::FilterState::LifeSpan::Connection);
 }
 
 Network::FilterStatus Instance::onNewConnection() {
