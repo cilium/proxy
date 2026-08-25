@@ -76,6 +76,7 @@ private:
 
     Codec& parent_;
     bool close_received_{false};
+    bool protocol_error_{false};
     std::string close_payload_;
     Buffer::OwnedImpl buffer_;  // Buffer for partial websocket frames
     Buffer::OwnedImpl decoded_; // Buffer for decoded websocket frames

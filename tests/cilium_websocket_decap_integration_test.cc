@@ -388,6 +388,39 @@ TEST_P(CiliumWebSocketIntegrationTest, AcceptedWebSocket) {
   codec_client_->close();
 }
 
+TEST_P(CiliumWebSocketIntegrationTest, UnmaskedClientFrameRejected) {
+  initialize();
+  auto request_headers = Http::TestRequestHeaderMapImpl{
+      {":method", "GET"},
+      {":path", "/"},
+      {":authority", "host"},
+      {"Upgrade", "websocket"},
+      {"Connection", "Upgrade"},
+      {"Origin", "jarno.cilium.rocks"},
+      {"Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ=="},
+      {"Sec-WebSocket-Version", "13"},
+      {"x-request-id", "000000ff-0000-0000-0000-000000000001"},
+      {"x-envoy-original-dst-host", original_dst_address->asString()}};
+  codec_client_ = makeHttpConnection(lookupPort("http"));
+
+  IntegrationStreamDecoderPtr response = codec_client_->makeHeaderOnlyRequest(request_headers);
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  response->waitForHeaders();
+  ASSERT_EQ("101", response->headers().getStatusValue());
+
+  // RFC 6455 section 5.1 requires every client-to-server frame to be masked.
+  const uint8_t unmasked_frame[] = {0x82, 0x05, 'h', 'e', 'l', 'l', 'o'};
+  Buffer::OwnedImpl frame_buffer(unmasked_frame, sizeof(unmasked_frame));
+  auto* client_connection = codec_client_->connection();
+  client_connection->write(frame_buffer, false);
+  client_connection->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+
+  test_server_->waitForCounterGe("websocket.protocol_error", 1);
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  ASSERT_TRUE(codec_client_->waitForDisconnect());
+}
+
 TEST_P(CiliumWebSocketIntegrationTest, CloseResponseWaitsForReverseFin) {
   enableHalfClose(true);
   initialize();
@@ -432,6 +465,39 @@ TEST_P(CiliumWebSocketIntegrationTest, CloseResponseWaitsForReverseFin) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   codec_client_->close();
+}
+
+TEST_P(CiliumWebSocketIntegrationTest, InvalidCloseAbortsImmediately) {
+  initialize();
+  auto request_headers = Http::TestRequestHeaderMapImpl{
+      {":method", "GET"},
+      {":path", "/"},
+      {":authority", "host"},
+      {"Upgrade", "websocket"},
+      {"Connection", "Upgrade"},
+      {"Origin", "jarno.cilium.rocks"},
+      {"Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ=="},
+      {"Sec-WebSocket-Version", "13"},
+      {"x-request-id", "000000ff-0000-0000-0000-000000000001"},
+      {"x-envoy-original-dst-host", original_dst_address->asString()}};
+  codec_client_ = makeHttpConnection(lookupPort("http"));
+
+  IntegrationStreamDecoderPtr response = codec_client_->makeHeaderOnlyRequest(request_headers);
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  response->waitForHeaders();
+  ASSERT_EQ("101", response->headers().getStatusValue());
+
+  // RFC 6455 forbids a CLOSE payload of exactly one byte. A protocol error aborts both TCP sides
+  // instead of waiting for the upstream FIN used by the normal tunnel half-close path.
+  const uint8_t invalid_masked_close[] = {0x88, 0x81, 0, 0, 0, 0, 0};
+  Buffer::OwnedImpl close_buffer(invalid_masked_close, sizeof(invalid_masked_close));
+  auto* client_connection = codec_client_->connection();
+  client_connection->write(close_buffer, false);
+  client_connection->dispatcher().run(Event::Dispatcher::RunType::NonBlock);
+
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  ASSERT_TRUE(codec_client_->waitForDisconnect());
 }
 
 } // namespace Envoy
