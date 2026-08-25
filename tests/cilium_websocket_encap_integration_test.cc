@@ -432,6 +432,28 @@ TEST_P(CiliumWebSocketIntegrationTest, ControlFramesAfterReceivingClose) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
 
+TEST_P(CiliumWebSocketIntegrationTest, WebSocketTransportFinWithoutCloseAborts) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  std::string expected_handshake =
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
+  ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length()));
+
+  std::string handshake_response =
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+  ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
+
+  // An outer transport FIN without a WebSocket CLOSE is an abort, not a tunneled TCP FIN.
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  // The raw downstream observes EOF under half-close even though the WebSocket transport was
+  // aborted immediately.
+  tcp_client->waitForHalfClose();
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  tcp_client->close();
+}
 
 // Test proxying data in both directions, and that all data is flushed properly
 // when the client disconnects.

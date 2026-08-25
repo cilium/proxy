@@ -37,6 +37,7 @@
 #include "absl/strings/string_view.h"
 #include "cilium/websocket_config.h"
 #include "cilium/websocket_protocol.h"
+#include "third_party/utf8_range/utf8_validity.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -684,6 +685,12 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
   // Handshake done, process data.
   decoder_.decode(data, end_stream);
 
+  if (decoder_.protocol_error_) {
+    config->stats_.protocol_error_.inc();
+    decoder_.drain();
+    return closeOnError("invalid WebSocket control frame");
+  }
+
   if (end_stream && !decoder_.close_received_) {
     decoder_.drain();
     return closeOnError("websocket transport closed without CLOSE");
@@ -867,6 +874,7 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
 
     TRY_READ_NETWORK(&frame_header);
     const uint8_t opcode = frame_header[0] & OPCODE_MASK;
+    const bool final_frame = (frame_header[0] & FIN_MASK) != 0;
     const bool masked = (frame_header[1] & MASK_MASK) != 0;
     uint64_t payload_len = frame_header[1] & PAYLOAD_LEN_MASK;
 
@@ -888,6 +896,14 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
     // Whole header received and decoded
     //
 
+    // RFC 6455 section 5.1 requires client to mask all frames it sends to the server,
+    // and prohibits server from ever masking any frames is sends to the client.
+    const bool expected_masked = !parent_.config()->client_;
+    if (masked != expected_masked) {
+      ENVOY_LOG(debug, "websocket decoder: invalid frame masking");
+      goto protocol_error;
+    }
+
     if (opcode < OPCODE_CLOSE) {
       // Unframe and forward all non-control frames
       ENVOY_LOG(trace, "websocket decoder: received websocket data: header {} bytes, data {} bytes",
@@ -899,6 +915,11 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
 
     // Terminate and respond to any control frames
 
+    // control frames are always final
+    if (!final_frame) {
+      ENVOY_LOG(debug, "websocket decoder: invalid control frame");
+      goto protocol_error;
+    }
 
     // Protect against too large control frames that could happen if the decoder ever loses
     // sync with the data stream.
@@ -928,6 +949,21 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
 
       // validate CLOSE payload if any
       if (payload_len > 0) {
+        if (payload_len == 1) {
+          ENVOY_LOG(debug, "websocket decoder: invalid CLOSE payload");
+          goto protocol_error;
+        }
+
+        // we do not interpret the status code to remain compatible with future revisions of the
+        // WebSocket protocol specification, but we validate that any reason is UTF-8 encoded as
+        // required.
+        const absl::string_view reason{reinterpret_cast<const char*>(payload + 2),
+                                       static_cast<size_t>(payload_len - 2)};
+        if (!utf8_range::IsStructurallyValid(reason)) {
+          ENVOY_LOG(debug, "websocket decoder: invalid CLOSE reason");
+          goto protocol_error;
+        }
+
         // store for sending the frame back
         if (!close_received_) {
           close_payload_.assign(reinterpret_cast<const char*>(payload), payload_len);
@@ -957,6 +993,7 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
 
 protocol_error:
   buffer_.drain(buffer_.length());
+  protocol_error_ = true;
 }
 
 } // namespace WebSocket
