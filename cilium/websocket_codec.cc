@@ -373,22 +373,45 @@ void Codec::handshake() {
 void Codec::encode(Buffer::Instance& data, bool end_stream) {
   ENVOY_LOG(debug, "websocket: encode {} bytes, end_stream: {}", data.length(), end_stream);
 
-  encoder_.encode(data, end_stream, OPCODE_BIN);
+  // RFC 6455 section 5.5.1 forbids sending data frames after a CLOSE frame.
+  if (close_sent_) {
+    const auto len = data.length();
+    if (len > 0) {
+      ENVOY_LOG(debug, "websocket encoder: data received after CLOSE: {} bytes", len);
+      data.drain(len);
+    }
+    return;
+  }
+
+  encoder_.encode(data, OPCODE_BIN);
+
+  if (end_stream) {
+    // CLOSE represents the FIN for this direction of the tunneled TCP connection. If the peer
+    // half-closed first, echo its validated CLOSE payload only after all reverse-direction data
+    // has been encoded. This deliberately delays the CLOSE response to preserve TCP half-close
+    // semantics when the WebSocket infrastructure permits it.
+    Buffer::OwnedImpl close_payload;
+    close_payload.add(decoder_.close_payload_);
+    encoder_.encode(close_payload, OPCODE_CLOSE);
+    close_sent_ = true;
+
+    // Only end stream if CLOSE has been received already and if we are the server, as additional
+    // control frames may still be sent, and RFC 6455 section 7.1.1 recommends that the server close
+    // the underlying transport after both sides have sent CLOSE. Keep the client transport open so
+    // that its final frames are flushed before the server closes the connection.
+    end_stream = !config()->client_ && decoder_.close_received_;
+  }
 
   // Only forward data if handshake has completed
   if (accepted_) {
-    // Reset idle timer on data
+    // Reset idle timer on any frame content
     if (encoder_.hasData()) {
       resetPingTimer();
     }
-    // A WebSocket CLOSE represents the FIN for this direction of the tunneled TCP connection.
-    // RFC 6455 section 7.1.1 recommends that the server close the underlying transport after both
-    // sides have sent CLOSE. Keep the client transport open so that its final frames are flushed
-    // before the server closes the connection.
-    const bool transport_end_stream =
-        !config()->client_ && encoder_.endStream() && decoder_.endStream();
-    encoded_end_stream_sent_ |= transport_end_stream;
-    parent_->injectEncoded(encoder_.data(), transport_end_stream);
+    if (end_stream) {
+      encoded_end_stream_sent_ = end_stream;
+    }
+    parent_->injectEncoded(encoder_.data(), end_stream);
   }
 }
 
@@ -661,130 +684,114 @@ void Codec::decode(Buffer::Instance& data, bool end_stream) {
   // Handshake done, process data.
   decoder_.decode(data, end_stream);
 
+  if (end_stream && !decoder_.close_received_) {
+    decoder_.drain();
+    return closeOnError("websocket transport closed without CLOSE");
+  }
+
   // Reset idle timer on data
   if (decoder_.hasData()) {
     resetPingTimer();
   }
 
-  // Record decoder end_stream before injecting the corresponding TCP FIN (via
-  // end_stream=true). That injection may synchronously report the reverse-direction FIN through
-  // encode(..., end_stream=true).
-  const bool decoded_end_stream = decoder_.endStream();
+  // The decoder records CLOSE before injecting the corresponding TCP FIN. That injection may
+  // synchronously report the reverse-direction FIN through encode(..., end_stream=true).
+  const bool decoded_end_stream = decoder_.close_received_ && !decoded_end_stream_sent_;
   parent_->injectDecoded(decoder_.data(), decoded_end_stream);
+  decoded_end_stream_sent_ |= decoded_end_stream;
 
-  // Complete the CLOSE handshake by ending the underlying transport from the server side. RFC 6455
-  // section 7.1.1 recommends that the client wait for the server to close the connection.
-  if (!config->client_ && decoded_end_stream && encoder_.endStream() && !encoded_end_stream_sent_) {
+  // Complete CLOSE handshake by encoding end_stream from the server side, if closed in both
+  // directions. RFC 6455 section 7.1.1 recommends that the client wait for the server to close the
+  // connection.
+  if (!config->client_ && decoder_.close_received_ && close_sent_ && !encoded_end_stream_sent_) {
     Buffer::OwnedImpl empty;
     encoded_end_stream_sent_ = true;
     parent_->injectEncoded(empty, true);
   }
+  // Otherwise defer the CLOSE response until encode(..., end_stream=true) reports the FIN from
+  // the other direction of the tunneled TCP connection. Data remains legal to encode until that
+  // response is sent. RFC 6455 section 5.5.1 permits delaying a CLOSE response, but warns that a
+  // generic peer is not guaranteed to keep processing data after sending CLOSE; this behavior is
+  // therefore a tunnel convention between cooperating endpoints.
 }
 
 bool Codec::ping(const void* payload, size_t len) {
-  if (encoder_.endStream()) {
+  // RFC 6455 section 5.5.2 permits PING until the connection is closed. For this tunnel, one CLOSE
+  // is only a directional FIN, so keepalive PINGs continue through the half-closed interval.
+  if (close_sent_ && decoder_.close_received_) {
     return false;
   }
   Buffer::OwnedImpl buf(payload, len);
-  encoder_.encode(buf, false, OPCODE_PING);
+  encoder_.encode(buf, OPCODE_PING);
   parent_->config()->stats_.ping_sent_count_.inc();
   parent_->injectEncoded(encoder_.data(), false);
   return true;
 }
 
 bool Codec::pong(const void* payload, size_t len) {
-  if (encoder_.endStream()) {
+  // RFC 6455 section 5.5.2 does not require PONG after receiving CLOSE, but permits it. Continue to
+  // answer PING while the tunneled TCP connection is only half-closed.
+  if (close_sent_ && decoder_.close_received_) {
     return false;
   }
   Buffer::OwnedImpl buf(payload, len);
-  encoder_.encode(buf, false, OPCODE_PONG);
+  encoder_.encode(buf, OPCODE_PONG);
   parent_->injectEncoded(encoder_.data(), false);
   return true;
 }
 
 // Encoder
 
-// Encode 'data' and 'end_stream' as websocket frames into 'encoded_'. Uses 'opcode' as the
-// websocket frame type for the data frames.
-void Codec::Encoder::encode(Buffer::Instance& data, bool end_stream, uint8_t opcode) {
+// Encode 'data' as one websocket frame into 'encoded_'.
+void Codec::Encoder::encode(Buffer::Instance& data, uint8_t opcode) {
   auto hex_len = std::min(data.length(), 20UL);
   const uint8_t* hex_data = reinterpret_cast<uint8_t*>(data.linearize(hex_len));
-  ENVOY_LOG(debug, "websocket encoder: {} bytes: 0x{}, end_stream: {}, opcode: {}", data.length(),
-            Hex::encode(hex_data, hex_len), end_stream, opcode);
+  ENVOY_LOG(debug, "websocket encoder: {} bytes: 0x{}, opcode: {}", data.length(),
+            Hex::encode(hex_data, hex_len), opcode);
 
   auto& config = parent_.config();
-  //
-  // Encode data as a single WebSocket frame
-  //
-  if (data.length() > 0) {
-    uint8_t frame_header[14];
-    size_t frame_header_length = 2;
-    size_t payload_len = data.length();
-
-    frame_header[0] = FIN_MASK | opcode;
-    if (payload_len < 126) {
-      frame_header[1] = payload_len;
-    } else if (payload_len < 65536) {
-      uint16_t len16;
-
-      frame_header[1] = 126;
-      len16 = htobe16(payload_len);
-      memcpy(frame_header + frame_header_length, &len16, 2); // NOLINT(safe-memcpy)
-      frame_header_length += 2;
-    } else {
-      uint64_t len64;
-
-      frame_header[1] = 127;
-      len64 = htobe64(payload_len);
-      memcpy(frame_header + frame_header_length, &len64, 8); // NOLINT(safe-memcpy)
-      frame_header_length += 8;
-    }
-
-    // Client must mask the payload
-    if (config->client_) {
-      frame_header[1] |= MASK_MASK;
-
-      union {
-        uint8_t bytes[4];
-        uint32_t word;
-      } mask;
-
-      mask.word = config->random_.random();
-      memcpy(frame_header + frame_header_length, &mask, 4); // NOLINT(safe-memcpy)
-      frame_header_length += 4;
-      uint8_t* buf = reinterpret_cast<uint8_t*>(data.linearize(payload_len));
-      maskData(buf, payload_len, mask.bytes);
-    }
-
-    // Add frame header and (masked) data
-    encoded_.add(absl::string_view{reinterpret_cast<char*>(frame_header), frame_header_length});
-    encoded_.move(data, payload_len);
+  const size_t payload_len = data.length();
+  const bool control_frame = opcode >= OPCODE_CLOSE;
+  if (payload_len == 0 && !control_frame) {
+    return;
   }
 
-  //
-  // Append closing frame if 'end_stream'
-  //
-  if (end_stream) {
-    uint8_t frame_header[14];
-    size_t frame_header_length = 2;
-    size_t payload_len = 0;
+  RELEASE_ASSERT(!control_frame || payload_len <= WEBSOCKET_CONTROL_FRAME_MAX_SIZE,
+                 "websocket control frame too large");
 
-    frame_header[0] = FIN_MASK | OPCODE_CLOSE;
+  uint8_t frame_header[14];
+  size_t frame_header_length = 2;
+  frame_header[0] = FIN_MASK | opcode;
+  if (payload_len < 126) {
     frame_header[1] = payload_len;
-    // Client must mask the payload
-    if (config->client_) {
-      frame_header[1] |= MASK_MASK;
-
-      uint32_t mask = config->random_.random();
-      memcpy(frame_header + frame_header_length, &mask, 4); // NOLINT(safe-memcpy)
-      frame_header_length += 4;
-      // No data to mask
+  } else if (payload_len < 65536) {
+    frame_header[1] = 126;
+    frame_header[frame_header_length++] = static_cast<uint8_t>(payload_len >> 8);
+    frame_header[frame_header_length++] = static_cast<uint8_t>(payload_len);
+  } else {
+    frame_header[1] = 127;
+    const uint64_t encoded_payload_len = payload_len;
+    for (int shift = 56; shift >= 0; shift -= 8) {
+      frame_header[frame_header_length++] = static_cast<uint8_t>(encoded_payload_len >> shift);
     }
-    encoded_.add(reinterpret_cast<void*>(frame_header), frame_header_length);
-    end_stream_ = true;
-
-    ENVOY_LOG(debug, "websocket encoder: sent WebSocket CLOSE message, end_stream: {}", end_stream);
   }
+
+  // WebSocket clients must mask all frames, including control frames.
+  if (config->client_) {
+    frame_header[1] |= MASK_MASK;
+    const uint32_t mask_word = config->random_.random();
+    uint8_t mask[4];
+    for (size_t i = 0; i < sizeof(mask); ++i) {
+      mask[i] = static_cast<uint8_t>(mask_word >> (i * 8));
+      frame_header[frame_header_length++] = mask[i];
+    }
+    uint8_t* buf = reinterpret_cast<uint8_t*>(data.linearize(payload_len));
+    maskData(buf, payload_len, mask);
+  }
+
+  // Add frame header and (maybe masked) data
+  encoded_.add(absl::string_view{reinterpret_cast<char*>(frame_header), frame_header_length});
+  encoded_.move(data, payload_len);
 }
 
 // Decoder
@@ -811,40 +818,39 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
 
   buffer_.move(data);
 
-  if (end_stream_ && buffer_.length() > 0) {
-    ENVOY_LOG(debug, "websocket decoder: data received after CLOSE: {} bytes", buffer_.length());
-    buffer_.drain(buffer_.length());
-    return;
-  }
-
-  if (end_stream) {
-    end_stream_ = true;
-  }
-
   while (buffer_.length() > 0) {
-    // Try finish any frame in progress
+    // Try finish any data frame in progress
     while (payload_remaining_ > 0) {
       auto slice = buffer_.frontSlice();
       size_t n_bytes = std::min(slice.len_, payload_remaining_);
 
-      // Unmask data in place
-      uint8_t* buf = static_cast<uint8_t*>(slice.mem_);
-      auto hex_len = std::min(n_bytes, 20UL);
-      if (unmasking_) {
-        ENVOY_LOG(
-            trace,
-            "websocket decoder: unmasking payload remaining: {}, offset: {}, processing: {}: 0x{}",
-            payload_remaining_, payload_offset_, n_bytes, Hex::encode(buf, hex_len));
-        payload_offset_ = maskData(buf, n_bytes, mask_, payload_offset_);
-      }
-      ENVOY_LOG(trace, "websocket decoder: payload remaining: {}, offset: {}, processing: {}: 0x{}",
-                payload_remaining_, payload_offset_, n_bytes, Hex::encode(buf, hex_len));
+      if (n_bytes > 0) {
+        // Unmask data in place
+        uint8_t* buf = static_cast<uint8_t*>(slice.mem_);
+        auto hex_len = std::min(n_bytes, 20UL);
+        if (unmasking_) {
+          ENVOY_LOG(trace,
+                    "websocket decoder: unmasking payload remaining: {}, offset: {}, processing: "
+                    "{}: 0x{}",
+                    payload_remaining_, payload_offset_, n_bytes, Hex::encode(buf, hex_len));
+          payload_offset_ = maskData(buf, n_bytes, mask_, payload_offset_);
+        }
+        ENVOY_LOG(trace,
+                  "websocket decoder: payload remaining: {}, offset: {}, processing: {}: 0x{}",
+                  payload_remaining_, payload_offset_, n_bytes, Hex::encode(buf, hex_len));
 
-      decoded_.move(buffer_, n_bytes);
-      payload_remaining_ -= n_bytes;
+        if (close_received_) {
+          // No data is accepted after CLOSE has been received.
+          ENVOY_LOG(debug, "websocket decoder: data received after CLOSE: {} bytes", n_bytes);
+          buffer_.drain(n_bytes);
+        } else {
+          decoded_.move(buffer_, n_bytes);
+        }
+        payload_remaining_ -= n_bytes;
+      }
 
       if (buffer_.length() == 0) {
-        return;
+        return; // continue when there is more data
       }
     }
     //
@@ -856,27 +862,24 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
 
     uint8_t frame_header[2];
     size_t frame_offset = 0;
-    uint8_t opcode;
-    uint64_t payload_len;
 
     ENVOY_LOG(trace, "websocket decoder: remaining buffer: {} bytes", buffer_.length());
 
     TRY_READ_NETWORK(&frame_header);
-    opcode = frame_header[0] & OPCODE_MASK;
-    payload_len = frame_header[1] & PAYLOAD_LEN_MASK;
+    const uint8_t opcode = frame_header[0] & OPCODE_MASK;
+    const bool masked = (frame_header[1] & MASK_MASK) != 0;
+    uint64_t payload_len = frame_header[1] & PAYLOAD_LEN_MASK;
 
     if (payload_len == 126) {
       uint16_t len16;
-
       TRY_READ_NETWORK(&len16);
       payload_len = be16toh(len16);
     } else if (payload_len == 127) {
       uint64_t len64;
-
       TRY_READ_NETWORK(&len64);
       payload_len = be64toh(len64);
     }
-    if (frame_header[1] & MASK_MASK) {
+    if (masked) {
       TRY_READ_NETWORK(&mask_);
       unmasking_ = true;
     }
@@ -885,57 +888,75 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
     // Whole header received and decoded
     //
 
-    // Terminate and respond to any control frames
-    if (opcode >= OPCODE_CLOSE) {
-      // Protect against too large control frames that could happen if the decoder ever loses
-      // sync with the data stream.
-      if (payload_len > WEBSOCKET_CONTROL_FRAME_MAX_SIZE) {
-        ENVOY_LOG(debug, "websocket decoder: too large control frame: {} bytes", payload_len);
-        buffer_.drain(buffer_.length());
-        end_stream_ = true;
-        return;
-      }
-
-      // Buffer until whole control frame has been received
-      if (buffer_.length() < frame_offset + payload_len) {
-        return;
-      }
-
-      // Drain control frame header, get the payload
-      buffer_.drain(frame_offset);
-      uint8_t* payload = reinterpret_cast<uint8_t*>(buffer_.linearize(payload_len));
-
-      // Unmask the control frame payload
-      if (unmasking_) {
-        maskData(payload, payload_len, mask_);
-      }
-
-      switch (opcode) {
-      case OPCODE_CLOSE:
-        ENVOY_LOG(trace, "websocket decoder: CLOSE received");
-        end_stream_ = true;
-        break;
-      case OPCODE_PING: {
-        ENVOY_LOG(trace, "websocket decoder: PING received");
-        // Reply with a PONG with the same payload
-        parent_.pong(payload, payload_len);
-        break;
-      }
-      case OPCODE_PONG:
-        ENVOY_LOG(trace, "websocket decoder: PONG received");
-        break;
-      }
-      // Drain control plane payload
-      buffer_.drain(payload_len);
-    } else {
+    if (opcode < OPCODE_CLOSE) {
       // Unframe and forward all non-control frames
       ENVOY_LOG(trace, "websocket decoder: received websocket data: header {} bytes, data {} bytes",
                 frame_offset, payload_len);
-
       buffer_.drain(frame_offset);
       payload_remaining_ = payload_len;
+      continue; // loop back to frame data decoding
     }
+
+    // Terminate and respond to any control frames
+
+
+    // Protect against too large control frames that could happen if the decoder ever loses
+    // sync with the data stream.
+    if (payload_len > WEBSOCKET_CONTROL_FRAME_MAX_SIZE) {
+      ENVOY_LOG(debug, "websocket decoder: too large control frame: {} bytes", payload_len);
+      goto protocol_error;
+    }
+
+    // Buffer until whole control frame has been received
+    if (buffer_.length() < frame_offset + payload_len) {
+      return;
+    }
+
+    // Drain control frame header, get the payload
+    buffer_.drain(frame_offset);
+    uint8_t* payload = reinterpret_cast<uint8_t*>(buffer_.linearize(payload_len));
+
+    // Unmask the control frame payload
+    if (unmasking_) {
+      maskData(payload, payload_len, mask_);
+    }
+
+    // unknown opcodes are ignored, but their data is drained to retain stream sync
+    switch (opcode) {
+    case OPCODE_CLOSE:
+      ENVOY_LOG(trace, "websocket decoder: CLOSE received");
+
+      // validate CLOSE payload if any
+      if (payload_len > 0) {
+        // store for sending the frame back
+        if (!close_received_) {
+          close_payload_.assign(reinterpret_cast<const char*>(payload), payload_len);
+        }
+      }
+      close_received_ = true;
+      if (parent_.close_sent_) {
+        // Both CLOSE frames have now been exchanged; no later frames need to be processed.
+        buffer_.drain(buffer_.length());
+        return;
+      }
+      break;
+    case OPCODE_PING:
+      ENVOY_LOG(trace, "websocket decoder: PING received");
+      // Reply with a PONG with the same payload
+      parent_.pong(payload, payload_len);
+      break;
+    case OPCODE_PONG:
+      ENVOY_LOG(trace, "websocket decoder: PONG received");
+      break;
+    }
+    // Drain control plane payload
+    buffer_.drain(payload_len);
   }
+
+  return;
+
+protocol_error:
+  buffer_.drain(buffer_.length());
 }
 
 } // namespace WebSocket
