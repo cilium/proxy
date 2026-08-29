@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <system_error>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -72,7 +73,7 @@ envoy::service::discovery::v3::DiscoveryResponse makeNpdsResponse(bool use_heade
           kSharedValidationContextSdsSecret);
     }
 
-    response.add_resources()->PackFrom(policy);
+    std::ignore = response.add_resources()->PackFrom(policy);
   }
   return response;
 }
