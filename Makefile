@@ -59,14 +59,9 @@ BAZEL_ASAN_TEST_OPTS ?= --jobs=HOST_RAM*.0001 --test_timeout=600 --local_test_jo
 
 BAZEL_MSAN_BUILD_OPTS ?= --config=msan $(EXTRA_BAZEL_BUILD_OPTS) -c dbg
 BAZEL_MSAN_TEST_OPTS ?= --jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --flaky_test_attempts=1 --test_output=errors
-PROXYLIB_MSAN_CC ?= clang
-PROXYLIB_MSAN_GO_BUILD_FLAGS ?= -msan -buildvcs=false
 
 BAZEL_TSAN_BUILD_OPTS ?= --config=tsan $(EXTRA_BAZEL_BUILD_OPTS) -c dbg
 BAZEL_TSAN_TEST_OPTS ?= --jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --flaky_test_attempts=1 --test_output=errors
-PROXYLIB_TSAN_CC ?= clang
-PROXYLIB_TSAN_CGO_CFLAGS ?= -fsanitize=thread
-PROXYLIB_TSAN_GO_BUILD_FLAGS ?= -installsuffix=tsan -buildvcs=false
 
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
@@ -204,16 +199,13 @@ clean: force
 	@$(ECHO_CLEAN) $(notdir $(shell pwd))
 	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
 
-proxylib/libcilium.so:
-	make -C proxylib
-
 .PHONY: envoy-test-deps
-envoy-test-deps: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
+envoy-test-deps: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
 
 .PHONY: envoy-tests
-envoy-tests: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
+envoy-tests: $(COMPILER_DEP) SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	# Upstream tcp_proxy_integration_test included to validate that our custom patches
 	# didn't break anything
@@ -223,20 +215,12 @@ envoy-tests: $(COMPILER_DEP) SOURCE_VERSION proxylib/libcilium.so
 envoy-asan-tests:
 	$(MAKE) envoy-tests BAZEL_BUILD_OPTS="$(BAZEL_ASAN_BUILD_OPTS)" BAZEL_TEST_OPTS="$(BAZEL_ASAN_TEST_OPTS)"
 
-.PHONY: proxylib-msan
-proxylib-msan:
-	$(MAKE) -C proxylib all CC="$(PROXYLIB_MSAN_CC)" GO_BUILD_FLAGS="$(PROXYLIB_MSAN_GO_BUILD_FLAGS)"
-
 .PHONY: envoy-msan-tests
-envoy-msan-tests: proxylib-msan
+envoy-msan-tests:
 	$(MAKE) envoy-tests BAZEL_BUILD_OPTS="$(BAZEL_MSAN_BUILD_OPTS)" BAZEL_TEST_OPTS="$(BAZEL_MSAN_TEST_OPTS)"
 
-.PHONY: proxylib-tsan
-proxylib-tsan:
-	$(MAKE) -C proxylib all CC="$(PROXYLIB_TSAN_CC)" CGO_CFLAGS="$(PROXYLIB_TSAN_CGO_CFLAGS)" GO_BUILD_FLAGS="$(PROXYLIB_TSAN_GO_BUILD_FLAGS)"
-
 .PHONY: envoy-tsan-tests
-envoy-tsan-tests: proxylib-tsan
+envoy-tsan-tests:
 	$(MAKE) envoy-tests BAZEL_BUILD_OPTS="$(BAZEL_TSAN_BUILD_OPTS)" BAZEL_TEST_OPTS="$(BAZEL_TSAN_TEST_OPTS)"
 
 .PHONY: \

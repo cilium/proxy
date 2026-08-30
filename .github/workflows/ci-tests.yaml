@@ -12,9 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  proxylib:
-    timeout-minutes: 360
-    name: Run unit tests for proxylib
+  go-vendoring:
+    timeout-minutes: 30
+    name: Check Go module vendoring
     runs-on: ubuntu-latest
     steps:
     - name: Install Go
@@ -31,9 +31,6 @@ jobs:
         go mod tidy
         go mod vendor
         test -z "$(git status --porcelain)" || (echo "please run 'go mod tidy && go mod vendor', and submit your changes"; exit 1)
-    - name: Run unit tests
-      run: |
-        make -C proxylib test
 
   tests:
     timeout-minutes: 360
@@ -177,10 +174,6 @@ jobs:
           platforms: linux/amd64
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            PROXYLIB_BUILDER=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            PROXYLIB_CC=/usr/lib/llvm-18/bin/clang
-            PROXYLIB_GO_BUILD_FLAGS=-msan -buildvcs=false
-            PROXYLIB_GOCACHE=/tmp/go-build
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             DEBUG=1
             BAZEL_BUILD_OPTS=--config=msan --remote_upload_local_results=false
@@ -231,11 +224,6 @@ jobs:
           platforms: linux/amd64
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            PROXYLIB_BUILDER=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            PROXYLIB_CC=/usr/lib/llvm-18/bin/clang
-            PROXYLIB_CGO_CFLAGS=-fsanitize=thread
-            PROXYLIB_GO_BUILD_FLAGS=-installsuffix=tsan -buildvcs=false
-            PROXYLIB_GOCACHE=/tmp/go-build
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             DEBUG=1
             BAZEL_BUILD_OPTS=--config=tsan --remote_upload_local_results=false
