@@ -63,7 +63,6 @@ public:
 
   bool enforceNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
                             uint16_t destination_port, const absl::string_view sni,
-                            /* OUT */ bool& use_proxy_lib,
                             /* OUT */ std::string& l7_proto,
                             /* INOUT */ AccessLog::Entry& log_entry) const;
 

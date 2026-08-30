@@ -397,11 +397,8 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   log_entry.entry_.set_policy_name("pod");
 
   // Expect policy accepts security ID 12345678 on ingress on port 80
-  bool use_proxy_lib;
   std::string l7_proto;
-  EXPECT_TRUE(
-      policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", use_proxy_lib, l7_proto, log_entry));
-  EXPECT_FALSE(use_proxy_lib);
+  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", l7_proto, log_entry));
   EXPECT_EQ("", l7_proto);
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
@@ -467,29 +464,22 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbPodAndIngressEnforcedMetadata) {
   log_entry.entry_.set_policy_name("pod");
 
   // Expect pod policy denies security ID 12345678 on port 80 (only 222 allowed)
-  bool use_proxy_lib;
   std::string l7_proto;
-  EXPECT_FALSE(
-      policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", use_proxy_lib, l7_proto, log_entry));
-  EXPECT_FALSE(use_proxy_lib);
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", l7_proto, log_entry));
   EXPECT_EQ("", l7_proto);
   EXPECT_EQ("pod", log_entry.entry_.policy_name());
 
   // Expect pod policy allows egress to security ID 222 on port 80
   // Ingress policy allows ingress from 9999 (pod's security ID)
   // Ingress policy allows 222 egress
-  EXPECT_TRUE(
-      policy_fs->enforceNetworkPolicy(conn_, 222, 80, "", use_proxy_lib, l7_proto, log_entry));
-  EXPECT_FALSE(use_proxy_lib);
+  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 222, 80, "", l7_proto, log_entry));
   EXPECT_EQ("", l7_proto);
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
   // Expect pod policy allows egress to security ID 333 on port 80
   // Ingress policy allows ingress from 9999
   // Ingress policy denies 333 egress
-  EXPECT_FALSE(
-      policy_fs->enforceNetworkPolicy(conn_, 333, 80, "", use_proxy_lib, l7_proto, log_entry));
-  EXPECT_FALSE(use_proxy_lib);
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 333, 80, "", l7_proto, log_entry));
   EXPECT_EQ("", l7_proto);
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
@@ -538,11 +528,8 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   log_entry.entry_.set_policy_name("pod");
 
   // Expect policy does not accept security ID 2 on port 80
-  bool use_proxy_lib;
   std::string l7_proto;
-  EXPECT_FALSE(
-      policy_fs->enforceNetworkPolicy(conn_, 2, 80, "", use_proxy_lib, l7_proto, log_entry));
-  EXPECT_FALSE(use_proxy_lib);
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 2, 80, "", l7_proto, log_entry));
   EXPECT_EQ("", l7_proto);
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 

@@ -37,7 +37,6 @@ __pycache__/
 
 # generated from make targets
 *.ok
-/proxylib/libcilium.so
 
 # Istio porting files 
 /envoy_bootstrap*.json
@@ -47,9 +46,6 @@ __pycache__/
 
 # generated for docker builds via make
 /SOURCE_VERSION
-
-/proxylib/libcilium.so*
-/proxylib/_obj*
 
 /BUILD_DEP_HASHES
 
