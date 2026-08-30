@@ -5,11 +5,10 @@ option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
 package cilium;
 
 message NetworkFilter {
-  // Path to the proxylib to be opened
-  string proxylib = 1;
-
-  // Transparent set of parameters provided for proxylib initialization
-  map<string, string> proxylib_params = 2;
+  // Fields 1 and 2 were used for proxylib (Envoy Go extensions) configuration,
+  // which has been removed.
+  reserved 1, 2;
+  reserved "proxylib", "proxylib_params";
 
   // Path to the unix domain socket for the cilium access log.
   string access_log_path = 5;

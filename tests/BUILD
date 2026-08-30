@@ -228,9 +228,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_tcp_integration_test",
     srcs = ["cilium_tcp_integration_test.cc"],
-    data = [
-        "//proxylib:libcilium.so",
-    ],
     repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
@@ -269,7 +266,6 @@ envoy_cc_test(
     name = "cilium_tls_tcp_integration_test",
     srcs = ["cilium_tls_tcp_integration_test.cc"],
     data = [
-        "//proxylib:libcilium.so",
         "@envoy//test/config/integration/certs",
     ],
     repository = "@envoy",
@@ -290,9 +286,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_http_integration_test",
     srcs = ["cilium_http_integration_test.cc"],
-    data = [
-        "//proxylib:libcilium.so",
-    ],
     repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
@@ -310,9 +303,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_http_upstream_integration_test",
     srcs = ["cilium_http_upstream_integration_test.cc"],
-    data = [
-        "//proxylib:libcilium.so",
-    ],
     repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
@@ -332,9 +322,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_websocket_decap_integration_test",
     srcs = ["cilium_websocket_decap_integration_test.cc"],
-    data = [
-        "//proxylib:libcilium.so",
-    ],
     repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
@@ -352,9 +339,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_websocket_codec_integration_test",
     srcs = ["cilium_websocket_codec_integration_test.cc"],
-    data = [
-        "//proxylib:libcilium.so",
-    ],
     repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
@@ -371,9 +355,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_websocket_policy_integration_test",
     srcs = ["cilium_websocket_policy_integration_test.cc"],
-    data = [
-        "//proxylib:libcilium.so",
-    ],
     repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
@@ -393,9 +374,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_websocket_encap_integration_test",
     srcs = ["cilium_websocket_encap_integration_test.cc"],
-    data = [
-        "//proxylib:libcilium.so",
-    ],
     repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
