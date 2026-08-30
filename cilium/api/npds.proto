@@ -188,9 +188,10 @@ message PortNetworkPolicyRule {
     }
   }];
 
-  // Optional L7 protocol parser name. This is only used if the parser is not
-  // one of the well knows ones. If specified, the l7 parser having this name
-  // needs to be built in to libcilium.so.
+  // Optional L7 protocol name. This is only used if the protocol is not
+  // one of the well known ones. If specified, it is added to the requested
+  // application protocols of the connection for filter chain matching, and
+  // names the Envoy filter whose dynamic metadata is matched by 'l7_rules'.
   string l7_proto = 2;
 
   // Optional. If not specified, any L7 request is matched by this predicate.
