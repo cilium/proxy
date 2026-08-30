@@ -95,7 +95,6 @@ static_resources:
       - name: cilium.network
         typed_config:
           "@type": type.googleapis.com/cilium.NetworkFilter
-          proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
@@ -620,7 +619,6 @@ static_resources:
       - name: cilium.network
         typed_config:
           "@type": type.googleapis.com/cilium.NetworkFilter
-          proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
@@ -636,7 +634,6 @@ static_resources:
       - name: cilium.network
         typed_config:
           "@type": type.googleapis.com/cilium.NetworkFilter
-          proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
