@@ -83,7 +83,7 @@ jobs:
           cilium version
 
       - name: Create kind cluster
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
         with:
           version: ${{ env.KIND_VERSION }}
           config: '.github/kind-config.yaml'
@@ -93,7 +93,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # renovate: datasource=golang-version depName=go
-          go-version: 1.26.7
+          go-version: 1.26.8
 
       - name: Install Cilium
         timeout-minutes: 10
