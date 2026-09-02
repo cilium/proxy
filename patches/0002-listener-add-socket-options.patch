@@ -1,43 +1,41 @@
-From b25eed7816bed2a99a5d9b6a29b89cf532081025 Mon Sep 17 00:00:00 2001
+From 7eca64c432be0a808baaf9e6261eb41372a17926 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 14 Aug 2023 10:01:21 +0300
-Subject: [PATCH 2/7] listener: add socket options
+Subject: [PATCH 2/6] listener: add socket options
 
 This reverts commit 170c89eb0b2afb7a39d44d0f8dfb77444ffc038f.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- envoy/server/factory_context.h                  | 8 +++++++-
+ envoy/server/factory_context.h                  | 5 +++++
  source/common/listener_manager/listener_impl.cc | 3 +++
  source/common/listener_manager/listener_impl.h  | 9 +++++++++
+ source/server/factory_context_impl.h            | 8 ++++++++
  test/mocks/server/factory_context.h             | 1 +
  test/mocks/server/listener_factory_context.h    | 1 +
- 5 files changed, 21 insertions(+), 1 deletion(-)
+ 6 files changed, 27 insertions(+)
 
 diff --git a/envoy/server/factory_context.h b/envoy/server/factory_context.h
-index ee9fa056..d6b8c7e0 100644
+index e9fcd320fe..a11f7d8730 100644
 --- a/envoy/server/factory_context.h
 +++ b/envoy/server/factory_context.h
-@@ -341,7 +341,13 @@ public:
-  * An implementation of FactoryContext. The life time should cover the lifetime of the filter chains
-  * and connections. It can be used to create ListenerFilterChain.
-  */
--class ListenerFactoryContext : public virtual FactoryContext {};
-+class ListenerFactoryContext : public virtual FactoryContext {
-+public:
+@@ -363,6 +363,11 @@ public:
+    * @return ListenerInfo description of the listener.
+    */
+   virtual const Network::ListenerInfo& listenerInfo() const PURE;
++
 +  /**
 +   * Store socket options to be set on the listen socket before listening.
 +   */
 +  virtual void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& options) PURE;
-+};
+ };
  
  /**
-  * FactoryContext for ProtocolOptionsFactory.
 diff --git a/source/common/listener_manager/listener_impl.cc b/source/common/listener_manager/listener_impl.cc
-index 8883d241..74f42afe 100644
+index 82ebb4590e..74db624f77 100644
 --- a/source/common/listener_manager/listener_impl.cc
 +++ b/source/common/listener_manager/listener_impl.cc
-@@ -1007,6 +1007,9 @@ Configuration::ServerFactoryContext& PerListenerFactoryContextImpl::serverFactor
+@@ -1056,6 +1056,9 @@ Stats::Scope& PerListenerFactoryContextImpl::prefixedScope() {
  Stats::Scope& PerListenerFactoryContextImpl::listenerScope() {
    return listener_factory_context_base_->listenerScope();
  }
@@ -48,11 +46,11 @@ index 8883d241..74f42afe 100644
  
  bool ListenerImpl::createNetworkFilterChain(
 diff --git a/source/common/listener_manager/listener_impl.h b/source/common/listener_manager/listener_impl.h
-index 416728bd..757886c2 100644
+index 4e89f24cde..f5d5ad06dd 100644
 --- a/source/common/listener_manager/listener_impl.h
 +++ b/source/common/listener_manager/listener_impl.h
-@@ -187,6 +187,8 @@ public:
- 
+@@ -191,6 +191,8 @@ public:
+   Stats::Scope& prefixedScope() override;
    Stats::Scope& listenerScope() override;
  
 +  void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& options) override;
@@ -60,7 +58,7 @@ index 416728bd..757886c2 100644
    ListenerFactoryContextBaseImpl& parentFactoryContext() { return *listener_factory_context_base_; }
    friend class ListenerImpl;
  
-@@ -337,6 +339,13 @@ public:
+@@ -341,6 +343,13 @@ public:
      return listener_factory_context_->listener_factory_context_base_->listener_info_;
    }
  
@@ -74,12 +72,38 @@ index 416728bd..757886c2 100644
    void ensureSocketOptions(Network::Socket::OptionsSharedPtr& options) {
      if (options == nullptr) {
        options = std::make_shared<std::vector<Network::Socket::OptionConstSharedPtr>>();
+diff --git a/source/server/factory_context_impl.h b/source/server/factory_context_impl.h
+index 085f10e34b..ee0098f7ee 100644
+--- a/source/server/factory_context_impl.h
++++ b/source/server/factory_context_impl.h
+@@ -3,6 +3,7 @@
+ #include "envoy/server/factory_context.h"
+ #include "envoy/server/instance.h"
+ 
++#include "source/common/common/assert.h"
+ #include "source/common/config/metadata.h"
+ 
+ namespace Envoy {
+@@ -27,6 +28,13 @@ public:
+   Stats::Scope& prefixedScope() override;
+   Stats::Scope& listenerScope() override;
+ 
++  // Configuration::ListenerFactoryContext
++  // These contexts are not tied to a listen socket, so adding listen socket options is not
++  // supported. PerListenerFactoryContextImpl overrides this to forward to its ListenerImpl.
++  void addListenSocketOptions(const Network::Socket::OptionsSharedPtr&) override {
++    IS_ENVOY_BUG("Unexpected function call");
++  }
++
+ protected:
+   Server::Instance& server_;
+   ProtobufMessage::ValidationVisitor& validation_visitor_;
 diff --git a/test/mocks/server/factory_context.h b/test/mocks/server/factory_context.h
-index 9fe92ab4..e36fdff5 100644
+index 1d2c8bb633..6fc365a905 100644
 --- a/test/mocks/server/factory_context.h
 +++ b/test/mocks/server/factory_context.h
-@@ -31,6 +31,7 @@ public:
-   MOCK_METHOD(const Network::DrainDecision&, drainDecision, ());
+@@ -38,6 +38,7 @@ public:
+   // Server::Configuration::ListenerFactoryContext
    MOCK_METHOD(Stats::Scope&, listenerScope, ());
    MOCK_METHOD(const Network::ListenerInfo&, listenerInfo, (), (const));
 +  MOCK_METHOD(void, addListenSocketOptions, (const Network::Socket::OptionsSharedPtr&));
@@ -87,7 +111,7 @@ index 9fe92ab4..e36fdff5 100644
    testing::NiceMock<MockServerFactoryContext> server_factory_context_;
    testing::NiceMock<Init::MockManager> init_manager_;
 diff --git a/test/mocks/server/listener_factory_context.h b/test/mocks/server/listener_factory_context.h
-index 8b2de57e..1fd30eaf 100644
+index cf2d40afac..ca3051a159 100644
 --- a/test/mocks/server/listener_factory_context.h
 +++ b/test/mocks/server/listener_factory_context.h
 @@ -22,6 +22,7 @@ public:
@@ -99,5 +123,5 @@ index 8b2de57e..1fd30eaf 100644
    MOCK_METHOD(const Network::DrainDecision&, drainDecision, ());
    MOCK_METHOD(Init::Manager&, initManager, ());
 -- 
-2.54.0
+2.55.0
 

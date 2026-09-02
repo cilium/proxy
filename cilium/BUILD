@@ -135,6 +135,7 @@ envoy_cc_library(
         "//cilium:network_policy_lib",
         "//cilium/api:l7policy_cc_proto",
         "@envoy//envoy/config:subscription_interface",
+        "@envoy//envoy/upstream:host_description_interface",
         "@envoy//source/common/http:utility_lib",
         "@envoy//source/common/network:upstream_server_name_lib",
         "@envoy//source/common/network:upstream_subject_alt_names_lib",
@@ -270,26 +271,6 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
-    name = "proxylib_lib",
-    srcs = [
-        "proxylib.cc",
-    ],
-    hdrs = [
-        "proxylib.h",
-        "//proxylib:libcilium.h",
-        "//proxylib:types.h",
-    ],
-    repository = "@envoy",
-    deps = [
-        "@envoy//envoy/network:connection_interface",
-        "@envoy//envoy/singleton:manager_interface",
-        "@envoy//source/common/buffer:buffer_lib",
-        "@envoy//source/common/common:assert_lib",
-        "@envoy//source/common/common:logger_lib",
-    ],
-)
-
-envoy_cc_library(
     name = "network_filter_lib",
     srcs = [
         "network_filter.cc",
@@ -302,7 +283,6 @@ envoy_cc_library(
         "//cilium:conntrack_lib",
         "//cilium:filter_state_lib",
         "//cilium:network_policy_lib",
-        "//cilium:proxylib_lib",
         "//cilium/api:network_filter_cc_proto",
         "@envoy//envoy/buffer:buffer_interface",
         "@envoy//envoy/network:connection_interface",
