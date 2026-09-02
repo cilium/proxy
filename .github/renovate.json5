@@ -27,7 +27,6 @@
   baseBranchPatterns: [
     'main',
     'v1.37',
-    'v1.36',
   ],
   labels: [
     'kind/enhancement',
@@ -50,7 +49,6 @@
       matchBaseBranches: [
         'main',
         'v1.37',
-        'v1.36',
       ],
     },
     {
@@ -74,7 +72,6 @@
       matchBaseBranches: [
         'main',
         'v1.37',
-        'v1.36',
       ],
     },
     {
@@ -104,7 +101,6 @@
       matchBaseBranches: [
         'main',
         'v1.37',
-        'v1.36',
       ],
     },
     {
@@ -118,7 +114,6 @@
       matchBaseBranches: [
         'main',
         'v1.37',
-        'v1.36',
       ],
     },
     {
@@ -132,7 +127,6 @@
       matchBaseBranches: [
         'main',
         'v1.37',
-        'v1.36',
       ],
     },
     {
@@ -156,17 +150,6 @@
       matchBaseBranches: [
         'main',
         'v1.37',
-        'v1.36',
-      ],
-    },
-    {
-      groupName: 'envoy 1.36.x',
-      matchDepNames: [
-        'envoyproxy/envoy',
-      ],
-      allowedVersions: '<=1.36',
-      matchBaseBranches: [
-        'v1.36',
       ],
     },
     {
