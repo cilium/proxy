@@ -61,16 +61,16 @@ public:
 
   const PolicyInstance& getPolicy() const { return policy_resolver_->getPolicy(pod_ip_); }
 
-  bool enforceNetworkPolicy(const Network::Connection& conn, uint32_t destination_identity,
+  bool enforceNetworkPolicy(const Network::Connection& conn, uint32_t remote_id,
                             uint16_t destination_port, const absl::string_view sni,
                             /* INOUT */ AccessLog::Entry& log_entry) const;
 
-  bool enforcePodHTTPPolicy(const Network::Connection& conn, uint32_t destination_identity,
+  bool enforcePodHTTPPolicy(const Network::Connection& conn, uint32_t remote_id,
                             uint16_t destination_port,
                             /* INOUT */ Http::RequestHeaderMap& headers,
                             /* INOUT */ AccessLog::Entry& log_entry) const;
 
-  bool enforceIngressHTTPPolicy(const Network::Connection& conn, uint32_t destination_identity,
+  bool enforceIngressHTTPPolicy(const Network::Connection& conn, uint32_t egress_remote_id,
                                 uint16_t destination_port,
                                 /* INOUT */ Http::RequestHeaderMap& headers,
                                 /* INOUT */ AccessLog::Entry& log_entry) const;

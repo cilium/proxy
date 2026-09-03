@@ -20,14 +20,12 @@ const std::string& CiliumPolicyFilterState::key() {
 }
 
 bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& conn,
-                                                   uint32_t destination_identity,
-                                                   uint16_t destination_port,
+                                                   uint32_t remote_id, uint16_t destination_port,
                                                    const absl::string_view sni,
                                                    /* INOUT */ AccessLog::Entry& log_entry) const {
   // enforce pod policy first, if any
   if (!pod_ip_.empty()) {
     const auto& policy = policy_resolver_->getPolicy(pod_ip_);
-    auto remote_id = ingress_ ? source_identity_ : destination_identity;
     auto port = ingress_ ? port_ : destination_port;
 
     auto port_policy = policy.findPortPolicy(ingress_, port);
@@ -58,12 +56,11 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
 
     // Enforce egress policy for Ingress
     auto egress_port_policy = policy.findPortPolicy(false, destination_port);
-    if (!egress_port_policy.allowed(proxy_id_, destination_identity, sni)) {
+    if (!egress_port_policy.allowed(proxy_id_, remote_id, sni)) {
       ENVOY_CONN_LOG(debug,
                      "Egress network policy {} DROP for reserved ingress identity and destination "
                      "identity: {} proxy_id: {} port: {} sni: \"{}\"",
-                     conn, ingress_policy_name_, destination_identity, proxy_id_, destination_port,
-                     sni);
+                     conn, ingress_policy_name_, remote_id, proxy_id_, destination_port, sni);
       return false;
     }
   }
@@ -73,12 +70,10 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
 }
 
 bool CiliumPolicyFilterState::enforcePodHTTPPolicy(const Network::Connection& conn,
-                                                   uint32_t destination_identity,
-                                                   uint16_t destination_port,
+                                                   uint32_t remote_id, uint16_t destination_port,
                                                    /* INOUT */ Http::RequestHeaderMap& headers,
                                                    /* INOUT */ AccessLog::Entry& log_entry) const {
   const auto& policy = policy_resolver_->getPolicy(pod_ip_);
-  auto remote_id = ingress_ ? source_identity_ : destination_identity;
   auto port = ingress_ ? port_ : destination_port;
 
   const auto port_policy = policy.findPortPolicy(ingress_, port);
@@ -97,7 +92,7 @@ bool CiliumPolicyFilterState::enforcePodHTTPPolicy(const Network::Connection& co
 }
 
 bool CiliumPolicyFilterState::enforceIngressHTTPPolicy(
-    const Network::Connection& conn, uint32_t destination_identity, uint16_t destination_port,
+    const Network::Connection& conn, uint32_t egress_remote_id, uint16_t destination_port,
     /* INOUT */ Http::RequestHeaderMap& headers,
     /* INOUT */ AccessLog::Entry& log_entry) const {
   log_entry.entry_.set_policy_name(ingress_policy_name_);
@@ -119,18 +114,18 @@ bool CiliumPolicyFilterState::enforceIngressHTTPPolicy(
 
   // Enforce egress policy for Ingress on the upstream destination identity and port
   const auto port_policy = policy.findPortPolicy(false, destination_port);
-  if (!port_policy.allowed(proxy_id_, destination_identity, headers, log_entry)) {
+  if (!port_policy.allowed(proxy_id_, egress_remote_id, headers, log_entry)) {
     ENVOY_CONN_LOG(
         debug,
         "cilium.l7policy: Ingress {} HTTP egress policy DROP on proxy_id: {} id: {}  port: {}",
-        conn, ingress_policy_name_, proxy_id_, destination_identity, destination_port);
+        conn, ingress_policy_name_, proxy_id_, egress_remote_id, destination_port);
     return false;
   }
 
   // Connection allowed by policy
   ENVOY_CONN_LOG(debug,
                  "cilium.l7policy: Ingress {} HTTP policy ALLOW on proxy_id: {} id: {}  port: {}",
-                 conn, ingress_policy_name_, proxy_id_, destination_identity, destination_port);
+                 conn, ingress_policy_name_, proxy_id_, egress_remote_id, destination_port);
   return true;
 }
 

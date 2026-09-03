@@ -180,8 +180,10 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   if (!config_->is_upstream_) {
     const auto& dst_address = stream_info.downstreamAddressProvider().localAddress();
     const auto dip = dst_address->ip();
+    uint32_t remote_id =
+        policy_fs->ingress_ ? policy_fs->source_identity_ : policy_fs->resolvePolicyId(dip);
     // destination identity should be reported as 0 for an ingress policy
-    uint32_t destination_identity = policy_fs->ingress_ ? 0 : policy_fs->resolvePolicyId(dip);
+    uint32_t destination_identity = policy_fs->ingress_ ? 0 : remote_id;
     uint16_t destination_port = dip->port();
 
     // Initialize log entry in the beginning of downstream processing
@@ -192,8 +194,8 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
     // Enforce pod policy only for local pods without L7 LB
     if (!policy_fs->policyUseUpstreamDestinationAddress() && !policy_fs->pod_ip_.empty()) {
-      bool allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), destination_identity,
-                                                     destination_port, headers, *log_entry_);
+      bool allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), remote_id, destination_port,
+                                                     headers, *log_entry_);
 
       // Update the log entry with current headers, as the policy may have altered them.
       log_entry_->updateFromRequest(destination_identity, dst_address, headers);
