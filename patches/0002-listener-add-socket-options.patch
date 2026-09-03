@@ -1,4 +1,4 @@
-From 7eca64c432be0a808baaf9e6261eb41372a17926 Mon Sep 17 00:00:00 2001
+From 7336094ca41c504beaac38ae2101247457466cd3 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 14 Aug 2023 10:01:21 +0300
 Subject: [PATCH 2/6] listener: add socket options
@@ -32,10 +32,10 @@ index e9fcd320fe..a11f7d8730 100644
  
  /**
 diff --git a/source/common/listener_manager/listener_impl.cc b/source/common/listener_manager/listener_impl.cc
-index 82ebb4590e..74db624f77 100644
+index 5b09493922..8e112d4a38 100644
 --- a/source/common/listener_manager/listener_impl.cc
 +++ b/source/common/listener_manager/listener_impl.cc
-@@ -1056,6 +1056,9 @@ Stats::Scope& PerListenerFactoryContextImpl::prefixedScope() {
+@@ -1121,6 +1121,9 @@ Stats::Scope& PerListenerFactoryContextImpl::prefixedScope() {
  Stats::Scope& PerListenerFactoryContextImpl::listenerScope() {
    return listener_factory_context_base_->listenerScope();
  }
@@ -46,10 +46,10 @@ index 82ebb4590e..74db624f77 100644
  
  bool ListenerImpl::createNetworkFilterChain(
 diff --git a/source/common/listener_manager/listener_impl.h b/source/common/listener_manager/listener_impl.h
-index 4e89f24cde..f5d5ad06dd 100644
+index aa3f531993..978f6f04f8 100644
 --- a/source/common/listener_manager/listener_impl.h
 +++ b/source/common/listener_manager/listener_impl.h
-@@ -191,6 +191,8 @@ public:
+@@ -195,6 +195,8 @@ public:
    Stats::Scope& prefixedScope() override;
    Stats::Scope& listenerScope() override;
  
@@ -58,9 +58,9 @@ index 4e89f24cde..f5d5ad06dd 100644
    ListenerFactoryContextBaseImpl& parentFactoryContext() { return *listener_factory_context_base_; }
    friend class ListenerImpl;
  
-@@ -341,6 +343,13 @@ public:
-     return listener_factory_context_->listener_factory_context_base_->listener_info_;
-   }
+@@ -346,6 +348,13 @@ public:
+   // FilterChainUpdateCallbacks
+   void drainFilterChain(Network::DrainableFilterChainSharedPtr draining) override;
  
 +  void addListenSocketOptions(const Network::Socket::OptionsSharedPtr& append_options) {
 +    for (std::vector<Network::Address::InstanceConstSharedPtr>::size_type i = 0;

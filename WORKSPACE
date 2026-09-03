@@ -13,7 +13,7 @@ ENVOY_REPO = "envoy"
 # No other line in this file may have ENVOY_SHA followed by an equals sign!
 #
 # renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.39.1
-ENVOY_SHA = "b579d07d3ad7ee11d32b105e91a5a39ad24718d7"
+ENVOY_SHA = "6a2d96adafb532121e817518c2dae8f82a46b9e6"
 
 # // clang-format off: unexpected @bazel_tools reference, please indirect via a definition in //bazel
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
@@ -85,13 +85,14 @@ load("@envoy//bazel:python_dependencies.bzl", "envoy_python_dependencies")
 
 envoy_python_dependencies()
 
-load("@bazel_gazelle//:deps.bzl", "go_repository")
+load("@gazelle//:deps.bzl", "go_repository")
 load("@envoy//bazel:dependency_imports.bzl", "envoy_dependency_imports")
 
 go_repository(
     name = "org_golang_x_text",
     build_external = "external",
     importpath = "golang.org/x/text",
+    repo_mapping = {"@io_bazel_rules_go": "@rules_go"},
     sum = "h1:B3njUFyqtHDUI5jMn1YIr5B0IE2U0qck04r6d4KPAxE=",
     version = "v0.33.0",
 )
@@ -100,6 +101,7 @@ go_repository(
     name = "org_golang_x_tools",
     build_external = "external",
     importpath = "golang.org/x/tools",
+    repo_mapping = {"@io_bazel_rules_go": "@rules_go"},
     sum = "h1:a9b8iMweWG+S0OBnlU36rzLp20z1Rp10w+IY2czHTQc=",
     version = "v0.41.0",
 )
@@ -108,6 +110,7 @@ go_repository(
     name = "org_golang_x_net",
     build_external = "external",
     importpath = "golang.org/x/net",
+    repo_mapping = {"@io_bazel_rules_go": "@rules_go"},
     sum = "h1:eeHFmOGUTtaaPSGNmjBKpbng9MulQsJURQUAfUwY++o=",
     version = "v0.49.0",
 )
@@ -116,6 +119,7 @@ go_repository(
     name = "org_golang_x_sys",
     build_external = "external",
     importpath = "golang.org/x/sys",
+    repo_mapping = {"@io_bazel_rules_go": "@rules_go"},
     sum = "h1:omrd2nAlyT5ESRdCLYdm3+fMfNFE/+Rf4bDIQImRJeo=",
     version = "v0.42.0",
 )
@@ -124,6 +128,7 @@ go_repository(
     name = "org_golang_x_mod",
     build_external = "external",
     importpath = "golang.org/x/mod",
+    repo_mapping = {"@io_bazel_rules_go": "@rules_go"},
     sum = "h1:9F4d3PHLljb6x//jOyokMv3eX+YDeepZSEo3mFJy93c=",
     version = "v0.32.0",
 )
@@ -139,15 +144,6 @@ envoy_dependency_imports(
 load("@envoy//bazel:repo.bzl", "envoy_repo")
 
 envoy_repo()
-
-# Pre-create @llvm_toolchain_llvm from the local LLVM (BAZEL_LLVM_PATH) BEFORE
-# envoy_toolchains(). envoy_toolchains() (and toolchains_llvm's llvm_toolchain())
-# only create @llvm_toolchain_llvm when it does not already exist, and the repo
-# envoy would create lacks the //:clang-format target that the format check needs.
-# Providing a complete repo here makes both compilation and the format check work.
-load("//bazel:local_llvm.bzl", "local_llvm_repo")
-
-local_llvm_repo(name = "llvm_toolchain_llvm")
 
 load("@envoy//bazel:toolchains.bzl", "envoy_toolchains")
 

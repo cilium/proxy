@@ -19,7 +19,7 @@ BAZEL_ARCHIVE ?= ~/bazel-cache.tar.bz2
 
 # @envoy_api//:v3_protos must be built before invoking Makefile.api
 API_DEPS = @envoy_api//:v3_protos
-PROTOC_TARGET = @com_google_protobuf//:protoc
+PROTOC_TARGET = @protobuf//:protoc
 api: force-non-root Makefile.api install-bazelisk
 	PROTOC=`$(BAZEL) cquery --output=starlark --starlark:expr=target.files_to_run.executable.path $(PROTOC_TARGET) | grep "fastbuild.*/bin/external"`; \
 	$(BAZEL) build $(PROTOC_TARGET) $(API_DEPS); \
@@ -52,7 +52,6 @@ COMPILATION_DATABASE_DEPS = \
 	.bazelrc \
 	envoy.bazelrc \
 	bazel/BUILD \
-	bazel/local_llvm.bzl \
 	bazel/toolchains/BUILD \
 	bazel/toolchains/cc_toolchain_config.bzl \
 	cilium/BUILD \

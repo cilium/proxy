@@ -1,4 +1,4 @@
-From c14ff1ecf9ca8108848e4b9e663dbac7e6537963 Mon Sep 17 00:00:00 2001
+From 8f788feff98bc04d3189b8a6c567b08aa6e11428 Mon Sep 17 00:00:00 2001
 From: Tam Mach <sayboras@yahoo.com>
 Date: Wed, 19 Mar 2025 21:07:05 +1100
 Subject: [PATCH 5/6] Expose HTTP Header matcher attribute
@@ -9,10 +9,10 @@ Signed-off-by: Tam Mach <sayboras@yahoo.com>
  1 file changed, 15 insertions(+), 13 deletions(-)
 
 diff --git a/source/common/http/header_utility.h b/source/common/http/header_utility.h
-index 31d7cfb356..7a114bfac1 100644
+index f70d7126a1..e87ac5f200 100644
 --- a/source/common/http/header_utility.h
 +++ b/source/common/http/header_utility.h
-@@ -96,7 +96,6 @@ public:
+@@ -97,7 +97,6 @@ public:
        return matchesHeaders(request_headers);
      };
  
@@ -20,8 +20,8 @@ index 31d7cfb356..7a114bfac1 100644
      const LowerCaseString name_;
      const bool invert_match_;
      const bool treat_missing_as_empty_;
-@@ -158,12 +157,13 @@ public:
-       return invert_match_;
+@@ -166,12 +165,13 @@ public:
+                                  : matchesHeaders(request_headers);
      }
  
 -  protected:
@@ -34,10 +34,10 @@ index 31d7cfb356..7a114bfac1 100644
 +  protected:
 +    // A matcher specific implementation to match the given header_value.
 +    virtual bool specificMatchesHeaders(absl::string_view header_value) const PURE;
-   };
- 
-   // Corresponds to the exact_match from the HeaderMatchSpecifier proto in the RDS API.
-@@ -172,11 +172,12 @@ public:
+     // Latched value of the `match_headers_individually` runtime feature, read once at
+     // construction instead of on every match.
+     const bool match_individually_ = false;
+@@ -183,11 +183,12 @@ public:
      HeaderDataExactMatch(const envoy::config::route::v3::HeaderMatcher& config)
          : HeaderDataBaseImpl(config), expected_value_(config.exact_match()) {}
  
@@ -51,7 +51,7 @@ index 31d7cfb356..7a114bfac1 100644
    };
  
    // Corresponds to the safe_regex_match from the HeaderMatchSpecifier proto in the RDS API.
-@@ -191,6 +192,7 @@ public:
+@@ -202,6 +203,7 @@ public:
        return std::unique_ptr<HeaderDataRegexMatch>(
            new HeaderDataRegexMatch(config, std::move(*regex_or_error)));
      }
@@ -59,7 +59,7 @@ index 31d7cfb356..7a114bfac1 100644
  
    protected:
      HeaderDataRegexMatch(const envoy::config::route::v3::HeaderMatcher& config,
-@@ -201,7 +203,6 @@ public:
+@@ -212,7 +214,6 @@ public:
      bool specificMatchesHeaders(absl::string_view header_value) const override {
        return regex_->match(header_value);
      };
@@ -67,7 +67,7 @@ index 31d7cfb356..7a114bfac1 100644
    };
  
    // Corresponds to the range_match from the HeaderMatchSpecifier proto in the RDS API.
-@@ -211,15 +212,14 @@ public:
+@@ -222,15 +223,14 @@ public:
          : HeaderDataBaseImpl(config), range_start_(config.range_match().start()),
            range_end_(config.range_match().end()) {}
  
@@ -85,7 +85,7 @@ index 31d7cfb356..7a114bfac1 100644
    };
  
    // Corresponds to the prefix_match from the HeaderMatchSpecifier proto in the RDS API.
-@@ -228,11 +228,11 @@ public:
+@@ -239,11 +239,11 @@ public:
      HeaderDataPrefixMatch(const envoy::config::route::v3::HeaderMatcher& config)
          : HeaderDataBaseImpl(config), prefix_(config.prefix_match()) {}
  
@@ -98,7 +98,7 @@ index 31d7cfb356..7a114bfac1 100644
    };
  
    // Corresponds to the suffix_match from the HeaderMatchSpecifier proto in the RDS API.
-@@ -241,11 +241,13 @@ public:
+@@ -252,11 +252,13 @@ public:
      HeaderDataSuffixMatch(const envoy::config::route::v3::HeaderMatcher& config)
          : HeaderDataBaseImpl(config), suffix_(config.suffix_match()) {}
  
@@ -113,7 +113,7 @@ index 31d7cfb356..7a114bfac1 100644
    };
  
    // Corresponds to the contains_match from the HeaderMatchSpecifier proto in the RDS API.
-@@ -254,11 +256,11 @@ public:
+@@ -265,11 +267,11 @@ public:
      HeaderDataContainsMatch(const envoy::config::route::v3::HeaderMatcher& config)
          : HeaderDataBaseImpl(config), expected_substr_(config.contains_match()) {}
  
@@ -126,7 +126,7 @@ index 31d7cfb356..7a114bfac1 100644
    };
  
    // Corresponds to the string_match from the HeaderMatchSpecifier proto in the RDS API.
-@@ -269,11 +271,11 @@ public:
+@@ -280,11 +282,11 @@ public:
          : HeaderDataBaseImpl(config), string_match_(std::make_unique<Matchers::StringMatcherImpl>(
                                            config.string_match(), factory_context)) {}
  

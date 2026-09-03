@@ -26,6 +26,7 @@
 
 #include "source/common/common/logger.h"
 #include "source/common/network/utility.h"
+#include "source/common/protobuf/arena_wrapped_proto.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
@@ -72,8 +73,8 @@ public:
   PolicyHostDecoder() : validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {}
 
   // Config::OpaqueResourceDecoder
-  ProtobufTypes::MessagePtr decodeResource(const Protobuf::Any& resource) override {
-    auto typed_message = std::make_unique<cilium::NetworkPolicyHosts>();
+  ArenaWrappedProto<Protobuf::Message> decodeResource(const Protobuf::Any& resource) override {
+    ArenaWrappedProto<cilium::NetworkPolicyHosts> typed_message;
     // If the Any is a synthetic empty message (e.g. because the resource field
     // was not set in Resource, this might be empty, so we shouldn't decode.
     if (!resource.type_url().empty()) {
@@ -219,7 +220,7 @@ public:
                               const std::string& system_version_info) override;
 
 private:
-  ThreadLocal::SlotPtr tls_;
+  ThreadLocal::SlotSharedPtr tls_;
   std::string name_;
   uint64_t accepted_stream_generation_{0};
   static uint64_t instance_id_;
