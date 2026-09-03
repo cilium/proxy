@@ -24,7 +24,6 @@ envoy_cc_test_library(
     name = "accesslog_server_lib",
     srcs = ["accesslog_server.cc"],
     hdrs = ["accesslog_server.h"],
-    repository = "@envoy",
     deps = [
         ":uds_server_lib",
         "//cilium/api:accesslog_proto_cc_proto",
@@ -36,7 +35,6 @@ envoy_cc_test_library(
     name = "uds_server_lib",
     srcs = ["uds_server.cc"],
     hdrs = ["uds_server.h"],
-    repository = "@envoy",
     deps = [
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/common:thread_lib",
@@ -48,7 +46,6 @@ envoy_cc_test_library(
 envoy_cc_test_library(
     name = "cilium_test_peer_lib",
     hdrs = ["cilium_test_peer.h"],
-    repository = "@envoy",
     deps = [
         "//cilium:bpf_metadata_lib",
         "//cilium:network_policy_lib",
@@ -59,7 +56,6 @@ envoy_cc_test_library(
     name = "bpf_metadata_lib",
     srcs = ["bpf_metadata.cc"],
     hdrs = ["bpf_metadata.h"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_cc_proto",
         ":cilium_test_peer_lib",
@@ -75,7 +71,6 @@ envoy_cc_test_library(
     name = "cilium_http_integration_lib",
     srcs = ["cilium_http_integration.cc"],
     hdrs = ["cilium_http_integration.h"],
-    repository = "@envoy",
     deps = [
         ":accesslog_server_lib",
         ":bpf_metadata_lib",
@@ -94,7 +89,6 @@ envoy_cc_test_library(
     data = [
         "@envoy//test/config/integration/certs",
     ],
-    repository = "@envoy",
     deps = [
         "@envoy//source/extensions/clusters/logical_dns:logical_dns_cluster_lib",
         "@envoy//source/extensions/clusters/original_dst:original_dst_cluster_lib",
@@ -110,7 +104,6 @@ envoy_cc_test_library(
     name = "cilium_tcp_integration_lib",
     srcs = ["cilium_tcp_integration.cc"],
     hdrs = ["cilium_tcp_integration.h"],
-    repository = "@envoy",
     deps = [
         ":accesslog_server_lib",
         ":bpf_metadata_lib",
@@ -127,7 +120,6 @@ envoy_cc_test_library(
 envoy_cc_test(
     name = "cilium_network_policy_test",
     srcs = ["cilium_network_policy_test.cc"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_test_peer_lib",
@@ -142,7 +134,6 @@ envoy_cc_benchmark_binary(
     srcs = ["cilium_network_policy_benchmark.cc"],
     data = ["@envoy//test/config/integration/certs:upstreamcacert.pem"],
     external_deps = ["bazel_runfiles"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_test_peer_lib",
@@ -159,13 +150,11 @@ envoy_cc_benchmark_binary(
 envoy_benchmark_test(
     name = "cilium_network_policy_benchmark_test",
     benchmark_binary = "cilium_network_policy_benchmark",
-    repository = "@envoy",
 )
 
 envoy_cc_test(
     name = "bpf_metadata_config_test",
     srcs = ["bpf_metadata_config_test.cc"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         "@envoy//envoy/network:filter_interface",
@@ -176,7 +165,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "accesslog_test",
     srcs = ["accesslog_test.cc"],
-    repository = "@envoy",
     deps = [
         "//cilium:accesslog_lib",
         "@envoy//test/mocks/network:connection_mocks",
@@ -188,7 +176,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "network_filter_test",
     srcs = ["network_filter_test.cc"],
-    repository = "@envoy",
     deps = [
         "//cilium:network_filter_lib",
         "@envoy//test/mocks/network:network_mocks",
@@ -199,7 +186,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_websocket_codec_test",
     srcs = ["cilium_websocket_codec_test.cc"],
-    repository = "@envoy",
     deps = [
         "//cilium:websocket_lib",
         "@envoy//source/common/buffer:buffer_lib",
@@ -211,7 +197,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_tcp_integration_test",
     srcs = ["cilium_tcp_integration_test.cc"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
@@ -230,7 +215,6 @@ envoy_cc_test(
     data = [
         "@envoy//test/config/integration/certs",
     ],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
@@ -251,7 +235,6 @@ envoy_cc_test(
     data = [
         "@envoy//test/config/integration/certs",
     ],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
@@ -269,7 +252,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_http_integration_test",
     srcs = ["cilium_http_integration_test.cc"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
@@ -286,7 +268,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_http_upstream_integration_test",
     srcs = ["cilium_http_upstream_integration_test.cc"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
@@ -305,7 +286,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_websocket_decap_integration_test",
     srcs = ["cilium_websocket_decap_integration_test.cc"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
@@ -322,7 +302,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_websocket_codec_integration_test",
     srcs = ["cilium_websocket_codec_integration_test.cc"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
@@ -338,7 +317,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_websocket_policy_integration_test",
     srcs = ["cilium_websocket_policy_integration_test.cc"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_http_integration_lib",
@@ -357,7 +335,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "cilium_websocket_encap_integration_test",
     srcs = ["cilium_websocket_encap_integration_test.cc"],
-    repository = "@envoy",
     deps = [
         ":bpf_metadata_lib",
         ":cilium_tcp_integration_lib",
@@ -373,7 +350,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "bpf_metadata_integration_test",
     srcs = ["bpf_metadata_integration_test.cc"],
-    repository = "@envoy",
     deps = [
         "//cilium:bpf_metadata_lib",
         "//cilium/api:bpf_metadata_cc_proto",
@@ -397,7 +373,6 @@ envoy_cc_test(
         "health_check_sink_server.h",
         "health_check_sink_test.cc",
     ],
-    repository = "@envoy",
     deps = [
         ":uds_server_lib",
         "//cilium:health_check_sink_lib",

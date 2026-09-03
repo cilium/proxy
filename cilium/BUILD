@@ -12,7 +12,6 @@ envoy_cc_library(
     name = "tls_wrapper_lib",
     srcs = ["tls_wrapper.cc"],
     hdrs = ["tls_wrapper.h"],
-    repository = "@envoy",
     deps = [
         "//cilium:filter_state_lib",
         "//cilium:network_policy_lib",
@@ -39,7 +38,6 @@ envoy_cc_library(
         "network_policy.h",
         "policy_id.h",
     ],
-    repository = "@envoy",
     deps = [
         "//cilium:accesslog_lib",
         "//cilium:conntrack_lib",
@@ -54,6 +52,7 @@ envoy_cc_library(
         "@envoy//source/common/init:watcher_lib",
         "@envoy//source/common/local_info:local_info_lib",
         "@envoy//source/common/network:address_lib",
+        "@envoy//source/common/protobuf:arena_wrapped_proto_lib",
         "@envoy//source/common/router:config_utility_lib",
         "@envoy//source/common/stats:timespan_lib",
         "@envoy//source/common/tls:context_config_lib",
@@ -75,7 +74,6 @@ envoy_cc_library(
         "socket_option_ip_transparent.h",
         "socket_option_source_address.h",
     ],
-    repository = "@envoy",
     deps = [
         "privileged_service_client_lib",
         "//cilium:filter_state_lib",
@@ -94,7 +92,6 @@ envoy_cc_library(
         "filter_state_cilium_destination.h",
         "filter_state_cilium_policy.h",
     ],
-    repository = "@envoy",
     deps = [
         "//cilium:network_policy_lib",
         "@envoy//source/common/common:logger_lib",
@@ -109,7 +106,6 @@ envoy_cc_library(
     hdrs = [
         "grpc_subscription.h",
     ],
-    repository = "@envoy",
     deps = [
         "@abseil-cpp//absl/strings",
         "@envoy//envoy/network:connection_interface",
@@ -128,7 +124,6 @@ envoy_cc_library(
     hdrs = [
         "l7policy.h",
     ],
-    repository = "@envoy",
     deps = [
         "//cilium:accesslog_lib",
         "//cilium:filter_state_lib",
@@ -156,12 +151,11 @@ envoy_cc_library(
         "websocket_config.h",
         "websocket_protocol.h",
     ],
-    repository = "@envoy",
     deps = [
         "//cilium:accesslog_lib",
         "//cilium:filter_state_lib",
         "//cilium/api:websocket_cc_proto",
-        "@com_google_protobuf//third_party/utf8_range:utf8_validity",
+        "@abseil-cpp//absl/types:span",
         "@envoy//bazel/external/http_parser",
         "@envoy//envoy/common/crypto:crypto_interface",
         "@envoy//source/common/common:base64_lib",
@@ -176,6 +170,7 @@ envoy_cc_library(
         "@envoy//source/common/stream_info:uint64_accessor_lib",
         "@envoy//source/common/tcp_proxy",
         "@envoy_api//envoy/extensions/request_id/uuid/v3:pkg_cc_proto",
+        "@protobuf//third_party/utf8_range:utf8_validity",
     ],
 )
 
@@ -187,7 +182,6 @@ envoy_cc_library(
     hdrs = [
         "accesslog.h",
     ],
-    repository = "@envoy",
     deps = [
         "//cilium:uds_client_lib",
         "//cilium/api:accesslog_proto_cc_proto",
@@ -205,7 +199,6 @@ envoy_cc_library(
     hdrs = [
         "uds_client.h",
     ],
-    repository = "@envoy",
     deps = [
         "@envoy//source/common/common:minimal_logger_lib",
         "@envoy//source/common/common:thread_lib",
@@ -226,7 +219,6 @@ envoy_cc_library(
         "//:linux/bpf_common.h",
         "//:linux/type_mapper.h",
     ],
-    repository = "@envoy",
     deps = [
         "privileged_service_client_lib",
         "@envoy//source/common/common:logger_lib",
@@ -242,7 +234,6 @@ envoy_cc_library(
     hdrs = [
         "ipcache.h",
     ],
-    repository = "@envoy",
     deps = [
         "//cilium:bpf_lib",
         "@envoy//envoy/singleton:manager_interface",
@@ -260,7 +251,6 @@ envoy_cc_library(
     hdrs = [
         "conntrack.h",
     ],
-    repository = "@envoy",
     deps = [
         "//cilium:bpf_lib",
         "@envoy//envoy/network:connection_interface",
@@ -280,7 +270,6 @@ envoy_cc_library(
     hdrs = [
         "network_filter.h",
     ],
-    repository = "@envoy",
     deps = [
         "//cilium:conntrack_lib",
         "//cilium:filter_state_lib",
@@ -309,7 +298,6 @@ envoy_cc_library(
         "bpf_metadata.h",
         "host_map.h",
     ],
-    repository = "@envoy",
     deps = [
         "//cilium:conntrack_lib",
         "//cilium:filter_state_lib",
@@ -332,6 +320,7 @@ envoy_cc_library(
         "@envoy//source/common/common:assert_lib",
         "@envoy//source/common/common:logger_lib",
         "@envoy//source/common/network:address_lib",
+        "@envoy//source/common/protobuf:arena_wrapped_proto_lib",
         "@envoy//source/common/router:config_utility_lib",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],
@@ -341,7 +330,6 @@ envoy_cc_library(
     name = "privileged_service_client_lib",
     srcs = ["privileged_service_client.cc"],
     hdrs = ["privileged_service_client.h"],
-    repository = "@envoy",
     deps = [
         "//starter:privileged_service_protocol",
         "@envoy//envoy/api:os_sys_calls_interface",
@@ -354,7 +342,6 @@ envoy_cc_library(
     name = "health_check_sink_lib",
     srcs = ["health_check_sink.cc"],
     hdrs = ["health_check_sink.h"],
-    repository = "@envoy",
     deps = [
         "//cilium:uds_client_lib",
         "//cilium/api:health_check_sink_cc_proto",
