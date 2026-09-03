@@ -54,15 +54,13 @@ private:
   public:
     Encoder(Codec& parent) : parent_(parent) {}
 
-    void encode(Buffer::Instance&, bool end_stream, uint8_t opcode);
+    void encode(Buffer::Instance&, uint8_t opcode);
 
     size_t hasData() { return encoded_.length() > 0; }
     Buffer::Instance& data() { return encoded_; }
-    bool endStream() { return end_stream_; }
     void drain() { encoded_.drain(encoded_.length()); }
 
     Codec& parent_;
-    bool end_stream_{false};
     Buffer::OwnedImpl encoded_; // Buffer for encoded websocket frames
   };
 
@@ -74,11 +72,12 @@ private:
 
     size_t hasData() { return decoded_.length() > 0; }
     Buffer::Instance& data() { return decoded_; }
-    bool endStream() { return end_stream_; }
     void drain() { decoded_.drain(decoded_.length()); }
 
     Codec& parent_;
-    bool end_stream_{false};
+    bool close_received_{false};
+    bool protocol_error_{false};
+    std::string close_payload_;
     Buffer::OwnedImpl buffer_;  // Buffer for partial websocket frames
     Buffer::OwnedImpl decoded_; // Buffer for decoded websocket frames
 
@@ -90,7 +89,7 @@ private:
 
   void startPingTimer();
   void resetPingTimer() {
-    if (ping_timer_ != nullptr) {
+    if (ping_timer_ != nullptr && !(close_sent_ && decoder_.close_received_)) {
       auto config = parent_->config();
       if (config->ping_when_idle_) {
         ping_timer_->enableTimer(config->ping_interval_);
@@ -126,6 +125,9 @@ private:
   Event::TimerPtr handshake_timer_{nullptr};
   Buffer::OwnedImpl handshake_buffer_;
   bool accepted_{false};
+  bool close_sent_{false};
+  bool decoded_end_stream_sent_{false};
+  bool encoded_end_stream_sent_{false};
 };
 using CodecPtr = std::unique_ptr<Codec>;
 

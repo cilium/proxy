@@ -1,0 +1,260 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Cilium Authors <dev@cilium.io>
+Date: Tue, 25 Aug 2026 16:00:00 +0200
+Subject: [PATCH] tcp_proxy: Allow filters to wait for upstream close
+
+A protocol filter may need the upstream transport to remain open after its
+downstream connection has ended so the peer can finish a protocol-level close
+handshake. Add a per-connection filter-state timeout which makes TCP proxy
+flush its pending writes and wait for the upstream peer to close.
+
+Data received during this final drain interval cannot be delivered to the
+closed downstream connection and is discarded. Preserve the existing reset
+behavior for all connections which do not opt in.
+---
+ envoy/tcp/upstream.h                     |  7 ++++++-
+ source/common/tcp_proxy/tcp_proxy.cc     | 31 +++++++++++++++++++++++++------
+ source/common/tcp_proxy/tcp_proxy.h      | 17 +++++++++++++++--
+ source/common/tcp_proxy/upstream.cc      | 17 +++++++++++++----
+ source/common/tcp_proxy/upstream.h       | 12 +++++++++---
+ 5 files changed, 68 insertions(+), 16 deletions(-)
+
+diff --git a/envoy/tcp/upstream.h b/envoy/tcp/upstream.h
+index 9a96694e41..2f79b3bca5 100644
+--- a/envoy/tcp/upstream.h
++++ b/envoy/tcp/upstream.h
+@@ -1,5 +1,7 @@
+ #pragma once
+ 
++#include <chrono>
++
+ #include "envoy/buffer/buffer.h"
+ #include "envoy/extensions/filters/network/tcp_proxy/v3/tcp_proxy.pb.h"
+ #include "envoy/http/filter.h"
+@@ -157,11 +159,14 @@ public:
+    * Called when an event is received on the downstream connection
+    * @param event supplies the event which occurred.
+    * @param details supplies the details of the event, e.g. the local close reason.
++   * @param flush_wait_timeout supplies how long a TCP upstream should wait for its peer to close
++   *        after pending writes have been flushed. Zero preserves the normal immediate close.
+    * @return the underlying ConnectionData if the event is not "Connected" and draining
+              is supported for this upstream.
+    */
+   virtual Tcp::ConnectionPool::ConnectionData*
+-  onDownstreamEvent(Network::ConnectionEvent event, absl::string_view details = "") PURE;
++  onDownstreamEvent(Network::ConnectionEvent event, absl::string_view details = "",
++                    std::chrono::milliseconds flush_wait_timeout = {}) PURE;
+ 
+   /* Called to convert underlying transport socket from non-secure mode
+    * to secure mode. Implemented only by start_tls transport socket.
+diff --git a/source/common/tcp_proxy/tcp_proxy.cc b/source/common/tcp_proxy/tcp_proxy.cc
+index e5d23f2199..405ef9c1bc 100644
+--- a/source/common/tcp_proxy/tcp_proxy.cc
++++ b/source/common/tcp_proxy/tcp_proxy.cc
+@@ -457,6 +457,16 @@ void Filter::initialize(Network::ReadFilterCallbacks& callbacks, bool set_connect
+     }
+   }
+ 
++  const StreamInfo::UInt64Accessor* upstream_flush_wait_timeout =
++      read_callbacks_->connection()
++          .streamInfo()
++          .filterState()
++          ->getDataReadOnly<StreamInfo::UInt64Accessor>(UpstreamFlushWaitTimeoutMs);
++  if (upstream_flush_wait_timeout != nullptr) {
++    upstream_flush_wait_timeout_ =
++        std::chrono::milliseconds(upstream_flush_wait_timeout->value());
++  }
++
+   // Handle TLS handshake wait mode.
+   if (connect_mode_ == UpstreamConnectMode::ON_DOWNSTREAM_TLS_HANDSHAKE) {
+     const auto ssl_connection = read_callbacks_->connection().ssl();
+@@ -1204,12 +1214,14 @@ void Filter::onDownstreamEvent(Network::ConnectionEvent event) {
+   if (upstream_) {
+     absl::string_view downstream_close_details = read_callbacks_->connection().localCloseReason();
+     Tcp::ConnectionPool::ConnectionDataPtr conn_data(
+-        upstream_->onDownstreamEvent(event, downstream_close_details));
++        upstream_->onDownstreamEvent(event, downstream_close_details,
++                                     upstream_flush_wait_timeout_));
+     if (conn_data != nullptr &&
+         conn_data->connection().state() != Network::Connection::State::Closed) {
+       config_->drainManager().add(config_->sharedConfig(), std::move(conn_data),
+                                   std::move(upstream_callbacks_), std::move(idle_timer_),
+-                                  idle_timeout_, read_callbacks_->upstreamHost());
++                                  idle_timeout_, read_callbacks_->upstreamHost(),
++                                  upstream_flush_wait_timeout_.count() > 0);
+     }
+     if (event == Network::ConnectionEvent::LocalClose ||
+         event == Network::ConnectionEvent::RemoteClose) {
+@@ -1508,8 +1520,10 @@ void UpstreamDrainManager::add(const Config::SharedConfigSharedPtr& config,
+                                Event::TimerPtr&& idle_timer,
+                                absl::optional<std::chrono::milliseconds> idle_timeout,
+-                               const Upstream::HostDescriptionConstSharedPtr& upstream_host) {
++                               const Upstream::HostDescriptionConstSharedPtr& upstream_host,
++                               bool discard_upstream_data) {
+   DrainerPtr drainer(new Drainer(*this, config, callbacks, std::move(upstream_conn_data),
+-                                 std::move(idle_timer), idle_timeout, upstream_host));
++                                 std::move(idle_timer), idle_timeout, upstream_host,
++                                 discard_upstream_data));
+   callbacks->drain(*drainer);
+ 
+   // Use temporary to ensure we get the pointer before we move it out of drainer
+@@ -1530,9 +1544,10 @@ Drainer::Drainer(UpstreamDrainManager& parent, const Config::SharedConfigSharedPt
+                  Tcp::ConnectionPool::ConnectionDataPtr&& conn_data, Event::TimerPtr&& idle_timer,
+                  absl::optional<std::chrono::milliseconds> idle_timeout,
+-                 const Upstream::HostDescriptionConstSharedPtr& upstream_host)
++                 const Upstream::HostDescriptionConstSharedPtr& upstream_host,
++                 bool discard_upstream_data)
+     : parent_(parent), callbacks_(callbacks), upstream_conn_data_(std::move(conn_data)),
+       idle_timer_(std::move(idle_timer)), idle_timeout_(idle_timeout),
+-      upstream_host_(upstream_host), config_(config) {
++      upstream_host_(upstream_host), config_(config), discard_upstream_data_(discard_upstream_data) {
+   ENVOY_CONN_LOG(trace, "draining the upstream connection", upstream_conn_data_->connection());
+   config_->stats().upstream_flush_total_.inc();
+   config_->stats().upstream_flush_active_.inc();
+@@ -1551,6 +1564,10 @@ void Drainer::onEvent(Network::ConnectionEvent event) {
+ }
+ 
+ void Drainer::onData(Buffer::Instance& data, bool) {
++  if (discard_upstream_data_) {
++    data.drain(data.length());
++    return;
++  }
+   if (data.length() > 0) {
+     // There is no downstream connection to send any data to, but the upstream
+     // sent some data. Try to behave similar to what the kernel would do
+diff --git a/source/common/tcp_proxy/tcp_proxy.h b/source/common/tcp_proxy/tcp_proxy.h
+index b10971523a..39540726b7 100644
+--- a/source/common/tcp_proxy/tcp_proxy.h
++++ b/source/common/tcp_proxy/tcp_proxy.h
+@@ -55,6 +55,15 @@ constexpr absl::string_view PerConnectionIdleTimeoutMs =
+  */
+ constexpr absl::string_view ReceiveBeforeConnectKey = "envoy.tcp_proxy.receive_before_connect";
+ 
++/**
++ * UpstreamFlushWaitTimeoutMs is the key for a per-connection upstream flush wait timeout. A
++ * non-zero ``StreamInfo::UInt64Accessor`` value makes a raw TCP upstream wait for its peer to
++ * close after pending writes have been flushed when the downstream connection closes. Data
++ * received during this interval is discarded because the downstream connection no longer exists.
++ */
++constexpr absl::string_view UpstreamFlushWaitTimeoutMs =
++    "envoy.tcp_proxy.upstream_flush_wait_timeout_ms";
++
+ /**
+  * All tcp proxy stats. @see stats_macros.h
+  */
+@@ -755,4 +764,5 @@ protected:
+   bool receive_before_connect_{false};
++  std::chrono::milliseconds upstream_flush_wait_timeout_{0};
+   bool early_data_end_stream_{false};
+   Buffer::OwnedImpl early_data_buffer_{};
+   HttpStreamDecoderFilterCallbacks upstream_decoder_filter_callbacks_;
+@@ -778,6 +788,7 @@ public:
+           Tcp::ConnectionPool::ConnectionDataPtr&& conn_data, Event::TimerPtr&& idle_timer,
+           absl::optional<std::chrono::milliseconds> idle_timeout,
+-          const Upstream::HostDescriptionConstSharedPtr& upstream_host);
++          const Upstream::HostDescriptionConstSharedPtr& upstream_host,
++          bool discard_upstream_data);
+ 
+   void onEvent(Network::ConnectionEvent event);
+   void onData(Buffer::Instance& data, bool end_stream);
+@@ -794,5 +805,6 @@ private:
+   Upstream::HostDescriptionConstSharedPtr upstream_host_;
+   Config::SharedConfigSharedPtr config_;
++  const bool discard_upstream_data_;
+ };
+ 
+ using DrainerPtr = std::unique_ptr<Drainer>;
+@@ -806,6 +818,7 @@ public:
+            const std::shared_ptr<Filter::UpstreamCallbacks>& callbacks,
+            Event::TimerPtr&& idle_timer, absl::optional<std::chrono::milliseconds> idle_timeout,
+-           const Upstream::HostDescriptionConstSharedPtr& upstream_host);
++           const Upstream::HostDescriptionConstSharedPtr& upstream_host,
++           bool discard_upstream_data);
+   void remove(Drainer& drainer, Event::Dispatcher& dispatcher);
+ 
+ private:
+diff --git a/source/common/tcp_proxy/upstream.cc b/source/common/tcp_proxy/upstream.cc
+index f466703e25..9d12c690d4 100644
+--- a/source/common/tcp_proxy/upstream.cc
++++ b/source/common/tcp_proxy/upstream.cc
+@@ -125,14 +125,21 @@ StreamInfo::DetectedCloseType TcpUpstream::detectedCloseType() const {
+ }
+ 
+ Tcp::ConnectionPool::ConnectionData* TcpUpstream::onDownstreamEvent(Network::ConnectionEvent event,
+-                                                                    absl::string_view details) {
++                                                                    absl::string_view details,
++                                                                    std::chrono::milliseconds
++                                                                        flush_wait_timeout) {
+   // TODO(botengyao): propagate RST back to upstream connection if RST is received from downstream.
+   if (event == Network::ConnectionEvent::RemoteClose) {
+     // The close call may result in this object being deleted. Latch the
+     // connection locally so it can be returned for potential draining.
+     auto* conn_data = upstream_conn_data_.release();
++    const bool wait_for_peer_close = flush_wait_timeout.count() > 0;
++    if (wait_for_peer_close) {
++      conn_data->connection().setDelayedCloseTimeout(flush_wait_timeout);
++    }
+     conn_data->connection().close(
+-        Network::ConnectionCloseType::FlushWrite,
++        wait_for_peer_close ? Network::ConnectionCloseType::FlushWriteAndDelay
++                            : Network::ConnectionCloseType::FlushWrite,
+         StreamInfo::LocalCloseReasons::get().ClosingUpstreamTcpDueToDownstreamRemoteClose);
+     return conn_data;
+   } else if (event == Network::ConnectionEvent::LocalClose) {
+@@ -235,7 +242,8 @@ void HttpUpstream::addBytesSentCallback(Network::Connection::BytesSentCb) {
+ }
+ 
+ Tcp::ConnectionPool::ConnectionData*
+-HttpUpstream::onDownstreamEvent(Network::ConnectionEvent event, absl::string_view /*details*/) {
++HttpUpstream::onDownstreamEvent(Network::ConnectionEvent event, absl::string_view /*details*/,
++                                std::chrono::milliseconds /*flush_wait_timeout*/) {
+   if (event == Network::ConnectionEvent::LocalClose ||
+       event == Network::ConnectionEvent::RemoteClose) {
+     resetEncoder(Network::ConnectionEvent::LocalClose, false);
+@@ -563,7 +571,8 @@ bool CombinedUpstream::readDisable(bool disable) {
+ }
+ 
+ Tcp::ConnectionPool::ConnectionData*
+-CombinedUpstream::onDownstreamEvent(Network::ConnectionEvent event, absl::string_view /*details*/) {
++CombinedUpstream::onDownstreamEvent(Network::ConnectionEvent event, absl::string_view /*details*/,
++                                    std::chrono::milliseconds /*flush_wait_timeout*/) {
+   if (!upstream_request_) {
+     return nullptr;
+   }
+diff --git a/source/common/tcp_proxy/upstream.h b/source/common/tcp_proxy/upstream.h
+index 4ce796b563..090856885e 100644
+--- a/source/common/tcp_proxy/upstream.h
++++ b/source/common/tcp_proxy/upstream.h
+@@ -177,7 +177,9 @@ public:
+   void encodeData(Buffer::Instance& data, bool end_stream) override;
+   void addBytesSentCallback(Network::Connection::BytesSentCb cb) override;
+   Tcp::ConnectionPool::ConnectionData* onDownstreamEvent(Network::ConnectionEvent event,
+-                                                         absl::string_view details = "") override;
++                                                         absl::string_view details = "",
++                                                         std::chrono::milliseconds
++                                                             flush_wait_timeout = {}) override;
+   bool startUpstreamSecureTransport() override;
+   Ssl::ConnectionInfoConstSharedPtr getUpstreamConnectionSslInfo() override;
+   StreamInfo::DetectedCloseType detectedCloseType() const override;
+@@ -207,7 +209,9 @@ public:
+   void encodeData(Buffer::Instance& data, bool end_stream) override;
+   void addBytesSentCallback(Network::Connection::BytesSentCb cb) override;
+   Tcp::ConnectionPool::ConnectionData* onDownstreamEvent(Network::ConnectionEvent event,
+-                                                         absl::string_view details = "") override;
++                                                         absl::string_view details = "",
++                                                         std::chrono::milliseconds
++                                                             flush_wait_timeout = {}) override;
+   // HTTP upstream must not implement converting upstream transport
+   // socket from non-secure to secure mode.
+   bool startUpstreamSecureTransport() override { return false; }
+@@ -299,7 +303,9 @@ public:
+   void newStream(GenericConnectionPoolCallbacks& callbacks);
+   void encodeData(Buffer::Instance& data, bool end_stream) override;
+   Tcp::ConnectionPool::ConnectionData* onDownstreamEvent(Network::ConnectionEvent event,
+-                                                         absl::string_view details = "") override;
++                                                         absl::string_view details = "",
++                                                         std::chrono::milliseconds
++                                                             flush_wait_timeout = {}) override;
+   bool isValidResponse(const Http::ResponseHeaderMap&);
+   bool readDisable(bool disable) override;
+   void setConnPoolCallbacks(std::unique_ptr<HttpConnPool::Callbacks>&& callbacks) {
