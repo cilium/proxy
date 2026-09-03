@@ -25,13 +25,13 @@ namespace Cilium {
 class CiliumTestPeer;
 
 class ManagedGrpcSubscription : public Event::DispatcherThreadDeletable,
-                                public Config::SubscriptionCallbacks,
+                                public Envoy::Config::SubscriptionCallbacks,
                                 public Logger::Loggable<Logger::Id::config>,
                                 public std::enable_shared_from_this<ManagedGrpcSubscription> {
 public:
-  using DecoderFactory = std::function<Config::OpaqueResourceDecoderSharedPtr()>;
+  using DecoderFactory = std::function<Envoy::Config::OpaqueResourceDecoderSharedPtr()>;
   using SubscriptionFactoryForTest =
-      std::function<std::unique_ptr<Config::Subscription>(bool use_delta_xds)>;
+      std::function<std::unique_ptr<Envoy::Config::Subscription>(bool use_delta_xds)>;
 
   ManagedGrpcSubscription(absl::string_view type_url, DecoderFactory decoder_factory,
                           const envoy::config::core::v3::ConfigSource& config_source,
@@ -44,7 +44,7 @@ public:
   // must be configured before subscribe()
   void configure(const envoy::config::core::v3::ConfigSource& config_source);
 
-  void onConfigUpdateFailed(Config::ConfigUpdateFailureReason reason,
+  void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason reason,
                             const EnvoyException* e) final;
 
 protected:
@@ -63,7 +63,7 @@ protected:
   bool started() const { return started_; }
   uint64_t streamGeneration() const { return stream_generation_; }
 
-  void onStreamEvent(uint64_t subscription_id, Config::GrpcMuxStreamEvent event);
+  void onStreamEvent(uint64_t subscription_id, Envoy::Config::GrpcMuxStreamEvent event);
 
 private:
   friend class CiliumTestPeer;
@@ -82,7 +82,7 @@ private:
   Stats::ScopeSharedPtr scope_;
 
   Common::CallbackHandlePtr stream_event_handle_;
-  std::unique_ptr<Config::Subscription> subscription_;
+  std::unique_ptr<Envoy::Config::Subscription> subscription_;
   uint64_t subscription_id_{0};
   uint64_t stream_generation_{1};
   bool connected_{false};
