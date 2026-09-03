@@ -13,7 +13,7 @@
     'go.mod',
     'go.sum',
     'tools/install_bazelisk.sh',
-    'WORKSPACE',
+    'MODULE.bazel',
     'ENVOY_VERSION',
   ],
   pinDigests: true,
@@ -186,7 +186,7 @@
     {
       customType: 'regex',
       managerFilePatterns: [
-        '/^WORKSPACE$/',
+        '/^MODULE\\.bazel$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+_VERSION = "(?<currentValue>.*)"',

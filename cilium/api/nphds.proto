@@ -41,8 +41,6 @@ message NetworkPolicyHosts {
 
   // The set of IP addresses of the hosts on which the network policy is
   // enforced. Optional. May be empty.
-  repeated string host_addresses = 2 [
-    (validate.rules).repeated .unique = true,
-    (validate.rules).repeated .items.string.min_len = 1
-  ];
+  repeated string host_addresses = 2
+      [(validate.rules).repeated.unique = true, (validate.rules).repeated.items.string.min_len = 1];
 }
