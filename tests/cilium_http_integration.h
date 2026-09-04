@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -16,7 +17,6 @@
 #include "test/integration/http_integration.h"
 #include "test/test_common/utility.h"
 
-#include "absl/types/optional.h"
 #include "cilium/api/accesslog.pb.h"
 #include "tests/accesslog_server.h"
 
@@ -41,7 +41,7 @@ public:
     return std::vector<std::pair<std::string, std::string>>{};
   }
 
-  absl::optional<::cilium::LogEntry>
+  std::optional<::cilium::LogEntry>
   waitForAccessLogMessage(::cilium::EntryType entry_type,
                           std::chrono::milliseconds timeout = TestUtility::DefaultTimeout) {
     return accessLogServer_.waitForMessage(entry_type, timeout);
@@ -59,7 +59,7 @@ public:
     return accessLogServer_.expectDeniedTo(pred);
   }
 
-  static absl::optional<std::string>
+  static std::optional<std::string>
   getHeader(const Protobuf::RepeatedPtrField<::cilium::KeyValue>& headers,
             const std::string& name) {
     for (const auto& entry : headers) {
@@ -67,7 +67,7 @@ public:
         return entry.value();
       }
     }
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   static bool hasHeader(const Protobuf::RepeatedPtrField<::cilium::KeyValue>& headers,

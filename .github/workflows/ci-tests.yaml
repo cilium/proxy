@@ -12,9 +12,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  proxylib:
-    timeout-minutes: 360
-    name: Run unit tests for proxylib
+  go-vendoring:
+    timeout-minutes: 30
+    name: Check Go module vendoring
     runs-on: ubuntu-latest
     steps:
     - name: Install Go
@@ -31,9 +31,6 @@ jobs:
         go mod tidy
         go mod vendor
         test -z "$(git status --porcelain)" || (echo "please run 'go mod tidy && go mod vendor', and submit your changes"; exit 1)
-    - name: Run unit tests
-      run: |
-        make -C proxylib test
 
   tests:
     timeout-minutes: 360
@@ -129,7 +126,7 @@ jobs:
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             DEBUG=1
-            BAZEL_BUILD_OPTS=--remote_upload_local_results=false --config=asan --config=clang-asan
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false --config=asan
             BAZEL_TEST_OPTS=--jobs=HOST_RAM*.0001 --test_timeout=600 --local_test_jobs=2 --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress
           cache-from: type=local,src=/tmp/buildx-cache
           push: false
@@ -177,14 +174,10 @@ jobs:
           platforms: linux/amd64
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            PROXYLIB_BUILDER=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            PROXYLIB_CC=/usr/lib/llvm-18/bin/clang
-            PROXYLIB_GO_BUILD_FLAGS=-msan -buildvcs=false
-            PROXYLIB_GOCACHE=/tmp/go-build
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             DEBUG=1
             BAZEL_BUILD_OPTS=--config=msan --remote_upload_local_results=false
-            BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress --test_env=MSAN_SYMBOLIZER_PATH=/usr/lib/llvm-18/bin/llvm-symbolizer
+            BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress
           cache-from: type=local,src=/tmp/buildx-cache
           push: false
 
@@ -231,14 +224,9 @@ jobs:
           platforms: linux/amd64
           build-args: |
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            PROXYLIB_BUILDER=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
-            PROXYLIB_CC=/usr/lib/llvm-18/bin/clang
-            PROXYLIB_CGO_CFLAGS=-fsanitize=thread
-            PROXYLIB_GO_BUILD_FLAGS=-installsuffix=tsan -buildvcs=false
-            PROXYLIB_GOCACHE=/tmp/go-build
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             DEBUG=1
             BAZEL_BUILD_OPTS=--config=tsan --remote_upload_local_results=false
-            BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress --test_env=TSAN_OPTIONS=report_atomic_races=0:halt_on_error=1:external_symbolizer_path=/usr/lib/llvm-18/bin/llvm-symbolizer:strip_path_prefix=/proc/self/cwd/
+            BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress --test_env=TSAN_OPTIONS=report_atomic_races=0:halt_on_error=1:strip_path_prefix=/proc/self/cwd/
           cache-from: type=local,src=/tmp/buildx-cache
           push: false

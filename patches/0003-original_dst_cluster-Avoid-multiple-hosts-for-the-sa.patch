@@ -1,7 +1,7 @@
-From 435f56e14770f787d97b91c568b93eecb9206056 Mon Sep 17 00:00:00 2001
+From 22f28ed42778db3aac0e9a5b9a07681833268760 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 24 May 2024 18:27:28 +0200
-Subject: [PATCH 3/7] original_dst_cluster: Avoid multiple hosts for the same
+Subject: [PATCH 3/6] original_dst_cluster: Avoid multiple hosts for the same
  address
 
 Connection pool containers use HostSharedPtr as map keys, rather than the
@@ -25,12 +25,12 @@ map updates.
 
 Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
 ---
- .../original_dst/original_dst_cluster.cc      | 259 +++++++++++-------
- .../original_dst/original_dst_cluster.h       |  47 ++--
- 2 files changed, 191 insertions(+), 115 deletions(-)
+ .../original_dst/original_dst_cluster.cc      | 293 +++++++++++-------
+ .../original_dst/original_dst_cluster.h       |  47 +--
+ 2 files changed, 208 insertions(+), 132 deletions(-)
 
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.cc b/source/extensions/clusters/original_dst/original_dst_cluster.cc
-index 25362925..c8063ed8 100644
+index 1eddc0b05e..12acbf8c89 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.cc
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.cc
 @@ -29,6 +29,19 @@ OriginalDstClusterHandle::~OriginalDstClusterHandle() {
@@ -99,16 +99,16 @@ index 25362925..c8063ed8 100644
      }
    }
    // TODO(ramaraochavali): add a stat and move this log line to debug.
-@@ -198,7 +178,7 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
+@@ -199,7 +179,7 @@ OriginalDstCluster::OriginalDstCluster(
        cleanup_interval_ms_(
            std::chrono::milliseconds(PROTOBUF_GET_MS_OR_DEFAULT(config, cleanup_interval, 5000))),
        cleanup_timer_(dispatcher_.createTimer([this]() -> void { cleanup(); })),
 -      host_map_(std::make_shared<HostMultiMap>()) {
 +      host_map_(std::make_shared<HostUseMap>()), updates_map_(std::make_unique<HostUseMap>()) {
-   if (config.has_original_dst_lb_config()) {
-     const auto& lb_config = config.original_dst_lb_config();
-     if (lb_config.use_http_header()) {
-@@ -216,47 +196,146 @@ OriginalDstCluster::OriginalDstCluster(const envoy::config::cluster::v3::Cluster
+   if (original_dst_config.use_http_header()) {
+     http_header_name_ = original_dst_config.http_header_name().empty()
+                             ? Http::Headers::get().EnvoyOriginalDstHost
+@@ -214,30 +194,127 @@ OriginalDstCluster::OriginalDstCluster(
    cleanup_timer_->enableTimer(cleanup_interval_ms_);
  }
  
@@ -144,9 +144,7 @@ index 25362925..c8063ed8 100644
 +  if (dst_ip == nullptr) {
 +    ENVOY_LOG(debug, "Cannot create host for non-IP address {}.", address);
 +    return nullptr;
-   }
--  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
--  setHostMap(new_host_map);
++  }
 +
 +  // Scope the lock for reading the host_map_
 +  {
@@ -211,7 +209,7 @@ index 25362925..c8063ed8 100644
 +  return host;
 +}
 +
-+// updateHosts updates the host map and the priotiry sets of the cluster.
++// updateHosts updates the host map and the priority sets of the cluster.
 +void OriginalDstCluster::updateHosts() {
 +  ASSERT_IS_MAIN_OR_TEST_THREAD();
 +
@@ -220,7 +218,6 @@ index 25362925..c8063ed8 100644
 +  auto new_host_map = std::make_shared<HostUseMap>(*getHostMap());
 +  auto empty_map = std::make_unique<HostUseMap>();
 +  HostVector new_hosts;
-+  new_hosts.reserve(4); // try avoid allocation while holding locks below
 +
 +  // Consolidate updates into the new host map
 +  // Loadbalancers can not add any updates while we keep these locks, so keep this short!
@@ -242,20 +239,33 @@ index 25362925..c8063ed8 100644
 +    // Make available for load balancers
 +    host_map_ = new_host_map;
 +    updates_map_.swap(empty_map);
-+  }
+   }
+-  ENVOY_LOG(debug, "addHost() adding {} {}.", *host, address);
+-  setHostMap(new_host_map);
  
--  // Given the current config, only EDS clusters support multiple priorities.
+   // Given the current config, only EDS clusters support multiple priorities.
    ASSERT(priority_set_.hostSetsPerPriority().size() == 1);
    const auto& first_host_set = priority_set_.getOrCreateHostSet(0);
    HostVectorSharedPtr all_hosts(new HostVector(first_host_set.hosts()));
 -  all_hosts->emplace_back(host);
-+  for (auto host : new_hosts) {
++  for (const auto& host : new_hosts) {
 +    all_hosts->emplace_back(host);
 +  }
-   priority_set_.updateHosts(0,
-                             HostSetImpl::partitionHosts(all_hosts, HostsPerLocalityImpl::empty()),
--                            {}, {std::move(host)}, {}, absl::nullopt, absl::nullopt);
-+                            {}, {std::move(new_hosts)}, {}, absl::nullopt, absl::nullopt);
+   if (Runtime::runtimeFeatureEnabled(
+           "envoy.reloadable_features.skip_partition_original_dst_hosts")) {
+     // OriginalDstCluster::LoadBalancer selects the exact destination address from host_map_ and
+@@ -252,26 +329,28 @@ void OriginalDstCluster::addHost(HostSharedPtr& host) {
+                                        std::move(healthy_hosts), HostsPerLocalityImpl::empty(),
+                                        std::move(degraded_hosts), HostsPerLocalityImpl::empty(),
+                                        std::move(excluded_hosts), HostsPerLocalityImpl::empty()),
+-        {}, {std::move(host)}, {}, std::nullopt, std::nullopt);
++        {}, {std::move(new_hosts)}, {}, std::nullopt, std::nullopt);
+   } else {
+     priority_set_.updateHosts(0,
+                               HostSetImpl::partitionHosts(all_hosts, HostsPerLocalityImpl::empty()),
+-                              {}, {std::move(host)}, {}, std::nullopt, std::nullopt);
++                              {}, {std::move(new_hosts)}, {}, std::nullopt, std::nullopt);
+   }
  }
  
  void OriginalDstCluster::cleanup() {
@@ -283,7 +293,7 @@ index 25362925..c8063ed8 100644
        //
        // Using the used_ bit is preserved for backwards compatibility and to
        // add a delay between load balancers choosing a host and grabbing a
-@@ -271,49 +350,41 @@ void OriginalDstCluster::cleanup() {
+@@ -286,64 +365,56 @@ void OriginalDstCluster::cleanup() {
        // 3) will not delete h since it takes at least one cleanup_interval for
        // the host to set used_ bit for h to false.
        bool keep = false;
@@ -292,8 +302,7 @@ index 25362925..c8063ed8 100644
          keep = true;
 -        hosts->used_ = false; // Mark to be removed during the next round.
 +        host_use->used_ = false; // Mark to be removed during the next round.
-       } else if (Runtime::runtimeFeatureEnabled(
-                      "envoy.reloadable_features.original_dst_rely_on_idle_timeout")) {
+       } else {
 -        // Check that all hosts (first, as well as others that may have been added concurrently)
 -        // are not in use by any connection pool.
 -        if (hosts->host_->used()) {
@@ -331,6 +340,27 @@ index 25362925..c8063ed8 100644
 -    HostMultiMapSharedPtr new_host_map = std::make_shared<HostMultiMap>(*host_map);
 -    for (const auto& addr : removed_addresses) {
 -      new_host_map->erase(addr);
+-    }
+-    setHostMap(new_host_map);
+-    if (Runtime::runtimeFeatureEnabled(
+-            "envoy.reloadable_features.skip_partition_original_dst_hosts")) {
+-      // OriginalDstCluster::LoadBalancer selects the exact destination address from host_map_ and
+-      // does not consult HostSet health partitions. Preserve all hosts in healthy_hosts so that
+-      // host set updates expose the complete routable destination set.
+-      auto healthy_hosts = std::make_shared<HealthyHostVector>(*keeping_hosts);
+-      auto degraded_hosts = std::make_shared<DegradedHostVector>();
+-      auto excluded_hosts = std::make_shared<ExcludedHostVector>();
+-      priority_set_.updateHosts(
+-          0,
+-          HostSetImpl::updateHostsParams(std::move(keeping_hosts), HostsPerLocalityImpl::empty(),
+-                                         std::move(healthy_hosts), HostsPerLocalityImpl::empty(),
+-                                         std::move(degraded_hosts), HostsPerLocalityImpl::empty(),
+-                                         std::move(excluded_hosts), HostsPerLocalityImpl::empty()),
+-          {}, {}, to_be_removed, false, std::nullopt);
+-    } else {
+-      priority_set_.updateHosts(
+-          0, HostSetImpl::partitionHosts(keeping_hosts, HostsPerLocalityImpl::empty()), {}, {},
+-          to_be_removed, false, std::nullopt);
 +
 +    if (!to_be_removed.empty()) {
 +      auto new_host_map = std::make_shared<HostUseMap>();
@@ -343,22 +373,34 @@ index 25362925..c8063ed8 100644
 +
 +      setHostMap(new_host_map);
 +
-+      priority_set_.updateHosts(
-+          0, HostSetImpl::partitionHosts(keeping_hosts, HostsPerLocalityImpl::empty()), {}, {},
-+          to_be_removed, false, absl::nullopt);
++      if (Runtime::runtimeFeatureEnabled(
++              "envoy.reloadable_features.skip_partition_original_dst_hosts")) {
++        // OriginalDstCluster::LoadBalancer selects the exact destination address from host_map_ and
++        // does not consult HostSet health partitions. Preserve all hosts in healthy_hosts so that
++        // host set updates expose the complete routable destination set.
++        auto healthy_hosts = std::make_shared<HealthyHostVector>(*keeping_hosts);
++        auto degraded_hosts = std::make_shared<DegradedHostVector>();
++        auto excluded_hosts = std::make_shared<ExcludedHostVector>();
++        priority_set_.updateHosts(
++            0,
++            HostSetImpl::updateHostsParams(std::move(keeping_hosts), HostsPerLocalityImpl::empty(),
++                                           std::move(healthy_hosts), HostsPerLocalityImpl::empty(),
++                                           std::move(degraded_hosts), HostsPerLocalityImpl::empty(),
++                                           std::move(excluded_hosts), HostsPerLocalityImpl::empty()),
++            {}, {}, to_be_removed, false, std::nullopt);
++      } else {
++        priority_set_.updateHosts(
++            0, HostSetImpl::partitionHosts(keeping_hosts, HostsPerLocalityImpl::empty()), {}, {},
++            to_be_removed, false, std::nullopt);
++      }
      }
--    setHostMap(new_host_map);
--    priority_set_.updateHosts(
--        0, HostSetImpl::partitionHosts(keeping_hosts, HostsPerLocalityImpl::empty()), {}, {},
--        to_be_removed, false, absl::nullopt);
    }
  
-   cleanup_timer_->enableTimer(cleanup_interval_ms_);
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.h b/source/extensions/clusters/original_dst/original_dst_cluster.h
-index 55905560..3152af86 100644
+index ff665dc300..818b8c31ff 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.h
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.h
-@@ -22,25 +22,21 @@ namespace Upstream {
+@@ -24,25 +24,21 @@ namespace Upstream {
  class OriginalDstClusterFactory;
  class OriginalDstClusterTest;
  
@@ -393,7 +435,7 @@ index 55905560..3152af86 100644
  
  class OriginalDstCluster;
  
-@@ -65,7 +61,8 @@ using OriginalDstClusterHandleSharedPtr = std::shared_ptr<OriginalDstClusterHand
+@@ -67,7 +63,8 @@ using OriginalDstClusterHandleSharedPtr = std::shared_ptr<OriginalDstClusterHand
   * cleaned up after they have not seen traffic for a configurable cleanup interval time
   * ("cleanup_interval_ms").
   */
@@ -403,16 +445,16 @@ index 55905560..3152af86 100644
  public:
    ~OriginalDstCluster() override {
      ASSERT_IS_MAIN_OR_TEST_THREAD();
-@@ -120,7 +117,7 @@ public:
-     const absl::optional<Http::LowerCaseString>& http_header_name_;
-     const absl::optional<Config::MetadataKey>& metadata_key_;
-     const absl::optional<uint32_t> port_override_;
+@@ -127,7 +124,7 @@ public:
+     const std::optional<Http::LowerCaseString>& http_header_name_;
+     const std::optional<Config::MetadataKey>& metadata_key_;
+     const std::optional<uint32_t> port_override_;
 -    HostMultiMapConstSharedPtr host_map_;
 +    HostUseMapConstSharedPtr host_map_;
+     Common::CallbackHandlePtr member_update_cb_;
    };
  
-   const absl::optional<Http::LowerCaseString>& httpHeaderName() { return http_header_name_; }
-@@ -158,17 +155,23 @@ private:
+@@ -169,17 +166,23 @@ private:
      const OriginalDstClusterHandleSharedPtr cluster_;
    };
  
@@ -441,7 +483,7 @@ index 55905560..3152af86 100644
    void cleanup();
  
    // ClusterImplBase
-@@ -179,7 +182,9 @@ private:
+@@ -190,7 +193,9 @@ private:
    Event::TimerPtr cleanup_timer_;
  
    absl::Mutex host_map_lock_;
@@ -449,9 +491,9 @@ index 55905560..3152af86 100644
 +  HostUseMapConstSharedPtr host_map_ ABSL_GUARDED_BY(host_map_lock_);
 +  absl::Mutex updates_map_lock_ ABSL_ACQUIRED_AFTER(host_map_lock_);
 +  HostUseMapUniquePtr updates_map_ ABSL_GUARDED_BY(updates_map_lock_);
-   absl::optional<Http::LowerCaseString> http_header_name_;
-   absl::optional<Config::MetadataKey> metadata_key_;
-   absl::optional<uint32_t> port_override_;
+   std::optional<Http::LowerCaseString> http_header_name_;
+   std::optional<Config::MetadataKey> metadata_key_;
+   std::optional<uint32_t> port_override_;
 -- 
-2.54.0
+2.55.0
 

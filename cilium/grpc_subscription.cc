@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -38,7 +39,6 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/optional.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -176,8 +176,8 @@ void ManagedGrpcSubscription::create() {
         rate_limit_settings_or_error.value(),
         *scope_,
         std::move(nop_config_validators),
-        /*xds_resources_delegate_=*/absl::nullopt,
-        /*xds_config_tracker_=*/absl::nullopt,
+        /*xds_resources_delegate_=*/std::nullopt,
+        /*xds_config_tracker_=*/std::nullopt,
         std::make_unique<JitteredExponentialBackOffStrategy>(
             Config::SubscriptionFactory::RetryInitialDelayMs,
             Config::SubscriptionFactory::RetryMaxDelayMs, context_.api().randomGenerator()),

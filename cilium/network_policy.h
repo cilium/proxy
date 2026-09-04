@@ -24,8 +24,8 @@
 #include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
 #include "source/common/common/thread.h"
+#include "source/common/protobuf/arena_wrapped_proto.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/ascii.h"
@@ -150,8 +150,8 @@ public:
   NetworkPolicyDecoder() : validation_visitor_(ProtobufMessage::getNullValidationVisitor()) {}
 
   // Config::OpaqueResourceDecoder
-  ProtobufTypes::MessagePtr decodeResource(const Protobuf::Any& resource) override {
-    auto typed_message = std::make_unique<cilium::NetworkPolicy>();
+  ArenaWrappedProto<Protobuf::Message> decodeResource(const Protobuf::Any& resource) override {
+    ArenaWrappedProto<cilium::NetworkPolicy> typed_message;
     // If the Any is a synthetic empty message (e.g. because the resource field
     // was not set in Resource, this might be empty, so we shouldn't decode.
     if (!resource.type_url().empty()) {

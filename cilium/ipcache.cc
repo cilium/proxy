@@ -115,8 +115,8 @@ bool IpCache::openLocked() {
 }
 
 uint32_t IpCache::resolve(const Network::Address::Ip* ip, std::chrono::microseconds cache_ttl) {
-  struct IpCacheKey key {};
-  struct RemoteEndpointInfo value {};
+  struct IpCacheKey key{};
+  struct RemoteEndpointInfo value{};
 
   if (ip->version() == Network::Address::IpVersion::v4) {
     key.lpm_key = {32 + 32, {}};

@@ -1,6 +1,7 @@
 #include <spdlog/common.h>
 
 #include <string>
+#include <tuple>
 
 #include "envoy/data/core/v3/health_check_event.pb.h"
 #include "envoy/registry/registry.h"
@@ -41,7 +42,7 @@ TEST(HealthCheckEventPipeSinkFactory, createHealthCheckEventSink) {
   cilium::HealthCheckEventPipeSink config;
   config.set_path("test_path");
   Envoy::Protobuf::Any typed_config;
-  typed_config.PackFrom(config);
+  std::ignore = typed_config.PackFrom(config);
 
   NiceMock<Server::Configuration::MockHealthCheckerFactoryContext> context;
   EXPECT_NE(factory->createHealthCheckEventSink(typed_config, context), nullptr);
@@ -68,7 +69,7 @@ TEST(HealthCheckEventPipeSink, logTest) {
   EXPECT_TRUE(config.path().empty());
   config.set_path(normal_path);
   Envoy::Protobuf::Any typed_config;
-  typed_config.PackFrom(config);
+  std::ignore = typed_config.PackFrom(config);
   NiceMock<Server::Configuration::MockHealthCheckerFactoryContext> context;
   auto pipe_sink = factory->createHealthCheckEventSink(typed_config, context);
   EXPECT_NE(pipe_sink, nullptr);
@@ -132,7 +133,7 @@ TEST(HealthCheckEventPipeSink, logTest) {
   // Set up 3rd client on a different socket
   cilium::HealthCheckEventPipeSink config3;
   config3.set_path(abstract_name);
-  typed_config.PackFrom(config3);
+  std::ignore = typed_config.PackFrom(config3);
   auto pipe_sink3 = factory->createHealthCheckEventSink(typed_config, context);
   EXPECT_NE(pipe_sink3, nullptr);
 

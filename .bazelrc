@@ -6,23 +6,24 @@
 # curl -sSL https://raw.githubusercontent.com/envoyproxy/envoy-wasm/master/.bazelrc > envoy.bazelrc
 import %workspace%/envoy.bazelrc
 
-# MSAN does not recognize host libc's stat() as initializing Bazel's runfiles buffer.
+# MSAN does not recognize host libc's stat() as initializing the rules_cc runfiles buffer
+# (@bazel_tools//tools/cpp/runfiles is an alias for @rules_cc//cc/runfiles since Bazel 8).
 # Scope zero initialization to this helper so proxy and Envoy sources remain fully checked.
-build:msan --per_file_copt=external/bazel_tools/tools/cpp/runfiles/runfiles[.]cc@-ftrivial-auto-var-init=zero
+build:msan --per_file_copt=external/rules_cc/cc/runfiles/runfiles[.]cc@-ftrivial-auto-var-init=zero
 
 # Rust crate repinning for repository rules. Inherit CARGO_BAZEL_REPIN from the
 # invocation environment so developers can repin explicitly without forcing
 # every normal Bazel invocation to recompute the crate index.
 common --repo_env=CARGO_BAZEL_REPIN
 
-# Use our own toolchains in all builds. Local builds need this to not pull in external Envoy sysroot
-# that only supports glibc 2.31, while for Ubuntu 24.04 builds we need at least 2.38, and actually
-# use 2.39.
-build --extra_toolchains=//bazel/toolchains:all
-
-# Use platforms based toolchain resolution
-build --incompatible_enable_cc_toolchain_resolution
-build --platform_mappings=bazel/platform_mappings
+# Build with Envoy's hermetic LLVM toolchain: clang, lld, libc++ and the glibc sysroots are
+# downloaded by Bazel (see envoy_toolchains() in @envoy//bazel:toolchains.bzl), so no compiler is
+# needed on the host or in the builder image. clang-common sets the lld/compiler-rt options and
+# libc++ selects Envoy's default C++ standard library. The target architecture is selected with
+# --platforms=//bazel:linux_{x86_64,aarch64}; the hermetic sysroots cover both.
+build --config=clang-common
+build --config=libc++
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 
 # envoy.bazelrc always sets -fPIC, tell bazel about it to suppress building both .o and .pic.o
 # objects from the same C++ sources.
