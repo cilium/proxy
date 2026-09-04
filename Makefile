@@ -14,13 +14,10 @@
 
 include Makefile.defs
 
-MIN_CLANG_VERSION := 18.1.8
-COMPILER_DEP := clang.bazelrc
-
 ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy cilium-envoy-starter bazel-bin/cilium-envoy-starter
 ENVOY_TESTS = bazel-bin/tests/*_test
 
-BUILD_DEP_FILES = ENVOY_VERSION WORKSPACE .bazelrc envoy.bazelrc bazel/toolchains/BUILD bazel/toolchains/cc_toolchain_config.bzl
+BUILD_DEP_FILES = ENVOY_VERSION WORKSPACE .bazelrc envoy.bazelrc
 
 SHELL=/bin/bash -o pipefail
 BAZEL ?= $(QUIET) bazel
@@ -54,7 +51,7 @@ endif
 # Extra opts are passed to docker targets, which will choose the bazel platform themselves
 EXTRA_BAZEL_BUILD_OPTS := $(BAZEL_BUILD_OPTS)
 
-BAZEL_ASAN_BUILD_OPTS ?= $(EXTRA_BAZEL_BUILD_OPTS) -c dbg --config=asan --config=clang-asan
+BAZEL_ASAN_BUILD_OPTS ?= $(EXTRA_BAZEL_BUILD_OPTS) -c dbg --config=asan
 BAZEL_ASAN_TEST_OPTS ?= --jobs=HOST_RAM*.0001 --test_timeout=600 --local_test_jobs=2 --flaky_test_attempts=1 --test_output=errors
 
 BAZEL_MSAN_BUILD_OPTS ?= --config=msan $(EXTRA_BAZEL_BUILD_OPTS) -c dbg
@@ -86,10 +83,6 @@ ifdef PKG_BUILD
   .PHONY: install-bazelisk
   install-bazelisk:
 	echo "Bazel assumed to be installed in the builder image"
-
-  define install_clang
-	echo "Clang assumed to be installed in the builder image"
-  endef
 else
   ifneq ($(TARGETARCH),$(BUILDARCH))
     $(error local cross-builds are not supported: BUILDARCH=$(BUILDARCH), TARGETARCH=$(TARGETARCH))
@@ -103,42 +96,12 @@ else
   .PHONY: install-bazelisk
   install-bazelisk:
 	tools/install_bazelisk.sh
-
-  # Install clang if needed
-  define install_clang
-	add_llvm_source() { \
-		if [ ! -f /etc/apt/trusted.gpg.d/apt.llvm.org.asc ]; then \
-		  $(SUDO) wget -q -O /etc/apt/trusted.gpg.d/apt.llvm.org.asc https://apt.llvm.org/llvm-snapshot.gpg.key; \
-		fi; \
-		local CODENAME=$$(lsb_release -cs); \
-		apt_source="deb http://apt.llvm.org/$$CODENAME/ llvm-toolchain-$$CODENAME-18 main" && \
-		$(SUDO) apt-add-repository -y "$${apt_source}" && \
-		$(SUDO) apt update; \
-	}; \
-	version="$$(dpkg-query -W -f='$${Version}' clang-18 2>/dev/null || echo 0)"; \
-	if dpkg --compare-versions "$$version" ge 1:$(MIN_CLANG_VERSION)~ && [ -x /usr/lib/llvm-18/bin/llvm-config ]; then \
-		echo "clang-18 $$version satisfies minimum $(MIN_CLANG_VERSION); skipping apt install"; \
-	else \
-		add_llvm_source; \
-		$(SUDO) apt install -y clang-18 clangd-18 llvm-18-dev lld-18 lldb-18 clang-format-18 clang-tools-18 clang-tidy-18 libc++-18-dev libc++abi-18-dev; \
-	fi
-  endef
 endif
 
 include Makefile.dev
 
 BUILD_DEP_HASHES: $(BUILD_DEP_FILES)
 	sha256sum $^ >$@
-
-clang.bazelrc: bazel/setup_clang.sh
-	@$(call install_clang)
-	bazel/setup_clang.sh /usr/lib/llvm-18
-	echo "# Use system LLVM instead of hermetic download to avoid libtinfo.so.5 mismatch" >> $@
-	echo "build:clang-local --repo_env=BAZEL_LLVM_PATH=/usr/lib/llvm-18" >> $@
-	echo "# Disable module_maps/layering_check — abseil module maps are incompatible with system clang" >> $@
-	echo "build:clang-local --features=-module_maps --features=-layering_check" >> $@
-	echo "build:clang-local --host_features=-module_maps --host_features=-layering_check" >> $@
-	echo "build --config=clang-local" >> $@
 
 .PHONY: cargo-repin
 cargo-repin: install-bazelisk
@@ -147,7 +110,7 @@ cargo-repin: install-bazelisk
 	CARGO_BAZEL_REPIN=workspace CARGO_BAZEL_REPIN_ONLY=envoy_rust_crate_index bazel $(BAZEL_OPTS) sync --only=envoy_rust_crate_index
 
 .PHONY: bazel-bin/cilium-envoy
-bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
+bazel-bin/cilium-envoy: SOURCE_VERSION install-bazelisk
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy $(BAZEL_FILTER)
 
@@ -157,7 +120,7 @@ cilium-envoy: bazel-bin/cilium-envoy
 	chmod 0755 $@
 
 .PHONY: bazel-bin/cilium-envoy-starter
-bazel-bin/cilium-envoy-starter: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk
+bazel-bin/cilium-envoy-starter: SOURCE_VERSION install-bazelisk
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-starter $(BAZEL_FILTER)
 
@@ -200,12 +163,12 @@ clean: force
 	-$(QUIET) rm -f $(ENVOY_BINS) $(ENVOY_TESTS)
 
 .PHONY: envoy-test-deps
-envoy-test-deps: $(COMPILER_DEP) SOURCE_VERSION
+envoy-test-deps: SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... @envoy//test/integration:tcp_proxy_integration_test $(BAZEL_FILTER)
 
 .PHONY: envoy-tests
-envoy-tests: $(COMPILER_DEP) SOURCE_VERSION
+envoy-tests: SOURCE_VERSION
 	@$(ECHO_BAZEL)
 	# Upstream tcp_proxy_integration_test included to validate that our custom patches
 	# didn't break anything

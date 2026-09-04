@@ -26,7 +26,6 @@
 #include "source/common/common/thread.h"
 #include "source/common/protobuf/arena_wrapped_proto.h"
 #include "source/common/protobuf/message_validator_impl.h"
-#include "source/common/protobuf/protobuf.h"
 #include "source/common/protobuf/utility.h"
 
 #include "absl/strings/ascii.h"

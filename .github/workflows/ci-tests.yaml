@@ -126,7 +126,7 @@ jobs:
             BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             DEBUG=1
-            BAZEL_BUILD_OPTS=--remote_upload_local_results=false --config=asan --config=clang-asan
+            BAZEL_BUILD_OPTS=--remote_upload_local_results=false --config=asan
             BAZEL_TEST_OPTS=--jobs=HOST_RAM*.0001 --test_timeout=600 --local_test_jobs=2 --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress
           cache-from: type=local,src=/tmp/buildx-cache
           push: false
@@ -177,7 +177,7 @@ jobs:
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             DEBUG=1
             BAZEL_BUILD_OPTS=--config=msan --remote_upload_local_results=false
-            BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress --test_env=MSAN_SYMBOLIZER_PATH=/usr/lib/llvm-18/bin/llvm-symbolizer
+            BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress
           cache-from: type=local,src=/tmp/buildx-cache
           push: false
 
@@ -227,6 +227,6 @@ jobs:
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-main-archive-latest
             DEBUG=1
             BAZEL_BUILD_OPTS=--config=tsan --remote_upload_local_results=false
-            BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress --test_env=TSAN_OPTIONS=report_atomic_races=0:halt_on_error=1:external_symbolizer_path=/usr/lib/llvm-18/bin/llvm-symbolizer:strip_path_prefix=/proc/self/cwd/
+            BAZEL_TEST_OPTS=--jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --notest_keep_going --flaky_test_attempts=1 --noshow_progress --noshow_loading_progress --test_env=TSAN_OPTIONS=report_atomic_races=0:halt_on_error=1:strip_path_prefix=/proc/self/cwd/
           cache-from: type=local,src=/tmp/buildx-cache
           push: false

@@ -219,7 +219,7 @@ message HttpNetworkPolicyRules {
   // The set of HTTP network policy rules.
   // An HTTP request is matched if any of its rules matches the request.
   // Required and may not be empty.
-  repeated HttpNetworkPolicyRule http_rules = 1 [(validate.rules).repeated .min_items = 1];
+  repeated HttpNetworkPolicyRule http_rules = 1 [(validate.rules).repeated.min_items = 1];
 }
 
 message HeaderMatch {
@@ -279,7 +279,7 @@ message KafkaNetworkPolicyRules {
   // The set of Kafka network policy rules.
   // A Kafka request is matched if any of its rules matches the request.
   // Required and may not be empty.
-  repeated KafkaNetworkPolicyRule kafka_rules = 1 [(validate.rules).repeated .min_items = 1];
+  repeated KafkaNetworkPolicyRule kafka_rules = 1 [(validate.rules).repeated.min_items = 1];
 }
 
 // A Kafka network policy rule, as a conjunction of predicates on Kafka

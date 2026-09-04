@@ -42,7 +42,6 @@ __pycache__/
 /envoy_bootstrap*.json
 
 # Clang config is platform-specific
-/clang.bazelrc
 
 # generated for docker builds via make
 /SOURCE_VERSION
