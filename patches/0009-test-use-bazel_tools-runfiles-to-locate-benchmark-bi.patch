@@ -1,0 +1,61 @@
+From bc6c8052f90b3eda7d7bb3c5387b22cd6d98c96d Mon Sep 17 00:00:00 2001
+From: Alex Bakon <abakon@netflix.com>
+Date: Wed, 14 Jan 2026 16:15:28 -0500
+Subject: [PATCH] test: use bazel_tools runfiles to locate benchmark bin
+ (#43005)
+
+Use the bazel_tools runfiles library for Bash to locate the benchmark
+binary to be run. The previous approach only worked for benchmarks
+defined in the Envoy repository, while this approach allows the macro to
+be used in projects that import Envoy as a dependency.
+
+Signed-off-by: Alex Bakon <abakon@netflix.com>
+---
+ bazel/envoy_test.bzl                |  3 ++-
+ bazel/test_for_benchmark_wrapper.sh | 15 ++++++++++++++-
+ 2 files changed, 16 insertions(+), 2 deletions(-)
+
+diff --git a/bazel/envoy_test.bzl b/bazel/envoy_test.bzl
+index 96bddca75a..97307d3018 100644
+--- a/bazel/envoy_test.bzl
++++ b/bazel/envoy_test.bzl
+@@ -309,9 +309,10 @@ def envoy_benchmark_test(
+     sh_test(
+         name = name,
+         srcs = [repository + "//bazel:test_for_benchmark_wrapper.sh"],
++        deps = ["@bazel_tools//tools/bash/runfiles"],
+         data = [":" + benchmark_binary] + data,
+         exec_properties = exec_properties,
+-        args = ["%s/%s" % (native.package_name(), benchmark_binary)],
++        args = ["$(rlocationpath %s)" % native.package_relative_label(benchmark_binary)],
+         tags = tags + ["nocoverage"],
+         **kargs
+     )
+diff --git a/bazel/test_for_benchmark_wrapper.sh b/bazel/test_for_benchmark_wrapper.sh
+index b644d82b5e..f6b04388fd 100755
+--- a/bazel/test_for_benchmark_wrapper.sh
++++ b/bazel/test_for_benchmark_wrapper.sh
+@@ -1,6 +1,19 @@
+ #!/usr/bin/env bash
++#
++# Disable warnings about non-constant sources in runfiles.bash initialization.
++# shellcheck disable=SC1090
++
++# Copy-pasted from the Bazel Bash runfiles library v3.
++set -uo pipefail; set +e; f=bazel_tools/tools/bash/runfiles/runfiles.bash
++source "${RUNFILES_DIR:-/dev/null}/$f" 2>/dev/null || \
++  source "$(grep -sm1 "^$f " "${RUNFILES_MANIFEST_FILE:-/dev/null}" | cut -f2- -d' ')" 2>/dev/null || \
++  source "$0.runfiles/$f" 2>/dev/null || \
++  source "$(grep -sm1 "^$f " "$0.runfiles_manifest" | cut -f2- -d' ')" 2>/dev/null || \
++  source "$(grep -sm1 "^$f " "$0.exe.runfiles_manifest" | cut -f2- -d' ')" 2>/dev/null || \
++  { echo>&2 "ERROR: cannot find $f"; exit 1; }; f=; set -e
++# --- end runfiles.bash initialization v3 ---
+ 
+ # Set the benchmark time to 0 to just verify that the benchmark runs to
+ # completion.  We're interacting with two different flag parsers, so the order
+ # of flags and the -- matters.
+-"${TEST_SRCDIR}/envoy/${1}" "${@:2}" --skip_expensive_benchmarks -- --benchmark_min_time=0s
++$(rlocation "${1}") "${@:2}" --skip_expensive_benchmarks -- --benchmark_min_time=0s
+-- 
+2.54.0
+
