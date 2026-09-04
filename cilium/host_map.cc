@@ -205,10 +205,11 @@ PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& contex
                              bool subscribe)
     : ManagedGrpcSubscription(
           NetworkPolicyHostsTypeUrl, []() { return std::make_shared<Cilium::PolicyHostDecoder>(); },
-          config_source, context, context.serverScope().createScope("cilium.hostmap."), subscribe),
+          config_source, context, context.serverScope().createScope("cilium.nphds."), subscribe),
       tls_(context.threadLocal().allocateSlot()),
       name_(absl::StrCat("cilium.hostmap.", fmt::format("{}", instance_id_ + 1), ".")),
-      stats_({CILIUM_POLICY_HOSTS_STATS(POOL_COUNTER(scope()))}) {
+      host_stats_scope_(context.serverScope().createScope("cilium.hostmap.")),
+      stats_({CILIUM_POLICY_HOSTS_STATS(POOL_COUNTER(*host_stats_scope_))}) {
   instance_id_++;
   ENVOY_LOG(debug, "PolicyHostMap({}) created.", name_);
 
