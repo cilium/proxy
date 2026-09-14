@@ -15,7 +15,6 @@
 #include "envoy/network/transport_socket.h"
 
 #include "source/common/common/logger.h"
-#include "source/common/stats/isolated_store_impl.h"
 #include "source/common/tls/server_context_config_impl.h"
 #include "source/common/tls/server_ssl_socket.h"
 
@@ -105,6 +104,8 @@ static_resources:
               "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
           - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
           route_config:
             name: policy_enabled
             virtual_hosts:
@@ -136,6 +137,8 @@ static_resources:
               "@type": type.googleapis.com/cilium.L7Policy
               access_log_path: "{{ test_udsdir }}/access_log.sock"
           - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
           route_config:
             name: policy_enabled
             virtual_hosts:
@@ -239,7 +242,8 @@ public:
     // Set up the SSL client.
     Network::Address::InstanceConstSharedPtr address =
         Ssl::getSslAddress(version_, lookupPort("http"));
-    context_ = createClientSslTransportSocketFactory(context_manager_, *api_);
+    context_ = createClientSslTransportSocketFactory(context_manager_, *api_,
+                                                     server_factory_context_.serverScope());
     Network::ClientConnectionPtr ssl_client = dispatcher_->createClientConnection(
         address, Network::Address::InstanceConstSharedPtr(),
         context_->createTransportSocket(nullptr, nullptr), nullptr, nullptr);
@@ -279,9 +283,8 @@ public:
     THROW_IF_NOT_OK(server_config_or_error.status());
     auto cfg = std::move(server_config_or_error.value());
 
-    static auto* upstream_stats_store = new Stats::IsolatedStoreImpl();
     auto factory_or_error = Extensions::TransportSockets::Tls::ServerSslSocketFactory::create(
-        std::move(cfg), context_manager_, *upstream_stats_store->rootScope());
+        std::move(cfg), context_manager_, factory_context_.serverFactoryContext().serverScope());
     // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
     THROW_IF_NOT_OK(factory_or_error.status());
     return std::move(factory_or_error.value());
@@ -338,11 +341,11 @@ public:
     EXPECT_TRUE(upstream_request_->complete());
     EXPECT_EQ(0, upstream_request_->bodyLength());
 
-    test_server_->waitForGaugeEq("http.config_test.downstream_cx_ssl_active", 1);
+    test_server_->waitForGauge("http.config_test.downstream_cx_ssl_active", testing::Eq(1));
 
     cleanupUpstreamAndDownstream();
 
-    test_server_->waitForGaugeEq("http.config_test.downstream_cx_ssl_active", 0);
+    test_server_->waitForGauge("http.config_test.downstream_cx_ssl_active", testing::Eq(0));
   }
 
   // Upstream

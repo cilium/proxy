@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "envoy/buffer/buffer.h"
@@ -60,7 +61,7 @@ Config::Config(Server::Configuration::FactoryContext& context, bool client,
       handshake_timeout_(std::chrono::seconds(5)), ping_interval_(std::chrono::milliseconds(0)),
       ping_when_idle_(ping_when_idle), access_log_(nullptr) {
   envoy::extensions::filters::network::http_connection_manager::v3::RequestIDExtension x_rid_config;
-  x_rid_config.mutable_typed_config()->PackFrom(
+  std::ignore = x_rid_config.mutable_typed_config()->PackFrom(
       envoy::extensions::request_id::uuid::v3::UuidRequestIdConfig());
   auto extension_or_error = Http::RequestIDExtensionFactory::fromProto(x_rid_config, context);
   THROW_IF_NOT_OK_REF(extension_or_error.status());

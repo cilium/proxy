@@ -65,7 +65,10 @@ void AccessLog::log(AccessLog::Entry& log_entry, ::cilium::EntryType entry_type)
 
   // encode protobuf
   std::string msg;
-  entry.SerializeToString(&msg);
+  if (!entry.SerializeToString(&msg)) {
+    ENVOY_LOG_MISC(warn, "cilium.AccessLog: Failed to serialize log entry, skipping it");
+    return;
+  }
 
   UDSClient::log(msg);
 }

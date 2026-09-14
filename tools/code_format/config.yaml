@@ -64,7 +64,6 @@ paths:
     - BUILD
     - bazel/BUILD
     - bazel/external/
-    - bazel/toolchains/
     - tools/clang_tools
 
   # `build_urls`:

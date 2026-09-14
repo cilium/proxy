@@ -124,7 +124,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
+  test_server_->waitForCounter("websocket.ping_sent_count", testing::Ge(1));
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
   tcp_client->waitForData("hello");
@@ -154,7 +154,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
   ASSERT_EQ(received, "hello");
 
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
+  test_server_->waitForCounter("websocket.ping_sent_count", testing::Ge(1));
 
   ASSERT_TRUE(fake_upstream_connection->write("world"));
   ASSERT_TRUE(fake_upstream_connection->close());
@@ -180,7 +180,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->write("world"));
   tcp_client->waitForData("world");
 
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
+  test_server_->waitForCounter("websocket.ping_sent_count", testing::Ge(1));
 
   ASSERT_TRUE(tcp_client->write("hello", true));
   ASSERT_TRUE(fake_upstream_connection->waitForData(10, &received));
@@ -207,7 +207,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_TRUE(fake_upstream_connection->write(data));
   tcp_client->waitForData(data);
 
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
+  test_server_->waitForCounter("websocket.ping_sent_count", testing::Ge(1));
 
   tcp_client->close();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
@@ -247,7 +247,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
+  test_server_->waitForCounter("websocket.ping_sent_count", testing::Ge(1));
 
   tcp_client->readDisable(true);
   ASSERT_TRUE(tcp_client->write("", true));
@@ -258,7 +258,8 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
 
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
 
-  test_server_->waitForCounterGe("cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
+  test_server_->waitForCounter("cluster.cluster1.upstream_flow_control_paused_reading_total",
+                               testing::Ge(1));
   EXPECT_EQ(test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
                 ->value(),
             0);
@@ -290,7 +291,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
+  test_server_->waitForCounter("websocket.ping_sent_count", testing::Ge(1));
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
@@ -301,7 +302,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
 
   ASSERT_TRUE(tcp_client->write(data, true, true, std::chrono::milliseconds(30000)));
 
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(1));
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(false));
   std::string received;
@@ -312,7 +313,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
   tcp_client->waitForHalfClose();
 
   EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(0));
 }
 
 // Test that Envoy doesn't crash or assert when shutting down with an upstream
@@ -336,11 +337,11 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
   // it's thread before tcp_client starts writing.
   tcp_client->waitForHalfClose();
 
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
+  test_server_->waitForCounter("websocket.ping_sent_count", testing::Ge(1));
 
   ASSERT_TRUE(tcp_client->write(data, true));
 
-  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
+  test_server_->waitForGauge("tcp.tcp_stats.upstream_flush_active", testing::Eq(1));
   test_server_.reset();
   ASSERT_TRUE(fake_upstream_connection->close());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());

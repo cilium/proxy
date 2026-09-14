@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -8,7 +9,6 @@
 
 #include "absl/base/thread_annotations.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/types/optional.h"
 #include "cilium/api/accesslog.pb.h"
 #include "tests/uds_server.h"
 
@@ -20,7 +20,7 @@ public:
   ~AccessLogServer() override;
 
   void clear();
-  absl::optional<::cilium::LogEntry>
+  std::optional<::cilium::LogEntry>
   waitForMessage(::cilium::EntryType entry_type,
                  std::chrono::milliseconds timeout = TestUtility::DefaultTimeout);
 

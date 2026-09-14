@@ -1,7 +1,7 @@
-From 2c201ef341cf0090b5bf2507351c923fd7d37173 Mon Sep 17 00:00:00 2001
+From cbececd917da11b46c665f6f97160ab43215d2cd Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Mon, 23 Dec 2024 22:43:15 +0100
-Subject: [PATCH 4/7] thread_local: reset slot in worker threads first
+Subject: [PATCH 4/6] thread_local: reset slot in worker threads first
 
 Thread local slots refer to their data via shared pointers. Reset the
 shared pointer first in the worker threads, and last in the main thread
@@ -18,10 +18,10 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  4 files changed, 36 insertions(+), 2 deletions(-)
 
 diff --git a/envoy/thread_local/thread_local.h b/envoy/thread_local/thread_local.h
-index 13ff7496..da982cce 100644
+index ff9754e8b7..8aa4e8162a 100644
 --- a/envoy/thread_local/thread_local.h
 +++ b/envoy/thread_local/thread_local.h
-@@ -248,6 +248,13 @@ public:
+@@ -253,6 +253,13 @@ public:
     * @return true if global threading has been shutdown or false if not.
     */
    virtual bool isShutdown() const PURE;
@@ -36,10 +36,10 @@ index 13ff7496..da982cce 100644
  
  } // namespace ThreadLocal
 diff --git a/source/common/thread_local/thread_local_impl.cc b/source/common/thread_local/thread_local_impl.cc
-index 2a49789a..e57b2fd7 100644
+index a98b484197..ca98ca54f6 100644
 --- a/source/common/thread_local/thread_local_impl.cc
 +++ b/source/common/thread_local/thread_local_impl.cc
-@@ -165,7 +165,8 @@ void InstanceImpl::removeSlot(uint32_t slot) {
+@@ -169,7 +169,8 @@ void InstanceImpl::removeSlot(uint32_t slot) {
               free_slot_indexes_.end(),
           fmt::format("slot index {} already in free slot set!", slot));
    free_slot_indexes_.push_back(slot);
@@ -49,7 +49,7 @@ index 2a49789a..e57b2fd7 100644
      // This runs on each thread and clears the slot, making it available for a new allocations.
      // This is safe even if a new allocation comes in, because everything happens with post() and
      // will be sequenced after this removal. It is also safe if there are callbacks pending on
-@@ -173,7 +174,12 @@ void InstanceImpl::removeSlot(uint32_t slot) {
+@@ -177,7 +178,12 @@ void InstanceImpl::removeSlot(uint32_t slot) {
      if (slot < thread_local_data_.data_.size()) {
        thread_local_data_.data_[slot] = nullptr;
      }
@@ -63,7 +63,7 @@ index 2a49789a..e57b2fd7 100644
  }
  
  void InstanceImpl::runOnAllThreads(std::function<void()> cb) {
-@@ -208,6 +214,22 @@ void InstanceImpl::runOnAllThreads(std::function<void()> cb,
+@@ -212,6 +218,22 @@ void InstanceImpl::runOnAllThreads(std::function<void()> cb,
    }
  }
  
@@ -87,7 +87,7 @@ index 2a49789a..e57b2fd7 100644
    if (thread_local_data_.data_.size() <= index) {
      thread_local_data_.data_.resize(index + 1);
 diff --git a/source/common/thread_local/thread_local_impl.h b/source/common/thread_local/thread_local_impl.h
-index 71941899..685457af 100644
+index 884f29cf4e..025dd04274 100644
 --- a/source/common/thread_local/thread_local_impl.h
 +++ b/source/common/thread_local/thread_local_impl.h
 @@ -29,6 +29,7 @@ public:
@@ -99,7 +99,7 @@ index 71941899..685457af 100644
  private:
    // On destruction returns the slot index to the deferred delete queue (detaches it). This allows
 diff --git a/test/mocks/thread_local/mocks.h b/test/mocks/thread_local/mocks.h
-index 09dff237..88d7cea1 100644
+index d3aa517c53..cd9cc93685 100644
 --- a/test/mocks/thread_local/mocks.h
 +++ b/test/mocks/thread_local/mocks.h
 @@ -27,6 +27,10 @@ public:
@@ -111,8 +111,8 @@ index 09dff237..88d7cea1 100644
 +    main_cb();
 +  }
  
-   SlotPtr allocateSlotMock() { return SlotPtr{new SlotImpl(*this, current_slot_++)}; }
+   SlotSharedPtr allocateSlotMock() { return SlotSharedPtr{new SlotImpl(*this, current_slot_++)}; }
    void runOnAllThreads1(std::function<void()> cb) { cb(); }
 -- 
-2.54.0
+2.55.0
 

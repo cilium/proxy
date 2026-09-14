@@ -52,7 +52,11 @@ void HealthCheckEventPipeSink::log(envoy::data::core::v3::HealthCheckEvent event
     return;
   }
   std::string msg;
-  event.SerializeToString(&msg);
+  if (!event.SerializeToString(&msg)) {
+    ENVOY_LOG_MISC(warn, "HealthCheckEventPipeSink: failed to serialize event, skipping it: {}",
+                   event.DebugString());
+    return;
+  }
   uds_client_->log(msg);
 };
 

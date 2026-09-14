@@ -1,11 +1,11 @@
-From 2d2b52988e04e060ef04f8b3127f992c1c6fc100 Mon Sep 17 00:00:00 2001
-From: Kateryna Nezdolii <kateryna.nezdolii@gmail.com>
-Date: Mon, 17 Aug 2026 12:38:28 +0000
-Subject: [PATCH] config: add gRPC mux stream event callback
+From 5a358f9175b716d7e58ef07e46db2b47962b1df2 Mon Sep 17 00:00:00 2001
+From: Jarno Rajahalme <jarno@isovalent.com>
+Date: Mon, 17 Aug 2026 18:52:54 +1000
+Subject: [PATCH 6/6] config: add grpc mux stream event callback
 
 ---
  envoy/config/BUILD                            |  1 +
- envoy/config/grpc_mux.h                       | 19 ++++++++++
+ envoy/config/grpc_mux.h                       | 18 ++++++++++
  source/common/config/BUILD                    |  9 +++++
  .../config/grpc_mux_stream_event_tracker.h    | 36 +++++++++++++++++++
  source/common/config/null_grpc_mux_impl.h     | 10 ++++++
@@ -19,37 +19,34 @@ Subject: [PATCH] config: add gRPC mux stream event callback
  .../grpc/xds_mux/grpc_mux_impl.h              | 20 +++++++++++
  .../config/grpc_subscription_impl_test.cc     | 36 +++++++++++++++++++
  test/mocks/config/mocks.h                     |  4 +++
- 15 files changed, 164 insertions(+)
+ 15 files changed, 163 insertions(+)
  create mode 100644 source/common/config/grpc_mux_stream_event_tracker.h
 
 diff --git a/envoy/config/BUILD b/envoy/config/BUILD
-index 35eacb93dd..c4c412fbd8 100644
+index 015a4bffab..2295b80b72 100644
 --- a/envoy/config/BUILD
 +++ b/envoy/config/BUILD
-@@ -66,6 +66,7 @@ envoy_cc_library(
+@@ -82,6 +82,7 @@ envoy_cc_library(
      name = "grpc_mux_interface",
      hdrs = ["grpc_mux.h"],
      deps = [
 +        "//envoy/common:callback",
          ":eds_resources_cache_interface",
          ":subscription_interface",
-         "//envoy/stats:stats_macros",
+         "//envoy/common:backoff_strategy_interface",
 diff --git a/envoy/config/grpc_mux.h b/envoy/config/grpc_mux.h
-index c97d734be5..24fc287ddf 100644
+index aba6bbba85..49fb4250f0 100644
 --- a/envoy/config/grpc_mux.h
 +++ b/envoy/config/grpc_mux.h
-@@ -1,8 +1,10 @@
- #pragma once
- 
-+#include <functional>
- #include <memory>
+@@ -6,6 +6,7 @@
+ #include <vector>
  
  #include "envoy/common/backoff_strategy.h"
 +#include "envoy/common/callback.h"
- #include "envoy/common/exception.h"
  #include "envoy/common/pure.h"
- #include "envoy/config/custom_config_validators.h"
-@@ -19,6 +21,11 @@ namespace Envoy {
+ #include "envoy/config/core/v3/config_source.pb.h"
+ #include "envoy/config/eds_resources_cache.h"
+@@ -26,6 +27,11 @@ namespace Envoy {
  namespace Config {
  
  using ScopedResume = std::unique_ptr<Cleanup>;
@@ -61,7 +58,7 @@ index c97d734be5..24fc287ddf 100644
  /**
   * All control plane related stats. @see stats_macros.h
   */
-@@ -65,6 +72,18 @@ public:
+@@ -72,6 +78,18 @@ public:
     */
    virtual void start() PURE;
  
@@ -81,10 +78,10 @@ index c97d734be5..24fc287ddf 100644
     * Pause discovery requests for a given API type. This is useful when we're processing an update
     * for LDS or CDS and don't want a flood of updates for RDS or EDS respectively. Discovery
 diff --git a/source/common/config/BUILD b/source/common/config/BUILD
-index 96ac327983..21e12f6ab4 100644
+index 652f7f3f21..88941693b6 100644
 --- a/source/common/config/BUILD
 +++ b/source/common/config/BUILD
-@@ -87,11 +87,20 @@ envoy_cc_library(
+@@ -88,11 +88,20 @@ envoy_cc_library(
          "@abseil-cpp//absl/container:btree",
      ],
  )
@@ -148,7 +145,7 @@ index 0000000000..686348502d
 +} // namespace Config
 +} // namespace Envoy
 diff --git a/source/common/config/null_grpc_mux_impl.h b/source/common/config/null_grpc_mux_impl.h
-index 9797edb644..a5a3bdd09b 100644
+index 43b5107ed4..3e2360c804 100644
 --- a/source/common/config/null_grpc_mux_impl.h
 +++ b/source/common/config/null_grpc_mux_impl.h
 @@ -1,6 +1,7 @@
@@ -172,9 +169,9 @@ index 9797edb644..a5a3bdd09b 100644
    ScopedResume pause(const std::string&) override {
      return std::make_unique<Cleanup>([] {});
    }
-@@ -43,6 +50,9 @@ public:
+@@ -44,6 +51,9 @@ public:
    void onEstablishmentFailure(bool) override {}
-   void onDiscoveryResponse(std::unique_ptr<envoy::service::discovery::v3::DiscoveryResponse>&&,
+   void onDiscoveryResponse(ResponseProtoPtr<envoy::service::discovery::v3::DiscoveryResponse>&&,
                             ControlPlaneStats&) override {}
 +
 +private:
@@ -183,7 +180,7 @@ index 9797edb644..a5a3bdd09b 100644
  
  } // namespace Config
 diff --git a/source/extensions/config_subscription/grpc/BUILD b/source/extensions/config_subscription/grpc/BUILD
-index e3ba49ab04..5465bc31c4 100644
+index 6b59e9fa35..1ade1b1591 100644
 --- a/source/extensions/config_subscription/grpc/BUILD
 +++ b/source/extensions/config_subscription/grpc/BUILD
 @@ -30,6 +30,7 @@ envoy_cc_extension(
@@ -203,10 +200,10 @@ index e3ba49ab04..5465bc31c4 100644
          ":watch_map_lib",
          "//envoy/config:custom_config_validators_interface",
 diff --git a/source/extensions/config_subscription/grpc/grpc_mux_impl.cc b/source/extensions/config_subscription/grpc/grpc_mux_impl.cc
-index ccc8200b41..dd1fd0c360 100644
+index dd9f77427c..f63fa417cc 100644
 --- a/source/extensions/config_subscription/grpc/grpc_mux_impl.cc
 +++ b/source/extensions/config_subscription/grpc/grpc_mux_impl.cc
-@@ -571,6 +571,7 @@ void GrpcMuxImpl::onStreamEstablished() {
+@@ -575,6 +575,7 @@ void GrpcMuxImpl::onStreamEstablished() {
    for (const auto& type_url : subscriptions_) {
      queueDiscoveryRequest(type_url);
    }
@@ -214,7 +211,7 @@ index ccc8200b41..dd1fd0c360 100644
  }
  
  void GrpcMuxImpl::onEstablishmentFailure(bool) {
-@@ -590,6 +591,7 @@ void GrpcMuxImpl::onEstablishmentFailure(bool) {
+@@ -594,6 +595,7 @@ void GrpcMuxImpl::onEstablishmentFailure(bool) {
        api_state.second->previously_fetched_data_ = true;
      }
    }
@@ -223,7 +220,7 @@ index ccc8200b41..dd1fd0c360 100644
  
  void GrpcMuxImpl::queueDiscoveryRequest(absl::string_view queue_item) {
 diff --git a/source/extensions/config_subscription/grpc/grpc_mux_impl.h b/source/extensions/config_subscription/grpc/grpc_mux_impl.h
-index 604a91b787..4dbf8d0f48 100644
+index 7ca68797f2..b763824173 100644
 --- a/source/extensions/config_subscription/grpc/grpc_mux_impl.h
 +++ b/source/extensions/config_subscription/grpc/grpc_mux_impl.h
 @@ -3,6 +3,7 @@
@@ -242,7 +239,7 @@ index 604a91b787..4dbf8d0f48 100644
  
  #include "absl/container/node_hash_map.h"
  #include "xds/core/v3/resource_name.pb.h"
-@@ -56,6 +58,13 @@ public:
+@@ -59,6 +61,13 @@ public:
  
    void start() override;
  
@@ -256,7 +253,7 @@ index 604a91b787..4dbf8d0f48 100644
    // GrpcMux
    ScopedResume pause(const std::string& type_url) override;
    ScopedResume pause(const std::vector<std::string> type_urls) override;
-@@ -294,6 +303,7 @@ private:
+@@ -327,6 +336,7 @@ private:
    const bool skip_subsequent_node_;
    CustomConfigValidatorsPtr config_validators_;
    XdsConfigTrackerOptRef xds_config_tracker_;
@@ -265,7 +262,7 @@ index 604a91b787..4dbf8d0f48 100644
    EdsResourcesCachePtr eds_resources_cache_;
    const std::string target_xds_authority_;
 diff --git a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.cc b/source/extensions/config_subscription/grpc/new_grpc_mux_impl.cc
-index d3ca46be52..55fdb395c1 100644
+index c51ca9b53c..d6582bdc45 100644
 --- a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.cc
 +++ b/source/extensions/config_subscription/grpc/new_grpc_mux_impl.cc
 @@ -198,6 +198,7 @@ void NewGrpcMuxImpl::onStreamEstablished() {
@@ -285,7 +282,7 @@ index d3ca46be52..55fdb395c1 100644
  
  void NewGrpcMuxImpl::onWriteable() { trySendDiscoveryRequests(); }
 diff --git a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h b/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h
-index e94d7ef317..fab4639dc6 100644
+index ae1dc4c1bc..7eceb6a055 100644
 --- a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h
 +++ b/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h
 @@ -1,6 +1,7 @@
@@ -304,10 +301,10 @@ index e94d7ef317..fab4639dc6 100644
  #include "source/extensions/config_subscription/grpc/watch_map.h"
  
  namespace Envoy {
-@@ -46,6 +48,13 @@ public:
-   static void shutdownAll();
- 
-   void shutdown() { shutdown_ = true; }
+@@ -49,6 +51,13 @@ public:
+     shutdown_ = true;
+     xds_config_tracker_.reset();
+   }
 +  Common::CallbackHandlePtr
 +  addStreamEventCallback(GrpcMuxStreamEventCallback callback) override {
 +    return stream_event_tracker_.addStreamEventCallback(std::move(callback));
@@ -318,7 +315,7 @@ index e94d7ef317..fab4639dc6 100644
  
    GrpcMuxWatchPtr addWatch(const std::string& type_url,
                             const absl::flat_hash_set<std::string>& resources,
-@@ -220,6 +229,7 @@ private:
+@@ -224,6 +233,7 @@ private:
  
    const LocalInfo::LocalInfo& local_info_;
    CustomConfigValidatorsPtr config_validators_;
@@ -339,10 +336,10 @@ index a0fa33be75..912f49b39c 100644
          "//source/extensions/config_subscription/grpc:pausable_ack_queue_lib",
          "//source/extensions/config_subscription/grpc:watch_map_lib",
 diff --git a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.cc b/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.cc
-index cd35df6869..67253b9e5c 100644
+index cb221ac889..010d6bc2bc 100644
 --- a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.cc
 +++ b/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.cc
-@@ -323,6 +323,7 @@ void GrpcMuxImpl<S, F, RQ, RS>::handleEstablishedStream() {
+@@ -339,6 +339,7 @@ void GrpcMuxImpl<S, F, RQ, RS>::handleEstablishedStream() {
    maybeUpdateQueueSizeStat(0);
    pausable_ack_queue_.clear();
    trySendDiscoveryRequests();
@@ -350,7 +347,7 @@ index cd35df6869..67253b9e5c 100644
  }
  
  template <class S, class F, class RQ, class RS>
-@@ -347,6 +348,7 @@ void GrpcMuxImpl<S, F, RQ, RS>::handleStreamEstablishmentFailure(
+@@ -363,6 +364,7 @@ void GrpcMuxImpl<S, F, RQ, RS>::handleStreamEstablishmentFailure(
      }
    } while (all_subscribed.size() != subscriptions_.size());
    should_send_initial_resource_versions_ = next_attempt_may_send_initial_resource_version;
@@ -359,7 +356,7 @@ index cd35df6869..67253b9e5c 100644
  
  template <class S, class F, class RQ, class RS>
 diff --git a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h b/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h
-index d391f3ff18..2959aa738b 100644
+index cddae1c856..26aecfaaa2 100644
 --- a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h
 +++ b/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h
 @@ -3,6 +3,7 @@
@@ -378,7 +375,7 @@ index d391f3ff18..2959aa738b 100644
  #include "source/extensions/config_subscription/grpc/pausable_ack_queue.h"
  #include "source/extensions/config_subscription/grpc/watch_map.h"
  #include "source/extensions/config_subscription/grpc/xds_mux/delta_subscription_state.h"
-@@ -81,6 +83,13 @@ public:
+@@ -84,6 +86,13 @@ public:
                                     SubscriptionCallbacks& callbacks,
                                     OpaqueResourceDecoderSharedPtr resource_decoder,
                                     const SubscriptionOptions& options) override;
@@ -392,7 +389,7 @@ index d391f3ff18..2959aa738b 100644
    void updateWatch(const std::string& type_url, Watch* watch,
                     const absl::flat_hash_set<std::string>& resources,
                     const SubscriptionOptions& options);
-@@ -241,6 +250,7 @@ private:
+@@ -245,6 +254,7 @@ private:
    // this one is up to GrpcMux.
    const LocalInfo::LocalInfo& local_info_;
    Common::CallbackHandlePtr dynamic_update_callback_handle_;
@@ -400,7 +397,7 @@ index d391f3ff18..2959aa738b 100644
    CustomConfigValidatorsPtr config_validators_;
    XdsConfigTrackerOptRef xds_config_tracker_;
    XdsResourcesDelegateOptRef xds_resources_delegate_;
-@@ -293,6 +303,13 @@ private:
+@@ -297,6 +307,13 @@ private:
  class NullGrpcMuxImpl : public GrpcMux {
  public:
    void start() override {}
@@ -414,7 +411,7 @@ index d391f3ff18..2959aa738b 100644
  
    ScopedResume pause(const std::string&) override {
      return std::make_unique<Cleanup>([]() {});
-@@ -319,6 +336,9 @@ public:
+@@ -324,6 +341,9 @@ public:
  
    Upstream::LoadStatsReporter* loadStatsReporter() const override { return nullptr; }
    Upstream::LoadStatsReporter* maybeCreateLoadStatsReporter() override { return nullptr; }
@@ -472,10 +469,10 @@ index e70750ed4f..b0f84d66f1 100644
  // ignore later ones. This allows the nonce to be used.
  TEST_P(GrpcSubscriptionImplTest, RepeatedNonce) {
 diff --git a/test/mocks/config/mocks.h b/test/mocks/config/mocks.h
-index cb09a4caa5..9c4f8d939a 100644
+index 3b0b0904eb..d9551de86a 100644
 --- a/test/mocks/config/mocks.h
 +++ b/test/mocks/config/mocks.h
-@@ -116,6 +116,10 @@ public:
+@@ -177,6 +177,10 @@ public:
    MOCK_METHOD(ScopedResume, pause, (const std::string& type_url), (override));
    MOCK_METHOD(ScopedResume, pause, (const std::vector<std::string> type_urls), (override));
  
@@ -487,5 +484,5 @@ index cb09a4caa5..9c4f8d939a 100644
                (const absl::flat_hash_set<std::string>& resources, const std::string& type_url,
                 SubscriptionCallbacks& callbacks, SubscriptionStats& stats,
 -- 
-2.51.0
+2.55.0
 

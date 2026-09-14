@@ -25,7 +25,6 @@
 #include "envoy/thread_local/thread_local_object.h"
 
 #include "source/common/common/logger.h"
-#include "source/common/common/macros.h"
 
 #include "absl/numeric/int128.h"
 #include "absl/status/status.h"
@@ -266,16 +265,10 @@ PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRe
     newmap->insert(config);
   }
 
-  // Force 'this' to be not deleted for as long as the lambda stays
-  // alive. Note that generally capturing a shared pointer is
-  // dangerous as it may happen that there is a circular reference
-  // from 'this' to itself via the lambda capture, leading to 'this'
-  // never being released. It should happen in this case, though.
-  std::shared_ptr<ManagedGrpcSubscription> shared_this = shared_from_this();
-
-  // Assign the new map to all threads.
-  tls_->set([shared_this, newmap](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
-    UNREFERENCED_PARAMETER(shared_this);
+  // Assign the new map to all threads. The slot keeps the callback for the lifetime of the slot
+  // (it is replayed on worker threads registered later), so it must not capture a shared pointer
+  // to 'this': that would form a reference cycle through tls_ and leak the map.
+  tls_->set([newmap](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
     ENVOY_LOG(trace, "PolicyHostMap: Assigning new map");
     return newmap;
   });
@@ -302,16 +295,10 @@ PolicyHostMap::onConfigUpdate(const std::vector<Envoy::Config::DecodedResourceRe
     newmap->insert(config);
   }
 
-  // Force 'this' to be not deleted for as long as the lambda stays
-  // alive. Note that generally capturing a shared pointer is
-  // dangerous as it may happen that there is a circular reference
-  // from 'this' to itself via the lambda capture, leading to 'this'
-  // never being released. It should happen in this case, though.
-  ManagedGrpcSubscriptionSharedPtr shared_this = shared_from_this();
-
-  // Assign the new map to all threads.
-  tls_->set([shared_this, newmap](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
-    UNREFERENCED_PARAMETER(shared_this);
+  // Assign the new map to all threads. The slot keeps the callback for the lifetime of the slot
+  // (it is replayed on worker threads registered later), so it must not capture a shared pointer
+  // to 'this': that would form a reference cycle through tls_ and leak the map.
+  tls_->set([newmap](Event::Dispatcher&) -> ThreadLocal::ThreadLocalObjectSharedPtr {
     ENVOY_LOG(trace, "PolicyHostMap: Assigning new map");
     return newmap;
   });

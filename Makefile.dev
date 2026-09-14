@@ -19,7 +19,7 @@ BAZEL_ARCHIVE ?= ~/bazel-cache.tar.bz2
 
 # @envoy_api//:v3_protos must be built before invoking Makefile.api
 API_DEPS = @envoy_api//:v3_protos
-PROTOC_TARGET = @com_google_protobuf//:protoc
+PROTOC_TARGET = @protobuf//:protoc
 api: force-non-root Makefile.api install-bazelisk
 	PROTOC=`$(BAZEL) cquery --output=starlark --starlark:expr=target.files_to_run.executable.path $(PROTOC_TARGET) | grep "fastbuild.*/bin/external"`; \
 	$(BAZEL) build $(PROTOC_TARGET) $(API_DEPS); \
@@ -32,7 +32,7 @@ api-clean:
 	mkdir -p go/contrib/envoy
 	mkdir go/envoy
 
-$(CHECK_FORMAT): force-non-root SOURCE_VERSION install-bazelisk clang.bazelrc
+$(CHECK_FORMAT): force-non-root SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:check_format.py
 
 veryclean: force-non-root clean
@@ -42,7 +42,7 @@ veryclean: force-non-root clean
 precheck: force-non-root
 	tools/check_repositories.sh
 
-FORMAT_EXCLUDED_PREFIXES = "./linux/" "./proxylib/" "./starter/"  "./vendor/" "./go/" "./envoy_build_config/" "./work/" "./bin/" "./.cache/"
+FORMAT_EXCLUDED_PREFIXES = "./linux/" "./starter/"  "./vendor/" "./go/" "./envoy_build_config/" "./work/" "./bin/" "./.cache/"
 
 # The default set of sources assumes all relevant sources are dependecies of some tests!
 TIDY_SOURCES ?= $(shell bazel query 'kind("source file", deps(//tests/...))' 2>/dev/null | sed -n "s/\/\/cilium:/cilium\//p; s/\/\/tests:/tests\//p")
@@ -52,9 +52,6 @@ COMPILATION_DATABASE_DEPS = \
 	.bazelrc \
 	envoy.bazelrc \
 	bazel/BUILD \
-	bazel/local_llvm.bzl \
-	bazel/toolchains/BUILD \
-	bazel/toolchains/cc_toolchain_config.bzl \
 	cilium/BUILD \
 	cilium/api/BUILD \
 	envoy_build_config/BUILD \
@@ -75,35 +72,44 @@ compile_commands.json: $(COMPILATION_DATABASE_DEPS) force-non-root
 # Default number of jobs, derived from available memory
 TIDY_JOBS ?= $$(( $(shell sed -n "s/^MemAvailable: *\([0-9]*\).*\$$/\1/p" /proc/meminfo) / 4500000 ))
 
-# tidy uses run-clang-tidy, .clang-tidy must be present in the project directory and configured to
-# ignore the same headers as .clangd. Unfortunately the configuration format is different.
-tidy: $(COMPILER_DEP) compile_commands.json force-non-root
-	run-clang-tidy -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy check failed, run 'make tidy-fix' locally to fix tidy errors."
+# clang-tidy and clang-apply-replacements come from the hermetic LLVM toolchain that Bazel
+# downloads for Envoy (@llvm_minimal_linux_<arch>, planted in the execroot by the compilation
+# database build above). That toolchain does not ship LLVM's run-clang-tidy driver,
+# tools/run_clang_tidy.sh stands in for it.
+# Bazel names the execroot symlink after the workspace directory (bazel-proxy here, bazel-b in the
+# CI containers), so derive it rather than hardcoding it.
+LLVM_HOST_ARCH := $(subst aarch64,arm64,$(subst x86_64,x64,$(shell uname -m)))
+LLVM_TOOLS_BIN = bazel-$(notdir $(CURDIR))/external/llvm_minimal_linux_$(LLVM_HOST_ARCH)/bin
+RUN_CLANG_TIDY = CLANG_TIDY=$(LLVM_TOOLS_BIN)/clang-tidy CLANG_APPLY_REPLACEMENTS=$(LLVM_TOOLS_BIN)/clang-apply-replacements tools/run_clang_tidy.sh
 
-tidy-fix: $(COMPILER_DEP) compile_commands.json force-non-root
+# .clang-tidy must be present in the project directory and configured to ignore the same headers
+# as .clangd. Unfortunately the configuration format is different.
+tidy: compile_commands.json force-non-root
+	$(RUN_CLANG_TIDY) -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy check failed, run 'make tidy-fix' locally to fix tidy errors."
+
+tidy-fix: compile_commands.json force-non-root
 	echo "clang-tidy fix results can contain duplicate or misplaced includes, check before committing!"
-	run-clang-tidy -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy fix produced changes, please commit them."
+	$(RUN_CLANG_TIDY) -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy fix produced changes, please commit them."
 
-tidy-fix-head: $(COMPILER_DEP) compile_commands.json force-non-root
+tidy-fix-head: compile_commands.json force-non-root
 	echo "clang-tidy fix results can contain duplicate or misplaced includes, check before committing!"
-	run-clang-tidy -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(shell git diff-tree --no-commit-id --name-only -r --diff-filter=d HEAD) || echo "clang-tidy fix produced changes, please commit them."
+	$(RUN_CLANG_TIDY) -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(shell git diff-tree --no-commit-id --name-only -r --diff-filter=d HEAD) || echo "clang-tidy fix produced changes, please commit them."
 
-format: $(COMPILER_DEP) force-non-root
+format: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make format-fix' locally to fix formatting errors."
 
-format-fix: $(COMPILER_DEP) force-non-root
+format-fix: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
 
 # Run tests without debug by default.
-tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION proxylib/libcilium.so install-bazelisk
+tests:  force-non-root SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
-	$(MAKE) -C proxylib test
 
-unstripped-tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION proxylib/libcilium.so install-bazelisk
+unstripped-tests:  force-non-root SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) --config=release_debug --fission=no --features=-per_object_debug_info //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) --config=release_debug --fission=no --features=-per_object_debug_info $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
-debug-tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION install-bazelisk
+debug-tests:  force-non-root SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c dbg --fission=no --features=-per_object_debug_info $(BAZEL_TEST_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c dbg --fission=no --features=-per_object_debug_info $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)

@@ -1,14 +1,13 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "envoy/config/core/v3/socket_option.pb.h"
 #include "envoy/network/socket.h"
 
 #include "source/common/common/logger.h"
-
-#include "absl/types/optional.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -21,10 +20,10 @@ class IpTransparentSocketOption : public Network::Socket::Option,
 public:
   IpTransparentSocketOption();
 
-  absl::optional<Network::Socket::Option::Details>
+  std::optional<Network::Socket::Option::Details>
   getOptionDetails(const Network::Socket&,
                    envoy::config::core::v3::SocketOption::SocketState) const override {
-    return absl::nullopt;
+    return std::nullopt;
   }
 
   bool setOption(Network::Socket& socket,

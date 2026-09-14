@@ -3,9 +3,6 @@
 #
 ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.5.0-latest@sha256:3f98b069a4c4737d8252fdf47f77d9f7e27ef5acb1bec13af3619180d6baee23
 
-# Common Builder image used in cilium/cilium
-ARG PROXYLIB_BUILDER=quay.io/cilium/cilium-builder:767c4152bb156a879fca4c5b76f445de4b4cdaa9@sha256:26392846fa25ab2607c120ece242d61365724a5f21e85f5733f72221637b70fa
-
 #
 # ARCHIVE_IMAGE defaults to the result of the first stage below,
 # refreshing the build caches from Envoy dependencies before the final
@@ -16,22 +13,6 @@ ARG PROXYLIB_BUILDER=quay.io/cilium/cilium-builder:767c4152bb156a879fca4c5b76f44
 # building on the same BUILDPLATFORM.
 #
 ARG ARCHIVE_IMAGE=builder-fresh
-
-FROM --platform=$BUILDPLATFORM $PROXYLIB_BUILDER AS proxylib
-WORKDIR /go/src/github.com/cilium/proxy
-ENV PATH=/usr/local/go/bin:$PATH
-ARG TARGETARCH
-ARG PROXYLIB_CC=gcc
-ARG PROXYLIB_CGO_CFLAGS
-ARG PROXYLIB_GO_BUILD_FLAGS
-ARG PROXYLIB_GOCACHE
-RUN --mount=type=bind,target=/go/src/github.com/cilium/proxy \
-    --mount=mode=0777,target=/cilium/proxy/.cache,type=cache \
-    --mount=mode=0777,target=/go/pkg,type=cache \
-    --mount=mode=0777,uid=1337,gid=1337,target=/tmp/go-build,type=cache \
-    if [ -n "${PROXYLIB_GOCACHE}" ]; then export GOCACHE="${PROXYLIB_GOCACHE}"; fi && \
-    if [ -n "${PROXYLIB_CGO_CFLAGS}" ]; then export CGO_CFLAGS="${PROXYLIB_CGO_CFLAGS}"; fi && \
-    CC="${PROXYLIB_CC}" GOARCH="${TARGETARCH}" GO_BUILD_FLAGS="${PROXYLIB_GO_BUILD_FLAGS}" make -C proxylib TARGET=/tmp/libcilium.so all
 
 FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder-fresh
 LABEL maintainer="maintainer@cilium.io"
@@ -48,8 +29,6 @@ ENV TARGETARCH=$TARGETARCH
 #
 # Build dependencies
 #
-# Make proxylib available for building the test dependencies by copying it before running the tests
-COPY --from=proxylib /tmp/libcilium.so proxylib/libcilium.so
 RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-test-deps
 
 # By default this stage picks up the result of the build above, but ARCHIVE_IMAGE can be
@@ -69,8 +48,6 @@ ENV TARGETARCH=$TARGETARCH
 
 # Clear runner's cache when building deps
 RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private rm -rf /cilium/proxy/.cache/*
-# Make proxylib available for building the test dependencies by copying it before running the tests
-COPY --from=proxylib /tmp/libcilium.so proxylib/libcilium.so
 RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,rw \
     if [ -f /tmp/bazel-cache/ENVOY_VERSION ]; then CACHE_ENVOY_VERSION=`cat /tmp/bazel-cache/ENVOY_VERSION`; ENVOY_VERSION=`cat ENVOY_VERSION`; if [ "${CACHE_ENVOY_VERSION}" != "${ENVOY_VERSION}" ]; then echo "Testing Envoy ${ENVOY_VERSION} with bazel archive from different Envoy version (${CACHE_ENVOY_VERSION})"; else echo "Testing Envoy ${ENVOY_VERSION} with bazel cache of the same version"; fi; else echo "Bazel cache has no ENVOY_VERSION, it may be empty."; fi && \
     touch /tmp/bazel-cache/permissions-check && \
@@ -92,8 +69,6 @@ ARG NO_CACHE
 ENV TARGETARCH=$TARGETARCH
 
 RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private if [ -n "$NO_CACHE" ]; then rm -rf /cilium/proxy/.cache/*; fi
-# Make proxylib available for the tests by copying it before running the tests
-COPY --from=proxylib /tmp/libcilium.so proxylib/libcilium.so
 RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,id=$TARGETARCH,sharing=private \
     --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,rw \
     if [ "$TARGETARCH" != "$BUILDARCH" ]; then \
