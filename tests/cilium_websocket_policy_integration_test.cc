@@ -278,9 +278,12 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
   ASSERT_EQ(received, "hello");
 
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->write("upstream final", true));
+  tcp_client->waitForData("helloupstream final");
   tcp_client->waitForHalfClose();
-  ASSERT_TRUE(tcp_client->write("", true));
+  ASSERT_TRUE(tcp_client->write("downstream final", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(5 + sizeof("downstream final") - 1, &received));
+  ASSERT_EQ(received, "hellodownstream final");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -326,7 +329,8 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(10, &received));
   ASSERT_EQ(received, "hellohello");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->write("upstream final", true));
+  tcp_client->waitForData("worldupstream final");
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
 }

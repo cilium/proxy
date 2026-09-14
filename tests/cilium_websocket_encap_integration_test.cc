@@ -263,14 +263,53 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeSuccess) {
   ASSERT_TRUE(frame_offset > 0);
   ASSERT_EQ(received_data.substr(frame_offset, 5), "hello");
 
-  ASSERT_TRUE(fake_upstream_connection->write("\x82\x5"
-                                              "world"));
-  ASSERT_TRUE(fake_upstream_connection->close());
-  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x5world\x88\0", 9}));
   tcp_client->waitForHalfClose();
-  tcp_client->close();
+  ASSERT_TRUE(tcp_client->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   EXPECT_EQ("world", tcp_client->data());
+}
+
+// Adapted from TcpProxyIntegrationTest.UpstreamConnectModeEarlyDataWithHalfClose: data and FIN
+// arriving before the upstream handshake must be preserved, including reverse data after the FIN.
+TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeWithEarlyDataAndFin) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  ASSERT_TRUE(tcp_client->write("final_data", true));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  std::string expected_handshake =
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
+  std::string received_data;
+  ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
+  ASSERT_EQ(normalizeXRequestId(received_data), sizeof(X_REQUEST_ID_VALUE) - 1);
+  ASSERT_EQ(received_data, expected_handshake);
+
+  std::string handshake_response =
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+  ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
+
+  // A ten-byte masked data frame is followed by the masked CLOSE representing the early FIN.
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(expected_handshake.length() + 16 + 6, &received_data));
+  received_data.erase(0, expected_handshake.length());
+  auto frame_offset = unmaskData(received_data.data(), 16);
+  ASSERT_TRUE(frame_offset > 0);
+  ASSERT_EQ(received_data.substr(frame_offset, 10), "final_data");
+  received_data.erase(0, 16);
+  frame_offset = unmaskData(received_data.data(), 6, OPCODE_CLOSE);
+  ASSERT_TRUE(frame_offset > 0);
+
+  EXPECT_FALSE(fake_upstream_connection->waitForHalfClose(std::chrono::milliseconds(100)));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x8response\x88\0", 12}, true));
+  tcp_client->waitForData("response");
+  tcp_client->waitForHalfClose();
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
 
 // Test successful handshake where client does not send any data, and the server side sends data
@@ -293,14 +332,127 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeNoData) {
       fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
-  ASSERT_TRUE(fake_upstream_connection->write("\x82\x5"
-                                              "world"));
-  ASSERT_TRUE(fake_upstream_connection->close());
-  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x5world\x88\0", 9}));
   tcp_client->waitForHalfClose();
-  tcp_client->close();
+  ASSERT_TRUE(tcp_client->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   EXPECT_EQ("world", tcp_client->data());
+}
+
+TEST_P(CiliumWebSocketIntegrationTest, ControlFramesAfterSendingClose) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  std::string expected_handshake =
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
+  std::string received_data;
+  ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
+
+  std::string handshake_response =
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+  ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
+
+  // The local FIN sends a masked CLOSE but leaves the WebSocket transport open for reverse data.
+  ASSERT_TRUE(tcp_client->write("", true));
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(expected_handshake.length() + 6, &received_data));
+  // Remove the already handled prefix that waitForData() reintroduces on each call.
+  received_data.erase(0, expected_handshake.length());
+  ASSERT_GT(unmaskData(received_data.data(), 6, OPCODE_CLOSE), 0);
+
+  // PING and PONG remain valid control frames after sending CLOSE. The PING response must echo its
+  // payload, while the unsolicited PONG requires no response.
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x89\x04ping\x8a\x04pong", 12}));
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(expected_handshake.length() + 6 + 10, &received_data));
+  // Remove the already handled prefix that waitForData() reintroduces on each call.
+  received_data.erase(0, expected_handshake.length() + 6);
+  const size_t frame_offset = unmaskData(received_data.data(), 10, OPCODE_PONG);
+  ASSERT_GT(frame_offset, 0);
+  EXPECT_EQ(received_data.substr(frame_offset), "ping");
+
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x04done\x88\0", 8}, true));
+  tcp_client->waitForData("done");
+  tcp_client->waitForHalfClose();
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+}
+
+TEST_P(CiliumWebSocketIntegrationTest, ControlFramesAfterReceivingClose) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  std::string expected_handshake =
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
+  std::string received_data;
+  ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length(), &received_data));
+
+  std::string handshake_response =
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+  ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
+
+  // A peer CLOSE half-closes the local TCP receive side, but the reverse direction and WebSocket
+  // control plane remain active.
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x88\0", 2}));
+  tcp_client->waitForHalfClose();
+  // Data frames after CLOSE are prohibited and drained, but must not hide subsequent control
+  // frames in the same read.
+  ASSERT_TRUE(
+      fake_upstream_connection->write(std::string{"\x82\x07ignored\x89\x04ping\x8a\x04pong", 21}));
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(expected_handshake.length() + 10, &received_data));
+  // Remove the already handled prefix that waitForData() reintroduces on each call.
+  received_data.erase(0, expected_handshake.length());
+  size_t frame_offset = unmaskData(received_data.data(), 10, OPCODE_PONG);
+  ASSERT_GT(frame_offset, 0);
+  EXPECT_EQ(received_data.substr(frame_offset), "ping");
+
+  // Sending the reverse data and FIN completes the two directional CLOSE messages.
+  ASSERT_TRUE(tcp_client->write("done", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length() + 10 + 10 + 6,
+                                                    &received_data));
+  // Remove the already handled prefix that waitForData() reintroduces on each call.
+  received_data.erase(0, expected_handshake.length() + 10);
+  frame_offset = unmaskData(received_data.data(), 10);
+  ASSERT_GT(frame_offset, 0);
+  EXPECT_EQ(received_data.substr(frame_offset, 4), "done");
+  // Remove the already handled prefix that waitForData() reintroduces on each call.
+  received_data.erase(0, 10);
+  ASSERT_GT(unmaskData(received_data.data(), 6, OPCODE_CLOSE), 0);
+
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+}
+
+TEST_P(CiliumWebSocketIntegrationTest, WebSocketTransportFinWithoutCloseAborts) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  std::string expected_handshake =
+      fmt::format(fmt::runtime(EXPECTED_HANDSHAKE_FMT), original_dst_address->asString());
+  ASSERT_TRUE(fake_upstream_connection->waitForData(expected_handshake.length()));
+
+  std::string handshake_response =
+      fmt::format(fmt::runtime(HANDSHAKE_RESPONSE_FMT), "GjgmQ9MzNsn3h7+vuIzY25rbQ9M=");
+  ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
+
+  // An outer transport FIN without a WebSocket CLOSE is an abort, not a tunneled TCP FIN.
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  // The raw downstream observes EOF under half-close even though the WebSocket transport was
+  // aborted immediately.
+  tcp_client->waitForHalfClose();
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  tcp_client->close();
 }
 
 // Test proxying data in both directions, and that all data is flushed properly
@@ -350,8 +502,15 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(frame_offset > 0);
   ASSERT_EQ(frame_offset, 6);
 
+  // CLOSE represents the downstream TCP FIN, but must not close the WebSocket transport before
+  // reverse-direction data and its FIN have arrived.
+  EXPECT_FALSE(fake_upstream_connection->waitForHalfClose(std::chrono::milliseconds(100)));
+
+  // The fake WebSocket server sends its final data and CLOSE, then ends the transport as
+  // recommended by RFC 6455 section 7.1.1.
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x4last\x88\0", 8}, true));
+  tcp_client->waitForData("worldlast");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
 }
@@ -396,9 +555,13 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_TRUE(fake_upstream_connection->write("\x82\x7e\x80\x00"s));
   ASSERT_TRUE(fake_upstream_connection->write(data));
   tcp_client->waitForData(data);
-  tcp_client->close();
+  ASSERT_TRUE(tcp_client->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(
+      expected_handshake.length() + 2 * 8 + data.size() + 6, &received_data));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x88\0", 2}));
+  tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
-  ASSERT_TRUE(fake_upstream_connection->close());
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   uint32_t upstream_pauses =
@@ -443,14 +606,18 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   tcp_client->readDisable(true);
   ASSERT_TRUE(tcp_client->write("", true));
 
-  // This ensures that readDisable(true) has been run on it's thread
-  // before tcp_client starts writing.
-  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  // The downstream FIN is encoded as a masked CLOSE. Unlike a transport half-close, observing this
+  // frame does not prevent the WebSocket peer from sending a large response.
+  ASSERT_TRUE(
+      fake_upstream_connection->waitForData(expected_handshake.length() + 6, &received_data));
+  received_data.erase(0, expected_handshake.length());
+  auto frame_offset = unmaskData(received_data.data(), received_data.length(), OPCODE_CLOSE);
+  ASSERT_TRUE(frame_offset > 0);
 
   // writing data in one large chunk
-
-  ASSERT_TRUE(fake_upstream_connection->write("\x82\x7f\x03\x20\0\0"s));
-  ASSERT_TRUE(fake_upstream_connection->write(data, true));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x7f\0\0\0\0\x03\x20\0\0", 10}));
+  ASSERT_TRUE(fake_upstream_connection->write(data));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x88\0", 2}));
 
   test_server_->waitForCounterGe("cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
   EXPECT_EQ(test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
@@ -460,6 +627,8 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   tcp_client->waitForData(data);
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   uint32_t upstream_pauses =
       test_server_->counter("cluster.cluster1.upstream_flow_control_paused_reading_total")->value();
@@ -470,12 +639,12 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   EXPECT_GT(upstream_resumes, 0);
 }
 
-// Test that an upstream flush works correctly (all data is flushed)
+// Test that an upstream flush works correctly after the upstream direction has half-closed.
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
-  // Use a very large size to make sure it is larger than the kernel socket read
-  // buffer.
+  // Keep the payload larger than the kernel socket read buffer so that an upstream flush is needed,
+  // while leaving buffer-limit headroom for WebSocket framing and control traffic.
   const uint32_t size = 50 * 1024 * 1024;
-  config_helper_.setBufferLimits(size, size);
+  config_helper_.setBufferLimits(2 * size, 2 * size);
   initialize();
 
   std::string data(size, 'a');
@@ -496,33 +665,34 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x88\0", 2}));
 
-  // This ensures that fake_upstream_connection->readDisable has been run on
-  // it's thread before tcp_client starts writing.
+  // The peer's CLOSE becomes an upstream FIN, while the downstream-to-upstream direction remains
+  // available for the large request.
   tcp_client->waitForHalfClose();
 
   ASSERT_TRUE(tcp_client->write(data, true, true, std::chrono::milliseconds(30000)));
+
+  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(false));
   size_t min_size = expected_handshake.length() + data.size() + 14 + 6;
   ASSERT_TRUE(
       fake_upstream_connection->waitForData(FakeRawConnection::waitForAtLeastBytes(min_size)));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+  ASSERT_TRUE(fake_upstream_connection->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
-  tcp_client->waitForHalfClose();
 
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
   EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
 }
 
-// Test that Envoy doesn't crash or assert when shutting down with an upstream
-// flush active
+// Test that Envoy doesn't crash or assert when shutting down with an upstream flush active.
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
-  // Use a very large size to make sure it is larger than the kernel socket read
-  // buffer.
+  // Keep the payload larger than the kernel socket read buffer so that an upstream flush is needed,
+  // while leaving buffer-limit headroom for WebSocket framing and control traffic.
   const uint32_t size = 50 * 1024 * 1024;
-  config_helper_.setBufferLimits(size, size);
+  config_helper_.setBufferLimits(2 * size, 2 * size);
   initialize();
 
   std::string data(size, 'a');
@@ -543,16 +713,12 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
   ASSERT_TRUE(fake_upstream_connection->write(handshake_response));
 
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
-
-  // This ensures that fake_upstream_connection->readDisable has been run on
-  // it's thread before tcp_client starts writing.
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x88\0", 2}));
   tcp_client->waitForHalfClose();
 
   ASSERT_TRUE(tcp_client->write(data, true));
 
-  // test_server_->waitForCounterGe("tcp.tcp_stats.upstream_flush_total", 1);
-
+  test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 1);
   test_server_.reset();
   ASSERT_TRUE(fake_upstream_connection->close());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
