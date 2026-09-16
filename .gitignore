@@ -55,3 +55,6 @@ __pycache__/
 
 # clangd compilation database
 /compile_commands.json
+
+# Python caches
+__pycache__
