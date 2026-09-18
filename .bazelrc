@@ -15,6 +15,9 @@ build:msan --per_file_copt=external/bazel_tools/tools/cpp/runfiles/runfiles[.]cc
 # every normal Bazel invocation to recompute the crate index.
 common --repo_env=CARGO_BAZEL_REPIN
 
+# Retry on transient repository download failures
+common --experimental_repository_downloader_retries=5 
+
 # Use our own toolchains in all builds. Local builds need this to not pull in external Envoy sysroot
 # that only supports glibc 2.31, while for Ubuntu 24.04 builds we need at least 2.38, and actually
 # use 2.39.
