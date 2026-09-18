@@ -20,6 +20,7 @@
 /bazel-*
 
 /cilium-envoy
+/cilium-envoy-healthcheck
 /cilium-envoy-starter
 /Dockerfile.builder-refresh
 
