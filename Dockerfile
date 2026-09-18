@@ -40,7 +40,7 @@ RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,i
 #
 # Build dependencies from scratch (no cache mounts, not archive mount)
 #
-RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG DESTDIR=/tmp/install make bazel-bin/cilium-envoy-starter bazel-bin/cilium-envoy
+RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG DESTDIR=/tmp/install make bazel-bin/cilium-envoy-starter bazel-bin/bin/cilium-envoy-healthcheck bazel-bin/cilium-envoy
 
 # By default this stage picks up the result of the build above, but ARCHIVE_IMAGE can be
 # overridden to point to a saved image of an earlier run of that stage.
