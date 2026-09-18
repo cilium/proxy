@@ -7,6 +7,9 @@
 #include <cstdint>
 #include <string>
 
+#include "envoy/common/platform.h"
+#include "envoy/network/connection.h"
+
 #include "test/integration/fake_upstream.h"
 #include "test/integration/integration_tcp_client.h"
 #include "test/test_common/environment.h"
@@ -134,9 +137,22 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
   ASSERT_EQ(received, "hello");
 
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  // A FIN in one direction must not prevent data from flowing in the reverse direction. The first
+  // CLOSE crosses both WebSocket codecs and becomes a half-close at the TCP client.
+  ASSERT_TRUE(fake_upstream_connection->write("upstream final", true));
+  tcp_client->waitForData("helloupstream final");
   tcp_client->waitForHalfClose();
-  ASSERT_TRUE(tcp_client->write("", true));
+
+  // The first CLOSE is only a directional FIN. Keepalive PING/PONG processing must continue while
+  // the reverse direction remains open.
+  const uint64_t ping_count = test_server_->counter("websocket.ping_sent_count")->value();
+  test_server_->waitForCounterGe("websocket.ping_sent_count", ping_count + 1);
+
+  // The TCP client can still send after receiving that FIN. Its own FIN produces the CLOSE response
+  // only after the reverse-direction data has crossed the tunnel.
+  ASSERT_TRUE(tcp_client->write("downstream final", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(5 + sizeof("downstream final") - 1, &received));
+  ASSERT_EQ(received, "hellodownstream final");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -165,6 +181,23 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamDisconnect) {
   EXPECT_EQ("world", tcp_client->data());
 }
 
+#if ENVOY_PLATFORM_ENABLE_SEND_RST
+// A TCP reset is an abort, not a directional FIN, and must tear down the tunnel immediately.
+TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamReset) {
+  initialize();
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  ASSERT_TRUE(tcp_client->write("hello"));
+  FakeRawConnectionPtr fake_upstream_connection;
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(5));
+
+  ASSERT_TRUE(fake_upstream_connection->close(Network::ConnectionCloseType::AbortReset));
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  tcp_client->waitForDisconnect();
+}
+
+#endif
+
 // Test proxying data in both directions, and that all data is flushed properly
 // when the client disconnects.
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
@@ -186,7 +219,12 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(10, &received));
   ASSERT_EQ(received, "hellohello");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
+
+  const uint64_t ping_count = test_server_->counter("websocket.ping_sent_count")->value();
+  test_server_->waitForCounterGe("websocket.ping_sent_count", ping_count + 1);
+
+  ASSERT_TRUE(fake_upstream_connection->write("upstream final", true));
+  tcp_client->waitForData("worldupstream final");
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
 }
@@ -252,8 +290,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   tcp_client->readDisable(true);
   ASSERT_TRUE(tcp_client->write("", true));
 
-  // This ensures that readDisable(true) has been run on it's thread
-  // before tcp_client starts writing.
+  // Confirm that the downstream FIN crossed the WebSocket tunnel before sending a large response.
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
 
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
@@ -265,7 +302,6 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
   tcp_client->readDisable(false);
   tcp_client->waitForData(data);
   tcp_client->waitForHalfClose();
-  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
 
   uint32_t upstream_pauses =
       test_server_->counter("cluster.cluster1.upstream_flow_control_paused_reading_total")->value();
@@ -295,8 +331,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
 
-  // This ensures that fake_upstream_connection->readDisable has been run on
-  // it's thread before tcp_client starts writing.
+  // Confirm that the upstream FIN crossed the WebSocket tunnel before sending a large request.
   tcp_client->waitForHalfClose();
 
   ASSERT_TRUE(tcp_client->write(data, true, true, std::chrono::milliseconds(30000)));
@@ -309,7 +344,6 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlush) {
   ASSERT_EQ(received, data);
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
-  tcp_client->waitForHalfClose();
 
   EXPECT_EQ(test_server_->counter("tcp.tcp_stats.upstream_flush_total")->value(), 1);
   test_server_->waitForGaugeEq("tcp.tcp_stats.upstream_flush_active", 0);
@@ -329,14 +363,14 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamFlushEnvoyExit) {
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
+  // Confirm that the WebSocket handshake and keepalive timer are active.
+  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
+
   ASSERT_TRUE(fake_upstream_connection->readDisable(true));
   ASSERT_TRUE(fake_upstream_connection->write("", true));
 
-  // This ensures that fake_upstream_connection->readDisable has been run on
-  // it's thread before tcp_client starts writing.
+  // Confirm that the upstream FIN crossed the WebSocket tunnel before filling the write buffer.
   tcp_client->waitForHalfClose();
-
-  test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
 
   ASSERT_TRUE(tcp_client->write(data, true));
 
