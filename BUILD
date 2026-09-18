@@ -1,3 +1,4 @@
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load(
     "@envoy//bazel:envoy_build_system.bzl",
     "envoy_cc_binary",
@@ -34,6 +35,13 @@ envoy_cc_binary(
         "//cilium:tls_wrapper_lib",
         "@envoy//source/exe:envoy_main_entry_lib",
     ],
+)
+
+copy_file(
+    name = "cilium-envoy-healthcheck",
+    src = "//healthcheck:cilium-envoy-healthcheck",
+    out = "bin/cilium-envoy-healthcheck",
+    is_executable = True,
 )
 
 sh_test(
