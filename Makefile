@@ -17,7 +17,7 @@ include Makefile.defs
 MIN_CLANG_VERSION := 18.1.8
 COMPILER_DEP := clang.bazelrc
 
-ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy cilium-envoy-starter bazel-bin/cilium-envoy-starter
+ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy cilium-envoy-starter bazel-bin/cilium-envoy-starter cilium-envoy-healthcheck bazel-bin/bin/cilium-envoy-healthcheck
 ENVOY_TESTS = bazel-bin/tests/*_test
 
 BUILD_DEP_FILES = ENVOY_VERSION WORKSPACE .bazelrc envoy.bazelrc bazel/toolchains/BUILD bazel/toolchains/cc_toolchain_config.bzl
@@ -86,7 +86,7 @@ ifdef PKG_BUILD
   $(info BUILDING on $(BUILDARCH) for $(TARGETARCH) using $(BAZEL_PLATFORM))
   BAZEL_BUILD_OPTS += --platforms=$(BAZEL_PLATFORM)
 
-  all: cilium-envoy-starter cilium-envoy
+  all: cilium-envoy-starter cilium-envoy-healthcheck cilium-envoy
 
   .PHONY: install-bazelisk
   install-bazelisk:
@@ -100,7 +100,7 @@ else
     $(error local cross-builds are not supported: BUILDARCH=$(BUILDARCH), TARGETARCH=$(TARGETARCH))
   endif
 
-  all: precheck cilium-envoy-starter cilium-envoy
+  all: precheck cilium-envoy-starter cilium-envoy-healthcheck cilium-envoy
 
   include Makefile.docker
 
@@ -171,6 +171,16 @@ cilium-envoy-starter: bazel-bin/cilium-envoy-starter
 	cp -f $< $@
 	chmod 0755 $@
 
+.PHONY: bazel-bin/bin/cilium-envoy-healthcheck
+bazel-bin/bin/cilium-envoy-healthcheck: SOURCE_VERSION install-bazelisk
+	@$(ECHO_BAZEL)
+	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:cilium-envoy-healthcheck $(BAZEL_FILTER)
+
+cilium-envoy-healthcheck: bazel-bin/bin/cilium-envoy-healthcheck
+	rm -f $@
+	cp -f $< $@
+	chmod 0755 $@
+
 BAZEL_CACHE := $(subst --disk_cache=,,$(filter --disk_cache=%, $(BAZEL_BUILD_OPTS)))
 
 GLIBC_VERSION ?= $(shell ldd --version | sed -n 's/.*GLIBC \([0-9.]\+\).*/\1/p')
@@ -185,9 +195,10 @@ $(DESTDIR)$(GLIBC_DIR): bazel-bin/cilium-envoy
 		$(SUDO) cp /usr/$${ARCH_TAG}-linux-gnu/lib/$$lib $@; \
 	done
 
-install: bazel-bin/cilium-envoy-starter bazel-bin/cilium-envoy
+install: bazel-bin/cilium-envoy-starter bazel-bin/bin/cilium-envoy-healthcheck bazel-bin/cilium-envoy
 	$(SUDO) $(INSTALL) -m 0755 -d $(DESTDIR)$(BINDIR)
 	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy-starter $(DESTDIR)$(BINDIR)/cilium-envoy-starter
+	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/bin/cilium-envoy-healthcheck $(DESTDIR)$(BINDIR)/cilium-envoy-healthcheck
 	$(SUDO) $(INSTALL) -m 0755 -T bazel-bin/cilium-envoy $(DESTDIR)$(BINDIR)/cilium-envoy
 
 install-local: install
