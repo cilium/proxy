@@ -2271,6 +2271,67 @@ egress:
   EXPECT_FALSE(ingressAllowed("10.1.2.3", 45, 80, {{":path", "/partially-skipped"}}));
 }
 
+TEST_F(CiliumNetworkPolicyTest, HttpPassEvaluatesL7Rules) {
+  std::string version;
+
+  // NetworkPolicy captured from cilium-dbg for the tiered policy reproducer.
+  EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips:
+  - "fd00:10:244:1::5619"
+  - "10.244.1.233"
+  endpoint_id: "131"
+  ingress_per_port_policies:
+  - rules:
+    - remote_policies:
+      - 1
+      precedence: 4294967041
+    - deny: true
+      precedence: 4294961919
+  - rules:
+    - remote_policies:
+      - 1
+      precedence: 4294956801
+    - deny: true
+      precedence: 4294956799
+  - port: 8080
+    rules:
+    - pass_precedence: 4294959616
+      remote_policies:
+      - 23626
+      precedence: 4294967040
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ":method"
+            string_match:
+              safe_regex:
+                regex: "GET"
+  - port: 8080
+    rules:
+    - remote_policies:
+      - 23626
+      precedence: 4294959514
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ":path"
+            string_match:
+              safe_regex:
+                regex: "/"
+  egress_per_port_policies:
+  - {}
+)EOF"));
+  EXPECT_EQ(version, "1");
+
+  EXPECT_TRUE(ingressAllowed("10.244.1.233", 23626, 8080, {{":method", "GET"}, {":path", "/"}}));
+  EXPECT_FALSE(ingressAllowed("10.244.1.233", 23626, 8080, {{":method", "POST"}, {":path", "/"}}));
+  EXPECT_FALSE(
+      ingressAllowed("10.244.1.233", 23626, 8080, {{":method", "GET"}, {":path", "/public"}}));
+  EXPECT_FALSE(ingressAllowed("10.244.1.233", 1234, 8080, {{":method", "GET"}, {":path", "/"}}));
+}
+
 TEST_F(CiliumNetworkPolicyTest, HttpOverlappingPortRanges) {
   std::string version;
   EXPECT_NO_THROW(version = updateFromYaml(R"EOF(version_info: "0"
