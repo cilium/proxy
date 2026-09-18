@@ -881,12 +881,12 @@ public:
                          Envoy::Http::RequestHeaderMap& headers,
                          Cilium::AccessLog::Entry& log_entry) const {
     auto verdict = getVerdict(proxy_id, remote_id);
-    if (!hasHttpRules() || verdict != RuleVerdict::Allow) {
+    if ((verdict == RuleVerdict::None || verdict == RuleVerdict::Deny) || !hasHttpRules()) {
       return verdict;
     }
     if (!has_headermatches_) {
       if (std::ranges::any_of(*http_rules_, [&](auto& r) { return r.allowed(headers); })) {
-        return RuleVerdict::Allow;
+        return verdict;
       }
       return RuleVerdict::None;
     }
@@ -901,7 +901,7 @@ public:
         }
       }
     }
-    return (header_matched) ? RuleVerdict::Allow : RuleVerdict::None;
+    return (header_matched) ? verdict : RuleVerdict::None;
   }
 
   RuleVerdict useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
