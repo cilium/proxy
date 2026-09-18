@@ -53,6 +53,7 @@ cilium-go-targets: $(CILIUM_PROTO_SOURCES) $(ENVOY_API_PROTO_PATH) Makefile.api
 		$(ECHO_GEN) envoy/$$path; \
 		$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go_out=$(GO_MODULE):$(GO_OUT)" "--go-grpc_out=$(GO_MODULE):$(GO_OUT)" "--validate_out=lang=go,$(GO_MODULE):$(GO_OUT)" $${path}*.proto; \
 	done
+	$(PROTOC) -I $(ENVOY_API_PROTO_PATH) -I $(CILIUM_PROTO_PATH) $(PROTO_DEPS) "--go-vtproto_out=$(GO_MODULE):$(GO_OUT)" "--go-vtproto_opt=features=equal" cilium/api/npds.proto
 	go mod tidy && go mod vendor
 
 .PHONY: all
