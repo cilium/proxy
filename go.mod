@@ -36,6 +36,7 @@ require (
 
 tool (
 	github.com/envoyproxy/protoc-gen-validate
+	github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc
 	google.golang.org/protobuf/cmd/protoc-gen-go
 )

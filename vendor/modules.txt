@@ -46,12 +46,23 @@ github.com/lyft/protoc-gen-star/v2
 github.com/lyft/protoc-gen-star/v2/lang/go
 # github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 ## explicit; go 1.20
+github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto
+github.com/planetscale/vtprotobuf/features/clone
+github.com/planetscale/vtprotobuf/features/equal
+github.com/planetscale/vtprotobuf/features/grpc
+github.com/planetscale/vtprotobuf/features/marshal
+github.com/planetscale/vtprotobuf/features/pool
+github.com/planetscale/vtprotobuf/features/size
+github.com/planetscale/vtprotobuf/features/unmarshal
+github.com/planetscale/vtprotobuf/generator
+github.com/planetscale/vtprotobuf/generator/pattern
 github.com/planetscale/vtprotobuf/protohelpers
 github.com/planetscale/vtprotobuf/types/known/anypb
 github.com/planetscale/vtprotobuf/types/known/durationpb
 github.com/planetscale/vtprotobuf/types/known/emptypb
 github.com/planetscale/vtprotobuf/types/known/structpb
 github.com/planetscale/vtprotobuf/types/known/wrapperspb
+github.com/planetscale/vtprotobuf/vtproto
 # github.com/sirupsen/logrus v1.10.2
 ## explicit; go 1.23
 github.com/sirupsen/logrus
