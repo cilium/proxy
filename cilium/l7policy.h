@@ -94,18 +94,15 @@ public:
   }
   Http::FilterHeadersStatus encodeHeaders(Http::ResponseHeaderMap& headers,
                                           bool end_stream) override;
-  Http::FilterDataStatus encodeData(Buffer::Instance&, bool) override {
-    return Http::FilterDataStatus::Continue;
-  }
-  Http::FilterTrailersStatus encodeTrailers(Http::ResponseTrailerMap&) override {
-    return Http::FilterTrailersStatus::Continue;
-  }
+  Http::FilterDataStatus encodeData(Buffer::Instance&, bool end_stream) override;
+  Http::FilterTrailersStatus encodeTrailers(Http::ResponseTrailerMap&) override;
   void setEncoderFilterCallbacks(Http::StreamEncoderFilterCallbacks&) override {}
   Http::FilterMetadataStatus encodeMetadata(Http::MetadataMap&) override {
     return Http::FilterMetadataStatus::Continue;
   }
 
 private:
+  void logResponse();
   void sendLocalError(absl::string_view details);
 
   ConfigSharedPtr config_;
@@ -114,7 +111,9 @@ private:
   AccessLog::Entry* log_entry_ = nullptr;
 
   OptRef<Http::RequestHeaderMap> latched_headers_;
+  OptRef<Http::ResponseHeaderMap> response_headers_;
   absl::optional<bool> latched_end_stream_;
+  bool response_logged_ = false;
 };
 
 } // namespace Cilium
