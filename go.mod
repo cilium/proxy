@@ -1,6 +1,6 @@
 module github.com/cilium/proxy
 
-go 1.25.0
+go 1.26.0
 
 toolchain go1.27.1
 
@@ -10,10 +10,10 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
 	github.com/sirupsen/logrus v1.10.2
 	github.com/stretchr/testify v1.12.1
-	golang.org/x/sys v0.47.0
-	google.golang.org/genproto/googleapis/api v0.0.0-20260831171406-18b4a7587f8a
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a
-	google.golang.org/grpc v1.83.2
+	golang.org/x/sys v0.48.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20260918162117-cecb64721679
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260918162117-cecb64721679
+	google.golang.org/grpc v1.84.0
 	google.golang.org/protobuf v1.36.12
 )
 
