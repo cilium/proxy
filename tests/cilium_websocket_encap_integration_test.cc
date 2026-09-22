@@ -1,5 +1,6 @@
 #include <fmt/base.h>
 #include <fmt/format.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
 
@@ -306,7 +307,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketHandshakeWithEarlyDataAndF
 
   EXPECT_FALSE(fake_upstream_connection->waitForHalfClose(std::chrono::milliseconds(100)));
   ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x8response\x88\0", 12}, true));
-  tcp_client->waitForData("response");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq("response"));
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
@@ -376,8 +377,11 @@ TEST_P(CiliumWebSocketIntegrationTest, ControlFramesAfterSendingClose) {
   ASSERT_GT(frame_offset, 0);
   EXPECT_EQ(received_data.substr(frame_offset), "ping");
 
-  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x04done\x88\0", 8}, true));
-  tcp_client->waitForData("done");
+  ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x04"
+                                                          "done\x88\0",
+                                                          8},
+                                              true));
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq("done"));
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
@@ -486,7 +490,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
 
   ASSERT_TRUE(fake_upstream_connection->write("\x82\x5"
                                               "world"));
-  tcp_client->waitForData("world");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("world"));
   ASSERT_TRUE(tcp_client->write("hell2", true));
   // 11 bytes for encoded "hell2" and 6 bytes for websocket close due to end stream == true
   ASSERT_TRUE(
@@ -509,7 +513,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   // The fake WebSocket server sends its final data and CLOSE, then ends the transport as
   // recommended by RFC 6455 section 7.1.1.
   ASSERT_TRUE(fake_upstream_connection->write(std::string{"\x82\x4last\x88\0", 8}, true));
-  tcp_client->waitForData("worldlast");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq("worldlast"));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
@@ -593,7 +597,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   // writing data in one large chunk
   ASSERT_TRUE(fake_upstream_connection->write("\x82\x7e\x80\x00"s));
   ASSERT_TRUE(fake_upstream_connection->write(data));
-  tcp_client->waitForData(data);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith(data));
   ASSERT_TRUE(tcp_client->write("", true));
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       expected_handshake.length() + 2 * 8 + data.size() + 6, &received_data));
@@ -663,7 +667,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
                 ->value(),
             0);
   tcp_client->readDisable(false);
-  tcp_client->waitForData(data);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq(data));
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->write("", true));

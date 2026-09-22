@@ -1,5 +1,6 @@
 #include <fmt/base.h>
 #include <fmt/format.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
 
@@ -130,7 +131,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
   test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
-  tcp_client->waitForData("hello");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("hello"));
 
   ASSERT_TRUE(tcp_client->write("hello"));
   std::string received;
@@ -140,7 +141,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
   // A FIN in one direction must not prevent data from flowing in the reverse direction. The first
   // CLOSE crosses both WebSocket codecs and becomes a half-close at the TCP client.
   ASSERT_TRUE(fake_upstream_connection->write("upstream final", true));
-  tcp_client->waitForData("helloupstream final");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq("helloupstream final"));
   tcp_client->waitForHalfClose();
 
   // The first CLOSE is only a directional FIN. Keepalive PING/PONG processing must continue while
@@ -211,7 +212,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
   ASSERT_EQ(received, "hello");
   ASSERT_TRUE(fake_upstream_connection->write("world"));
-  tcp_client->waitForData("world");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("world"));
 
   test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
 
@@ -224,7 +225,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   test_server_->waitForCounterGe("websocket.ping_sent_count", ping_count + 1);
 
   ASSERT_TRUE(fake_upstream_connection->write("upstream final", true));
-  tcp_client->waitForData("worldupstream final");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq("worldupstream final"));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
 }
@@ -243,7 +244,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(data.size(), &received));
   ASSERT_EQ(received, data);
   ASSERT_TRUE(fake_upstream_connection->write(data));
-  tcp_client->waitForData(data);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith(data));
 
   test_server_->waitForCounterGe("websocket.ping_sent_count", 1);
 
@@ -300,7 +301,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
                 ->value(),
             0);
   tcp_client->readDisable(false);
-  tcp_client->waitForData(data);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq(data));
   tcp_client->waitForHalfClose();
 
   uint32_t upstream_pauses =
