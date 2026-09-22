@@ -2,6 +2,7 @@
 #include <fmt/format.h>
 #include <gmock/gmock-cardinalities.h>
 #include <gmock/gmock-spec-builders.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
 
@@ -347,7 +348,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyUpstreamWritesFirst) {
   ASSERT_TRUE(waitForTlsHandshake(*fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
-  tcp_client->waitForData("hello");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("hello"));
 
   ASSERT_TRUE(tcp_client->write("hello"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
@@ -395,7 +396,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
   ASSERT_TRUE(fake_upstream_connection->write("world"));
-  tcp_client->waitForData("world");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("world"));
   ASSERT_TRUE(tcp_client->write("hello", true));
   ASSERT_TRUE(fake_upstream_connection->waitForData(10));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
@@ -419,7 +420,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyLargeWrite) {
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(data.size()));
   ASSERT_TRUE(fake_upstream_connection->write(data));
-  tcp_client->waitForData(data);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith(data));
   tcp_client->close();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->close());
@@ -472,7 +473,7 @@ TEST_P(CiliumTLSProxyIntegrationTest, CiliumTLSProxyDownstreamFlush) {
                 ->value(),
             0);
   tcp_client->readDisable(false);
-  tcp_client->waitForData(data);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq(data));
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
 
