@@ -1,5 +1,6 @@
 #include <fmt/base.h>
 #include <fmt/format.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
 
@@ -271,16 +272,19 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketUpstreamWritesFirst) {
   test_server_->waitForCounterGe("websocket.ping_sent_count", previous_ping_count + 1);
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
-  tcp_client->waitForData("hello");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("hello"));
 
   ASSERT_TRUE(tcp_client->write("hello"));
   std::string received;
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
   ASSERT_EQ(received, "hello");
 
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->write("upstream final", true));
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq("helloupstream final"));
   tcp_client->waitForHalfClose();
-  ASSERT_TRUE(tcp_client->write("", true));
+  ASSERT_TRUE(tcp_client->write("downstream final", true));
+  ASSERT_TRUE(fake_upstream_connection->waitForData(5 + sizeof("downstream final") - 1, &received));
+  ASSERT_EQ(received, "hellodownstream final");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 }
@@ -320,13 +324,14 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
   ASSERT_EQ(received, "hello");
   ASSERT_TRUE(fake_upstream_connection->write("world"));
-  tcp_client->waitForData("world");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("world"));
 
   ASSERT_TRUE(tcp_client->write("hello", true));
   ASSERT_TRUE(fake_upstream_connection->waitForData(10, &received));
   ASSERT_EQ(received, "hellohello");
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
-  ASSERT_TRUE(fake_upstream_connection->write("", true));
+  ASSERT_TRUE(fake_upstream_connection->write("upstream final", true));
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq("worldupstream final"));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   tcp_client->waitForDisconnect();
 }
@@ -345,7 +350,7 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_TRUE(fake_upstream_connection->waitForData(data.size(), &received));
   ASSERT_EQ(received, data);
   ASSERT_TRUE(fake_upstream_connection->write(data));
-  tcp_client->waitForData(data);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith(data));
 
   tcp_client->close();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());

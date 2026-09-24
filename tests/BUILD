@@ -196,6 +196,18 @@ envoy_cc_test(
 )
 
 envoy_cc_test(
+    name = "cilium_websocket_codec_test",
+    srcs = ["cilium_websocket_codec_test.cc"],
+    repository = "@envoy",
+    deps = [
+        "//cilium:websocket_lib",
+        "@envoy//source/common/buffer:buffer_lib",
+        "@envoy//test/mocks/network:connection_mocks",
+        "@envoy//test/mocks/server:factory_context_mocks",
+    ],
+)
+
+envoy_cc_test(
     name = "cilium_tcp_integration_test",
     srcs = ["cilium_tcp_integration_test.cc"],
     data = [

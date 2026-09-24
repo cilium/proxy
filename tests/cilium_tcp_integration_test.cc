@@ -1,5 +1,6 @@
 #include <fmt/base.h>
 #include <fmt/format.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest-param-test.h>
 #include <gtest/gtest.h>
 
@@ -94,7 +95,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyUpstreamWritesFirst) {
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
 
   ASSERT_TRUE(fake_upstream_connection->write("hello"));
-  tcp_client->waitForData("hello");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("hello"));
 
   ASSERT_TRUE(tcp_client->write("hello"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
@@ -136,7 +137,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyDownstreamDisconnect) {
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(5));
   ASSERT_TRUE(fake_upstream_connection->write("world"));
-  tcp_client->waitForData("world");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("world"));
   ASSERT_TRUE(tcp_client->write("hello", true));
   ASSERT_TRUE(fake_upstream_connection->waitForData(10));
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
@@ -157,7 +158,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyLargeWrite) {
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(data.size()));
   ASSERT_TRUE(fake_upstream_connection->write(data));
-  tcp_client->waitForData(data);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith(data));
   tcp_client->close();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
   ASSERT_TRUE(fake_upstream_connection->close());
@@ -204,7 +205,7 @@ TEST_P(CiliumTcpProxyIntegrationTest, CiliumTcpProxyDownstreamFlush) {
                 ->value(),
             0);
   tcp_client->readDisable(false);
-  tcp_client->waitForData(data);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq(data));
   tcp_client->waitForHalfClose();
   ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
 
@@ -389,7 +390,7 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserUpstreamWritesFirst)
 
   ASSERT_TRUE(fake_upstream_connection->write("DROP reply direction\n"));
   ASSERT_TRUE(fake_upstream_connection->write("PASS reply direction\n"));
-  tcp_client->waitForData("PASS reply direction\n");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("PASS reply direction\n"));
 
   ASSERT_TRUE(tcp_client->write("PASS original direction\n"));
   ASSERT_TRUE(
@@ -413,7 +414,7 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserPartialLines) {
   ASSERT_TRUE(fake_upstream_connection->write("direction\nPASS"));
   absl::SleepFor(absl::Milliseconds(10));
   ASSERT_TRUE(fake_upstream_connection->write(" reply direction\n"));
-  tcp_client->waitForData("PASS reply direction\n");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("PASS reply direction\n"));
 
   ASSERT_TRUE(tcp_client->write("PASS original direction\n"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(
@@ -437,8 +438,8 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInject) {
   ASSERT_TRUE(fake_upstream_connection->write("PASS reply direction\n"));
 
   // These can in principle arrive in either order
-  tcp_client->waitForData("PASS reply direction\n", false);
-  tcp_client->waitForData("INJECT reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("PASS reply direction\n"));
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("INJECT reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       FakeRawConnection::waitForInexactMatch("PASS original direction\n")));
@@ -463,8 +464,8 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartial) {
   ASSERT_TRUE(fake_upstream_connection->write(" direction\n"));
 
   // These can in principle arrive in either order
-  tcp_client->waitForData("PASS reply direction\n", false);
-  tcp_client->waitForData("INJECT reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("PASS reply direction\n"));
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("INJECT reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       FakeRawConnection::waitForInexactMatch("PASS original direction\n")));
@@ -491,9 +492,9 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartialMultipl
 
   // These can in principle arrive in either order
   absl::SleepFor(absl::Milliseconds(10));
-  tcp_client->waitForData("PASS reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("PASS reply direction\n"));
   absl::SleepFor(absl::Milliseconds(10));
-  tcp_client->waitForData("INJECT reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("INJECT reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       FakeRawConnection::waitForInexactMatch("INSERT original direction\n")));
@@ -501,7 +502,7 @@ TEST_P(CiliumGoLinetesterIntegrationTest, CiliumGoLineParserInjectPartialMultipl
 
   ASSERT_TRUE(fake_upstream_connection->write("DROP reply direction\n"));
   ASSERT_TRUE(fake_upstream_connection->write("PASS2 reply direction\n"));
-  tcp_client->waitForData("PASS2 reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("PASS2 reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
@@ -613,7 +614,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserUpstreamWritesFirs
 
   ASSERT_TRUE(fake_upstream_connection->write("24:DROP reply direction\n"));
   ASSERT_TRUE(fake_upstream_connection->write("24:PASS reply direction\n"));
-  tcp_client->waitForData("24:PASS reply direction\n");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("24:PASS reply direction\n"));
 
   ASSERT_TRUE(tcp_client->write("27:PASS original direction\n"));
   ASSERT_TRUE(
@@ -635,7 +636,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserPartialBlocks) {
   ASSERT_TRUE(fake_upstream_connection->write("24:DROP reply "));
   ASSERT_TRUE(fake_upstream_connection->write("direction\n24:PASS"));
   ASSERT_TRUE(fake_upstream_connection->write(" reply direction\n"));
-  tcp_client->waitForData("24:PASS reply direction\n");
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::StartsWith("24:PASS reply direction\n"));
 
   ASSERT_TRUE(tcp_client->write("27:PASS original direction\n"));
   ASSERT_TRUE(fake_upstream_connection->waitForData(
@@ -660,9 +661,9 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInject) {
 
   // These can in principle arrive in either order
   absl::SleepFor(absl::Milliseconds(10));
-  tcp_client->waitForData("24:PASS reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("24:PASS reply direction\n"));
   absl::SleepFor(absl::Milliseconds(10));
-  tcp_client->waitForData("26:INJECT reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("26:INJECT reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       FakeRawConnection::waitForInexactMatch("27:PASS original direction\n")));
@@ -687,8 +688,8 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartial) {
   ASSERT_TRUE(fake_upstream_connection->write(" direction\n"));
 
   // These can in principle arrive in either order
-  tcp_client->waitForData("24:PASS reply direction\n", false);
-  tcp_client->waitForData("26:INJECT reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("24:PASS reply direction\n"));
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("26:INJECT reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       FakeRawConnection::waitForInexactMatch("27:PASS original direction\n")));
@@ -718,8 +719,8 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartialMulti
   ASSERT_TRUE(fake_upstream_connection->write("ction\n"));
 
   // These can in principle arrive in either order
-  tcp_client->waitForData("24:PASS reply direction\n", false);
-  tcp_client->waitForData("26:INJECT reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("24:PASS reply direction\n"));
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("26:INJECT reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       FakeRawConnection::waitForInexactMatch("29:INSERT original direction\n")));
@@ -727,7 +728,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectPartialMulti
 
   ASSERT_TRUE(fake_upstream_connection->write("24:DROP reply direction\n"));
   ASSERT_TRUE(fake_upstream_connection->write("25:PASS2 reply direction\n"));
-  tcp_client->waitForData("25:PASS2 reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("25:PASS2 reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();
@@ -750,7 +751,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectBufferOverfl
   buf.back() = '\n';
 
   ASSERT_TRUE(tcp_client->write(buf));
-  tcp_client->waitForData("26:INJECT reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("26:INJECT reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       FakeRawConnection::waitForInexactMatch("INSERT original direction")));
@@ -758,7 +759,7 @@ TEST_P(CiliumGoBlocktesterIntegrationTest, CiliumGoBlockParserInjectBufferOverfl
 
   ASSERT_TRUE(fake_upstream_connection->write("24:DROP reply direction\n"));
   ASSERT_TRUE(fake_upstream_connection->write("25:PASS2 reply direction\n"));
-  tcp_client->waitForData("25:PASS2 reply direction\n", false);
+  CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::HasSubstr("25:PASS2 reply direction\n"));
 
   ASSERT_TRUE(fake_upstream_connection->write("", true));
   tcp_client->waitForHalfClose();

@@ -4,7 +4,7 @@
 
 // Some sensible limits to protect against excess resource use
 #define WEBSOCKET_HANDSHAKE_MAX_SIZE 4096
-#define WEBSOCKET_CONTROL_FRAME_MAX_SIZE 256
+#define WEBSOCKET_CONTROL_FRAME_MAX_SIZE 125 // RFC 6455 §5.5
 
 /* Ref. RFC 6455 */
 
