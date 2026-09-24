@@ -7,13 +7,17 @@
 #include <chrono>
 #include <cstdint>
 #include <string>
+#include <utility>
 
 #include "envoy/common/platform.h"
+#include "envoy/network/address.h"
 #include "envoy/network/connection.h"
+#include "envoy/network/socket.h"
 
 #include "test/integration/fake_upstream.h"
 #include "test/integration/integration_tcp_client.h"
 #include "test/test_common/environment.h"
+#include "test/test_common/network_utility.h"
 #include "test/test_common/utility.h"
 
 #include "tests/cilium_tcp_integration.h"
@@ -24,7 +28,7 @@ namespace Envoy {
 // Cilium filters with TCP proxy
 //
 
-// params: is_ingress ("true", "false")
+// params: is_ingress ("true", "false"), WebSocket server listener port
 const std::string cilium_tcp_proxy_config_fmt = R"EOF(
 admin:
   address:
@@ -38,6 +42,18 @@ static_resources:
     lb_policy: CLUSTER_PROVIDED
     connect_timeout:
       seconds: 1
+  - name: websocket-server
+    connect_timeout: 5s
+    type: STATIC
+    load_assignment:
+      cluster_name: websocket-server
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: "{{ ip_loopback_address }}"
+                port_value: {1}
   - name: xds-grpc-cilium
     connect_timeout:
       seconds: 5
@@ -53,10 +69,10 @@ static_resources:
               pipe:
                 path: /var/run/cilium/xds.sock
   listeners:
-    name: listener_0
+  - name: listener_0
     address:
       socket_address:
-        address: 127.0.0.1
+        address: "{{ ip_loopback_address }}"
         port_value: 0
     listener_filters:
       name: test_bpf_metadata
@@ -77,6 +93,18 @@ static_resources:
           ping_interval:
             nanos: 1000000
           ping_when_idle: true
+      - name: envoy.tcp_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+          stat_prefix: tcp_stats
+          cluster: websocket-server
+  - name: websocket-server
+    address:
+      socket_address:
+        address: "{{ ip_loopback_address }}"
+        port_value: {1}
+    filter_chains:
+      filters:
       - name: cilium.network.websocket.server
         typed_config:
           "@type": type.googleapis.com/cilium.WebSocketServer
@@ -85,16 +113,19 @@ static_resources:
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
-          stat_prefix: tcp_stats
+          stat_prefix: websocket_server_tcp_stats
           cluster: cluster1
 )EOF";
 
 class CiliumWebSocketIntegrationTest : public CiliumTcpIntegrationTest {
 public:
   CiliumWebSocketIntegrationTest()
-      : CiliumTcpIntegrationTest(fmt::format(
-            fmt::runtime(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, GetParam())),
-            "true")) {}
+      : CiliumWebSocketIntegrationTest(reserveWebSocketServerPort(GetParam())) {}
+
+  void initialize() override {
+    CiliumTcpIntegrationTest::initialize();
+    reserved_websocket_server_port_.release();
+  }
 
   std::string testPolicyFmt() override {
     return TestEnvironment::substitute(R"EOF(version_info: "0"
@@ -115,6 +146,37 @@ resources:
 )EOF",
                                        GetParam());
   }
+
+private:
+  struct ReservedWebSocketServerPort {
+    ReservedWebSocketServerPort(uint32_t port, Network::SocketPtr socket)
+        : port_(port), socket_(std::move(socket)) {}
+
+    void release() { socket_.reset(); }
+
+    const uint32_t port_;
+    Network::SocketPtr socket_;
+  };
+
+  static ReservedWebSocketServerPort
+  reserveWebSocketServerPort(Network::Address::IpVersion version) {
+    auto reserved =
+        Network::Test::bindFreeLoopbackPort(version, Network::Socket::Type::Stream, true);
+    return {reserved.first->ip()->port(), std::move(reserved.second)};
+  }
+
+  static std::string makeConfig(Network::Address::IpVersion version,
+                                const ReservedWebSocketServerPort& reserved_port) {
+    return fmt::format(
+        fmt::runtime(TestEnvironment::substitute(cilium_tcp_proxy_config_fmt, version)), "true",
+        reserved_port.port_);
+  }
+
+  explicit CiliumWebSocketIntegrationTest(ReservedWebSocketServerPort reserved_port)
+      : CiliumTcpIntegrationTest(makeConfig(GetParam(), reserved_port)),
+        reserved_websocket_server_port_(std::move(reserved_port)) {}
+
+  ReservedWebSocketServerPort reserved_websocket_server_port_;
 };
 
 INSTANTIATE_TEST_SUITE_P(IpVersions, CiliumWebSocketIntegrationTest,
@@ -306,9 +368,10 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
 
   uint32_t upstream_pauses =
-      test_server_->counter("cluster.cluster1.upstream_flow_control_paused_reading_total")->value();
+      test_server_->counter("cluster.websocket-server.upstream_flow_control_paused_reading_total")
+          ->value();
   uint32_t upstream_resumes =
-      test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
+      test_server_->counter("cluster.websocket-server.upstream_flow_control_resumed_reading_total")
           ->value();
   EXPECT_EQ(upstream_pauses, upstream_resumes);
   uint32_t downstream_pauses =
@@ -348,18 +411,21 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamFlush) {
 
   ASSERT_TRUE(fake_upstream_connection->write(data, true));
 
-  test_server_->waitForCounterGe("cluster.cluster1.upstream_flow_control_paused_reading_total", 1);
-  EXPECT_EQ(test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
-                ->value(),
-            0);
+  test_server_->waitForCounterGe(
+      "cluster.websocket-server.upstream_flow_control_paused_reading_total", 1);
+  EXPECT_EQ(
+      test_server_->counter("cluster.websocket-server.upstream_flow_control_resumed_reading_total")
+          ->value(),
+      0);
   tcp_client->readDisable(false);
   CILIUM_ASSERT_TCP_RESPONSE(tcp_client, testing::Eq(data));
   tcp_client->waitForHalfClose();
 
   uint32_t upstream_pauses =
-      test_server_->counter("cluster.cluster1.upstream_flow_control_paused_reading_total")->value();
+      test_server_->counter("cluster.websocket-server.upstream_flow_control_paused_reading_total")
+          ->value();
   uint32_t upstream_resumes =
-      test_server_->counter("cluster.cluster1.upstream_flow_control_resumed_reading_total")
+      test_server_->counter("cluster.websocket-server.upstream_flow_control_resumed_reading_total")
           ->value();
   EXPECT_GE(upstream_pauses, upstream_resumes);
   EXPECT_GT(upstream_resumes, 0);
