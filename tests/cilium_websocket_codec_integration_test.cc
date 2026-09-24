@@ -230,6 +230,58 @@ TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamDisconnect) {
   tcp_client->waitForDisconnect();
 }
 
+// A real close of the source TCP socket still arrives at Envoy as a FIN. Verify that the FIN is
+// carried through the WebSocket tunnel as CLOSE, while final data in the reverse direction is
+// decoded and written to the source-side downstream socket before the CLOSE response completes
+// the connection teardown.
+TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketDownstreamCloseReceivesFinalData) {
+  initialize();
+  const uint64_t ping_count = test_server_->counter("websocket.ping_sent_count")->value();
+
+  IntegrationTcpClientPtr tcp_client = makeTcpConnection(lookupPort("tcp_proxy"));
+  ASSERT_TRUE(tcp_client->write("hello"));
+  FakeRawConnectionPtr fake_upstream_connection;
+
+  // The server-side WebSocket filter stops iteration until it has accepted the handshake and
+  // restored x-envoy-original-dst-host. Reaching the ORIGINAL_DST upstream proves that happened.
+  ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
+
+  std::string received;
+  ASSERT_TRUE(fake_upstream_connection->waitForData(5, &received));
+  ASSERT_EQ(received, "hello");
+
+  // The client starts its PING timer only after validating the server's 101 response.
+  test_server_->waitForCounterGe("websocket.ping_sent_count", ping_count + 1);
+  EXPECT_EQ(test_server_->counter("websocket.handshake_invalid_websocket_request")->value(), 0);
+  EXPECT_EQ(test_server_->counter("websocket.handshake_invalid_websocket_response")->value(), 0);
+
+  auto downstream_tx = test_server_->counter("tcp.tcp_stats.downstream_cx_tx_bytes_total");
+  ASSERT_NE(downstream_tx, nullptr);
+  const uint64_t downstream_tx_before = downstream_tx->value();
+  auto protocol_errors = test_server_->counter("websocket.protocol_error");
+  ASSERT_NE(protocol_errors, nullptr);
+  const uint64_t protocol_errors_before = protocol_errors->value();
+
+  // Close the client socket completely, rather than merely half-closing it with write(..., true).
+  // Envoy observes the orderly TCP FIN and carries it through the tunnel as WebSocket CLOSE.
+  tcp_client->close();
+  ASSERT_TRUE(fake_upstream_connection->waitForHalfClose());
+
+  const std::string final_data = "upstream final";
+  ASSERT_TRUE(fake_upstream_connection->write(final_data, true));
+
+  // The closed IntegrationTcpClient can no longer observe received data. The TCP proxy byte
+  // counter verifies that the decoded final data was written to the source-side downstream socket.
+  test_server_->waitForCounterGe("tcp.tcp_stats.downstream_cx_tx_bytes_total",
+                                 downstream_tx_before + final_data.size());
+  EXPECT_EQ(downstream_tx->value(), downstream_tx_before + final_data.size());
+
+  // The upstream FIN completes the delayed WebSocket CLOSE response, after which both TCP proxy
+  // connections close normally without treating transport termination as a protocol error.
+  ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
+  EXPECT_EQ(protocol_errors->value(), protocol_errors_before);
+}
+
 TEST_P(CiliumWebSocketIntegrationTest, CiliumWebSocketLargeWrite) {
   config_helper_.setBufferLimits(1024, 1024);
   initialize();
