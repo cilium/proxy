@@ -86,5 +86,47 @@ TEST_F(CiliumTest, AccessLog) {
   EXPECT_STREQ(log.entry_.http().headers(1).value().c_str(), "response");
 }
 
+TEST_F(CiliumTest, AccessLogPreservesAIResponseHeaders) {
+  Http::TestRequestHeaderMapImpl headers{{":method", "POST"},
+                                         {":path", "/v1/chat/completions"},
+                                         {":authority", "model-server"},
+                                         {"x-forwarded-proto", "http"},
+                                         {"x-request-id", "req-123"}};
+  Network::MockConnection connection;
+  auto source_address = std::make_shared<Network::Address::Ipv4Instance>("5.6.7.8", 45678);
+  auto destination_address = std::make_shared<Network::Address::Ipv4Instance>("1.2.3.4", 80);
+  connection.stream_info_.protocol_ = Http::Protocol::Http11;
+  connection.stream_info_.start_time_ = time_system_.systemTime();
+  connection.stream_info_.downstream_connection_info_provider_->setRemoteAddress(source_address);
+  connection.stream_info_.downstream_connection_info_provider_->setLocalAddress(
+      destination_address);
+
+  AccessLog::Entry log;
+  log.initFromRequest("1.2.3.4", 42, true, 1, source_address, 173, destination_address,
+                      connection.stream_info_, headers);
+
+  Http::TestResponseHeaderMapImpl response_headers{{":status", "200"},
+                                                   {"x-ai-model", "llama3.1-8b-instruct"},
+                                                   {"x-ai-input-tokens", "11"},
+                                                   {"x-ai-output-tokens", "6"},
+                                                   {"x-ai-total-tokens", "17"}};
+
+  NiceMock<Event::SimulatedTimeSystem> time_source;
+  log.updateFromResponse(response_headers, time_source);
+
+  EXPECT_EQ(log.entry_.http().status(), 200);
+  EXPECT_EQ(log.entry_.http().headers_size(), 5);
+  EXPECT_STREQ(log.entry_.http().headers(0).key().c_str(), "x-request-id");
+  EXPECT_STREQ(log.entry_.http().headers(0).value().c_str(), "req-123");
+  EXPECT_STREQ(log.entry_.http().headers(1).key().c_str(), "x-ai-model");
+  EXPECT_STREQ(log.entry_.http().headers(1).value().c_str(), "llama3.1-8b-instruct");
+  EXPECT_STREQ(log.entry_.http().headers(2).key().c_str(), "x-ai-input-tokens");
+  EXPECT_STREQ(log.entry_.http().headers(2).value().c_str(), "11");
+  EXPECT_STREQ(log.entry_.http().headers(3).key().c_str(), "x-ai-output-tokens");
+  EXPECT_STREQ(log.entry_.http().headers(3).value().c_str(), "6");
+  EXPECT_STREQ(log.entry_.http().headers(4).key().c_str(), "x-ai-total-tokens");
+  EXPECT_STREQ(log.entry_.http().headers(4).value().c_str(), "17");
+}
+
 } // namespace Cilium
 } // namespace Envoy
