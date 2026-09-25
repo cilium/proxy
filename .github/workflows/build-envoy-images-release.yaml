@@ -6,11 +6,13 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   build-envoy-images-release:
+    permissions:
+      contents: read
+      # Required by the Quay OIDC token exchange in the called workflow.
+      id-token: write
     uses: ./.github/workflows/build-envoy-images-release-base.yaml
     with:
       release_debug: false
-    secrets: inherit
