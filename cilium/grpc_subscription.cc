@@ -230,6 +230,8 @@ void ManagedGrpcSubscription::subscribe() {
   } else {
     create();
   }
+  // Only reset once subscription_ is replaced; create() may throw.
+  started_ = false;
 }
 
 void ManagedGrpcSubscription::configure(

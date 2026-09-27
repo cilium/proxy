@@ -295,14 +295,20 @@ Config::Config(const ::cilium::BpfMetadata& config,
   // instances!
   // Only created if either ipcache_ or hosts_ map exists
   if (ipcache_ || hosts_) {
+    bool created = false;
     npmap_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::NetworkPolicyMap>(
         SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-        [&context, config_source = config_source_] {
+        [&context, &created, config_source = config_source_] {
+          created = true;
           return std::make_shared<Cilium::NetworkPolicyMap>(context, config_source);
         },
         pin_for_ads);
     // update desired config source on the map
     npmap_->configure(config_source_);
+    // The listener that created the map may have been rejected before NPDS started.
+    if (!created) {
+      npmap_->maybeAddInitTarget(context.initManager());
+    }
   }
 }
 
