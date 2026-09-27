@@ -12,6 +12,7 @@
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
+#include "envoy/init/manager.h"
 #include "envoy/network/address.h"
 #include "envoy/protobuf/message_validator.h"
 #include "envoy/server/factory_context.h"
@@ -202,6 +203,7 @@ public:
 
   bool exists(const std::string& endpoint_policy_name) const;
   void configure(const envoy::config::core::v3::ConfigSource& config_source);
+  void maybeAddInitTarget(Init::Manager& init_manager);
 
   const PolicyInstance& getPolicyInstance(const std::string& endpoint_policy_name,
                                           bool allow_egress) const;
