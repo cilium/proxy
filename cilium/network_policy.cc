@@ -1949,6 +1949,12 @@ void NetworkPolicyMap::configure(const envoy::config::core::v3::ConfigSource& co
   impl_->configure(config_source);
 }
 
+void NetworkPolicyMap::maybeAddInitTarget(Init::Manager& init_manager) {
+  if (!impl_->started()) {
+    init_manager.add(impl_->init_target_);
+  }
+}
+
 ManagedGrpcSubscription& NetworkPolicyMap::managedSubscription() { return *impl_; }
 
 const ManagedGrpcSubscription& NetworkPolicyMap::managedSubscription() const { return *impl_; }
