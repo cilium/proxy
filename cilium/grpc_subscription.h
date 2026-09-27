@@ -51,7 +51,8 @@ protected:
   void subscribe();
 
   void start() {
-    if (subscription_) {
+    if (subscription_ && !started_) {
+      started_ = true;
       subscription_->start({});
     }
   };
@@ -59,6 +60,7 @@ protected:
   Stats::Scope& scope() { return *scope_; }
 
   bool connected() const { return connected_; }
+  bool started() const { return started_; }
   uint64_t streamGeneration() const { return stream_generation_; }
 
   void onStreamEvent(uint64_t subscription_id, Config::GrpcMuxStreamEvent event);
@@ -84,6 +86,7 @@ private:
   uint64_t subscription_id_{0};
   uint64_t stream_generation_{1};
   bool connected_{false};
+  bool started_{false};
 
   SubscriptionFactoryForTest factory_for_test_;
 };
