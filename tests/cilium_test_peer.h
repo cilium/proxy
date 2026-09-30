@@ -23,6 +23,7 @@ public:
     target.subscription_ = std::move(subscription);
     target.config_source_ = target.desired_config_source_;
     target.connected_ = false;
+    target.started_ = false;
   }
 
   static void setSubscription(PolicyHostMap& target,
