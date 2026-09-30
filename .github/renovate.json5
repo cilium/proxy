@@ -26,6 +26,7 @@
   pruneStaleBranches: true,
   baseBranchPatterns: [
     'main',
+    'v1.38',
     'v1.37',
   ],
   labels: [
@@ -48,6 +49,7 @@
       ],
       matchBaseBranches: [
         'main',
+        'v1.38',
         'v1.37',
       ],
     },
@@ -71,6 +73,7 @@
       ],
       matchBaseBranches: [
         'main',
+        'v1.38',
         'v1.37',
       ],
     },
@@ -100,6 +103,7 @@
       ],
       matchBaseBranches: [
         'main',
+        'v1.38',
         'v1.37',
       ],
     },
@@ -113,6 +117,7 @@
       allowedVersions: '24.04',
       matchBaseBranches: [
         'main',
+        'v1.38',
         'v1.37',
       ],
     },
@@ -126,6 +131,7 @@
       allowedVersions: '24.04',
       matchBaseBranches: [
         'main',
+        'v1.38',
         'v1.37',
       ],
     },
@@ -149,6 +155,7 @@
       allowedVersions: '<=1.26',
       matchBaseBranches: [
         'main',
+        'v1.38',
         'v1.37',
       ],
     },
@@ -160,6 +167,16 @@
       allowedVersions: '<=1.37',
       matchBaseBranches: [
         'v1.37',
+      ],
+    },
+    {
+      groupName: 'envoy 1.38.x',
+      matchDepNames: [
+        'envoyproxy/envoy',
+      ],
+      allowedVersions: '<=1.38',
+      matchBaseBranches: [
+        'v1.38',
       ],
     },
     {
