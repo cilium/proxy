@@ -156,11 +156,11 @@ void processNpdsUpdateWith1000Policies(benchmark::State& state, bool policy_secr
     return;
   }
 
-  ON_CALL(secret_manager, findOrCreateGenericSecretProvider(_, _, _, _))
+  ON_CALL(secret_manager, findOrCreateGenericSecretProvider(_, _, _, _, _))
       .WillByDefault(Invoke([generic_secret_provider](const envoy::config::core::v3::ConfigSource&,
                                                       const std::string&,
                                                       Server::Configuration::ServerFactoryContext&,
-                                                      OptRef<Init::Manager> init_manager) {
+                                                      OptRef<Init::Manager> init_manager, bool) {
         if (init_manager.has_value()) {
           init_manager->add(*generic_secret_provider->initTarget());
         } else {

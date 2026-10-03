@@ -59,7 +59,7 @@ auto createSdsSecretProvider(const envoy::config::core::v3::ConfigSource& sds_co
 }
 
 // findOrCreate*Provider signatures are not uniform: TlsCertificate and GenericSecret take an
-// OptRef<Init::Manager> (and TlsCertificate an extra bool warm), the rest take Init::Manager&.
+// OptRef<Init::Manager> and a bool warm, the rest take Init::Manager&.
 // Hence one macro per shape, all sharing createSdsSecretProvider() above.
 #define ON_CALL_SDS_SECRET_PROVIDER(SECRET_MANAGER, PROVIDER_TYPE, API_TYPE)                       \
   ON_CALL(SECRET_MANAGER, findOrCreate##PROVIDER_TYPE##Provider(_, _, _, _))                       \
@@ -72,17 +72,7 @@ auto createSdsSecretProvider(const envoy::config::core::v3::ConfigSource& sds_co
       }))
 
 #define ON_CALL_SDS_SECRET_PROVIDER_OPT_INIT(SECRET_MANAGER, PROVIDER_TYPE, API_TYPE)              \
-  ON_CALL(SECRET_MANAGER, findOrCreate##PROVIDER_TYPE##Provider(_, _, _, _))                       \
-      .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,     \
-                               const std::string& config_name,                                     \
-                               Server::Configuration::ServerFactoryContext& server_context,        \
-                               OptRef<Init::Manager> init_manager) {                               \
-        return createSdsSecretProvider<Secret::API_TYPE##SdsApi>(sds_config_source, config_name,   \
-                                                                 server_context, init_manager);    \
-      }))
-
-#define ON_CALL_SDS_TLS_CERTIFICATE_PROVIDER(SECRET_MANAGER, API_TYPE)                             \
-  ON_CALL(SECRET_MANAGER, findOrCreateTlsCertificateProvider(_, _, _, _, _))                       \
+  ON_CALL(SECRET_MANAGER, findOrCreate##PROVIDER_TYPE##Provider(_, _, _, _, _))                    \
       .WillByDefault(Invoke([](const envoy::config::core::v3::ConfigSource& sds_config_source,     \
                                const std::string& config_name,                                     \
                                Server::Configuration::ServerFactoryContext& server_context,        \
@@ -106,7 +96,7 @@ protected:
     ON_CALL(factory_context_.server_factory_context_, secretManager())
         .WillByDefault(ReturnRef(secret_manager_));
 
-    ON_CALL_SDS_TLS_CERTIFICATE_PROVIDER(secret_manager_, TlsCertificate);
+    ON_CALL_SDS_SECRET_PROVIDER_OPT_INIT(secret_manager_, TlsCertificate, TlsCertificate);
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, CertificateValidationContext,
                                 CertificateValidationContext);
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, TlsSessionTicketKeysContext, TlsSessionTicketKeys);
@@ -2939,7 +2929,8 @@ resources:
 }
 
 TEST_F(CiliumNetworkPolicyTest, SecretWatchersAreDeduplicatedWithinStream) {
-  EXPECT_CALL(secret_manager_, findOrCreateGenericSecretProvider(_, "shared-header-secret", _, _));
+  EXPECT_CALL(secret_manager_,
+              findOrCreateGenericSecretProvider(_, "shared-header-secret", _, _, _));
 
   EXPECT_NO_THROW(updateFromYaml(R"EOF(version_info: "1"
 resources:
@@ -2979,7 +2970,7 @@ resources:
 }
 
 TEST_F(CiliumNetworkPolicyTest, SecretWatcherCacheIsResetForNewStream) {
-  EXPECT_CALL(secret_manager_, findOrCreateGenericSecretProvider(_, "header-secret", _, _))
+  EXPECT_CALL(secret_manager_, findOrCreateGenericSecretProvider(_, "header-secret", _, _, _))
       .Times(2);
 
   const auto policy_yaml = R"EOF(version_info: "1"

@@ -1,7 +1,8 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From 563a3c40b443a32ec1ebdbd4310862755729ed5a Mon Sep 17 00:00:00 2001
 From: Cilium Authors <dev@cilium.io>
 Date: Mon, 24 Aug 2026 08:00:00 +0200
-Subject: [PATCH] network: Allow write filters to consume data after end stream
+Subject: [PATCH 7/8] network: Allow write filters to consume data after end
+ stream
 
 A protocol filter may synthesize an end stream for the data it exposes while
 the underlying transport remains open for protocol control frames. Give write
@@ -15,10 +16,10 @@ does not permit application data to be written to the transport after FIN.
  1 file changed, 12 insertions(+), 10 deletions(-)
 
 diff --git a/source/common/network/connection_impl.cc b/source/common/network/connection_impl.cc
-index 8ce180e730..bc34812540 100644
+index 4b1190356d..85f56c8cef 100644
 --- a/source/common/network/connection_impl.cc
 +++ b/source/common/network/connection_impl.cc
-@@ -595,16 +595,10 @@ void ConnectionImpl::write(Buffer::Instance& data, bool end_stream, bool through
+@@ -588,16 +588,10 @@ void ConnectionImpl::write(Buffer::Instance& data, bool end_stream, bool through
    ASSERT(!end_stream || enable_half_close_);
    ASSERT(dispatcher_.isThreadSafe());
  
@@ -39,7 +40,7 @@ index 8ce180e730..bc34812540 100644
      // NOTE: This is kind of a hack, but currently we don't support restart/continue on the write
      //       path, so we just pass around the buffer passed to us in this function. If we ever
      //       support buffer/restart/continue on the write path this needs to get more complicated.
-@@ -618,6 +612,14 @@ void ConnectionImpl::write(Buffer::Instance& data, bool end_stream, bool through
+@@ -611,6 +605,14 @@ void ConnectionImpl::write(Buffer::Instance& data, bool end_stream, bool through
      }
    }
  
@@ -55,4 +56,5 @@ index 8ce180e730..bc34812540 100644
    if (data.length() > 0 || end_stream) {
      ENVOY_CONN_LOG(trace, "writing {} bytes, end_stream {}", *this, data.length(), end_stream);
 -- 
-2.43.0
+2.56.0
+

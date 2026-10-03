@@ -198,13 +198,6 @@ significantly. To do this you should update Envoy version in
 ARCH=multi NO_CACHE=1 NO_ARCHIVE=1 BUILDER_ARCHIVE_TAG=main-archive-latest make docker-builder-archive
 ```
 
-If the Envoy update changes the dynamic modules Rust SDK dependencies,
-refresh the Cilium-owned crate-universe lockfile with `make cargo-repin`
-and commit the resulting
-`bazel/envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock` update together
-with the Envoy bump. Normal builds use this checked-in lockfile and do
-not need to run Cargo repinning first.
-
 
 ## Updating the builder image
 
