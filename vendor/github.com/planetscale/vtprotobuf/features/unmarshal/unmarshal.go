@@ -12,9 +12,11 @@ import (
 
 	"google.golang.org/protobuf/compiler/protogen"
 	"google.golang.org/protobuf/encoding/protowire"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/planetscale/vtprotobuf/generator"
+	"github.com/planetscale/vtprotobuf/vtproto"
 )
 
 func init() {
@@ -155,7 +157,7 @@ func (p *unmarshal) declareMapField(varName string, nullable bool, field *protog
 	}
 }
 
-func (p *unmarshal) mapField(varName string, field *protogen.Field) {
+func (p *unmarshal) mapField(varName string, field *protogen.Field, unique bool) {
 	switch field.Desc.Kind() {
 	case protoreflect.DoubleKind:
 		p.P(`var `, varName, `temp uint64`)
@@ -193,13 +195,20 @@ func (p *unmarshal) mapField(varName string, field *protogen.Field) {
 		p.P(`if postStringIndex`, varName, ` > l {`)
 		p.P(`return `, p.Ident("io", `ErrUnexpectedEOF`))
 		p.P(`}`)
-		if p.unsafe {
+		switch {
+		case p.unsafe:
 			p.P(`if intStringLen`, varName, ` == 0 {`)
 			p.P(varName, ` = ""`)
 			p.P(`} else {`)
 			p.P(varName, ` = `, p.Ident("unsafe", `String`), `(&dAtA[iNdEx], intStringLen`, varName, `)`)
 			p.P(`}`)
-		} else {
+		case unique:
+			p.P(`if intStringLen`, varName, ` == 0 {`)
+			p.P(varName, ` = ""`)
+			p.P(`} else {`)
+			p.P(varName, ` = `, p.Ident("unique", `Make`), `[string](`, p.Ident("unsafe", `String`), `(&dAtA[iNdEx], intStringLen`, varName, `)).Value()`)
+			p.P(`}`)
+		default:
 			p.P(varName, ` = `, "string", `(dAtA[iNdEx:postStringIndex`, varName, `])`)
 		}
 		p.P(`iNdEx = postStringIndex`, varName)
@@ -409,6 +418,8 @@ func (p *unmarshal) fieldItem(field *protogen.Field, fieldname string, message *
 			p.P(`m.`, fieldname, ` = &b`)
 		}
 	case protoreflect.StringKind:
+		unique := proto.GetExtension(field.Desc.Options(), vtproto.E_Options).(*vtproto.Opts).GetUnique()
+
 		p.P(`var stringLen uint64`)
 		p.decodeVarint("stringLen", "uint64")
 		p.P(`intStringLen := int(stringLen)`)
@@ -423,11 +434,18 @@ func (p *unmarshal) fieldItem(field *protogen.Field, fieldname string, message *
 		p.P(`return `, p.Ident("io", `ErrUnexpectedEOF`))
 		p.P(`}`)
 		str := "string(dAtA[iNdEx:postIndex])"
-		if p.unsafe {
+		switch {
+		case p.unsafe:
 			str = "stringValue"
 			p.P(`var stringValue string`)
 			p.P(`if intStringLen > 0 {`)
 			p.P(`stringValue = `, p.Ident("unsafe", `String`), `(&dAtA[iNdEx], intStringLen)`)
+			p.P(`}`)
+		case unique:
+			str = "stringValue"
+			p.P(`var stringValue string`)
+			p.P(`if intStringLen > 0 {`)
+			p.P(`stringValue = `, p.Ident("unique", `Make`), `[string](`, p.Ident("unsafe", `String`), `(&dAtA[iNdEx], intStringLen)).Value()`)
 			p.P(`}`)
 		}
 		if oneof {
@@ -489,6 +507,8 @@ func (p *unmarshal) fieldItem(field *protogen.Field, fieldname string, message *
 			p.P(`m.`, fieldname, ` = &`, field.GoIdent, "{", field.GoName, `: v}`)
 			p.P(`}`)
 		} else if field.Desc.IsMap() {
+			unique := proto.GetExtension(field.Desc.Options(), vtproto.E_Options).(*vtproto.Opts).GetUnique()
+
 			goTyp, _ := p.FieldGoType(field)
 			goTypK, _ := p.FieldGoType(field.Message.Fields[0])
 			goTypV, _ := p.FieldGoType(field.Message.Fields[1])
@@ -507,9 +527,9 @@ func (p *unmarshal) fieldItem(field *protogen.Field, fieldname string, message *
 			p.P(`fieldNum := int32(wire >> 3)`)
 
 			p.P(`if fieldNum == 1 {`)
-			p.mapField("mapkey", field.Message.Fields[0])
+			p.mapField("mapkey", field.Message.Fields[0], unique)
 			p.P(`} else if fieldNum == 2 {`)
-			p.mapField("mapvalue", field.Message.Fields[1])
+			p.mapField("mapvalue", field.Message.Fields[1], unique)
 			p.P(`} else {`)
 			p.P(`iNdEx = entryPreIndex`)
 			p.P(`skippy, err := `, p.Helper("Skip"), `(dAtA[iNdEx:])`)
@@ -836,7 +856,7 @@ func (p *unmarshal) message(proto3 bool, message *protogen.Message) {
 		p.P(`iNdEx += skippy`)
 		p.P(`} else {`)
 	}
-	if !p.Wrapper() {
+	if !p.Wrapper() && !p.ShouldIgnoreUnknownFields(message) {
 		p.P(`m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)`)
 	}
 	p.P(`iNdEx += skippy`)
