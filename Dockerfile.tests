@@ -1,8 +1,3 @@
-# 
-# BUILDER_BASE is a multi-platform image with all the build tools
-#
-ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.5.0-latest@sha256:3f98b069a4c4737d8252fdf47f77d9f7e27ef5acb1bec13af3619180d6baee23
-
 #
 # ARCHIVE_IMAGE defaults to the result of the first stage below,
 # refreshing the build caches from Envoy dependencies before the final
@@ -14,7 +9,29 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.5.0-latest@sha256:3f98b06
 #
 ARG ARCHIVE_IMAGE=builder-fresh
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder-fresh
+#
+# Build tools for the stages below. Bazel downloads the LLVM toolchain, the
+# sysroots, Python and Go itself, so the host only needs Bazelisk, git and
+# make. The downloaded lld links against the host libxml2, and the clang-tidy
+# helper scripts run the host python3.
+#
+FROM --platform=$BUILDPLATFORM docker.io/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS builder-base
+LABEL maintainer="maintainer@cilium.io"
+ARG BUILDARCH
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get install -y --no-install-recommends ca-certificates curl git libxml2 make python3 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# renovate: datasource=github-releases depName=bazelbuild/bazelisk
+ENV BAZELISK_VERSION=v1.29.0
+RUN curl -sfL https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-${BUILDARCH} -o /usr/bin/bazel && \
+    chmod +x /usr/bin/bazel
+RUN groupadd -f -g 1337 cilium && useradd -m -d /cilium/proxy -g cilium -u 1337 cilium
+USER 1337:1337
+WORKDIR /cilium/proxy
+
+FROM builder-base AS builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -35,7 +52,7 @@ RUN BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUI
 # overridden to point to a saved image of an earlier run of that stage.
 FROM $ARCHIVE_IMAGE AS archive-cache
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder
+FROM builder-base AS builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -55,7 +72,7 @@ RUN --mount=target=/tmp/bazel-cache,source=/tmp/bazel-cache,from=archive-cache,r
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG make envoy-test-deps && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; fi
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS runner
+FROM builder-base AS runner
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./

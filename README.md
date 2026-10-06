@@ -44,10 +44,10 @@ Note: The below table is updated by script `tools/update_version_matrix.sh`
 
 ## Building
 
-Cilium proxy is best built with the provided build containers. For a
-local host build consult [the builder
-Dockerfile](https://github.com/cilium/proxy/blob/main/Dockerfile.builder)
-for the required dependencies.
+Cilium proxy is best built with the provided build containers. Bazel
+downloads the compiler toolchain itself, so a local host build only needs
+the tools installed by the `builder-base` stage of the
+[Dockerfile](https://github.com/cilium/proxy/blob/main/Dockerfile).
 
 Container builds require Docker Buildkit and optionally Buildx for
 multi-arch builds. Builds are currently only supported for amd64 and
@@ -197,31 +197,6 @@ significantly. To do this you should update Envoy version in
 ```
 ARCH=multi NO_CACHE=1 NO_ARCHIVE=1 BUILDER_ARCHIVE_TAG=main-archive-latest make docker-builder-archive
 ```
-
-
-## Updating the builder image
-
-The required Bazel version typically changes from one Envoy release to
-another. To create a new builder image first update the required Bazel
-version at `.bazelversion` and then run:
-
-```
-ARCH=multi NO_CACHE=1 NO_ARCHIVE=1 make docker-image-builder
-```
-
-The builder can not be cross-compiled as native build tools are needed
-for native arm64 builds. This means that for non-native builds QEMU
-CPU emulation is used instead of cross-compilation. If you have an
-arm64 machine you can create a Docker buildx builder to use it for
-native builds.
-
-The builder image is tagged as
-"quay.io/cilium/cilium-envoy-builder:bazel-<version>". Change the
-BUILDER_BASE ARG in `Dockerfile` to use the new builder and commit the
-result.
-
-For testing purposes you can define `DOCKER_DEV_ACCOUNT` as explained
-above to push the builder into a different registry or account.
 
 
 ## Running integration tests

@@ -1,8 +1,3 @@
-# 
-# BUILDER_BASE is a multi-platform image with all the build tools
-#
-ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.1.0-latest
-
 #
 # ARCHIVE_IMAGE defaults to the result of the first stage below,
 # refreshing the build caches from Envoy dependencies before the final
@@ -14,7 +9,29 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.1.0-latest
 #
 ARG ARCHIVE_IMAGE=builder-fresh
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder-fresh
+#
+# Build tools for the stages below. Bazel downloads the LLVM toolchain, the
+# sysroots, Python and Go itself, so the host only needs Bazelisk, git and
+# make. The downloaded lld links against the host libxml2, and the clang-tidy
+# helper scripts run the host python3.
+#
+FROM --platform=$BUILDPLATFORM docker.io/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS builder-base
+LABEL maintainer="maintainer@cilium.io"
+ARG BUILDARCH
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get install -y --no-install-recommends ca-certificates curl git libxml2 make python3 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# renovate: datasource=github-releases depName=bazelbuild/bazelisk
+ENV BAZELISK_VERSION=v1.29.0
+RUN curl -sfL https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-${BUILDARCH} -o /usr/bin/bazel && \
+    chmod +x /usr/bin/bazel
+RUN groupadd -f -g 1337 cilium && useradd -m -d /cilium/proxy -g cilium -u 1337 cilium
+USER 1337:1337
+WORKDIR /cilium/proxy
+
+FROM builder-base AS builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -44,7 +61,7 @@ FROM $ARCHIVE_IMAGE AS builder-cache
 #
 # Persist Bazel disk cache by passing COPY_CACHE=1
 #
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder
+FROM builder-base AS builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -77,7 +94,7 @@ ARG COPY_CACHE_EXT
 COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 
 # Format check
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS check-format
+FROM builder-base AS check-format
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY --chown=1337:1337 . ./
@@ -95,7 +112,7 @@ FROM scratch AS format
 COPY --from=check-format /cilium/proxy/format-output.txt /
 
 # clang-tidy
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS run-clang-tidy-fix
+FROM builder-base AS run-clang-tidy-fix
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY --chown=1337:1337 . ./a

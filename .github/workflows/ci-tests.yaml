@@ -56,14 +56,6 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
-
-      - name: Wait for build image
-        uses: ./.github/workflows/wait-for-image
-        with:
-          SHA: ${{ env.BUILDER_DOCKER_HASH }}
-          repo: cilium
-          images: cilium-envoy-builder-dev
 
       - name: Run integration tests on amd64
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -74,7 +66,6 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.base_ref }}-archive-latest
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false
             BAZEL_TEST_OPTS=--jobs=HOST_RAM*.0002 --test_timeout=300 --local_test_jobs=4 --flaky_test_attempts=3
@@ -105,14 +96,6 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
-
-      - name: Wait for build image
-        uses: ./.github/workflows/wait-for-image
-        with:
-          SHA: ${{ env.BUILDER_DOCKER_HASH }}
-          repo: cilium
-          images: cilium-envoy-builder-dev
 
       - name: Run ASAN integration tests on amd64
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -123,7 +106,6 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.base_ref }}-archive-latest
             DEBUG=1
             BAZEL_BUILD_OPTS=--remote_upload_local_results=false --config=asan
@@ -155,14 +137,6 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
-
-      - name: Wait for build image
-        uses: ./.github/workflows/wait-for-image
-        with:
-          SHA: ${{ env.BUILDER_DOCKER_HASH }}
-          repo: cilium
-          images: cilium-envoy-builder-dev
 
       - name: Run MSAN integration tests on amd64
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -173,7 +147,6 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.base_ref }}-archive-latest
             DEBUG=1
             BAZEL_BUILD_OPTS=--config=msan --remote_upload_local_results=false
@@ -205,14 +178,6 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
-
-      - name: Wait for build image
-        uses: ./.github/workflows/wait-for-image
-        with:
-          SHA: ${{ env.BUILDER_DOCKER_HASH }}
-          repo: cilium
-          images: cilium-envoy-builder-dev
 
       - name: Run TSAN integration tests on amd64
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -223,7 +188,6 @@ jobs:
           file: ./Dockerfile.tests
           platforms: linux/amd64
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
             ARCHIVE_IMAGE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder:test-${{ github.base_ref }}-archive-latest
             DEBUG=1
             BAZEL_BUILD_OPTS=--config=tsan --remote_upload_local_results=false
