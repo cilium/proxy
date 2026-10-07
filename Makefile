@@ -68,6 +68,8 @@ PROXYLIB_TSAN_CC ?= clang
 PROXYLIB_TSAN_CGO_CFLAGS ?= -fsanitize=thread
 PROXYLIB_TSAN_GO_BUILD_FLAGS ?= -installsuffix=tsan -buildvcs=false
 
+BAZEL_BUILD_OPTS += --config=clang
+
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
 else ifdef RELEASE_DEBUG
