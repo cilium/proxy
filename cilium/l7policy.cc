@@ -343,10 +343,13 @@ Http::FilterHeadersStatus AccessFilter::encodeHeaders(Http::ResponseHeaderMap& h
 
     // check if upstream and downstream connections have the same source and destination
     // addresses, respectively (note: do not compare pointers!).
-    if (*upstream_info.upstreamRemoteAddress() ==
-            *stream_info.downstreamAddressProvider().localAddress() &&
-        *upstream_info.upstreamLocalAddress() ==
-            *stream_info.downstreamAddressProvider().remoteAddress()) {
+    const auto upstream_remote_address = upstream_info.upstreamRemoteAddress();
+    const auto upstream_local_address = upstream_info.upstreamLocalAddress();
+    const auto downstream_local_address = stream_info.downstreamAddressProvider().localAddress();
+    const auto downstream_remote_address = stream_info.downstreamAddressProvider().remoteAddress();
+    if (upstream_remote_address && upstream_local_address && downstream_local_address &&
+        downstream_remote_address && *upstream_remote_address == *downstream_local_address &&
+        *upstream_local_address == *downstream_remote_address) {
       ENVOY_CONN_LOG(debug,
                      "cilium.l7policy: Upstream connection with same 5-tuple closed, passing "
                      "connection close to downstream response",
