@@ -1,8 +1,3 @@
-# 
-# BUILDER_BASE is a multi-platform image with all the build tools
-#
-ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.1.0-latest
-
 #
 # ARCHIVE_IMAGE defaults to the result of the first stage below,
 # refreshing the build caches from Envoy dependencies before the final
@@ -14,16 +9,29 @@ ARG BUILDER_BASE=quay.io/cilium/cilium-envoy-builder:6.1.0-latest
 #
 ARG ARCHIVE_IMAGE=builder-fresh
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS proxylib
-WORKDIR /go/src/github.com/cilium/proxy
-COPY --chown=1337:1337 . ./
-ARG TARGETARCH
-ENV TARGETARCH=$TARGETARCH
-RUN --mount=mode=0777,gid=1337,uid=1337,target=/cilium/proxy/.cache,type=cache \
-    --mount=mode=0777,gid=1337,uid=1337,target=/go/pkg,type=cache \
-    PATH=$PATH:/usr/local/go/bin GOARCH=${TARGETARCH} make -C proxylib all && mv proxylib/libcilium.so /tmp/libcilium.so
+#
+# Build tools for the stages below. Bazel downloads the LLVM toolchain, the
+# sysroots, Python and Go itself, so the host only needs Bazelisk, git and
+# make. The downloaded lld links against the host libxml2, and the clang-tidy
+# helper scripts run the host python3.
+#
+FROM --platform=$BUILDPLATFORM docker.io/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS builder-base
+LABEL maintainer="maintainer@cilium.io"
+ARG BUILDARCH
+RUN apt-get update && \
+    apt-get upgrade -y --no-install-recommends && \
+    apt-get install -y --no-install-recommends ca-certificates curl git libxml2 make python3 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+# renovate: datasource=github-releases depName=bazelbuild/bazelisk
+ENV BAZELISK_VERSION=v1.29.0
+RUN curl -sfL https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-${BUILDARCH} -o /usr/bin/bazel && \
+    chmod +x /usr/bin/bazel
+RUN groupadd -f -g 1337 cilium && useradd -m -d /cilium/proxy -g cilium -u 1337 cilium
+USER 1337:1337
+WORKDIR /cilium/proxy
 
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder-fresh
+FROM builder-base AS builder-fresh
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -53,7 +61,7 @@ FROM $ARCHIVE_IMAGE AS builder-cache
 #
 # Persist Bazel disk cache by passing COPY_CACHE=1
 #
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS builder
+FROM builder-base AS builder
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY . ./
@@ -73,10 +81,6 @@ RUN --mount=mode=0777,uid=1337,gid=1337,target=/cilium/proxy/.cache,type=cache,i
     if [ -n "${COPY_CACHE_EXT}" ]; then PKG_BUILD=1 make BUILD_DEP_HASHES; if [ -f /tmp/bazel-cache/BUILD_DEP_HASHES ] && ! diff BUILD_DEP_HASHES /tmp/bazel-cache/BUILD_DEP_HASHES; then echo "Build dependencies have changed, clearing bazel cache"; rm -rf /tmp/bazel-cache/*; rm -rf /cilium/proxy/.cache/*; fi ; cp BUILD_DEP_HASHES ENVOY_VERSION /tmp/bazel-cache; fi && \
     BAZEL_BUILD_OPTS="${BAZEL_BUILD_OPTS} --disk_cache=/tmp/bazel-cache" PKG_BUILD=1 V=$V DEBUG=$DEBUG RELEASE_DEBUG=$RELEASE_DEBUG DESTDIR=/tmp/install make install && \
     if [ -n "${COPY_CACHE_EXT}" ]; then cp -ra /tmp/bazel-cache /tmp/bazel-cache${COPY_CACHE_EXT}; ls -la /tmp/bazel-cache${COPY_CACHE_EXT}; fi
-#
-# Copy proxylib after build to allow install as non-root to succeed
-#
-COPY --from=proxylib /tmp/libcilium.so /tmp/install/usr/lib/libcilium.so
 
 FROM scratch AS empty-builder-archive
 LABEL maintainer="maintainer@cilium.io"
@@ -90,7 +94,7 @@ ARG COPY_CACHE_EXT
 COPY --from=builder /tmp/bazel-cache${COPY_CACHE_EXT}/ /tmp/bazel-cache/
 
 # Format check
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS check-format
+FROM builder-base AS check-format
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY --chown=1337:1337 . ./
@@ -108,7 +112,7 @@ FROM scratch AS format
 COPY --from=check-format /cilium/proxy/format-output.txt /
 
 # clang-tidy
-FROM --platform=$BUILDPLATFORM $BUILDER_BASE AS run-clang-tidy-fix
+FROM builder-base AS run-clang-tidy-fix
 LABEL maintainer="maintainer@cilium.io"
 WORKDIR /cilium/proxy
 COPY --chown=1337:1337 . ./a

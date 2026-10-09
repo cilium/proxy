@@ -13,7 +13,7 @@
     'go.mod',
     'go.sum',
     'tools/install_bazelisk.sh',
-    'WORKSPACE',
+    'MODULE.bazel',
     'ENVOY_VERSION',
   ],
   pinDigests: true,
@@ -106,6 +106,7 @@
     {
       matchFileNames: [
         'Dockerfile',
+        'Dockerfile.tests',
       ],
       matchPackageNames: [
         'docker.io/library/ubuntu',
@@ -186,7 +187,7 @@
     {
       customType: 'regex',
       managerFilePatterns: [
-        '/^WORKSPACE$/',
+        '/^MODULE\\.bazel$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+_VERSION = "(?<currentValue>.*)"',
