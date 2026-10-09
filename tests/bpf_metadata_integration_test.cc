@@ -651,6 +651,43 @@ TEST_P(BpfMetadataIntegrationTest, AdsPolicyMapsSurviveLastListenerRemoval) {
   EXPECT_EQ(resolveHostPolicyId("10.2.2.2"), 222);
 }
 
+TEST_P(BpfMetadataIntegrationTest, AdsNpdsStartsAfterRejectedListeners) {
+  envoy::config::listener::v3::Listener rejected_listener;
+  on_server_init_function_ = [&]() {
+    createAdsStream();
+    addBpfMetadataListenerFilter(listener_config_, /*use_ads=*/true);
+    // Listener filters are created before filter chains are validated, so this listener
+    // creates the pinned policy map and is then rejected.
+    rejected_listener = listener_config_;
+    rejected_listener.clear_filter_chains();
+    EXPECT_TRUE(compareDiscoveryRequest(
+        Config::TestTypeUrl::get().Cluster, "", {}, {}, {},
+        /*expect_node=*/true, Envoy::Grpc::Status::WellKnownGrpcStatus::Ok, "", ads_stream_.get()));
+    sendCdsResponse(*ads_stream_, "1");
+    EXPECT_TRUE(compareDiscoveryRequest(
+        Config::TestTypeUrl::get().Listener, "", {}, {}, {}, /*expect_node=*/false,
+        Grpc::Status::WellKnownGrpcStatus::Ok, "", ads_stream_.get()));
+    sendLdsResponse(*ads_stream_,
+                    std::vector<envoy::config::listener::v3::Listener>{rejected_listener}, "1");
+  };
+  initializeAds();
+
+  test_server_->waitForCounterGe("listener_manager.lds.update_rejected", 1);
+  test_server_->waitForGaugeEq("listener_manager.workers_started", 1);
+  sendLdsResponse(*ads_stream_,
+                  std::vector<envoy::config::listener::v3::Listener>{rejected_listener}, "2");
+  test_server_->waitForCounterGe("listener_manager.lds.update_rejected", 2);
+  EXPECT_TRUE(test_server_->server().listenerManager().listeners().empty());
+  test_server_->waitForCounterEq("cilium.npds.update_attempt", 0);
+
+  sendLdsResponse(*ads_stream_, {MessageUtil::getYamlStringFromMessage(listener_config_)}, "3");
+  test_server_->waitForCounterGe("listener_manager.lds.update_success", 1);
+  test_server_->waitForCounterGe("cilium.npds.update_attempt", 1);
+  sendNpdsResponse(*ads_stream_, "1");
+  test_server_->waitForCounterGe("cilium.npds.update_success", 1);
+  EXPECT_TRUE(networkPolicyMap()->exists("10.1.1.1"));
+}
+
 TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedAdsGrpcStreams) {
   on_server_init_function_ = [&]() {
     createAdsStream();
