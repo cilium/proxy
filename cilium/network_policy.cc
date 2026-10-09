@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <format>
 #include <functional>
@@ -25,6 +26,7 @@
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
+#include "envoy/event/timer.h"
 #include "envoy/http/header_map.h"
 #include "envoy/init/manager.h"
 #include "envoy/network/address.h"
@@ -427,6 +429,8 @@ private:
 
   // init target which starts gRPC subscription
   Init::TargetImpl init_target_;
+  Init::SharedTargetImpl initial_policy_target_{"Cilium NetworkPolicy first update", []() {}};
+  Event::TimerPtr initial_policy_timer_;
   std::shared_ptr<Server::Configuration::TransportSocketFactoryContextImpl>
       transport_factory_context_;
   // Declared after transport_factory_context_ so that the cache, which retains a shared reference
@@ -1948,6 +1952,10 @@ NetworkPolicyMap::~NetworkPolicyMap() {
   context_.mainThreadDispatcher().post([impl = std::move(impl_)]() mutable { impl.reset(); });
 }
 
+void NetworkPolicyMap::addListenerInitTarget(Init::Manager& listener_init_manager) {
+  listener_init_manager.add(impl_->initial_policy_target_);
+}
+
 bool NetworkPolicyMap::exists(const std::string& endpoint_policy_name) const {
   return impl_->getPolicyInstanceImpl(endpoint_policy_name);
 }
@@ -1999,6 +2007,14 @@ NetworkPolicyMapImpl::NetworkPolicyMapImpl(
   // Allocate an initial policy map so that the map pointer is never a nullptr
   store(new PolicyMapSnapshot());
   ENVOY_LOG(trace, "NetworkPolicyMapImpl({}) created.", instance_id_);
+
+  initial_policy_timer_ = context_.mainThreadDispatcher().createTimer([this]() {
+    if (initial_policy_target_.ready()) {
+      ENVOY_LOG(warn, "Cilium NetworkPolicy: no policy update within 5 seconds, starting listeners "
+                      "without network policy");
+    }
+  });
+  initial_policy_timer_->enableTimer(std::chrono::seconds(5));
 
   if (context_.admin().has_value()) {
     ENVOY_LOG(debug, "Registering NetworkPolicies to config tracker");
@@ -2228,6 +2244,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
 
   installNewPolicyMap(std::move(pending_resource_map), version_init_manager,
                       std::move(version_name), policy_stream_state);
+  initial_policy_target_.ready();
   return absl::OkStatus();
 }
 
@@ -2340,6 +2357,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
   }
   installNewPolicyMap(std::move(pending_resource_map), version_init_manager,
                       std::move(version_name), policy_stream_state);
+  initial_policy_target_.ready();
   return absl::OkStatus();
 }
 

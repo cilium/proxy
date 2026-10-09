@@ -23,11 +23,14 @@
 #include "source/common/common/logger.h"
 #include "source/common/common/regex.h"
 #include "source/common/config/decoded_resource_impl.h"
+#include "source/common/init/manager_impl.h"
+#include "source/common/init/watcher_impl.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/utility.h"
 #include "source/common/secret/sds_api.h" // NOLINT
 
 #include "test/common/stats/stat_test_utility.h"
+#include "test/mocks/event/mocks.h"
 #include "test/mocks/secret/mocks.h"
 #include "test/mocks/server/admin.h"
 #include "test/mocks/server/factory_context.h"
@@ -112,6 +115,8 @@ protected:
     ON_CALL_SDS_SECRET_PROVIDER(secret_manager_, TlsSessionTicketKeysContext, TlsSessionTicketKeys);
     ON_CALL_SDS_SECRET_PROVIDER_OPT_INIT(secret_manager_, GenericSecret, GenericSecret);
 
+    initial_policy_timer_ =
+        new NiceMock<Event::MockTimer>(&factory_context_.server_factory_context_.dispatcher_);
     policy_map_ =
         std::make_shared<NetworkPolicyMap>(factory_context_, Cilium::CILIUM_XDS_API_CONFIG, false);
   }
@@ -279,12 +284,55 @@ protected:
   NiceMock<Server::Configuration::MockFactoryContext> factory_context_;
   NiceMock<Secret::MockSecretManager> secret_manager_;
   std::shared_ptr<NetworkPolicyMap> policy_map_;
+  NiceMock<Event::MockTimer>* initial_policy_timer_;
   NiceMock<Stats::TestUtil::TestStore> store_;
   uint16_t proxy_id_ = 42;
 };
 
 TEST_F(CiliumNetworkPolicyTest, UpdatesRejectedStatName) {
   EXPECT_EQ("cilium.policy.updates_rejected", updatesRejectedStatName());
+}
+
+TEST_F(CiliumNetworkPolicyTest, ListenerInitWaitsForFirstPolicyUpdate) {
+  Init::ManagerImpl listener_init_manager("listener");
+  policy_map_->addListenerInitTarget(listener_init_manager);
+  bool initialized = false;
+  Init::WatcherImpl listener_watcher("listener", [&initialized]() { initialized = true; });
+  listener_init_manager.initialize(listener_watcher);
+  EXPECT_FALSE(initialized);
+  EXPECT_TRUE(subscriptionCallbacks().onConfigUpdate({}, "1").ok());
+  EXPECT_TRUE(initialized);
+}
+
+TEST_F(CiliumNetworkPolicyTest, ListenerInitStartedAfterFirstPolicyUpdateDoesNotWait) {
+  Init::ManagerImpl listener_init_manager("listener");
+  policy_map_->addListenerInitTarget(listener_init_manager);
+  EXPECT_TRUE(subscriptionCallbacks().onConfigUpdate({}, "1").ok());
+  bool initialized = false;
+  Init::WatcherImpl listener_watcher("listener", [&initialized]() { initialized = true; });
+  listener_init_manager.initialize(listener_watcher);
+  EXPECT_TRUE(initialized);
+}
+
+TEST_F(CiliumNetworkPolicyTest, ListenerAddedAfterFirstPolicyUpdateDoesNotWait) {
+  EXPECT_TRUE(subscriptionCallbacks().onConfigUpdate({}, "1").ok());
+  Init::ManagerImpl listener_init_manager("listener");
+  policy_map_->addListenerInitTarget(listener_init_manager);
+  bool initialized = false;
+  Init::WatcherImpl listener_watcher("listener", [&initialized]() { initialized = true; });
+  listener_init_manager.initialize(listener_watcher);
+  EXPECT_TRUE(initialized);
+}
+
+TEST_F(CiliumNetworkPolicyTest, ListenerInitWaitsUntilFirstPolicyUpdateTimeout) {
+  Init::ManagerImpl listener_init_manager("listener");
+  policy_map_->addListenerInitTarget(listener_init_manager);
+  bool initialized = false;
+  Init::WatcherImpl listener_watcher("listener", [&initialized]() { initialized = true; });
+  listener_init_manager.initialize(listener_watcher);
+  EXPECT_FALSE(initialized);
+  initial_policy_timer_->invokeCallback();
+  EXPECT_TRUE(initialized);
 }
 
 TEST_F(CiliumNetworkPolicyTest, EmptyPolicyUpdate) {
