@@ -209,6 +209,23 @@ envoy_cc_test(
 )
 
 envoy_cc_test(
+    name = "l7policy_test",
+    srcs = ["l7policy_test.cc"],
+    repository = "@envoy",
+    deps = [
+        "//cilium:l7policy_lib",
+        "@envoy//source/common/network:address_lib",
+        "@envoy//source/common/stats:isolated_store_lib",
+        "@envoy//source/common/stream_info:stream_info_lib",
+        "@envoy//test/mocks/http:http_mocks",
+        "@envoy//test/mocks/network:connection_mocks",
+        "@envoy//test/mocks/stream_info:stream_info_mocks",
+        "@envoy//test/test_common:simulated_time_system_lib",
+        "@envoy//test/test_common:utility_lib",
+    ],
+)
+
+envoy_cc_test(
     name = "cilium_tcp_integration_test",
     srcs = ["cilium_tcp_integration_test.cc"],
     data = [
