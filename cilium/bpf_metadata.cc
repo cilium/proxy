@@ -303,6 +303,7 @@ Config::Config(const ::cilium::BpfMetadata& config,
         pin_for_ads);
     // update desired config source on the map
     npmap_->configure(config_source_);
+    npmap_->addListenerInitTarget(context.initManager());
   }
 }
 
