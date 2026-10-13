@@ -32,7 +32,7 @@ api-clean:
 	mkdir -p go/contrib/envoy
 	mkdir go/envoy
 
-$(CHECK_FORMAT): force-non-root SOURCE_VERSION install-bazelisk clang.bazelrc
+$(CHECK_FORMAT): force-non-root SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) build $(BAZEL_BUILD_OPTS) //:check_format.py
 
 veryclean: force-non-root clean
@@ -52,9 +52,6 @@ COMPILATION_DATABASE_DEPS = \
 	.bazelrc \
 	envoy.bazelrc \
 	bazel/BUILD \
-	bazel/local_llvm.bzl \
-	bazel/toolchains/BUILD \
-	bazel/toolchains/cc_toolchain_config.bzl \
 	cilium/BUILD \
 	cilium/api/BUILD \
 	envoy_build_config/BUILD \
@@ -77,33 +74,33 @@ TIDY_JOBS ?= $$(( $(shell sed -n "s/^MemAvailable: *\([0-9]*\).*\$$/\1/p" /proc/
 
 # tidy uses run-clang-tidy, .clang-tidy must be present in the project directory and configured to
 # ignore the same headers as .clangd. Unfortunately the configuration format is different.
-tidy: $(COMPILER_DEP) compile_commands.json force-non-root
+tidy: compile_commands.json force-non-root
 	run-clang-tidy -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy check failed, run 'make tidy-fix' locally to fix tidy errors."
 
-tidy-fix: $(COMPILER_DEP) compile_commands.json force-non-root
+tidy-fix: compile_commands.json force-non-root
 	echo "clang-tidy fix results can contain duplicate or misplaced includes, check before committing!"
 	run-clang-tidy -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy fix produced changes, please commit them."
 
-tidy-fix-head: $(COMPILER_DEP) compile_commands.json force-non-root
+tidy-fix-head: compile_commands.json force-non-root
 	echo "clang-tidy fix results can contain duplicate or misplaced includes, check before committing!"
 	run-clang-tidy -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(shell git diff-tree --no-commit-id --name-only -r --diff-filter=d HEAD) || echo "clang-tidy fix produced changes, please commit them."
 
-format: $(COMPILER_DEP) force-non-root
+format: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make format-fix' locally to fix formatting errors."
 
-format-fix: $(COMPILER_DEP) force-non-root
+format-fix: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="." --build_fixer_check_excluded_paths="./" fix
 
 # Run tests without debug by default.
-tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION install-bazelisk
+tests:  force-non-root SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 	$(GO) test -mod=vendor ./go/...
 
-unstripped-tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION install-bazelisk
+unstripped-tests:  force-non-root SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) --config=release_debug --fission=no --features=-per_object_debug_info //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) --config=release_debug --fission=no --features=-per_object_debug_info $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)
 
-debug-tests:  $(COMPILER_DEP) force-non-root SOURCE_VERSION install-bazelisk
+debug-tests:  force-non-root SOURCE_VERSION install-bazelisk
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c dbg --fission=no --features=-per_object_debug_info $(BAZEL_TEST_OPTS) //:envoy_binary_test $(BAZEL_FILTER)
 	$(BAZEL) $(BAZEL_OPTS) test $(BAZEL_BUILD_OPTS) -c dbg --fission=no --features=-per_object_debug_info $(BAZEL_TEST_OPTS) //tests/... $(BAZEL_FILTER)

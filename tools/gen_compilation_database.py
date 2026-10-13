@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -92,6 +93,13 @@ def modify_compile_command(target, args):
     if args.system_clang:
         if cc.find("clang"):
             cc = "clang++"
+    elif cc.endswith("/cc_wrapper.sh"):
+        # The hermetic toolchain compiles through a wrapper script. clang-tidy and clangd derive
+        # the C++ standard library include directory from the compiler path, so point them at the
+        # clang binary of the LLVM distribution the resource directory belongs to.
+        resource_dir = re.search(r"(?:^|\s)-resource-dir\s+(\S+)/lib/clang/", options)
+        if resource_dir:
+            cc = resource_dir.group(1) + "/bin/clang"
 
     if is_header(target["file"]):
         options += " -Wno-pragma-once-outside-header -Wno-unused-const-variable"

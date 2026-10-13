@@ -106,6 +106,7 @@
     {
       matchFileNames: [
         'Dockerfile',
+        'Dockerfile.tests',
       ],
       matchPackageNames: [
         'docker.io/library/ubuntu',
