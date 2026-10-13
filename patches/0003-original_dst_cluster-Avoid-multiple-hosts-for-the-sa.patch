@@ -1,7 +1,7 @@
-From c560662bfd12e46100972f8c94741d810c04aadf Mon Sep 17 00:00:00 2001
+From 2815f051dee010e4472f1aa2577e1b540c5a30e4 Mon Sep 17 00:00:00 2001
 From: Jarno Rajahalme <jarno@isovalent.com>
 Date: Fri, 24 May 2024 18:27:28 +0200
-Subject: [PATCH 3/6] original_dst_cluster: Avoid multiple hosts for the same
+Subject: [PATCH 3/8] original_dst_cluster: Avoid multiple hosts for the same
  address
 
 Connection pool containers use HostSharedPtr as map keys, rather than the
@@ -30,7 +30,7 @@ Signed-off-by: Jarno Rajahalme <jarno@isovalent.com>
  2 files changed, 208 insertions(+), 132 deletions(-)
 
 diff --git a/source/extensions/clusters/original_dst/original_dst_cluster.cc b/source/extensions/clusters/original_dst/original_dst_cluster.cc
-index d8ef2862b1..5a8c3e2820 100644
+index 1eddc0b05e..12acbf8c89 100644
 --- a/source/extensions/clusters/original_dst/original_dst_cluster.cc
 +++ b/source/extensions/clusters/original_dst/original_dst_cluster.cc
 @@ -29,6 +29,19 @@ OriginalDstClusterHandle::~OriginalDstClusterHandle() {
@@ -293,7 +293,7 @@ index d8ef2862b1..5a8c3e2820 100644
        //
        // Using the used_ bit is preserved for backwards compatibility and to
        // add a delay between load balancers choosing a host and grabbing a
-@@ -286,65 +365,57 @@ void OriginalDstCluster::cleanup() {
+@@ -286,64 +365,56 @@ void OriginalDstCluster::cleanup() {
        // 3) will not delete h since it takes at least one cleanup_interval for
        // the host to set used_ bit for h to false.
        bool keep = false;
@@ -302,8 +302,7 @@ index d8ef2862b1..5a8c3e2820 100644
          keep = true;
 -        hosts->used_ = false; // Mark to be removed during the next round.
 +        host_use->used_ = false; // Mark to be removed during the next round.
-       } else if (Runtime::runtimeFeatureEnabled(
-                      "envoy.reloadable_features.original_dst_rely_on_idle_timeout")) {
+       } else {
 -        // Check that all hosts (first, as well as others that may have been added concurrently)
 -        // are not in use by any connection pool.
 -        if (hosts->host_->used()) {
@@ -496,5 +495,5 @@ index ff665dc300..818b8c31ff 100644
    std::optional<Config::MetadataKey> metadata_key_;
    std::optional<uint32_t> port_override_;
 -- 
-2.55.0
+2.56.0
 
