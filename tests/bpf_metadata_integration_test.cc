@@ -672,19 +672,19 @@ TEST_P(BpfMetadataIntegrationTest, AdsNpdsStartsAfterRejectedListeners) {
   };
   initializeAds();
 
-  test_server_->waitForCounterGe("listener_manager.lds.update_rejected", 1);
-  test_server_->waitForGaugeEq("listener_manager.workers_started", 1);
+  test_server_->waitForCounter("listener_manager.lds.update_rejected", testing::Ge(1));
+  test_server_->waitForGauge("listener_manager.workers_started", testing::Eq(1));
   sendLdsResponse(*ads_stream_,
                   std::vector<envoy::config::listener::v3::Listener>{rejected_listener}, "2");
-  test_server_->waitForCounterGe("listener_manager.lds.update_rejected", 2);
+  test_server_->waitForCounter("listener_manager.lds.update_rejected", testing::Ge(2));
   EXPECT_TRUE(test_server_->server().listenerManager().listeners().empty());
-  test_server_->waitForCounterEq("cilium.npds.update_attempt", 0);
+  test_server_->waitForCounter("cilium.npds.update_attempt", testing::Eq(0));
 
   sendLdsResponse(*ads_stream_, {MessageUtil::getYamlStringFromMessage(listener_config_)}, "3");
-  test_server_->waitForCounterGe("listener_manager.lds.update_success", 1);
-  test_server_->waitForCounterGe("cilium.npds.update_attempt", 1);
+  test_server_->waitForCounter("listener_manager.lds.update_success", testing::Ge(1));
+  test_server_->waitForCounter("cilium.npds.update_attempt", testing::Ge(1));
   sendNpdsResponse(*ads_stream_, "1");
-  test_server_->waitForCounterGe("cilium.npds.update_success", 1);
+  test_server_->waitForCounter("cilium.npds.update_success", testing::Ge(1));
   EXPECT_TRUE(networkPolicyMap()->exists("10.1.1.1"));
 }
 
