@@ -15,7 +15,8 @@ the upgrade automatically.
 New Envoy minor version might require new Bazel version.
 
 1. Update `.bazelversion` file.
-2. Sync up `WORKSPACE` file with upstream.
+2. Sync up `MODULE.bazel` with upstream: the `bazel_dep` versions it shares with Envoy, and the
+   overrides, dev dependencies and toolchains Envoy only sets up when it is the root module.
 3. Sync up `envoy.bazelrc` file with upstream.
 
 ```shell
@@ -28,7 +29,7 @@ $ export BUILDER=docker.io/sayboras/cilium-envoy-builder:6.3.2-35ff82a25ab632172
 
 ### Update Envoy release commit hash
 1. Bump version in `ENVOY_VERSION` file.
-2. Update git hash from Envoy official release in `WORKSPACE`.
+2. Update git hash from Envoy official release (`ENVOY_SHA`) in `MODULE.bazel`.
 3. Sync up `envoy_build_config/extensions_build_config.bzl` with upstream.
 
 ### Adjust Cilium custom patches

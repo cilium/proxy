@@ -20,7 +20,7 @@ COMPILER_DEP := clang.bazelrc
 ENVOY_BINS = cilium-envoy bazel-bin/cilium-envoy cilium-envoy-starter bazel-bin/cilium-envoy-starter cilium-envoy-healthcheck bazel-bin/bin/cilium-envoy-healthcheck
 ENVOY_TESTS = bazel-bin/tests/*_test
 
-BUILD_DEP_FILES = ENVOY_VERSION WORKSPACE .bazelrc envoy.bazelrc bazel/toolchains/BUILD bazel/toolchains/cc_toolchain_config.bzl
+BUILD_DEP_FILES = ENVOY_VERSION MODULE.bazel MODULE.bazel.lock .bazelrc envoy.bazelrc bazel/toolchains/BUILD bazel/toolchains/cc_toolchain_config.bzl
 
 SHELL=/bin/bash -o pipefail
 BAZEL ?= $(QUIET) bazel
@@ -139,12 +139,6 @@ clang.bazelrc: bazel/setup_clang.sh
 	echo "build:clang-local --features=-module_maps --features=-layering_check" >> $@
 	echo "build:clang-local --host_features=-module_maps --host_features=-layering_check" >> $@
 	echo "build --config=clang-local" >> $@
-
-.PHONY: cargo-repin
-cargo-repin: install-bazelisk
-	@$(ECHO_BAZEL)
-	test -e bazel/envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock || touch bazel/envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock
-	CARGO_BAZEL_REPIN=workspace CARGO_BAZEL_REPIN_ONLY=envoy_rust_crate_index bazel $(BAZEL_OPTS) sync --only=envoy_rust_crate_index
 
 .PHONY: bazel-bin/cilium-envoy
 bazel-bin/cilium-envoy: $(COMPILER_DEP) SOURCE_VERSION install-bazelisk

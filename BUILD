@@ -24,7 +24,6 @@ cc_binary(
 
 envoy_cc_binary(
     name = "cilium-envoy",
-    repository = "@envoy",
     deps = [
         # Cilium filters.
         "//cilium:health_check_sink_lib",
