@@ -26,5 +26,3 @@ platform(
         "@platforms//os:linux",
     ],
 )
-
-exports_files(["envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock"])
