@@ -72,18 +72,28 @@ compile_commands.json: $(COMPILATION_DATABASE_DEPS) force-non-root
 # Default number of jobs, derived from available memory
 TIDY_JOBS ?= $$(( $(shell sed -n "s/^MemAvailable: *\([0-9]*\).*\$$/\1/p" /proc/meminfo) / 4500000 ))
 
-# tidy uses run-clang-tidy, .clang-tidy must be present in the project directory and configured to
-# ignore the same headers as .clangd. Unfortunately the configuration format is different.
+# clang-tidy and clang-apply-replacements come from the hermetic LLVM toolchain that Bazel
+# downloads for Envoy (@llvm_minimal_linux_<arch> from @envoy_toolshed, planted in the execroot under
+# its canonical repository name by the compilation database build above). That toolchain does not ship LLVM's run-clang-tidy driver,
+# tools/run_clang_tidy.sh stands in for it.
+# Bazel names the execroot symlink after the workspace directory (bazel-proxy here, bazel-b in the
+# CI containers), so derive it rather than hardcoding it.
+LLVM_HOST_ARCH := $(subst aarch64,arm64,$(subst x86_64,x64,$(shell uname -m)))
+LLVM_TOOLS_BIN = bazel-$(notdir $(CURDIR))/external/envoy_toolshed++llvm_minimal_extension+llvm_minimal_linux_$(LLVM_HOST_ARCH)/bin
+RUN_CLANG_TIDY = CLANG_TIDY=$(LLVM_TOOLS_BIN)/clang-tidy CLANG_APPLY_REPLACEMENTS=$(LLVM_TOOLS_BIN)/clang-apply-replacements tools/run_clang_tidy.sh
+
+# .clang-tidy must be present in the project directory and configured to ignore the same headers
+# as .clangd. Unfortunately the configuration format is different.
 tidy: compile_commands.json force-non-root
-	run-clang-tidy -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy check failed, run 'make tidy-fix' locally to fix tidy errors."
+	$(RUN_CLANG_TIDY) -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy check failed, run 'make tidy-fix' locally to fix tidy errors."
 
 tidy-fix: compile_commands.json force-non-root
 	echo "clang-tidy fix results can contain duplicate or misplaced includes, check before committing!"
-	run-clang-tidy -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy fix produced changes, please commit them."
+	$(RUN_CLANG_TIDY) -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(TIDY_SOURCES) || echo "clang-tidy fix produced changes, please commit them."
 
 tidy-fix-head: compile_commands.json force-non-root
 	echo "clang-tidy fix results can contain duplicate or misplaced includes, check before committing!"
-	run-clang-tidy -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(shell git diff-tree --no-commit-id --name-only -r --diff-filter=d HEAD) || echo "clang-tidy fix produced changes, please commit them."
+	$(RUN_CLANG_TIDY) -fix -format -style=file -quiet -extra-arg="-Wno-unknown-pragmas" -checks=misc-include-cleaner -j $(TIDY_JOBS) $(shell git diff-tree --no-commit-id --name-only -r --diff-filter=d HEAD) || echo "clang-tidy fix produced changes, please commit them."
 
 format: force-non-root
 	$(BAZEL) $(BAZEL_OPTS) run $(BAZEL_BUILD_OPTS) @envoy//tools/code_format:check_format -- --path "$(PWD)" --skip_envoy_build_rule_check --add-excluded-prefixes $(FORMAT_EXCLUDED_PREFIXES) --bazel_tools_check_excluded_paths="./" --build_fixer_check_excluded_paths="./" check || echo "Format check failed, run 'make format-fix' locally to fix formatting errors."
