@@ -60,7 +60,8 @@ jobs:
           --nouse_action_cache \
           --features="-layering_check" \
           --config=clang \
-          --config=ci \
+          --noshow_progress \
+          --noshow_loading_progress \
           cilium-envoy
 
       - name: Autobuild
