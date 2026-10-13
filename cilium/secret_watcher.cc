@@ -51,7 +51,7 @@ secretProvider(Server::Configuration::TransportSocketFactoryContext& context,
   const envoy::config::core::v3::ConfigSource& sds_config_source =
       getSDSConfig(sds_name, config_source);
   return context.serverFactoryContext().secretManager().findOrCreateGenericSecretProvider(
-      sds_config_source, sds_name, context.serverFactoryContext(), context.initManager());
+      sds_config_source, sds_name, context.serverFactoryContext(), context.initManager(), true);
 }
 
 } // namespace
