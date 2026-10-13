@@ -79,7 +79,7 @@ struct MessageHeader {
 // Note that file descriptor return value is passed using the message control channel (ref. man 2
 // recvmsg).
 struct Response {
-  struct MessageHeader hdr_{};
+  struct MessageHeader hdr_;
   int return_value_ = 0;
   int errno_ = 0;
 };

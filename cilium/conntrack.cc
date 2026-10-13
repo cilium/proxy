@@ -113,9 +113,9 @@ uint32_t CtMap::lookupSrcIdentity(const Network::Address::Ip* sip, const Network
                                   bool ingress) {
   ENVOY_LOG(debug, "cilium.bpf_metadata: Using conntrack map global");
 
-  struct IPv4CtTuple key4 {};
-  struct IPv6CtTuple key6 {};
-  struct CtEntry value {};
+  struct IPv4CtTuple key4{};
+  struct IPv6CtTuple key6{};
+  struct CtEntry value{};
 
   if (sip->version() == Network::Address::IpVersion::v4 &&
       dip->version() == Network::Address::IpVersion::v4) {
