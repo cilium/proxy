@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
-#include <format>
 #include <functional>
 #include <memory>
 #include <ranges>
@@ -88,18 +87,14 @@ using RuleVerdict = enum {
 } // namespace Cilium
 } // namespace Envoy
 
-// Envoy routes ENVOY_LOG() through spdlog, which is built with SPDLOG_USE_STD_FORMAT, so this
-// has to be a std::formatter rather than a fmt::formatter.
-namespace std {
+// Envoy routes ENVOY_LOG() through spdlog, which formats its arguments with fmtlib.
+namespace fmt {
 
-// NOLINTNEXTLINE(readability-identifier-naming)
-template <> struct formatter<Envoy::Cilium::RuleVerdict, char> {
-  template <class ParseContext> constexpr ParseContext::iterator parse(ParseContext& ctx) {
-    return ctx.begin();
-  }
+template <> struct formatter<Envoy::Cilium::RuleVerdict> {
+  constexpr auto parse(fmt::format_parse_context& ctx) { return ctx.begin(); }
 
-  template <class FmtContext>
-  FmtContext::iterator format(Envoy::Cilium::RuleVerdict verdict, FmtContext& ctx) const {
+  template <typename FormatContext>
+  auto format(Envoy::Cilium::RuleVerdict verdict, FormatContext& ctx) const {
     absl::string_view name;
     switch (verdict) {
     case Envoy::Cilium::RuleVerdict::None:
@@ -122,7 +117,7 @@ template <> struct formatter<Envoy::Cilium::RuleVerdict, char> {
   }
 };
 
-} // namespace std
+} // namespace fmt
 
 namespace Envoy {
 namespace Cilium {

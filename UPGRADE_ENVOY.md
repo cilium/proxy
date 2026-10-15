@@ -15,20 +15,13 @@ the upgrade automatically.
 New Envoy minor version might require new Bazel version.
 
 1. Update `.bazelversion` file.
-2. Sync up `WORKSPACE` file with upstream.
+2. Sync up `MODULE.bazel` with upstream: the `bazel_dep` versions it shares with Envoy, and the
+   overrides, dev dependencies and toolchains Envoy only sets up when it is the root module.
 3. Sync up `envoy.bazelrc` file with upstream.
-
-```shell
-# Building a new builder image locally with your own docker account
-$ DOCKER_DEV_ACCOUNT=docker.io/sayboras ARCH=multi NO_CACHE=1 make docker-image-builder
-
-# Export the builder image environment variable for later use
-$ export BUILDER=docker.io/sayboras/cilium-envoy-builder:6.3.2-35ff82a25ab6321721eba727a1cc23fe7c240d5f@sha256:028da98e1c815d12250cc32327f3511016a859a027c0136d1ac7a4a178fbfe41
-```
 
 ### Update Envoy release commit hash
 1. Bump version in `ENVOY_VERSION` file.
-2. Update git hash from Envoy official release in `WORKSPACE`.
+2. Update git hash from Envoy official release (`ENVOY_SHA`) in `MODULE.bazel`.
 3. Sync up `envoy_build_config/extensions_build_config.bzl` with upstream.
 
 ### Adjust Cilium custom patches
@@ -59,7 +52,7 @@ easiest way is to just run the compilation and fix any issues coming up.
 
 ```shell
 # Please refer to main README.md for the details of how to build.
-$ DOCKER_DEV_ACCOUNT=docker.io/sayboras BUILDER_BASE=$BUILDER ARCH=multi NO_CACHE=1 make docker-image-envoy
+$ DOCKER_DEV_ACCOUNT=docker.io/sayboras ARCH=multi NO_CACHE=1 make docker-image-envoy
 ```
 
 ### Update Envoy API

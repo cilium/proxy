@@ -25,17 +25,8 @@ apt-get update && \
     apt-get upgrade -y --no-install-recommends && \
     apt-get install -y --no-install-recommends \
       ca-certificates \
-      gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libc6-dev-arm64-cross binutils-aarch64-linux-gnu \
-      gcc-x86-64-linux-gnu g++-x86-64-linux-gnu libc6-dev-amd64-cross binutils-x86-64-linux-gnu \
-      libc6-dev \
       autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf \
-      python3 python-is-python3 unzip virtualenv wget zip \
-      software-properties-common && \
-    wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc && \
-    apt-add-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-18 main" && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
-      clang-18 clangd-18 llvm-18-dev lld-18 lldb-18 clang-format-18 clang-tools-18 clang-tidy-18 libc++-18-dev libc++abi-18-dev && \
+      python3 python-is-python3 unzip virtualenv wget zip && \
     apt-get purge --auto-remove && \
     apt-get clean
 SCRIPT

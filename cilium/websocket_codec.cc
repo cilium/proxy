@@ -35,6 +35,7 @@
 
 #include "absl/strings/ascii.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/span.h"
 #include "cilium/websocket_config.h"
 #include "cilium/websocket_protocol.h"
 #include "third_party/utf8_range/utf8_validity.h"
@@ -754,7 +755,7 @@ void Codec::Encoder::encode(Buffer::Instance& data, uint8_t opcode) {
   auto hex_len = std::min(data.length(), 20UL);
   const uint8_t* hex_data = reinterpret_cast<uint8_t*>(data.linearize(hex_len));
   ENVOY_LOG(debug, "websocket encoder: {} bytes: 0x{}, opcode: {}", data.length(),
-            Hex::encode(hex_data, hex_len), opcode);
+            Hex::encode(absl::Span<const uint8_t>(hex_data, hex_len)), opcode);
 
   auto& config = parent_.config();
   const size_t payload_len = data.length();
@@ -844,12 +845,14 @@ void Codec::Decoder::decode(Buffer::Instance& data, bool end_stream) {
           ENVOY_LOG(trace,
                     "websocket decoder: unmasking payload remaining: {}, offset: {}, processing: "
                     "{}: 0x{}",
-                    payload_remaining_, mask_offset_, n_bytes, Hex::encode(buf, hex_len));
+                    payload_remaining_, mask_offset_, n_bytes,
+                    Hex::encode(absl::Span<const uint8_t>(buf, hex_len)));
           mask_offset_ = maskData(buf, n_bytes, mask_, mask_offset_);
         }
         ENVOY_LOG(trace,
                   "websocket decoder: payload remaining: {}, offset: {}, processing: {}: 0x{}",
-                  payload_remaining_, mask_offset_, n_bytes, Hex::encode(buf, hex_len));
+                  payload_remaining_, mask_offset_, n_bytes,
+                  Hex::encode(absl::Span<const uint8_t>(buf, hex_len)));
 
         if (close_received_) {
           // No data is accepted after CLOSE has been received.

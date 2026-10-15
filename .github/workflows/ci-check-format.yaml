@@ -26,14 +26,6 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
-
-      - name: Wait for build image
-        uses: ./.github/workflows/wait-for-image
-        with:
-          SHA: ${{ env.BUILDER_DOCKER_HASH }}
-          repo: cilium
-          images: cilium-envoy-builder-dev
 
       - name: Check format
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -45,8 +37,6 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64
           outputs: type=local,dest=check-format-results
-          build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
           push: false
 
       - name: Check for failure
@@ -74,16 +64,8 @@ jobs:
       - name: Prep for build
         run: |
           echo "${{ github.event.pull_request.head.sha }}" >SOURCE_VERSION
-          echo "BUILDER_DOCKER_HASH=$(git ls-tree --full-tree HEAD -- ./Dockerfile.builder | awk '{ print $3 }')" >> $GITHUB_ENV
           # git diff filter has everything else than deleted files (those need not be tidied)
           echo "TIDY_SOURCES=$(git diff --name-only --diff-filter=d HEAD^1 HEAD -- '*.h' '*.cc' | tr '\n' ' ')" >> $GITHUB_ENV
-
-      - name: Wait for build image
-        uses: ./.github/workflows/wait-for-image
-        with:
-          SHA: ${{ env.BUILDER_DOCKER_HASH }}
-          repo: cilium
-          images: cilium-envoy-builder-dev
 
       - name: Run clang-tidy
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -98,7 +80,6 @@ jobs:
           platforms: linux/amd64
           outputs: type=local,dest=clang-tidy-results
           build-args: |
-            BUILDER_BASE=quay.io/${{ github.repository_owner }}/cilium-envoy-builder-dev:${{ env.BUILDER_DOCKER_HASH }}
             TIDY_SOURCES=${{ env.TIDY_SOURCES }}
           push: false
 

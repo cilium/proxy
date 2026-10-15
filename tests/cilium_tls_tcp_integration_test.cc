@@ -95,7 +95,6 @@ static_resources:
       - name: cilium.network
         typed_config:
           "@type": type.googleapis.com/cilium.NetworkFilter
-          proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
@@ -219,7 +218,8 @@ public:
     // Set up the SSL client.
     Network::Address::InstanceConstSharedPtr address =
         Ssl::getSslAddress(version_, lookupPort("tcp_proxy"));
-    context_ = createClientSslTransportSocketFactory(context_manager_, *api_);
+    context_ = createClientSslTransportSocketFactory(context_manager_, *api_,
+                                                     server_factory_context_.serverScope());
     ssl_client_ = dispatcher_->createClientConnection(
         address, Network::Address::InstanceConstSharedPtr(),
         context_->createTransportSocket(nullptr, nullptr), nullptr, nullptr);
@@ -620,7 +620,6 @@ static_resources:
       - name: cilium.network
         typed_config:
           "@type": type.googleapis.com/cilium.NetworkFilter
-          proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
@@ -636,7 +635,6 @@ static_resources:
       - name: cilium.network
         typed_config:
           "@type": type.googleapis.com/cilium.NetworkFilter
-          proxylib: "proxylib/libcilium.so"
       - name: envoy.tcp_proxy
         typed_config:
           "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
