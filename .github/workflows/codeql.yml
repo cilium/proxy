@@ -37,31 +37,37 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update --error-on=any
+          # Same build dependencies as Dockerfile.builder
           sudo apt-get install --yes \
-          libtool libtinfo5 automake autoconf curl unzip
-          # Note: the llvm/clang version should match the version specifed in:
-          #  - bazel/repository_locations.bzl
-          #  - .github/workflows/codeql-push.yml
-          #  - https://github.com/envoyproxy/envoy-build-tools/blob/main/build_container/build_container_ubuntu.sh#L84
-          mkdir -p bin/clang18.1.8
-          cd bin/clang18.1.8
-          wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz
-          tar -xf clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz --strip-components 1
+          autoconf automake cmake coreutils curl git libtool make ninja-build patch patchelf libatomic1 \
+          python3 python-is-python3 unzip virtualenv wget xz-utils zip
+          tools/install_bazelisk.sh
+          # Same clang install as Dockerfile.builder, version must match MIN_CLANG_VERSION in Makefile.
+          # libtinfo5 is required by upstream clang and no longer available on Ubuntu 24.04.
+          curl -sfL https://snapshot.ubuntu.com/ubuntu/20240501T120000Z/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb -o /tmp/libtinfo5.deb
+          sudo dpkg -i /tmp/libtinfo5.deb
+          curl -sfL https://github.com/llvm/llvm-project/releases/download/llvmorg-18.1.8/clang+llvm-18.1.8-x86_64-linux-gnu-ubuntu-18.04.tar.xz -o /tmp/llvm.tar.xz
+          sudo mkdir -p /usr/lib/llvm-18
+          sudo tar -xJf /tmp/llvm.tar.xz -C /usr/lib/llvm-18 --strip-components=1
+          rm -f /tmp/libtinfo5.deb /tmp/llvm.tar.xz
+          for tool in clang clang++ clang-cpp lld ld.lld llvm-ar llvm-nm llvm-strip llvm-objcopy llvm-objdump llvm-dwp llvm-cov llvm-config llvm-symbolizer; do
+            sudo ln -sf /usr/lib/llvm-18/bin/$tool /usr/bin/$tool
+          done
+          clang --version
 
       - name: Build (for C++)
         if: matrix.config.language == 'cpp'
         run: |
-          bazel/setup_clang.sh bin/clang18.1.8
-          bazelisk shutdown
+          # PKG_BUILD=1 skips the clang install, as it is already done above
+          make PKG_BUILD=1 clang.bazelrc
+          bazel shutdown
           bazel build \
           -c fastbuild \
           --spawn_strategy=local \
           --discard_analysis_cache \
           --nouse_action_cache \
-          --features="-layering_check" \
-          --config=clang \
           --config=ci \
-          cilium-envoy
+          //:cilium-envoy
 
       - name: Autobuild
         if: matrix.config.language != 'cpp'
