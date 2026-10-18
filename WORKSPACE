@@ -129,12 +129,20 @@ go_repository(
     version = "v0.32.0",
 )
 
+# Go SDK used by Bazel to build Go binaries such as cilium-envoy-healthcheck.
+# Envoy's own default is not kept up to date on Envoy release branches, so
+# override it here. Keep in sync with GO_VERSION in Dockerfile.builder.
+#
+# renovate: datasource=golang-version depName=go
+GO_VERSION = "1.26.9"
+
 # rules_rust hashes the crate manifest label into the crate_universe lockfile, so
 # Envoy's own Cargo.Bazel.lock never matches when Envoy is embedded as @envoy.
 # Point the crate index at a Cilium-owned lockfile instead. Refresh it with
 # `make cargo-repin` whenever Envoy changes its Rust dependencies.
 envoy_dependency_imports(
     cargo_bazel_lockfile = "@//bazel:envoy_dynamic_modules_rust_sdk.Cargo.Bazel.lock",
+    go_version = GO_VERSION,
 )
 
 load("@envoy//bazel:repo.bzl", "envoy_repo")
