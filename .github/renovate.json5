@@ -142,6 +142,7 @@
       matchFileNames: [
         'Dockerfile.builder',
         '.github/workflows/**',
+        'WORKSPACE',
       ],
       matchPackageNames: [
         'go',
