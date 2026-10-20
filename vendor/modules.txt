@@ -8,8 +8,8 @@ github.com/cncf/xds/go/xds/annotations/v3
 github.com/cncf/xds/go/xds/core/v3
 github.com/cncf/xds/go/xds/type/matcher/v3
 github.com/cncf/xds/go/xds/type/v3
-# github.com/envoyproxy/go-control-plane/envoy v1.37.0
-## explicit; go 1.24.0
+# github.com/envoyproxy/go-control-plane/envoy v1.40.0
+## explicit; go 1.26.0
 github.com/envoyproxy/go-control-plane/envoy/annotations
 github.com/envoyproxy/go-control-plane/envoy/config/common/mutation_rules/v3
 github.com/envoyproxy/go-control-plane/envoy/config/core/v3
