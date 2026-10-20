@@ -197,7 +197,6 @@ envoy_cc_test(
 envoy_cc_test(
     name = "l7policy_test",
     srcs = ["l7policy_test.cc"],
-    repository = "@envoy",
     deps = [
         "//cilium:l7policy_lib",
         "@envoy//source/common/network:address_lib",
