@@ -26,6 +26,7 @@
   pruneStaleBranches: true,
   baseBranchPatterns: [
     'main',
+    'v1.39',
     'v1.38',
   ],
   labels: [
@@ -48,6 +49,7 @@
       ],
       matchBaseBranches: [
         'main',
+        'v1.39',
         'v1.38',
       ],
     },
@@ -71,6 +73,7 @@
       ],
       matchBaseBranches: [
         'main',
+        'v1.39',
         'v1.38',
       ],
     },
@@ -100,6 +103,7 @@
       ],
       matchBaseBranches: [
         'main',
+        'v1.39',
         'v1.38',
       ],
     },
@@ -114,6 +118,7 @@
       allowedVersions: '24.04',
       matchBaseBranches: [
         'main',
+        'v1.39',
         'v1.38',
       ],
     },
@@ -127,6 +132,7 @@
       allowedVersions: '24.04',
       matchBaseBranches: [
         'main',
+        'v1.39',
         'v1.38',
       ],
     },
@@ -148,9 +154,23 @@
       matchPackageNames: [
         'go',
       ],
-      allowedVersions: '<=1.26',
+      allowedVersions: '<=1.27',
       matchBaseBranches: [
         'main',
+        'v1.39',
+      ],
+    },
+    {
+      matchFileNames: [
+        'Dockerfile.builder',
+        '.github/workflows/**',
+        'WORKSPACE',
+      ],
+      matchPackageNames: [
+        'go',
+      ],
+      allowedVersions: '<=1.26',
+      matchBaseBranches: [
         'v1.38',
       ],
     },
@@ -162,6 +182,16 @@
       allowedVersions: '<=1.38',
       matchBaseBranches: [
         'v1.38',
+      ],
+    },
+    {
+      groupName: 'envoy 1.39.x',
+      matchDepNames: [
+        'envoyproxy/envoy',
+      ],
+      allowedVersions: '<=1.39',
+      matchBaseBranches: [
+        'v1.39',
       ],
     },
     {
