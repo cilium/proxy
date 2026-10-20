@@ -41,19 +41,6 @@
   ],
   packageRules: [
     {
-      groupName: 'Go',
-      matchDepNames: [
-        'go',
-        'docker.io/library/golang',
-        'actions/setup-go'
-      ],
-      matchBaseBranches: [
-        'main',
-        'v1.39',
-        'v1.38',
-      ],
-    },
-    {
       groupName: 'all go dependencies main',
       groupSlug: 'all-go-deps-main',
       matchFileNames: [
@@ -100,6 +87,20 @@
         'patch',
         'pin',
         'pinDigest',
+      ],
+      matchBaseBranches: [
+        'main',
+        'v1.39',
+        'v1.38',
+      ],
+    },
+    {
+      // Must come after the github action group so Go in workflows joins this group.
+      groupName: 'Go',
+      matchDepNames: [
+        'go',
+        'docker.io/library/golang',
+        'actions/setup-go'
       ],
       matchBaseBranches: [
         'main',
