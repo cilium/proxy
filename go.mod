@@ -5,7 +5,7 @@ go 1.26.4
 toolchain go1.27.3
 
 require (
-	github.com/envoyproxy/go-control-plane/envoy v1.37.0
+	github.com/envoyproxy/go-control-plane/envoy v1.40.0
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
 	google.golang.org/genproto/googleapis/api v0.0.0-20261019180522-ce908d29299b
 	google.golang.org/grpc v1.84.0
