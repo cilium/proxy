@@ -221,6 +221,7 @@
       customType: 'regex',
       managerFilePatterns: [
         '/^MODULE\\.bazel$/',
+	'/^WORKSPACE$/',
       ],
       matchStrings: [
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+_VERSION = "(?<currentValue>.*)"',
