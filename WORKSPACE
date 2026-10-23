@@ -135,7 +135,7 @@ go_repository(
 # override it here. Keep in sync with GO_VERSION in Dockerfile.builder.
 #
 # renovate: datasource=golang-version depName=go
-GO_VERSION = "1.26.10"
+GO_VERSION = "1.27.3"
 
 # rules_rust hashes the crate manifest label into the crate_universe lockfile, so
 # Envoy's own Cargo.Bazel.lock never matches when Envoy is embedded as @envoy.
