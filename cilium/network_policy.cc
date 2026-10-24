@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -24,6 +25,7 @@
 #include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
+#include "envoy/event/timer.h"
 #include "envoy/http/header_map.h"
 #include "envoy/init/manager.h"
 #include "envoy/network/address.h"
@@ -420,8 +422,9 @@ private:
   ResourceMap resource_map_;
   Stats::ScopeSharedPtr policy_stats_scope_;
 
-  // init target which starts gRPC subscription
-  Init::TargetImpl init_target_;
+  // init target which starts gRPC subscription and becomes ready on the first policy update
+  Init::SharedTargetImpl init_target_;
+  Event::TimerPtr initial_policy_timer_;
   std::shared_ptr<Server::Configuration::TransportSocketFactoryContextImpl>
       transport_factory_context_;
   // Declared after transport_factory_context_ so that the cache, which retains a shared reference
@@ -1951,10 +1954,8 @@ void NetworkPolicyMap::configure(const envoy::config::core::v3::ConfigSource& co
   impl_->configure(config_source);
 }
 
-void NetworkPolicyMap::maybeAddInitTarget(Init::Manager& init_manager) {
-  if (!impl_->started()) {
-    init_manager.add(impl_->init_target_);
-  }
+void NetworkPolicyMap::addInitTarget(Init::Manager& init_manager) {
+  init_manager.add(impl_->init_target_);
 }
 
 ManagedGrpcSubscription& NetworkPolicyMap::managedSubscription() { return *impl_; }
@@ -1982,8 +1983,6 @@ NetworkPolicyMapImpl::NetworkPolicyMapImpl(
                    [this]() {
                      // Production subscription is allowed to start from now on.
                      start();
-                     // Allow listener init to continue before network policy updates are received
-                     init_target_.ready();
                    }),
       transport_factory_context_(
           std::make_shared<Server::Configuration::TransportSocketFactoryContextImpl>(
@@ -2000,6 +1999,14 @@ NetworkPolicyMapImpl::NetworkPolicyMapImpl(
   // Allocate an initial policy map so that the map pointer is never a nullptr
   store(new PolicyMapSnapshot());
   ENVOY_LOG(trace, "NetworkPolicyMapImpl({}) created.", instance_id_);
+
+  initial_policy_timer_ = context_.mainThreadDispatcher().createTimer([this]() {
+    if (init_target_.ready()) {
+      ENVOY_LOG(warn, "Cilium NetworkPolicy: no policy update within 5 seconds, starting listeners "
+                      "without network policy");
+    }
+  });
+  initial_policy_timer_->enableTimer(std::chrono::seconds(5));
 
   if (context_.admin().has_value()) {
     ENVOY_LOG(debug, "Registering NetworkPolicies to config tracker");
@@ -2229,6 +2236,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
 
   installNewPolicyMap(std::move(pending_resource_map), version_init_manager,
                       std::move(version_name), policy_stream_state);
+  init_target_.ready();
   return absl::OkStatus();
 }
 
@@ -2341,6 +2349,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
   }
   installNewPolicyMap(std::move(pending_resource_map), version_init_manager,
                       std::move(version_name), policy_stream_state);
+  init_target_.ready();
   return absl::OkStatus();
 }
 
