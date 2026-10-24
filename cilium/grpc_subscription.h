@@ -60,7 +60,6 @@ protected:
   Stats::Scope& scope() { return *scope_; }
 
   bool connected() const { return connected_; }
-  bool started() const { return started_; }
   uint64_t streamGeneration() const { return stream_generation_; }
 
   void onStreamEvent(uint64_t subscription_id, Config::GrpcMuxStreamEvent event);

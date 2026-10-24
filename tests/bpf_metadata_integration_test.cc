@@ -30,6 +30,8 @@
 
 #include "absl/strings/string_view.h"
 #include "absl/synchronization/mutex.h"
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/nphds.pb.h"
@@ -679,6 +681,7 @@ TEST_P(BpfMetadataIntegrationTest, AdsNpdsStartsAfterRejectedListeners) {
   test_server_->waitForCounter("listener_manager.lds.update_rejected", testing::Ge(2));
   EXPECT_TRUE(test_server_->server().listenerManager().listeners().empty());
   test_server_->waitForCounter("cilium.npds.update_attempt", testing::Eq(0));
+  absl::SleepFor(absl::Seconds(6));
 
   sendLdsResponse(*ads_stream_, {MessageUtil::getYamlStringFromMessage(listener_config_)}, "3");
   test_server_->waitForCounter("listener_manager.lds.update_success", testing::Ge(1));
