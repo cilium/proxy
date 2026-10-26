@@ -16,11 +16,13 @@ Note: The below table is updated by script `tools/update_version_matrix.sh`
 
 | Cilium Version | Envoy version |
 |----------------|---------------|
-| (main)         | v1.39.x       |
+| (main)         | v1.40.x       |
+| v1.20.4        | v1.39.5       |
 | v1.20.3        | v1.38.6       |
 | v1.20.2        | v1.37.6       |
 | v1.20.1        | v1.37.5       |
 | v1.20.0        | v1.37.5       |
+| v1.19.10       | v1.38.8       |
 | v1.19.9        | v1.38.6       |
 | v1.19.8        | v1.37.6       |
 | v1.19.7        | v1.36.9       |
@@ -31,6 +33,7 @@ Note: The below table is updated by script `tools/update_version_matrix.sh`
 | v1.19.2        | v1.35.9       |
 | v1.19.1        | v1.35.9       |
 | v1.19.0        | v1.35.9       |
+| v1.18.16       | v1.38.8       |
 | v1.18.15       | v1.38.6       |
 | v1.18.14       | v1.37.6       |
 | v1.18.13       | v1.36.9       |
