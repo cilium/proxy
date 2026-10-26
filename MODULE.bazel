@@ -28,7 +28,7 @@ bazel_dep(name = "boringssl-fips", version = "0.20260929.0.envoy")
 bazel_dep(name = "envoy_toolshed", version = "0.5.3.envoy")
 bazel_dep(name = "librdkafka", version = "2.15.0")
 bazel_dep(name = "proxy-wasm-cpp-host", version = "0.0.0-260704-f2db56a.envoy")
-bazel_dep(name = "rules_fuzzing", version = "0.6.0")
+bazel_dep(name = "rules_fuzzing", version = "0.8.0")
 bazel_dep(name = "rules_rust", version = "0.74.0.envoy")
 
 # Used by tools/gen_compilation_database.py.
