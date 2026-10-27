@@ -24,7 +24,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 # renovate: datasource=github-releases depName=bazelbuild/bazelisk
-ENV BAZELISK_VERSION=v1.29.0
+ENV BAZELISK_VERSION=v1.30.0
 RUN curl -sfL https://github.com/bazelbuild/bazelisk/releases/download/${BAZELISK_VERSION}/bazelisk-linux-${BUILDARCH} -o /usr/bin/bazel && \
     chmod +x /usr/bin/bazel
 RUN groupadd -f -g 1337 cilium && useradd -m -d /cilium/proxy -g cilium -u 1337 cilium
