@@ -2,8 +2,8 @@ module(name = "cilium")
 
 # Envoy GIT commit SHA of release
 #
-# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.40.1
-ENVOY_SHA = "86af01fdec40c31d025c495a4aa303c4126b2fd0"
+# renovate: datasource=github-releases depName=envoyproxy/envoy digestVersion=v1.40.2
+ENVOY_SHA = "b2d89e0ae53916f28770771fbdd49c5c99c5c5a2"
 
 # Envoy must be the first bazel_dep so that the toolchains it registers (most importantly the
 # hermetic LLVM toolchain) take precedence over the ones registered by the other modules below.
