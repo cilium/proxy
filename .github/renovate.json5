@@ -96,6 +96,14 @@
       ],
     },
     {
+      // Envoy in MODULE.bazel is tracked by the regex manager and keeps its own group.
+      groupName: 'all bazel module dependencies',
+      groupSlug: 'all-bazel-module',
+      matchManagers: [
+        'bazel-module',
+      ],
+    },
+    {
       // Must come after the github action group so Go in workflows joins this group.
       groupName: 'Go',
       matchDepNames: [
