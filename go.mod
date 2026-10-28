@@ -6,7 +6,7 @@ toolchain go1.27.3
 
 require (
 	github.com/cilium/kafka v0.0.0-20180809090225-01ce283b732b
-	github.com/envoyproxy/go-control-plane/envoy v1.37.0
+	github.com/envoyproxy/go-control-plane/envoy v1.38.0
 	github.com/envoyproxy/protoc-gen-validate v1.3.3
 	github.com/sirupsen/logrus v1.10.2
 	github.com/stretchr/testify v1.12.1
