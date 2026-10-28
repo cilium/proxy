@@ -66,16 +66,6 @@
       ],
     },
     {
-      // Avoid updating minor or major version for github.com/envoyproxy/go-control-plane/envoy
-      // as we need to update cilium-envoy accordingly.
-      "matchPackageNames": [
-        "github.com/envoyproxy/go-control-plane/envoy",
-      ],
-      "matchUpdateTypes": [
-        "patch",
-      ]
-    },
-    {
       groupName: 'all github action dependencies',
       groupSlug: 'all-github-action',
       matchFileNames: [
@@ -185,9 +175,12 @@
       ],
     },
     {
+      // go-control-plane/envoy is the Go API of one Envoy minor release, so it
+      // shares the cap and the PR of the branch's Envoy group.
       groupName: 'envoy 1.38.x',
       matchDepNames: [
         'envoyproxy/envoy',
+        'github.com/envoyproxy/go-control-plane/envoy',
       ],
       allowedVersions: '<=1.38',
       matchBaseBranches: [
@@ -198,6 +191,7 @@
       groupName: 'envoy 1.39.x',
       matchDepNames: [
         'envoyproxy/envoy',
+        'github.com/envoyproxy/go-control-plane/envoy',
       ],
       allowedVersions: '<=1.39',
       matchBaseBranches: [
@@ -208,6 +202,7 @@
       groupName: 'envoy 1.40.x',
       matchDepNames: [
         'envoyproxy/envoy',
+        'github.com/envoyproxy/go-control-plane/envoy',
       ],
       allowedVersions: '<=1.40',
       matchBaseBranches: [
@@ -215,14 +210,16 @@
       ],
     },
     {
-      "enabled": false,
-      "matchPackageNames": [
-        // Stop updating envoy control plane packages until they pushed the
-        // tag to stop go mod from erroring. See https://github.com/cilium/cilium/issues/41574
-        "github.com/envoyproxy/go-control-plane/contrib",
-        "github.com/envoyproxy/go-control-plane/envoy"
-      ]
-    }
+      // Renovate moves a pseudo-version, such as one that grpc pulls in, to the
+      // newest go-control-plane tag and ignores allowedVersions.
+      enabled: false,
+      matchDepNames: [
+        'github.com/envoyproxy/go-control-plane/envoy',
+      ],
+      matchUpdateTypes: [
+        'digest',
+      ],
+    },
   ],
   customManagers: [
     {
