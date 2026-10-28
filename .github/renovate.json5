@@ -220,6 +220,16 @@
         'digest',
       ],
     },
+    {
+      // grpc v1.85.0 requires go-control-plane/envoy v1.39.x.
+      matchDepNames: [
+        'google.golang.org/grpc',
+      ],
+      allowedVersions: '<1.85.0',
+      matchBaseBranches: [
+        'v1.38',
+      ],
+    },
   ],
   customManagers: [
     {
