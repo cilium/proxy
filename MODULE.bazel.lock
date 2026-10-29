@@ -1171,7 +1171,7 @@
     "@@envoy+//bazel:extensions.bzl%envoy_llvm_extension": {
       "general": {
         "bzlTransitiveDigest": "gM+4MFQEhEBbNBGyiLVlJhaSpg+PYxiC5ggHyHH1K5Y=",
-        "usagesDigest": "Xh18rfwmLxbTlbLIWxAN9HrZNt1L05LBMojQPK8LtHA=",
+        "usagesDigest": "WeplFklOSGp4MuVDlOor1R2YeiISFjEeI/92cNlVOwA=",
         "recordedInputs": [
           "REPO_MAPPING:envoy+,bazel_skylib bazel_skylib+",
           "REPO_MAPPING:envoy+,bazel_tools bazel_tools",
@@ -1220,7 +1220,7 @@
     "@@envoy+//bazel:extensions.bzl%envoy_repo_extension": {
       "general": {
         "bzlTransitiveDigest": "gM+4MFQEhEBbNBGyiLVlJhaSpg+PYxiC5ggHyHH1K5Y=",
-        "usagesDigest": "jzKSLP5CSSKjIPEARY9UCLIaBBne4jlcABIYe1+bvYk=",
+        "usagesDigest": "9pvwr+ORnbvbAQnK06OKZwCCTZcFu/zthx0hlS/nydk=",
         "recordedInputs": [
           "REPO_MAPPING:envoy+,bazel_skylib bazel_skylib+",
           "REPO_MAPPING:envoy+,bazel_tools bazel_tools",
@@ -1351,7 +1351,7 @@
     "@@envoy_toolshed+//compile:extensions.bzl%llvm_minimal_extension": {
       "general": {
         "bzlTransitiveDigest": "FAk0tz29uW57e0nJwa2r4vAg3PvC8JVFhZUHoK3t68E=",
-        "usagesDigest": "zR9gpzc6bfjDJS+CVdJfkKzKpYNwWetzpGGdVZddUGU=",
+        "usagesDigest": "Rul12krH8MXb0jj0ZDmTJ0+7OJC7yFSMKrUuslW5jHs=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "llvm_minimal_linux_x64": {
@@ -1497,7 +1497,7 @@
     "@@envoy_toolshed+//sysroot:extensions.bzl%sysroot_extension": {
       "general": {
         "bzlTransitiveDigest": "pSz8jmJCdz72tsMp9Bp93ZvZ/uGge14iL1mI9Kw7xa8=",
-        "usagesDigest": "VmCeYhEFeTHkNi9O4hJt6WBbfUlm+DnGArXY76FMfN0=",
+        "usagesDigest": "vOLquwNp5TtqCBoPtNZxCD7GH9JNh5yHtJbhqvxC3pI=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "sysroot_linux_amd64": {
@@ -1817,7 +1817,7 @@
     "@@rules_buf+//buf:extensions.bzl%buf": {
       "general": {
         "bzlTransitiveDigest": "IjW2he5lp+L/zEfsBKIilXijyHH6PC4Lf3y19MA6G4c=",
-        "usagesDigest": "ta8FR+9P2TsTp/sNDiFQBVCj+CAyko1RfcSGsJRIaaU=",
+        "usagesDigest": "nW+tmlBHyDy+102PhMWE44sDclmeCi4pC5LgjNOZ2GY=",
         "recordedInputs": [
           "REPO_MAPPING:rules_buf+,bazel_tools bazel_tools"
         ],
