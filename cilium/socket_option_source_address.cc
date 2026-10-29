@@ -80,9 +80,14 @@ bool SourceAddressSocketOption::setOption(
     return true;
   }
 
-  if (source_address->ip() && dest_fs_ && dest_fs_->getDestinationAddress() &&
-      dest_fs_->getDestinationAddress()->ip()) {
-    const auto& dst_addr = dest_fs_->getDestinationAddress()->ip()->addressAsString();
+  Network::Address::InstanceConstSharedPtr dst_address =
+      socket.connectionInfoProvider().remoteAddress();
+  if (!dst_address && dest_fs_) {
+    dst_address = dest_fs_->getDestinationAddress();
+  }
+
+  if (source_address->ip() && dst_address && dst_address->ip()) {
+    const auto& dst_addr = dst_address->ip()->addressAsString();
     if (source_address->ip()->addressAsString() == dst_addr) {
       ENVOY_LOG(trace,
                 "Skipping restore of local address on socket: {} - source address is same as "
