@@ -15,7 +15,7 @@ ARG ARCHIVE_IMAGE=builder-fresh
 # make. The downloaded lld links against the host libxml2, and the clang-tidy
 # helper scripts run the host python3.
 #
-FROM --platform=$BUILDPLATFORM docker.io/library/ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c AS builder-base
+FROM --platform=$BUILDPLATFORM docker.io/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852 AS builder-base
 LABEL maintainer="maintainer@cilium.io"
 ARG BUILDARCH
 RUN apt-get update && \
@@ -134,7 +134,7 @@ COPY --from=run-clang-tidy-fix /cilium/proxy/*.txt /
 #
 # Extract installed cilium-envoy binaries to an otherwise empty image
 #
-FROM docker.io/library/ubuntu:24.04@sha256:24737cef17f4e22b1977df7d9a05e77c4e28b7da5b8911f8d8ccda136bf3573c
+FROM docker.io/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852
 LABEL maintainer="maintainer@cilium.io"
 # install ca-certificates package
 RUN apt-get update && apt-get upgrade -y \
