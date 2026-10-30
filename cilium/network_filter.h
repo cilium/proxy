@@ -5,7 +5,6 @@
 
 #include "envoy/buffer/buffer.h"
 #include "envoy/common/time.h"
-#include "envoy/json/json_object.h"
 #include "envoy/network/address.h"
 #include "envoy/network/filter.h"
 #include "envoy/server/factory_context.h"
@@ -33,7 +32,6 @@ namespace CiliumL3 {
 class Config : Logger::Loggable<Logger::Id::config> {
 public:
   Config(const ::cilium::NetworkFilter& config, Server::Configuration::FactoryContext& context);
-  Config(const Json::Object& config, Server::Configuration::FactoryContext& context);
 
   void log(Cilium::AccessLog::Entry&, ::cilium::EntryType);
 
