@@ -421,6 +421,62 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
               (cilium_mark_socket_option->mark_ >> 16) == 8);
 }
 
+TEST_F(MetadataConfigTest, NorthSouthL7LbEgressHTTPPolicyWithoutIngressHTTPRules) {
+  remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.1.1", 12345);
+  policy_config = R"EOF(version_info: "1"
+resources:
+- "@type": type.googleapis.com/cilium.NetworkPolicy
+  endpoint_ips: [ "10.1.1.42" ]
+  endpoint_id: 42
+  ingress_per_port_policies:
+  - port: 80
+    rules:
+    - remote_policies: [ 12345678 ]
+  egress_per_port_policies:
+  - port: 8080
+    rules:
+    - remote_policies: [ 222 ]
+      http_rules:
+        http_rules:
+        - headers:
+          - name: ":path"
+            string_match:
+              exact: "/allowed"
+)EOF";
+
+  ::cilium::BpfMetadata config{};
+  config.set_is_l7lb(true);
+  config.set_ipv4_source_address("10.1.1.42");
+  config.set_enforce_policy_on_l7lb(true);
+  ASSERT_NO_THROW(initialize(config));
+
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  ASSERT_TRUE(socket_metadata);
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  ASSERT_NE(nullptr, policy_fs);
+
+  AccessLog::Entry network_log_entry;
+  bool use_proxy_lib;
+  std::string l7_proto;
+  ASSERT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 222, 8080, "", use_proxy_lib, l7_proto,
+                                              network_log_entry));
+
+  const struct {
+    const char* path;
+    bool allowed;
+  } cases[] = {
+      {"/allowed", true},
+      {"/denied", false},
+  };
+  for (const auto& test_case : cases) {
+    SCOPED_TRACE(test_case.path);
+    Http::TestRequestHeaderMapImpl headers{{":method", "GET"}, {":path", test_case.path}};
+    AccessLog::Entry log_entry;
+    EXPECT_EQ(test_case.allowed,
+              policy_fs->enforceIngressHTTPPolicy(conn_, 222, 8080, headers, log_entry));
+  }
+}
+
 TEST_F(MetadataConfigTest, NorthSouthL7LbPodAndIngressEnforcedMetadata) {
   // Use external remote address
   remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.1.1", 12345);
