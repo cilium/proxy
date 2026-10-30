@@ -33,7 +33,7 @@
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/api/npds.pb.h"
 #include "cilium/api/nphds.pb.h"
-#include "cilium/host_map.h"
+#include "cilium/policy_host_map.h"
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
 #include "gtest/gtest.h"

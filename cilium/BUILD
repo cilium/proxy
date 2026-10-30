@@ -292,10 +292,12 @@ envoy_cc_library(
     srcs = [
         "bpf_metadata.cc",
         "host_map.cc",
+        "policy_host_map.cc",
     ],
     hdrs = [
         "bpf_metadata.h",
         "host_map.h",
+        "policy_host_map.h",
     ],
     deps = [
         "//cilium:conntrack_lib",

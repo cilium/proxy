@@ -22,7 +22,7 @@
 #include "cilium/conntrack.h"
 #include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
-#include "cilium/host_map.h"
+#include "cilium/policy_host_map.h"
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
 #include "cilium/socket_option_cilium_mark.h"
