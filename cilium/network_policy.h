@@ -8,7 +8,6 @@
 
 #include "envoy/common/pure.h"
 #include "envoy/common/regex.h"
-#include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
@@ -60,17 +59,11 @@ public:
   // given that Network layer policy has already been enforced.
   bool hasHttpRules() const { return has_http_rules_; }
 
-  // useProxylib returns true if a proxylib parser should be used.
-  // 'l7_proto' is set to the parser name in that case.
-  bool useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const;
   // HTTP-layer policy check. 'headers' and 'log_entry' may be manipulated by the policy.
   bool allowed(uint16_t proxy_id, uint32_t remote_id, Envoy::Http::RequestHeaderMap& headers,
                Cilium::AccessLog::Entry& log_entry) const;
   // Network-layer policy check
   bool allowed(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni) const;
-  // Envoy filter metadata policy check
-  bool allowed(uint16_t proxy_id, uint32_t remote_id,
-               const envoy::config::core::v3::Metadata& metadata) const;
   // getServerTlsContext returns the server TLS context, if any. If a non-null pointer is returned,
   // then also the config pointer '*config' is set.
   // If '*config' is nullptr and 'raw_socket_allowed' is 'true' on return then the policy
@@ -130,11 +123,6 @@ public:
                        uint16_t port) const PURE;
 
   virtual const PortPolicy findPortPolicy(bool ingress, uint16_t port) const PURE;
-
-  // Returns true if the policy specifies l7 protocol for the connection, and
-  // returns the l7 protocol string in 'l7_proto'
-  virtual bool useProxylib(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
-                           std::string& l7_proto) const PURE;
 
   virtual uint32_t getEndpointID() const PURE;
 

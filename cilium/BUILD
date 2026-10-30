@@ -58,7 +58,6 @@ envoy_cc_library(
         "@envoy//source/common/tls:context_config_lib",
         "@envoy//source/common/tls:server_context_config_lib",
         "@envoy//source/server:transport_socket_config_lib",
-        "@envoy_api//envoy/type/matcher/v3:pkg_cc_proto",
     ],
 )
 

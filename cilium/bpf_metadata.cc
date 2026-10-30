@@ -446,9 +446,6 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   // Resolve the source security ID from conntrack map, or from ip cache
   uint32_t source_identity = resolveSourceIdentity(sip, dip, is_ingress_);
 
-  // Resolve the destination security ID for egress traffic
-  uint32_t destination_identity = is_ingress_ ? 0 : resolvePolicyId(dip);
-
   // ingress_source_identity is non-zero when the egress path l7 LB should also enforce
   // the ingress path policy using the original source identity.
   uint32_t ingress_source_identity = 0;
@@ -533,18 +530,6 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     src_address = nullptr;
   }
 
-  // Evaluating proxylib L7 protocol for later usage in filter chain matching.
-  // This requires the TLS inspector, if used, to run before us.
-  // Note: This requires egress policy be known before upstream host selection,
-  // so this feature only works with the original destination cluster.
-  // This means that L7 LB does not work with the experimental Envoy Metadata
-  // based policies (e.g., with MongoDB or MySQL filters).
-  std::string proxylib_l7proto;
-  uint32_t remote_id = is_ingress_ ? source_identity : destination_identity;
-  if (policy->useProxylib(is_ingress_, proxy_id_, remote_id, dip->port(), proxylib_l7proto)) {
-    ENVOY_LOG(trace, "cilium.bpf_metadata: detected proxylib l7 proto: {}", proxylib_l7proto);
-  }
-
   // Pass the metadata to an Envoy socket option we can retrieve later in other
   // Cilium filters.
   uint32_t mark = 0;
@@ -569,7 +554,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
       mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
       std::move(pod_ip), std::move(ingress_policy_name), std::move(src_address),
       std::move(source_addresses.ipv4_), std::move(source_addresses.ipv6_), std::move(dst_address),
-      shared_from_this(), proxy_id_, std::move(proxylib_l7proto), sni)};
+      shared_from_this(), proxy_id_, sni)};
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
@@ -583,9 +568,6 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
   // filter. Our integration tests depend on this.
   auto socket_metadata = config_->extractSocketMetadata(socket);
   if (socket_metadata) {
-
-    // Setting proxy lib application protocol on downstream socket
-    socket_metadata->configureProxyLibApplicationProtocol(socket);
 
     // Restoring original destination address on downstream socket
     socket_metadata->configureOriginalDstAddress(socket);

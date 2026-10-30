@@ -21,7 +21,6 @@
 #include "envoy/common/matchers.h"
 #include "envoy/common/optref.h"
 #include "envoy/config/core/v3/address.pb.h"
-#include "envoy/config/core/v3/base.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
 #include "envoy/http/header_map.h"
@@ -35,11 +34,9 @@
 #include "envoy/stats/scope.h"
 #include "envoy/stats/stats_macros.h"
 #include "envoy/thread_local/thread_local.h"
-#include "envoy/type/matcher/v3/metadata.pb.h"
 
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
-#include "source/common/common/matchers.h"
 #include "source/common/common/thread.h"
 #include "source/common/http/header_utility.h"
 #include "source/common/init/manager_impl.h"
@@ -719,38 +716,6 @@ public:
   std::vector<HeaderMatch> header_matches_;
 };
 
-class L7NetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
-public:
-  L7NetworkPolicyRule(const NetworkPolicyMapImpl& parent, const cilium::L7NetworkPolicyRule& rule)
-      : name_(rule.name()) {
-    for (const auto& matcher : rule.metadata_rule()) {
-      metadata_matchers_.emplace_back(matcher,
-                                      parent.transportFactoryContext().serverFactoryContext());
-      matchers_.emplace_back(matcher);
-    }
-  }
-
-  bool matches(const envoy::config::core::v3::Metadata& metadata) const {
-    // All matchers must be satisfied for the rule to match
-    for (const auto& metadata_matcher : metadata_matchers_) {
-      if (!metadata_matcher.match(metadata)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  void toString(int indent, std::string& res) const {
-    res.append(indent - 2, ' ').append("- name: \"").append(name_).append("\"\n");
-  }
-
-  std::string name_;
-
-private:
-  std::vector<Envoy::Matchers::MetadataMatcher> metadata_matchers_;
-  std::vector<envoy::type::matcher::v3::MetadataMatcher> matchers_;
-};
-
 // Constructs SniPattern with the provided regex engine for input match pattern.
 SniPattern::SniPattern(const Regex::Engine& engine, absl::string_view sni) {
   if (!isValid(sni)) {
@@ -803,7 +768,7 @@ class PortNetworkPolicyRule : public Logger::Loggable<Logger::Id::config> {
 public:
   PortNetworkPolicyRule()
       : name_("default allow rule"), verdict_(RuleVerdict::Allow), proxy_id_(0), precedence_(0),
-        tier_last_precedence_(0), pass_index_(0), l7_proto_("") {}
+        tier_last_precedence_(0), pass_index_(0) {}
 
   PortNetworkPolicyRule(const NetworkPolicyMapImpl& parent,
                         const cilium::PortNetworkPolicyRule& rule)
@@ -811,7 +776,7 @@ public:
         verdict_(rule.pass_precedence() ? RuleVerdict::Pass
                                         : (rule.deny() ? RuleVerdict::Deny : RuleVerdict::Allow)),
         proxy_id_(uint16_t(rule.proxy_id())), precedence_(rule.precedence()),
-        tier_last_precedence_(rule.pass_precedence()), pass_index_(0), l7_proto_(rule.l7_proto()) {
+        tier_last_precedence_(rule.pass_precedence()), pass_index_(0) {
     if (tier_last_precedence_ > precedence_) {
       throw EnvoyException(
           fmt::format("PortNetworkPolicyRule: pass_precedence {} must be lower than precedence {}",
@@ -840,15 +805,6 @@ public:
           has_headermatches_ = true;
         }
         http_rules_->emplace_back(parent, http_rule);
-      }
-    }
-    if (!l7_proto_.empty() && rule.has_l7_rules()) {
-      const auto& ruleset = rule.l7_rules();
-      for (const auto& l7_rule : ruleset.l7_deny_rules()) {
-        l7_deny_rules_.emplace_back(parent, l7_rule);
-      }
-      for (const auto& l7_rule : ruleset.l7_allow_rules()) {
-        l7_allow_rules_.emplace_back(parent, l7_rule);
       }
     }
   }
@@ -904,49 +860,6 @@ public:
       }
     }
     return (header_matched) ? verdict : RuleVerdict::None;
-  }
-
-  RuleVerdict useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
-    auto verdict = getVerdict(proxy_id, remote_id);
-    if (verdict != RuleVerdict::Allow) {
-      return verdict;
-    }
-    if (!l7_proto_.empty()) {
-      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule::useProxylib(): returning {}", l7_proto_);
-      l7_proto = l7_proto_;
-      return RuleVerdict::Allow; // found a proxylib match
-    }
-    // keep looking past allows if no proxylib
-    return RuleVerdict::None;
-  }
-
-  // Envoy Metadata matcher, called after deny has already been checked for
-  RuleVerdict getVerdict(uint16_t proxy_id, uint32_t remote_id,
-                         const envoy::config::core::v3::Metadata& metadata) const {
-    auto verdict = getVerdict(proxy_id, remote_id);
-    if (verdict != RuleVerdict::Allow) {
-      return verdict;
-    }
-
-    if (std::ranges::any_of(l7_deny_rules_,
-                            [&](const auto& rule) { return rule.matches(metadata); })) {
-      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule: DENY due to a matching deny rule");
-      return RuleVerdict::Deny; // request is denied if any deny rule matches
-    }
-
-    if (l7_allow_rules_.empty()) {
-      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule: default ALLOW due to no allow rules");
-      return RuleVerdict::Allow; // allowed by default
-    }
-
-    if (std::ranges::any_of(l7_allow_rules_,
-                            [&](const auto& rule) { return rule.matches(metadata); })) {
-      ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule: ALLOW due to a matching allow rule");
-      return RuleVerdict::Allow;
-    }
-
-    ENVOY_LOG(trace, "Cilium L7 PortNetworkPolicyRule: SKIP due to all allow rules mismatching");
-    return RuleVerdict::None;
   }
 
   // getServerTlsContext returns true if the rule has server TLS context that was passed to the
@@ -1013,22 +926,6 @@ public:
         rule.toString(indent + 2, res);
       }
     }
-
-    if (!l7_proto_.empty()) {
-      res.append(indent, ' ').append("l7_proto: \"").append(l7_proto_).append("\"\n");
-    }
-    if (!l7_allow_rules_.empty()) {
-      res.append(indent, ' ').append("l7_allow_rules:\n");
-      for (auto& rule : l7_allow_rules_) {
-        rule.toString(indent + 2, res);
-      }
-    }
-    if (!l7_deny_rules_.empty()) {
-      res.append(indent, ' ').append("l7_deny_rules:\n");
-      for (auto& rule : l7_deny_rules_) {
-        rule.toString(indent + 2, res);
-      }
-    }
   }
 
   bool hasHttpRules() const { return http_rules_ && !http_rules_->empty(); }
@@ -1047,9 +944,6 @@ public:
   std::vector<SniPattern> allowed_snis_; // All SNIs allowed if empty.
   std::shared_ptr<std::vector<HttpNetworkPolicyRule>>
       http_rules_; // Allowed if empty, but remote is checked first.
-  std::string l7_proto_;
-  std::vector<L7NetworkPolicyRule> l7_allow_rules_;
-  std::vector<L7NetworkPolicyRule> l7_deny_rules_;
 };
 using PortNetworkPolicyRuleSharedPtr = std::shared_ptr<PortNetworkPolicyRule>;
 using PortNetworkPolicyRuleConstSharedPtr = std::shared_ptr<const PortNetworkPolicyRule>;
@@ -1311,23 +1205,6 @@ public:
     return verdict;
   }
 
-  RuleVerdict useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
-    return forEachRule(
-        true, [&](const auto& rule) { return rule.useProxylib(proxy_id, remote_id, l7_proto); });
-  }
-
-  RuleVerdict getVerdict(uint16_t proxy_id, uint32_t remote_id,
-                         const envoy::config::core::v3::Metadata& metadata) const {
-    auto verdict = forEachRule(
-        true, [&](const auto& rule) { return rule.getVerdict(proxy_id, remote_id, metadata); });
-
-    ENVOY_LOG(trace,
-              "Cilium L7 PortNetworkPolicyRules(proxy_id: {}, remote_id: {}, metadata: {}): {}",
-              proxy_id, remote_id, metadata.DebugString(), verdict);
-
-    return verdict;
-  }
-
   RuleVerdict getServerTlsContext(uint16_t proxy_id, uint32_t remote_id, absl::string_view sni,
                                   Ssl::ContextSharedPtr& tls_ctx,
                                   const Ssl::ContextConfig*& config) const {
@@ -1427,17 +1304,6 @@ PortPolicy::PortPolicy(const PolicySnapshot& map, uint16_t port)
     : port_rules_(findPortRules(map, port)),
       has_http_rules_(port_rules_ && port_rules_->hasHttpRules()) {}
 
-bool PortPolicy::useProxylib(uint16_t proxy_id, uint32_t remote_id, std::string& l7_proto) const {
-  if (port_rules_) {
-    auto verdict = port_rules_->useProxylib(proxy_id, remote_id, l7_proto);
-    if (verdict == RuleVerdict::Allow) {
-      return true;
-    }
-  }
-  l7_proto = "";
-  return false;
-}
-
 bool PortPolicy::allowed(uint16_t proxy_id, uint32_t remote_id,
                          Envoy::Http::RequestHeaderMap& headers,
                          Cilium::AccessLog::Entry& log_entry) const {
@@ -1457,14 +1323,6 @@ bool PortPolicy::allowed(uint16_t proxy_id, uint32_t remote_id, absl::string_vie
     return false;
   }
   return port_rules_->getVerdict(proxy_id, remote_id, sni) == RuleVerdict::Allow;
-}
-
-bool PortPolicy::allowed(uint16_t proxy_id, uint32_t remote_id,
-                         const envoy::config::core::v3::Metadata& metadata) const {
-  if (!port_rules_) {
-    return false;
-  }
-  return port_rules_->getVerdict(proxy_id, remote_id, metadata) == RuleVerdict::Allow;
 }
 
 Ssl::ContextSharedPtr PortPolicy::getServerTlsContext(uint16_t proxy_id, uint32_t remote_id,
@@ -1667,8 +1525,7 @@ public:
                     rule_range.first, rule_range.second, range.first, range.second);
           if (singular) {
             // Exact port rules go to the front of the list.
-            // This gives precedence for trivial range rules for proxylib parser
-            // and TLS context selection.
+            // This gives precedence to exact port rules for TLS context selection.
             // prepend() inserts each rule at begin() while iterating forward,
             // so the relative order of rules from this batch is reversed. This
             // is harmless: equal-precedence rules are evaluated as alternatives
@@ -1776,12 +1633,6 @@ public:
 
   const PortPolicy findPortPolicy(bool ingress, uint16_t port) const override {
     return ingress ? ingress_.findPortPolicy(port) : egress_.findPortPolicy(port);
-  }
-
-  bool useProxylib(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
-                   std::string& l7_proto) const override {
-    const auto port_policy = findPortPolicy(ingress, port);
-    return port_policy.useProxylib(proxy_id, remote_id, l7_proto);
   }
 
   uint32_t getEndpointID() const override { return endpoint_id_; }
@@ -2388,10 +2239,6 @@ public:
     return ingress ? PortPolicy(empty_map_, 0) : PortPolicy(empty_map_, 1);
   }
 
-  bool useProxylib(bool, uint16_t, uint32_t, uint16_t, std::string&) const override {
-    return false;
-  }
-
   uint32_t getEndpointID() const override { return 0; }
 
   const IpAddressPair& getEndpointIPs() const override { return empty_ips; }
@@ -2429,10 +2276,6 @@ public:
 
   const PortPolicy findPortPolicy(bool, uint16_t) const override {
     return PortPolicy(empty_map_, 0);
-  }
-
-  bool useProxylib(bool, uint16_t, uint32_t, uint16_t, std::string&) const override {
-    return false;
   }
 
   uint32_t getEndpointID() const override { return 0; }

@@ -7,7 +7,6 @@ package cilium;
 import "envoy/config/core/v3/address.proto";
 import "envoy/config/route/v3/route_components.proto";
 import "envoy/service/discovery/v3/discovery.proto";
-import "envoy/type/matcher/v3/metadata.proto";
 
 import "google/api/annotations.proto";
 
@@ -127,6 +126,9 @@ message TLSContext {
 // If all the predicates of a rule match a flow, the flow is matched by the
 // rule.
 message PortNetworkPolicyRule {
+  reserved 2, 101, 102;
+  reserved "l7_proto", "kafka_rules", "l7_rules";
+
   // Precedence level for this rule. Rules with **higher** numeric values take
   // precedence, even over deny rules of lower precedence level.
   // The lowest precedence (zero) is used when not specified.
@@ -188,29 +190,12 @@ message PortNetworkPolicyRule {
     }
   }];
 
-  // Optional L7 protocol name. This is only used if the protocol is not
-  // one of the well known ones. If specified, it is added to the requested
-  // application protocols of the connection for filter chain matching, and
-  // names the Envoy filter whose dynamic metadata is matched by 'l7_rules'.
-  string l7_proto = 2;
-
   // Optional. If not specified, any L7 request is matched by this predicate.
-  // All rules on any given port must have the same type of L7 rules!
   oneof l7 {
     // The set of HTTP network policy rules.
     // An HTTP request is matched by this predicate if any of its rules matches
     // the request.
     HttpNetworkPolicyRules http_rules = 100;
-
-    // The set of Kafka network policy rules.
-    // A Kafka request is matched by this predicate if any of its rules matches
-    // the request.
-    KafkaNetworkPolicyRules kafka_rules = 101;
-
-    // Set of Generic policy rules used when 'l7_proto' is defined.
-    // Only to be used for l7 protocols for which a specific oneof
-    // is not defined
-    L7NetworkPolicyRules l7_rules = 102;
   }
 }
 
@@ -272,75 +257,6 @@ message HttpNetworkPolicyRule {
   //
   // Optional.
   repeated HeaderMatch header_matches = 2;
-}
-
-// A set of network policy rules that match Kafka requests.
-message KafkaNetworkPolicyRules {
-  // The set of Kafka network policy rules.
-  // A Kafka request is matched if any of its rules matches the request.
-  // Required and may not be empty.
-  repeated KafkaNetworkPolicyRule kafka_rules = 1 [(validate.rules).repeated.min_items = 1];
-}
-
-// A Kafka network policy rule, as a conjunction of predicates on Kafka
-// requests. If all the predicates of a rule match a Kafka request, the request
-// is allowed. Otherwise, it is denied.
-message KafkaNetworkPolicyRule {
-  // The Kafka request's API version.
-  // If < 0, all Kafka requests are matched by this predicate.
-  int32 api_version = 1;
-
-  // Set of allowed API keys in the Kafka request.
-  // If none, all Kafka requests are matched by this predicate.
-  repeated int32 api_keys = 2;
-
-  // The Kafka request's client ID.
-  // Optional. If not specified, all Kafka requests are matched by this
-  // predicate. If specified, this predicates only matches requests that contain
-  // this client ID, and never matches requests that don't contain any client
-  // ID.
-  string client_id = 3 [(validate.rules).string.pattern = "^[a-zA-Z0-9._-]*$"];
-
-  // The Kafka request's topic.
-  // Optional. If not specified, this rule will not consider the Kafka request's
-  // topics. If specified, this predicates only matches requests that contain
-  // this topic, and never matches requests that don't contain any topic.
-  // However, messages that can not contain a topic will also me matched.
-  string topic = 4 [(validate.rules).string = {max_len: 255, pattern: "^[a-zA-Z0-9._-]*$"}];
-}
-
-// A set of network policy rules that match generic L7 requests.
-message L7NetworkPolicyRules {
-  // The set of allowing l7 policy rules.
-  // A request is allowed if any of these rules matches the request,
-  // and the request does not match any of the deny rules.
-  // Optional. If missing or empty then all requests are allowed, unless
-  // denied by a deny rule.
-  repeated L7NetworkPolicyRule l7_allow_rules = 1;
-
-  // The set of denying l7 policy rules.
-  // A request is denied if any of these rules matches the request.
-  // A request that is not denied may be allowed by 'l7_allow_rules'.
-  // Optional.
-  repeated L7NetworkPolicyRule l7_deny_rules = 2;
-}
-
-// A generic L7 policy rule, as a conjunction of predicates on l7 requests.
-// If all the predicates of a rule match a request, the request is allowed.
-// Otherwise, it is denied.
-message L7NetworkPolicyRule {
-  // Optional rule name, can be used in logging and error messages.
-  string name = 3;
-
-  // Generic rule for Go extensions.
-  // Optional. If empty, matches any request. Not allowed if 'metadata_rule' is
-  // present.
-  map<string, string> rule = 1;
-
-  // Generic rule for Envoy metadata enforcement. All matchers must match for
-  // the rule to allow the request/connection. Optional. If empty, matches any
-  // request. Not allowed if 'rule' is present.
-  repeated envoy.type.matcher.v3.MetadataMatcher metadata_rule = 2;
 }
 
 // Cilium's network policy manager fills this message with all currently known network policies.

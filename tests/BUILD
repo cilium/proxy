@@ -174,16 +174,6 @@ envoy_cc_test(
 )
 
 envoy_cc_test(
-    name = "network_filter_test",
-    srcs = ["network_filter_test.cc"],
-    deps = [
-        "//cilium:network_filter_lib",
-        "@envoy//test/mocks/network:network_mocks",
-        "@envoy//test/mocks/server:listener_factory_context_mocks",
-    ],
-)
-
-envoy_cc_test(
     name = "cilium_websocket_codec_test",
     srcs = ["cilium_websocket_codec_test.cc"],
     deps = [

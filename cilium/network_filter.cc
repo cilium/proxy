@@ -104,8 +104,7 @@ bool Instance::enforceNetworkPolicy(const Cilium::CiliumPolicyFilterState* polic
                                 stream_info.downstreamAddressProvider().remoteAddress(),
                                 destination_identity, dst_address, &config_->time_source_);
 
-  if (!policy_fs->enforceNetworkPolicy(conn, remote_id_, destination_port_, sni, l7proto_,
-                                       log_entry_)) {
+  if (!policy_fs->enforceNetworkPolicy(conn, remote_id_, destination_port_, sni, log_entry_)) {
     ENVOY_CONN_LOG(debug, "cilium.network: policy DENY on id: {} port: {} sni: \"{}\"", conn,
                    remote_id_, destination_port_, sni);
     config_->log(log_entry_, ::cilium::EntryType::Denied);
@@ -243,48 +242,7 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
   auto& conn = callbacks_->connection();
   ENVOY_CONN_LOG(trace, "cilium.network: onData {} bytes, end_stream: {}", conn, data.length(),
                  end_stream);
-  const char* reason;
-
-  if (!l7proto_.empty()) {
-    const auto& metadata = conn.streamInfo().dynamicMetadata();
-    const auto& filter_metadata = metadata.filter_metadata();
-    const auto metadata_it = filter_metadata.find(l7proto_);
-    const Protobuf::Struct empty_metadata;
-    bool changed = log_entry_.updateFromMetadata(
-        l7proto_, metadata_it != filter_metadata.end() ? metadata_it->second : empty_metadata);
-
-    // Policy may have changed since the connection was established, get fresh policy
-    const auto policy_fs =
-        conn.streamInfo().filterState()->getDataReadOnly<Cilium::CiliumPolicyFilterState>(
-            Cilium::CiliumPolicyFilterState::key());
-
-    if (!policy_fs) {
-      ENVOY_CONN_LOG(warn,
-                     "cilium.network: Cilium policy filter state not found for pod {}, "
-                     "defaulting to DENY",
-                     conn, policy_fs->pod_ip_);
-      reason = "Cilium metadata lost";
-      goto drop_close;
-    }
-    const auto& policy = policy_fs->getPolicy();
-    auto port_policy = policy.findPortPolicy(policy_fs->ingress_, destination_port_);
-    if (!port_policy.allowed(policy_fs->proxy_id_, remote_id_, metadata)) {
-      config_->log(log_entry_, ::cilium::EntryType::Denied);
-      reason = "metadata policy drop";
-      goto drop_close;
-    } else {
-      // accesslog only if metadata has changed
-      if (changed) {
-        config_->log(log_entry_, ::cilium::EntryType::Request);
-      }
-    }
-  }
-
   return Network::FilterStatus::Continue;
-
-drop_close:
-  conn.close(Network::ConnectionCloseType::NoFlush, reason);
-  return Network::FilterStatus::StopIteration;
 }
 
 Network::FilterStatus Instance::onWrite(Buffer::Instance&, bool) {

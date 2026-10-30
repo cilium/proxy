@@ -15,12 +15,10 @@
 package cilium
 
 import (
-	"math"
 	"testing"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
@@ -195,34 +193,10 @@ func TestNetworkPolicyEqualVTOneofs(t *testing.T) {
 			},
 		},
 		{
-			name: "Kafka equal",
-			left: policyWithRule(kafkaOneofRule("events")),
-			want: true,
-		},
-		{
-			name: "Kafka value",
-			left: policyWithRule(kafkaOneofRule("events")),
-			mutate: func(rule *PortNetworkPolicyRule) {
-				rule.GetKafkaRules().KafkaRules[0].Topic = "audit"
-			},
-		},
-		{
-			name: "generic L7 equal",
-			left: policyWithRule(genericL7OneofRule("public")),
-			want: true,
-		},
-		{
-			name: "generic L7 map value",
-			left: policyWithRule(genericL7OneofRule("public")),
-			mutate: func(rule *PortNetworkPolicyRule) {
-				rule.GetL7Rules().L7AllowRules[0].Rule["zone"] = "private"
-			},
-		},
-		{
-			name: "L7 alternative",
+			name: "L7 presence",
 			left: policyWithRule(httpOneofRule("GET")),
 			mutate: func(rule *PortNetworkPolicyRule) {
-				rule.L7 = kafkaOneofRule("events").L7
+				rule.L7 = nil
 			},
 		},
 	}
@@ -260,37 +234,6 @@ func TestNetworkPolicyEqualVTImportedMessages(t *testing.T) {
 		assertNetworkPolicyEqual(t, left, right, false)
 	})
 
-	t.Run("Envoy MetadataMatcher", func(t *testing.T) {
-		left := policyWithMetadataMatcher(metadataDoubleMatcher(42))
-		right := proto.Clone(left).(*NetworkPolicy)
-		assertNetworkPolicyEqual(t, left, right, true)
-
-		rightMatcher := right.IngressPerPortPolicies[0].Rules[0].GetL7Rules().
-			L7AllowRules[0].MetadataRule[0]
-		rightMatcher.Value.MatchPattern = &matcherv3.ValueMatcher_DoubleMatch{
-			DoubleMatch: &matcherv3.DoubleMatcher{
-				MatchPattern: &matcherv3.DoubleMatcher_Exact{Exact: 43},
-			},
-		}
-		assertNetworkPolicyEqual(t, left, right, false)
-	})
-}
-
-func TestNetworkPolicyEqualVTNaN(t *testing.T) {
-	// DoubleMatcher is reachable through L7NetworkPolicyRule.MetadataRule. The
-	// generated NPDS equality method delegates imported Envoy messages to
-	// proto.Equal, which preserves protobuf's rule that corresponding NaNs are
-	// equal even when their payload bits differ.
-	left := policyWithMetadataMatcher(metadataDoubleMatcher(
-		math.Float64frombits(0x7ff8000000000001),
-	))
-	right := policyWithMetadataMatcher(metadataDoubleMatcher(
-		math.Float64frombits(0x7ff8000000000002),
-	))
-	assertNetworkPolicyEqual(t, left, right, true)
-
-	right = policyWithMetadataMatcher(metadataDoubleMatcher(1))
-	assertNetworkPolicyEqual(t, left, right, false)
 }
 
 func TestNetworkPolicyEqualVTUnknownFields(t *testing.T) {
@@ -450,13 +393,6 @@ func testNetworkPolicy(remotePolicyCount int) *NetworkPolicy {
 				Precedence: 200,
 				Verdict:    &PortNetworkPolicyRule_Deny{Deny: true},
 				Name:       "deny-private",
-				L7Proto:    "test.parser",
-				L7: &PortNetworkPolicyRule_L7Rules{L7Rules: &L7NetworkPolicyRules{
-					L7DenyRules: []*L7NetworkPolicyRule{{
-						Name: "private-zone",
-						Rule: map[string]string{"zone": "private"},
-					}},
-				}},
 			}},
 		}},
 	}
@@ -481,56 +417,6 @@ func httpOneofRule(value string) *PortNetworkPolicyRule {
 				HeaderMatches: []*HeaderMatch{{Name: ":method", Value: value}},
 			}},
 		}},
-	}
-}
-
-func kafkaOneofRule(topic string) *PortNetworkPolicyRule {
-	return &PortNetworkPolicyRule{
-		L7: &PortNetworkPolicyRule_KafkaRules{KafkaRules: &KafkaNetworkPolicyRules{
-			KafkaRules: []*KafkaNetworkPolicyRule{{
-				ApiVersion: 1,
-				ApiKeys:    []int32{1, 2},
-				ClientId:   "client",
-				Topic:      topic,
-			}},
-		}},
-	}
-}
-
-func genericL7OneofRule(zone string) *PortNetworkPolicyRule {
-	return &PortNetworkPolicyRule{
-		L7: &PortNetworkPolicyRule_L7Rules{L7Rules: &L7NetworkPolicyRules{
-			L7AllowRules: []*L7NetworkPolicyRule{{
-				Name: "zone",
-				Rule: map[string]string{"zone": zone},
-			}},
-		}},
-	}
-}
-
-func policyWithMetadataMatcher(matcher *matcherv3.MetadataMatcher) *NetworkPolicy {
-	return policyWithRule(&PortNetworkPolicyRule{
-		L7: &PortNetworkPolicyRule_L7Rules{L7Rules: &L7NetworkPolicyRules{
-			L7AllowRules: []*L7NetworkPolicyRule{{
-				MetadataRule: []*matcherv3.MetadataMatcher{matcher},
-			}},
-		}},
-	})
-}
-
-func metadataDoubleMatcher(value float64) *matcherv3.MetadataMatcher {
-	return &matcherv3.MetadataMatcher{
-		Filter: "envoy.filters.http.rbac",
-		Path: []*matcherv3.MetadataMatcher_PathSegment{{
-			Segment: &matcherv3.MetadataMatcher_PathSegment_Key{Key: "score"},
-		}},
-		Value: &matcherv3.ValueMatcher{
-			MatchPattern: &matcherv3.ValueMatcher_DoubleMatch{
-				DoubleMatch: &matcherv3.DoubleMatcher{
-					MatchPattern: &matcherv3.DoubleMatcher_Exact{Exact: value},
-				},
-			},
-		},
 	}
 }
 

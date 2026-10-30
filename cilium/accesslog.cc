@@ -15,7 +15,6 @@
 #include "source/common/common/lock_guard.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/thread.h"
-#include "source/common/protobuf/utility.h"
 
 #include "absl/strings/numbers.h"
 #include "absl/strings/string_view.h"
@@ -107,43 +106,6 @@ void AccessLog::Entry::initFromConnection(
     entry_.set_timestamp(
         std::chrono::duration_cast<std::chrono::nanoseconds>(time.time_since_epoch()).count());
   }
-}
-
-bool AccessLog::Entry::updateFromMetadata(const std::string& l7proto,
-                                          const Protobuf::Struct& metadata) {
-  bool changed = false;
-
-  auto l7entry = entry_.mutable_generic_l7();
-  if (l7entry->proto() != l7proto) {
-    l7entry->set_proto(l7proto);
-    changed = true;
-  }
-  // remove non-existing fields, update existing values
-  auto* old_fields = l7entry->mutable_fields();
-  const auto& new_fields = metadata.fields();
-  for (const auto& pair : *old_fields) {
-    const auto it = new_fields.find(pair.first);
-    if (it == new_fields.cend()) {
-      old_fields->erase(pair.first);
-      changed = true;
-    } else {
-      auto new_value = MessageUtil::getJsonStringFromMessage(it->second, false, true);
-      if (new_value.ok() && new_value.value() != pair.second) {
-        (*old_fields)[pair.first] = new_value.value();
-        changed = true;
-      }
-    }
-  }
-  // Insert new values
-  for (const auto& pair : new_fields) {
-    auto it = old_fields->find(pair.first);
-    if (it == old_fields->cend()) {
-      (*old_fields)[pair.first] =
-          MessageUtil::getJsonStringFromMessageOrError(pair.second, false, true);
-      changed = true;
-    }
-  }
-  return changed;
 }
 
 void AccessLog::Entry::initFromRequest(const std::string& policy_name, uint16_t proxy_id,
