@@ -49,7 +49,7 @@ public:
             proto_config, context.messageValidationVisitor()),
         context);
     return [config](Network::FilterManager& filter_manager) mutable -> void {
-      filter_manager.addFilter(std::make_shared<Filter::CiliumL3::Instance>(config));
+      filter_manager.addReadFilter(std::make_shared<Filter::CiliumL3::Instance>(config));
     };
   }
 
@@ -225,10 +225,6 @@ Network::FilterStatus Instance::onData(Buffer::Instance& data, bool end_stream) 
   auto& conn = callbacks_->connection();
   ENVOY_CONN_LOG(trace, "cilium.network: onData {} bytes, end_stream: {}", conn, data.length(),
                  end_stream);
-  return Network::FilterStatus::Continue;
-}
-
-Network::FilterStatus Instance::onWrite(Buffer::Instance&, bool) {
   return Network::FilterStatus::Continue;
 }
 
