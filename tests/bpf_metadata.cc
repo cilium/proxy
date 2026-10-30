@@ -29,7 +29,7 @@
 #include "absl/strings/string_view.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/bpf_metadata.h"
-#include "cilium/host_map.h"
+#include "cilium/policy_host_map.h"
 #include "cilium/network_policy.h"
 #include "cilium/secret_watcher.h"
 #include "fmt/printf.h"

@@ -30,7 +30,7 @@
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "cilium/api/accesslog.pb.h"
-#include "cilium/host_map.h"
+#include "cilium/policy_host_map.h"
 #include "cilium/secret_watcher.h"
 #include "tests/bpf_metadata.h" // host_map_config
 #include "tests/cilium_http_integration.h"
@@ -483,6 +483,12 @@ resources:
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::").ip()), 11);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::42").ip()), 11);
   EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:2::").ip()), 12);
+
+  Protobuf::RepeatedPtrField<std::string> removed_resources;
+  removed_resources.Add("173");
+  EXPECT_TRUE(hmap->onConfigUpdate({}, removed_resources, "1").ok());
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()), 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("f00d::1").ip()), 12);
 }
 
 TEST_P(HostMapTest, HostMapInvalidNonCIDRBits) {

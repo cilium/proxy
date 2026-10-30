@@ -6,7 +6,7 @@
 #include <utility>
 
 #include "cilium/grpc_subscription.h"
-#include "cilium/host_map.h"
+#include "cilium/policy_host_map.h"
 #include "cilium/network_policy.h"
 #include "envoy/config/grpc_mux.h"
 #include "envoy/config/subscription.h"
