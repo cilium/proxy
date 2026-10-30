@@ -104,9 +104,11 @@ bool Instance::enforceNetworkPolicy(const Cilium::CiliumPolicyFilterState* polic
                                 stream_info.downstreamAddressProvider().remoteAddress(),
                                 destination_identity, dst_address, &config_->time_source_);
 
-  if (!policy_fs->enforceNetworkPolicy(conn, remote_id_, destination_port_, sni, log_entry_)) {
+  const auto remote_id = policy_fs->ingress_ ? policy_fs->source_identity_ : destination_identity;
+  const auto destination_port = policy_fs->ingress_ ? policy_fs->port_ : dst_address->ip()->port();
+  if (!policy_fs->enforceNetworkPolicy(conn, remote_id, destination_port, sni, log_entry_)) {
     ENVOY_CONN_LOG(debug, "cilium.network: policy DENY on id: {} port: {} sni: \"{}\"", conn,
-                   remote_id_, destination_port_, sni);
+                   remote_id, destination_port, sni);
     config_->log(log_entry_, ::cilium::EntryType::Denied);
     return false;
   }
@@ -115,8 +117,8 @@ bool Instance::enforceNetworkPolicy(const Cilium::CiliumPolicyFilterState* polic
   if (log_entry_.entry_.policy_name() != policy_fs->pod_ip_) {
     config_->log(log_entry_, ::cilium::EntryType::Request);
   }
-  ENVOY_LOG(debug, "cilium.network: policy ALLOW on id: {} port: {} sni: \"{}\"", remote_id_,
-            destination_port_, sni);
+  ENVOY_LOG(debug, "cilium.network: policy ALLOW on id: {} port: {} sni: \"{}\"", remote_id,
+            destination_port, sni);
 
   return true;
 }
@@ -133,9 +135,6 @@ Network::FilterStatus Instance::onNewConnection() {
     ENVOY_CONN_LOG(warn, "cilium.network: Cilium policy filter state not found", conn);
     return Network::FilterStatus::StopIteration;
   }
-
-  // Default to incoming destination port, may be changed for L7 LB
-  destination_port_ = policy_fs->port_;
 
   const auto dest_fs =
       conn.streamInfo().filterState()->getDataMutable<Cilium::CiliumDestinationFilterState>(
@@ -186,9 +185,6 @@ Network::FilterStatus Instance::onNewConnection() {
           auto& conn = callbacks_->connection();
           ENVOY_CONN_LOG(trace, "cilium.network: in upstream callback", conn);
 
-          // Resolve the destination security ID and port
-          uint32_t destination_identity = 0;
-
           Network::Address::InstanceConstSharedPtr dst_address = host->address();
           if (nullptr == dst_address) {
             ENVOY_CONN_LOG(warn, "cilium.network (egress): No destination address", conn);
@@ -202,9 +198,7 @@ Network::FilterStatus Instance::onNewConnection() {
             return false;
           }
 
-          destination_port_ = dip->port();
-          destination_identity = policy_fs->resolvePolicyId(dip);
-          remote_id_ = destination_identity;
+          const auto destination_identity = policy_fs->resolvePolicyId(dip);
 
           return enforceNetworkPolicy(policy_fs, dest_fs, destination_identity, dst_address, sni,
                                       stream_info);
@@ -212,20 +206,9 @@ Network::FilterStatus Instance::onNewConnection() {
   } else {
     auto& stream_info = conn.streamInfo();
 
-    // Resolve the destination security ID and port
-    uint32_t destination_identity = 0;
-
-    Network::Address::InstanceConstSharedPtr dst_address =
-        stream_info.downstreamAddressProvider().localAddress();
-    const auto dip = dst_address->ip();
-
-    if (policy_fs->ingress_) {
-      remote_id_ = policy_fs->source_identity_;
-    } else {
-      destination_port_ = dip->port();
-      destination_identity = policy_fs->resolvePolicyId(dip);
-      remote_id_ = destination_identity;
-    }
+    const auto& dst_address = stream_info.downstreamAddressProvider().localAddress();
+    const auto destination_identity =
+        policy_fs->ingress_ ? 0 : policy_fs->resolvePolicyId(dst_address->ip());
 
     if (!enforceNetworkPolicy(policy_fs, dest_fs, destination_identity, dst_address, sni,
                               stream_info)) {

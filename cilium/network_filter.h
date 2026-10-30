@@ -73,8 +73,6 @@ private:
 
   const ConfigSharedPtr config_;
   Network::ReadFilterCallbacks* callbacks_ = nullptr;
-  uint32_t remote_id_ = 0;
-  uint16_t destination_port_ = 0;
   Cilium::AccessLog::Entry log_entry_{};
 };
 
