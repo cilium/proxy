@@ -124,14 +124,6 @@ bool CiliumPolicyFilterState::enforceIngressHTTPPolicy(
   // Enforce ingress policy for Ingress, on the original destination port
   if (ingress_source_identity_ != 0) {
     const auto port_policy = policy.findPortPolicy(true, port_);
-    if (!port_policy.hasHttpRules()) {
-      ENVOY_CONN_LOG(debug,
-                     "cilium.l7policy: Ingress {} HTTP ingress policy enforcement skipped (no HTTP "
-                     "rules) on proxy_id: {} id: {} port: {}",
-                     conn, ingress_policy_name_, proxy_id_, ingress_source_identity_, port_);
-      return true;
-    }
-
     if (!port_policy.allowed(proxy_id_, ingress_source_identity_, headers, log_entry)) {
       ENVOY_CONN_LOG(
           debug,
