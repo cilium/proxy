@@ -48,7 +48,7 @@ using ConfigSharedPtr = std::shared_ptr<Config>;
 /**
  * Implementation of a Cilium network filter.
  */
-class Instance : public Network::Filter, Logger::Loggable<Logger::Id::filter> {
+class Instance : public Network::ReadFilter, Logger::Loggable<Logger::Id::filter> {
 public:
   Instance(const ConfigSharedPtr& config) : config_(config) {}
 
@@ -58,9 +58,6 @@ public:
   void initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) override {
     callbacks_ = &callbacks;
   }
-
-  // Network::WriteFilter
-  Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;
 
 private:
   // helper to be used either directly from onNewConnection (no L7 LB),
