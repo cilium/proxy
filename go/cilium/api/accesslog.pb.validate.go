@@ -383,8 +383,6 @@ func (m *LogEntry) validate(all bool) error {
 
 	// no validation rules for ProxyId
 
-	// no validation rules for CiliumRuleRef
-
 	// no validation rules for SourceSecurityId
 
 	// no validation rules for DestinationSecurityId
