@@ -301,8 +301,6 @@ type LogEntry struct {
 	// proxy_id identifies the listener this message relates to,
 	// as configured via the bpf_metadata listener filter
 	ProxyId uint32 `protobuf:"varint,17,opt,name=proxy_id,json=proxyId,proto3" json:"proxy_id,omitempty"`
-	// Cilium rule reference
-	CiliumRuleRef string `protobuf:"bytes,5,opt,name=cilium_rule_ref,json=ciliumRuleRef,proto3" json:"cilium_rule_ref,omitempty"`
 	// Cilium security ID of the source and destination
 	SourceSecurityId      uint32 `protobuf:"varint,6,opt,name=source_security_id,json=sourceSecurityId,proto3" json:"source_security_id,omitempty"`
 	DestinationSecurityId uint32 `protobuf:"varint,16,opt,name=destination_security_id,json=destinationSecurityId,proto3" json:"destination_security_id,omitempty"`
@@ -383,13 +381,6 @@ func (x *LogEntry) GetProxyId() uint32 {
 	return 0
 }
 
-func (x *LogEntry) GetCiliumRuleRef() string {
-	if x != nil {
-		return x.CiliumRuleRef
-	}
-	return ""
-}
-
 func (x *LogEntry) GetSourceSecurityId() uint32 {
 	if x != nil {
 		return x.SourceSecurityId
@@ -461,7 +452,7 @@ const file_cilium_api_accesslog_proto_rawDesc = "" +
 	"\aheaders\x18\x06 \x03(\v2\x10.cilium.KeyValueR\aheaders\x12\x16\n" +
 	"\x06status\x18\a \x01(\rR\x06status\x129\n" +
 	"\x0fmissing_headers\x18\b \x03(\v2\x10.cilium.KeyValueR\x0emissingHeaders\x12;\n" +
-	"\x10rejected_headers\x18\t \x03(\v2\x10.cilium.KeyValueR\x0frejectedHeaders\"\xec\x03\n" +
+	"\x10rejected_headers\x18\t \x03(\v2\x10.cilium.KeyValueR\x0frejectedHeaders\"\xdb\x03\n" +
 	"\bLogEntry\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x04R\ttimestamp\x12\x1d\n" +
 	"\n" +
@@ -470,14 +461,13 @@ const file_cilium_api_accesslog_proto_rawDesc = "" +
 	"entry_type\x18\x03 \x01(\x0e2\x11.cilium.EntryTypeR\tentryType\x12\x1f\n" +
 	"\vpolicy_name\x18\x04 \x01(\tR\n" +
 	"policyName\x12\x19\n" +
-	"\bproxy_id\x18\x11 \x01(\rR\aproxyId\x12&\n" +
-	"\x0fcilium_rule_ref\x18\x05 \x01(\tR\rciliumRuleRef\x12,\n" +
+	"\bproxy_id\x18\x11 \x01(\rR\aproxyId\x12,\n" +
 	"\x12source_security_id\x18\x06 \x01(\rR\x10sourceSecurityId\x126\n" +
 	"\x17destination_security_id\x18\x10 \x01(\rR\x15destinationSecurityId\x12%\n" +
 	"\x0esource_address\x18\a \x01(\tR\rsourceAddress\x12/\n" +
 	"\x13destination_address\x18\b \x01(\tR\x12destinationAddress\x12*\n" +
 	"\x04http\x18d \x01(\v2\x14.cilium.HttpLogEntryH\x00R\x04httpB\x04\n" +
-	"\x02l7J\x04\be\x10fJ\x04\bf\x10gR\x05kafkaR\n" +
+	"\x02l7J\x04\b\x05\x10\x06J\x04\be\x10fJ\x04\bf\x10gR\x0fcilium_rule_refR\x05kafkaR\n" +
 	"generic_l7*1\n" +
 	"\fHttpProtocol\x12\n" +
 	"\n" +

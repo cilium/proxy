@@ -47,8 +47,8 @@ message HttpLogEntry {
 }
 
 message LogEntry {
-  reserved 101, 102;
-  reserved "kafka", "generic_l7";
+  reserved 5, 101, 102;
+  reserved "cilium_rule_ref", "kafka", "generic_l7";
 
   // The time that Cilium filter captured this log entry,
   // in, nanoseconds since 1/1/1970.
@@ -66,9 +66,6 @@ message LogEntry {
   // proxy_id identifies the listener this message relates to,
   // as configured via the bpf_metadata listener filter
   uint32 proxy_id = 17;
-
-  // Cilium rule reference
-  string cilium_rule_ref = 5;
 
   // Cilium security ID of the source and destination
   uint32 source_security_id = 6;
