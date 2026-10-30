@@ -4,8 +4,10 @@
 #include <fmt/format.h>
 #include <sys/socket.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -83,7 +85,17 @@ M& HostMapBuilder::getMap(std::vector<std::pair<unsigned int, M>>& maps, unsigne
   return maps.emplace(it, std::make_pair(plen, M{}))->second;
 }
 
-void HostMapBuilder::insert(uint64_t policy, const Protobuf::RepeatedPtrField<std::string>& hosts) {
+void HostMapBuilder::insert(uint64_t policy, const Protobuf::RepeatedPtrField<std::string>& hosts,
+                            NamedPorts named_ports) {
+  PolicyInfo info{policy, nullptr};
+  if (!named_ports.empty()) {
+    std::ranges::sort(named_ports, [](const NamedPort& lhs, const NamedPort& rhs) {
+      return lhs.name_ < rhs.name_ || (lhs.name_ == rhs.name_ && lhs.port_ < rhs.port_);
+    });
+    named_ports.erase(std::ranges::unique(named_ports).begin(), named_ports.end());
+    info.named_ports_ = std::make_shared<const NamedPorts>(std::move(named_ports));
+  }
+
   std::string buf;
   for (const auto& host : hosts) {
     const char* addr = host.c_str();
@@ -118,7 +130,7 @@ void HostMapBuilder::insert(uint64_t policy, const Protobuf::RepeatedPtrField<st
     int rc = inet_pton(AF_INET, addr, &addr4);
     if (rc == 1) {
       plen = checkPrefix(addr4, have_prefix, plen, host);
-      if (!getMap(ipv4_to_policy_, plen).emplace(addr4, policy).second) {
+      if (!getMap(ipv4_to_policy_, plen).emplace(addr4, info).second) {
         uint64_t existing_policy = resolve(addr4);
         throw EnvoyException(fmt::format("Duplicate host entry \'{}\' for "
                                          "policy {}, already mapped to {}",
@@ -130,7 +142,7 @@ void HostMapBuilder::insert(uint64_t policy, const Protobuf::RepeatedPtrField<st
     rc = inet_pton(AF_INET6, addr, &addr6);
     if (rc == 1) {
       plen = checkPrefix(addr6, have_prefix, plen, host);
-      if (!getMap(ipv6_to_policy_, plen).emplace(addr6, policy).second) {
+      if (!getMap(ipv6_to_policy_, plen).emplace(addr6, info).second) {
         uint64_t existing_policy = resolve(addr6);
         throw EnvoyException(fmt::format("Duplicate host entry \'{}\' for "
                                          "policy {}, already mapped to {}",
@@ -148,7 +160,7 @@ void HostMapBuilder::prunePolicyMapVec(MapVec& maps, const absl::flat_hash_set<u
     auto& map = vec_it->second;
     for (auto map_it = map.begin(); map_it != map.end();) {
       auto it = map_it++;
-      if (nids.contains(it->second)) {
+      if (nids.contains(it->second.identity_)) {
         map.erase(it);
       }
     }
@@ -180,7 +192,7 @@ void HostMap::logmaps(const std::string& msg) const {
       }
       first = false;
       ip4 += fmt::format("{}/{}->{}", inet_ntop(AF_INET, &pair.first, buf, sizeof(buf)), prefix,
-                         pair.second);
+                         pair.second.identity_);
     }
   }
   first = true;
@@ -192,7 +204,7 @@ void HostMap::logmaps(const std::string& msg) const {
       }
       first = false;
       ip6 += fmt::format("{}/{}->{}", inet_ntop(AF_INET6, &pair.first, buf, sizeof(buf)), prefix,
-                         pair.second);
+                         pair.second.identity_);
     }
   }
   ENVOY_LOG(debug, "HostMap::{}: IPv4: [{}], IPv6: [{}]", msg, ip4, ip6);
@@ -202,7 +214,7 @@ uint64_t HostMap::resolve(uint32_t addr4) const {
   for (const auto& pair : ipv4_to_policy_) {
     auto it = pair.second.find(masked(addr4, pair.first));
     if (it != pair.second.end()) {
-      return it->second;
+      return it->second.identity_;
     }
   }
   return ID::UNKNOWN;
@@ -212,7 +224,7 @@ uint64_t HostMap::resolve(absl::uint128 addr6) const {
   for (const auto& pair : ipv6_to_policy_) {
     auto it = pair.second.find(masked(addr6, pair.first));
     if (it != pair.second.end()) {
-      return it->second;
+      return it->second.identity_;
     }
   }
   return ID::UNKNOWN;

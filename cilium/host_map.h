@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -17,7 +18,24 @@
 namespace Envoy {
 namespace Cilium {
 
-// An address-to-identity index shared as an immutable snapshot by its owner.
+struct NamedPort {
+  uint16_t port_;
+  std::string name_;
+
+  bool operator==(const NamedPort& other) const {
+    return port_ == other.port_ && name_ == other.name_;
+  }
+};
+
+using NamedPorts = std::vector<NamedPort>;
+
+struct PolicyInfo {
+  uint64_t identity_;
+  // Shared by all addresses of this identity; sorted by name and port, with no duplicates.
+  std::shared_ptr<const NamedPorts> named_ports_;
+};
+
+// An address-to-identity and named-port index shared as an immutable snapshot by its owner.
 class HostMap : public Logger::Loggable<Logger::Id::config> {
 public:
   void logmaps(const std::string& msg) const;
@@ -32,8 +50,8 @@ private:
 
   // Prefix lengths are ordered from longest to shortest. Keys contain network-order addresses
   // with all bits outside the prefix cleared.
-  std::vector<std::pair<unsigned int, absl::flat_hash_map<uint32_t, uint64_t>>> ipv4_to_policy_;
-  std::vector<std::pair<unsigned int, absl::flat_hash_map<absl::uint128, uint64_t>>>
+  std::vector<std::pair<unsigned int, absl::flat_hash_map<uint32_t, PolicyInfo>>> ipv4_to_policy_;
+  std::vector<std::pair<unsigned int, absl::flat_hash_map<absl::uint128, PolicyInfo>>>
       ipv6_to_policy_;
 };
 
@@ -44,7 +62,8 @@ public:
   HostMapBuilder() = default;
   explicit HostMapBuilder(const HostMap* host_map);
 
-  void insert(uint64_t identity, const Protobuf::RepeatedPtrField<std::string>& addresses);
+  void insert(uint64_t identity, const Protobuf::RepeatedPtrField<std::string>& addresses,
+              NamedPorts named_ports = {});
   void remove(const absl::flat_hash_set<uint64_t>& identities);
 
 private:
