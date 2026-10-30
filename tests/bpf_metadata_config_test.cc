@@ -596,6 +596,60 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
 }
 
 // Use external remote address, but config says to use original source address
+// The source address socket option of a downstream connection is shared by all upstream
+// connections in the connection pool it is hashed to. Whether the upstream destination is local
+// must be decided from the socket being connected, not from the destination most recently
+// selected for the downstream connection.
+TEST_F(MetadataConfigTest, NorthSouthL7LbSourceAddressFollowsUpstreamSocket) {
+  // Use external remote address
+  remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.1.1", 12345);
+
+  ::cilium::BpfMetadata config{};
+  config.set_is_l7lb(true);
+  config.set_ipv4_source_address("10.1.1.42");
+  config.set_ipv6_source_address("face::42");
+  config.set_enforce_policy_on_l7lb(true);
+  EXPECT_NO_THROW(initialize(config));
+
+  auto socket_metadata = config_->extractSocketMetadata(socket_);
+  EXPECT_TRUE(socket_metadata);
+
+  auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
+  EXPECT_NE(nullptr, policy_fs);
+  auto dest_fs = socket_metadata->buildCiliumDestinationFilterState();
+  EXPECT_NE(nullptr, dest_fs);
+
+  auto source_addresses_socket_option =
+      socket_metadata->buildSourceAddressSocketOption(-1, dest_fs, policy_fs);
+  EXPECT_NE(nullptr, source_addresses_socket_option);
+
+  // 10.1.1.1 has a policy on this node, 10.3.3.3 does not.
+  const auto local_pod = std::make_shared<Network::Address::Ipv4Instance>("10.1.1.1", 80);
+  const auto remote_pod = std::make_shared<Network::Address::Ipv4Instance>("10.3.3.3", 80);
+  EXPECT_TRUE(policy_fs->exists("10.1.1.1"));
+  EXPECT_FALSE(policy_fs->exists("10.3.3.3"));
+
+  ON_CALL(socket_, ipVersion()).WillByDefault(testing::Return(Network::Address::IpVersion::v4));
+
+  // Upstream socket to a pod on another node while the downstream connection last selected a
+  // local pod: the ingress source address must be restored.
+  dest_fs->setDestinationAddress(local_pod);
+  socket_.connection_info_provider_ =
+      std::make_shared<Network::ConnectionInfoSetterImpl>(local_address_, remote_pod);
+  EXPECT_TRUE(source_addresses_socket_option->setOption(
+      socket_, envoy::config::core::v3::SocketOption::STATE_PREBIND));
+  EXPECT_EQ("10.1.1.42:0", socket_.connectionInfoProvider().localAddress()->asString());
+
+  // Upstream socket to a local pod while the downstream connection last selected a pod on
+  // another node: the local address must be kept.
+  dest_fs->setDestinationAddress(remote_pod);
+  socket_.connection_info_provider_ =
+      std::make_shared<Network::ConnectionInfoSetterImpl>(local_address_, local_pod);
+  EXPECT_TRUE(source_addresses_socket_option->setOption(
+      socket_, envoy::config::core::v3::SocketOption::STATE_PREBIND));
+  EXPECT_EQ(local_address_, socket_.connectionInfoProvider().localAddress());
+}
+
 TEST_F(MetadataConfigTest, ExternalUseOriginalSourceL7LbMetadata) {
   remote_address_ = std::make_shared<Network::Address::Ipv4Instance>("192.168.1.1", 12345);
 
