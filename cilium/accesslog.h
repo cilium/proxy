@@ -12,7 +12,6 @@
 #include "envoy/stream_info/stream_info.h"
 
 #include "source/common/common/thread.h"
-#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 
 #include "absl/base/thread_annotations.h"
 #include "absl/strings/string_view.h"
@@ -49,7 +48,6 @@ public:
                             uint32_t destination_identity,
                             const Network::Address::InstanceConstSharedPtr& destination_address,
                             TimeSource* time_source);
-    bool updateFromMetadata(const std::string& l7proto, const Protobuf::Struct& metadata);
     void addRejected(absl::string_view key, absl::string_view value);
     void addMissing(absl::string_view key, absl::string_view value);
 

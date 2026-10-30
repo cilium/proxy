@@ -32,12 +32,10 @@ resources:
   - port: {0}
     rules:
     - remote_policies: [ 1 ]
-      l7_proto: "test.passer"
   egress_per_port_policies:
   - port: {0}
     rules:
     - remote_policies: [ 1 ]
-      l7_proto: "test.passer"
 )EOF";
 
 CiliumTcpIntegrationTest::CiliumTcpIntegrationTest(const std::string& config)

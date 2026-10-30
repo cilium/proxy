@@ -398,9 +398,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedMetadata) {
   log_entry.entry_.set_policy_name("pod");
 
   // Expect policy accepts security ID 12345678 on ingress on port 80
-  std::string l7_proto;
-  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", l7_proto, log_entry));
-  EXPECT_EQ("", l7_proto);
+  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", log_entry));
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
@@ -465,23 +463,19 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbPodAndIngressEnforcedMetadata) {
   log_entry.entry_.set_policy_name("pod");
 
   // Expect pod policy denies security ID 12345678 on port 80 (only 222 allowed)
-  std::string l7_proto;
-  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", l7_proto, log_entry));
-  EXPECT_EQ("", l7_proto);
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 12345678, 80, "", log_entry));
   EXPECT_EQ("pod", log_entry.entry_.policy_name());
 
   // Expect pod policy allows egress to security ID 222 on port 80
   // Ingress policy allows ingress from 9999 (pod's security ID)
   // Ingress policy allows 222 egress
-  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 222, 80, "", l7_proto, log_entry));
-  EXPECT_EQ("", l7_proto);
+  EXPECT_TRUE(policy_fs->enforceNetworkPolicy(conn_, 222, 80, "", log_entry));
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
   // Expect pod policy allows egress to security ID 333 on port 80
   // Ingress policy allows ingress from 9999
   // Ingress policy denies 333 egress
-  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 333, 80, "", l7_proto, log_entry));
-  EXPECT_EQ("", l7_proto);
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 333, 80, "", log_entry));
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
@@ -529,9 +523,7 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbIngressEnforcedCIDRMetadata) {
   log_entry.entry_.set_policy_name("pod");
 
   // Expect policy does not accept security ID 2 on port 80
-  std::string l7_proto;
-  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 2, 80, "", l7_proto, log_entry));
-  EXPECT_EQ("", l7_proto);
+  EXPECT_FALSE(policy_fs->enforceNetworkPolicy(conn_, 2, 80, "", log_entry));
   EXPECT_NE("pod", log_entry.entry_.policy_name());
 
   auto source_addresses_socket_option = socket_metadata->buildSourceAddressSocketOption(-1);
@@ -644,40 +636,6 @@ TEST_F(MetadataConfigTest, EastWestL7LbMetadataNoOriginalSource) {
   // Check that Ingress ID is used in the socket mark
   EXPECT_TRUE((cilium_mark_socket_option->mark_ & 0xffff) == 0x0B00 &&
               (cilium_mark_socket_option->mark_ >> 16) == 8);
-}
-
-TEST_F(MetadataConfigTest, ProxyLibNotConfigured) {
-  ::cilium::BpfMetadata config{};
-
-  EXPECT_NO_THROW(initialize(config));
-
-  auto socket_metadata = config_->extractSocketMetadata(socket_);
-  EXPECT_TRUE(socket_metadata);
-
-  EXPECT_CALL(socket_, setRequestedApplicationProtocols(_)).Times(0);
-
-  socket_metadata->configureProxyLibApplicationProtocol(socket_);
-}
-
-TEST_F(MetadataConfigTest, ProxyLibConfigured) {
-  ::cilium::BpfMetadata config{};
-
-  EXPECT_NO_THROW(initialize(config));
-
-  auto socket_metadata = config_->extractSocketMetadata(socket_);
-  EXPECT_TRUE(socket_metadata);
-
-  // set proxylib proto manually
-  socket_metadata->proxylib_l7_proto_ = "r2d2";
-
-  std::vector<std::string> protocols = {"h2c"};
-  EXPECT_CALL(socket_, requestedApplicationProtocols).WillOnce(testing::ReturnRef(protocols));
-
-  // proxylib protocol should be appended to the list of existing requested application protocols
-  const auto protos = std::vector<absl::string_view>{"h2c", "r2d2"};
-  EXPECT_CALL(socket_, setRequestedApplicationProtocols(protos));
-
-  socket_metadata->configureProxyLibApplicationProtocol(socket_);
 }
 
 TEST_F(MetadataConfigTest, RestoreLocalAddress) {

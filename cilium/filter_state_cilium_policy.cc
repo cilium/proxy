@@ -23,10 +23,7 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
                                                    uint32_t destination_identity,
                                                    uint16_t destination_port,
                                                    const absl::string_view sni,
-                                                   /* OUT */ std::string& l7_proto,
                                                    /* INOUT */ AccessLog::Entry& log_entry) const {
-  l7_proto = "";
-
   // enforce pod policy first, if any
   if (!pod_ip_.empty()) {
     const auto& policy = policy_resolver_->getPolicy(pod_ip_);
@@ -40,9 +37,6 @@ bool CiliumPolicyFilterState::enforceNetworkPolicy(const Network::Connection& co
                      proxy_id_, remote_id, port, sni);
       return false;
     }
-
-    // populate l7proto_ if available
-    port_policy.useProxylib(proxy_id_, remote_id, l7_proto);
   }
 
   // enforce Ingress policy 2nd, if any

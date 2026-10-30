@@ -5,8 +5,6 @@ option go_package = "github.com/cilium/proxy/go/cilium/api;cilium";
 package cilium;
 
 message NetworkFilter {
-  // Fields 1 and 2 were used for proxylib (Envoy Go extensions) configuration,
-  // which has been removed.
   reserved 1, 2;
   reserved "proxylib", "proxylib_params";
 

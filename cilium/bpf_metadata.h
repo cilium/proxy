@@ -6,7 +6,6 @@
 #include <optional>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "envoy/api/io_error.h"
 #include "envoy/common/random_generator.h"
@@ -48,11 +47,10 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
                  Network::Address::InstanceConstSharedPtr source_address_ipv6,
                  Network::Address::InstanceConstSharedPtr original_dest_address,
                  const PolicyResolverSharedPtr& policy_resolver, uint16_t proxy_id,
-                 std::string&& proxylib_l7_proto, absl::string_view sni)
+                 absl::string_view sni)
       : ingress_source_identity_(ingress_source_identity), source_identity_(source_identity),
         ingress_(ingress), is_l7lb_(l7lb), port_(port), pod_ip_(std::move(pod_ip)),
-        ingress_policy_name_(std::move(ingress_policy_name)), proxy_id_(proxy_id),
-        proxylib_l7_proto_(std::move(proxylib_l7_proto)), sni_(sni),
+        ingress_policy_name_(std::move(ingress_policy_name)), proxy_id_(proxy_id), sni_(sni),
         policy_resolver_(policy_resolver), mark_(mark),
         original_source_address_(std::move(original_source_address)),
         source_address_ipv4_(std::move(source_address_ipv4)),
@@ -80,22 +78,6 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
         source_identity_, linger_time, original_source_address_, source_address_ipv4_,
         source_address_ipv6_, dest_fs, policy_fs);
   };
-
-  // Add ProxyLib L7 protocol as requested application protocol on the socket.
-  void configureProxyLibApplicationProtocol(Network::ConnectionSocket& socket) {
-    if (!proxylib_l7_proto_.empty()) {
-      const auto& old_protocols = socket.requestedApplicationProtocols();
-      std::vector<absl::string_view> protocols;
-      protocols.reserve(old_protocols.size());
-      for (const auto& old_protocol : old_protocols) {
-        protocols.emplace_back(old_protocol);
-      }
-      protocols.emplace_back(proxylib_l7_proto_);
-      socket.setRequestedApplicationProtocols(protocols);
-      ENVOY_LOG(info, "cilium.bpf_metadata: setRequestedApplicationProtocols(..., {})",
-                proxylib_l7_proto_);
-    }
-  }
 
   void configureOriginalDstAddress(Network::ConnectionSocket& socket) {
     if (!original_dest_address_) {
@@ -126,7 +108,6 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
                        // north/south l7lb)
   std::string ingress_policy_name_; // Ingress policy to enforce, if any
   uint16_t proxy_id_;
-  std::string proxylib_l7_proto_;
   std::string sni_;
   const PolicyResolverSharedPtr policy_resolver_;
 

@@ -2,7 +2,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
 
 #include "envoy/buffer/buffer.h"
 #include "envoy/common/time.h"
@@ -24,8 +23,6 @@
 namespace Envoy {
 namespace Filter {
 namespace CiliumL3 {
-
-class NetworkFilterTestPeer;
 
 /**
  * Shared configuration for Cilium network filter worker
@@ -66,8 +63,6 @@ public:
   Network::FilterStatus onWrite(Buffer::Instance&, bool end_stream) override;
 
 private:
-  friend class NetworkFilterTestPeer;
-
   // helper to be used either directly from onNewConnection (no L7 LB),
   // or from upstream callback (l7 lb)
   bool enforceNetworkPolicy(const Cilium::CiliumPolicyFilterState* policy_fs,
@@ -80,7 +75,6 @@ private:
   Network::ReadFilterCallbacks* callbacks_ = nullptr;
   uint32_t remote_id_ = 0;
   uint16_t destination_port_ = 0;
-  std::string l7proto_;
   Cilium::AccessLog::Entry log_entry_{};
 };
 

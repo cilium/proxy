@@ -287,144 +287,6 @@ func (x *HttpLogEntry) GetRejectedHeaders() []*KeyValue {
 	return nil
 }
 
-type KafkaLogEntry struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// correlation_id is a user-supplied integer value that will be passed
-	// back with the response
-	CorrelationId int32 `protobuf:"varint,1,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`
-	// error_code is the Kafka error code being returned
-	// Ref. https://kafka.apache.org/protocol#protocol_error_codes
-	ErrorCode int32 `protobuf:"varint,2,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	// api_version of the Kafka api used
-	// Ref. https://kafka.apache.org/protocol#protocol_compatibility
-	ApiVersion int32 `protobuf:"varint,3,opt,name=api_version,json=apiVersion,proto3" json:"api_version,omitempty"`
-	// api_key for Kafka message
-	// Reference: https://kafka.apache.org/protocol#protocol_api_keys
-	ApiKey int32 `protobuf:"varint,4,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
-	// Topics of the request
-	// Optional, as not all messages have topics (ex. LeaveGroup, Heartbeat)
-	Topics        []string `protobuf:"bytes,5,rep,name=topics,proto3" json:"topics,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *KafkaLogEntry) Reset() {
-	*x = KafkaLogEntry{}
-	mi := &file_cilium_api_accesslog_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *KafkaLogEntry) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*KafkaLogEntry) ProtoMessage() {}
-
-func (x *KafkaLogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_accesslog_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use KafkaLogEntry.ProtoReflect.Descriptor instead.
-func (*KafkaLogEntry) Descriptor() ([]byte, []int) {
-	return file_cilium_api_accesslog_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *KafkaLogEntry) GetCorrelationId() int32 {
-	if x != nil {
-		return x.CorrelationId
-	}
-	return 0
-}
-
-func (x *KafkaLogEntry) GetErrorCode() int32 {
-	if x != nil {
-		return x.ErrorCode
-	}
-	return 0
-}
-
-func (x *KafkaLogEntry) GetApiVersion() int32 {
-	if x != nil {
-		return x.ApiVersion
-	}
-	return 0
-}
-
-func (x *KafkaLogEntry) GetApiKey() int32 {
-	if x != nil {
-		return x.ApiKey
-	}
-	return 0
-}
-
-func (x *KafkaLogEntry) GetTopics() []string {
-	if x != nil {
-		return x.Topics
-	}
-	return nil
-}
-
-type L7LogEntry struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Proto         string                 `protobuf:"bytes,1,opt,name=proto,proto3" json:"proto,omitempty"`
-	Fields        map[string]string      `protobuf:"bytes,2,rep,name=fields,proto3" json:"fields,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *L7LogEntry) Reset() {
-	*x = L7LogEntry{}
-	mi := &file_cilium_api_accesslog_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *L7LogEntry) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*L7LogEntry) ProtoMessage() {}
-
-func (x *L7LogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_accesslog_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use L7LogEntry.ProtoReflect.Descriptor instead.
-func (*L7LogEntry) Descriptor() ([]byte, []int) {
-	return file_cilium_api_accesslog_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *L7LogEntry) GetProto() string {
-	if x != nil {
-		return x.Proto
-	}
-	return ""
-}
-
-func (x *L7LogEntry) GetFields() map[string]string {
-	if x != nil {
-		return x.Fields
-	}
-	return nil
-}
-
 type LogEntry struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The time that Cilium filter captured this log entry,
@@ -451,8 +313,6 @@ type LogEntry struct {
 	// Types that are valid to be assigned to L7:
 	//
 	//	*LogEntry_Http
-	//	*LogEntry_Kafka
-	//	*LogEntry_GenericL7
 	L7            isLogEntry_L7 `protobuf_oneof:"l7"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -460,7 +320,7 @@ type LogEntry struct {
 
 func (x *LogEntry) Reset() {
 	*x = LogEntry{}
-	mi := &file_cilium_api_accesslog_proto_msgTypes[4]
+	mi := &file_cilium_api_accesslog_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -472,7 +332,7 @@ func (x *LogEntry) String() string {
 func (*LogEntry) ProtoMessage() {}
 
 func (x *LogEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_accesslog_proto_msgTypes[4]
+	mi := &file_cilium_api_accesslog_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -485,7 +345,7 @@ func (x *LogEntry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LogEntry.ProtoReflect.Descriptor instead.
 func (*LogEntry) Descriptor() ([]byte, []int) {
-	return file_cilium_api_accesslog_proto_rawDescGZIP(), []int{4}
+	return file_cilium_api_accesslog_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *LogEntry) GetTimestamp() uint64 {
@@ -574,24 +434,6 @@ func (x *LogEntry) GetHttp() *HttpLogEntry {
 	return nil
 }
 
-func (x *LogEntry) GetKafka() *KafkaLogEntry {
-	if x != nil {
-		if x, ok := x.L7.(*LogEntry_Kafka); ok {
-			return x.Kafka
-		}
-	}
-	return nil
-}
-
-func (x *LogEntry) GetGenericL7() *L7LogEntry {
-	if x != nil {
-		if x, ok := x.L7.(*LogEntry_GenericL7); ok {
-			return x.GenericL7
-		}
-	}
-	return nil
-}
-
 type isLogEntry_L7 interface {
 	isLogEntry_L7()
 }
@@ -600,19 +442,7 @@ type LogEntry_Http struct {
 	Http *HttpLogEntry `protobuf:"bytes,100,opt,name=http,proto3,oneof"`
 }
 
-type LogEntry_Kafka struct {
-	Kafka *KafkaLogEntry `protobuf:"bytes,101,opt,name=kafka,proto3,oneof"`
-}
-
-type LogEntry_GenericL7 struct {
-	GenericL7 *L7LogEntry `protobuf:"bytes,102,opt,name=generic_l7,json=genericL7,proto3,oneof"`
-}
-
 func (*LogEntry_Http) isLogEntry_L7() {}
-
-func (*LogEntry_Kafka) isLogEntry_L7() {}
-
-func (*LogEntry_GenericL7) isLogEntry_L7() {}
 
 var File_cilium_api_accesslog_proto protoreflect.FileDescriptor
 
@@ -631,22 +461,7 @@ const file_cilium_api_accesslog_proto_rawDesc = "" +
 	"\aheaders\x18\x06 \x03(\v2\x10.cilium.KeyValueR\aheaders\x12\x16\n" +
 	"\x06status\x18\a \x01(\rR\x06status\x129\n" +
 	"\x0fmissing_headers\x18\b \x03(\v2\x10.cilium.KeyValueR\x0emissingHeaders\x12;\n" +
-	"\x10rejected_headers\x18\t \x03(\v2\x10.cilium.KeyValueR\x0frejectedHeaders\"\xa7\x01\n" +
-	"\rKafkaLogEntry\x12%\n" +
-	"\x0ecorrelation_id\x18\x01 \x01(\x05R\rcorrelationId\x12\x1d\n" +
-	"\n" +
-	"error_code\x18\x02 \x01(\x05R\terrorCode\x12\x1f\n" +
-	"\vapi_version\x18\x03 \x01(\x05R\n" +
-	"apiVersion\x12\x17\n" +
-	"\aapi_key\x18\x04 \x01(\x05R\x06apiKey\x12\x16\n" +
-	"\x06topics\x18\x05 \x03(\tR\x06topics\"\x95\x01\n" +
-	"\n" +
-	"L7LogEntry\x12\x14\n" +
-	"\x05proto\x18\x01 \x01(\tR\x05proto\x126\n" +
-	"\x06fields\x18\x02 \x03(\v2\x1e.cilium.L7LogEntry.FieldsEntryR\x06fields\x1a9\n" +
-	"\vFieldsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb1\x04\n" +
+	"\x10rejected_headers\x18\t \x03(\v2\x10.cilium.KeyValueR\x0frejectedHeaders\"\xec\x03\n" +
 	"\bLogEntry\x12\x1c\n" +
 	"\ttimestamp\x18\x01 \x01(\x04R\ttimestamp\x12\x1d\n" +
 	"\n" +
@@ -661,11 +476,9 @@ const file_cilium_api_accesslog_proto_rawDesc = "" +
 	"\x17destination_security_id\x18\x10 \x01(\rR\x15destinationSecurityId\x12%\n" +
 	"\x0esource_address\x18\a \x01(\tR\rsourceAddress\x12/\n" +
 	"\x13destination_address\x18\b \x01(\tR\x12destinationAddress\x12*\n" +
-	"\x04http\x18d \x01(\v2\x14.cilium.HttpLogEntryH\x00R\x04http\x12-\n" +
-	"\x05kafka\x18e \x01(\v2\x15.cilium.KafkaLogEntryH\x00R\x05kafka\x123\n" +
-	"\n" +
-	"generic_l7\x18f \x01(\v2\x12.cilium.L7LogEntryH\x00R\tgenericL7B\x04\n" +
-	"\x02l7*1\n" +
+	"\x04http\x18d \x01(\v2\x14.cilium.HttpLogEntryH\x00R\x04httpB\x04\n" +
+	"\x02l7J\x04\be\x10fJ\x04\bf\x10gR\x05kafkaR\n" +
+	"generic_l7*1\n" +
 	"\fHttpProtocol\x12\n" +
 	"\n" +
 	"\x06HTTP10\x10\x00\x12\n" +
@@ -691,32 +504,26 @@ func file_cilium_api_accesslog_proto_rawDescGZIP() []byte {
 }
 
 var file_cilium_api_accesslog_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_cilium_api_accesslog_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_cilium_api_accesslog_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_cilium_api_accesslog_proto_goTypes = []any{
-	(HttpProtocol)(0),     // 0: cilium.HttpProtocol
-	(EntryType)(0),        // 1: cilium.EntryType
-	(*KeyValue)(nil),      // 2: cilium.KeyValue
-	(*HttpLogEntry)(nil),  // 3: cilium.HttpLogEntry
-	(*KafkaLogEntry)(nil), // 4: cilium.KafkaLogEntry
-	(*L7LogEntry)(nil),    // 5: cilium.L7LogEntry
-	(*LogEntry)(nil),      // 6: cilium.LogEntry
-	nil,                   // 7: cilium.L7LogEntry.FieldsEntry
+	(HttpProtocol)(0),    // 0: cilium.HttpProtocol
+	(EntryType)(0),       // 1: cilium.EntryType
+	(*KeyValue)(nil),     // 2: cilium.KeyValue
+	(*HttpLogEntry)(nil), // 3: cilium.HttpLogEntry
+	(*LogEntry)(nil),     // 4: cilium.LogEntry
 }
 var file_cilium_api_accesslog_proto_depIdxs = []int32{
 	0, // 0: cilium.HttpLogEntry.http_protocol:type_name -> cilium.HttpProtocol
 	2, // 1: cilium.HttpLogEntry.headers:type_name -> cilium.KeyValue
 	2, // 2: cilium.HttpLogEntry.missing_headers:type_name -> cilium.KeyValue
 	2, // 3: cilium.HttpLogEntry.rejected_headers:type_name -> cilium.KeyValue
-	7, // 4: cilium.L7LogEntry.fields:type_name -> cilium.L7LogEntry.FieldsEntry
-	1, // 5: cilium.LogEntry.entry_type:type_name -> cilium.EntryType
-	3, // 6: cilium.LogEntry.http:type_name -> cilium.HttpLogEntry
-	4, // 7: cilium.LogEntry.kafka:type_name -> cilium.KafkaLogEntry
-	5, // 8: cilium.LogEntry.generic_l7:type_name -> cilium.L7LogEntry
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	1, // 4: cilium.LogEntry.entry_type:type_name -> cilium.EntryType
+	3, // 5: cilium.LogEntry.http:type_name -> cilium.HttpLogEntry
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_cilium_api_accesslog_proto_init() }
@@ -724,10 +531,8 @@ func file_cilium_api_accesslog_proto_init() {
 	if File_cilium_api_accesslog_proto != nil {
 		return
 	}
-	file_cilium_api_accesslog_proto_msgTypes[4].OneofWrappers = []any{
+	file_cilium_api_accesslog_proto_msgTypes[2].OneofWrappers = []any{
 		(*LogEntry_Http)(nil),
-		(*LogEntry_Kafka)(nil),
-		(*LogEntry_GenericL7)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -735,7 +540,7 @@ func file_cilium_api_accesslog_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cilium_api_accesslog_proto_rawDesc), len(file_cilium_api_accesslog_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   6,
+			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

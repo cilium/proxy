@@ -175,31 +175,21 @@ TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
   std::string pod_ip;
   std::uint64_t source_identity;
-  std::uint64_t destination_identity;
   if (is_ingress_) {
     source_identity = 1;
-    destination_identity = 173;
     pod_ip = original_dst_address->ip()->addressAsString();
     ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
   } else {
     source_identity = 173;
     auto ip = socket.connectionInfoProvider().localAddress()->ip();
-    destination_identity = hosts_->resolve(ip);
     pod_ip = ip->addressAsString();
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
-  const auto& policy = getPolicy(pod_ip);
   auto port = original_dst_address->ip()->port();
 
-  // Set metadata for policy based listener filter chain matching
-  // Note: tls_inspector may overwrite this value, if it executes after us!
-  std::string l7proto;
-  policy.useProxylib(is_ingress_, proxy_id_, is_ingress_ ? source_identity : destination_identity,
-                     port, l7proto);
-
-  return {Cilium::BpfMetadata::SocketMetadata(
-      0, 0, source_identity, is_ingress_, is_l7lb_, port, std::move(pod_ip), "", nullptr, nullptr,
-      nullptr, original_dst_address, shared_from_this(), 0, std::move(l7proto), "")};
+  return {Cilium::BpfMetadata::SocketMetadata(0, 0, source_identity, is_ingress_, is_l7lb_, port,
+                                              std::move(pod_ip), "", nullptr, nullptr, nullptr,
+                                              original_dst_address, shared_from_this(), 0, "")};
 }
 
 } // namespace BpfMetadata

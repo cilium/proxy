@@ -10,8 +10,7 @@ import (
 	_ "github.com/envoyproxy/go-control-plane/envoy/annotations"
 	v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	v31 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	v33 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
-	v32 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	v32 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	_ "github.com/envoyproxy/protoc-gen-validate/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -454,19 +453,11 @@ type PortNetworkPolicyRule struct {
 	// <SUBPATTERN> = "([*]{1,2}|<SUBDOMAIN>)"
 	// PATTERN = "^(<SUBPATTERN>[.])*<SUBPATTERN>$"
 	ServerNames []string `protobuf:"bytes,6,rep,name=server_names,json=serverNames,proto3" json:"server_names,omitempty"`
-	// Optional L7 protocol name. This is only used if the protocol is not
-	// one of the well known ones. If specified, it is added to the requested
-	// application protocols of the connection for filter chain matching, and
-	// names the Envoy filter whose dynamic metadata is matched by 'l7_rules'.
-	L7Proto string `protobuf:"bytes,2,opt,name=l7_proto,json=l7Proto,proto3" json:"l7_proto,omitempty"`
 	// Optional. If not specified, any L7 request is matched by this predicate.
-	// All rules on any given port must have the same type of L7 rules!
 	//
 	// Types that are valid to be assigned to L7:
 	//
 	//	*PortNetworkPolicyRule_HttpRules
-	//	*PortNetworkPolicyRule_KafkaRules
-	//	*PortNetworkPolicyRule_L7Rules
 	L7            isPortNetworkPolicyRule_L7 `protobuf_oneof:"l7"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -576,13 +567,6 @@ func (x *PortNetworkPolicyRule) GetServerNames() []string {
 	return nil
 }
 
-func (x *PortNetworkPolicyRule) GetL7Proto() string {
-	if x != nil {
-		return x.L7Proto
-	}
-	return ""
-}
-
 func (x *PortNetworkPolicyRule) GetL7() isPortNetworkPolicyRule_L7 {
 	if x != nil {
 		return x.L7
@@ -594,24 +578,6 @@ func (x *PortNetworkPolicyRule) GetHttpRules() *HttpNetworkPolicyRules {
 	if x != nil {
 		if x, ok := x.L7.(*PortNetworkPolicyRule_HttpRules); ok {
 			return x.HttpRules
-		}
-	}
-	return nil
-}
-
-func (x *PortNetworkPolicyRule) GetKafkaRules() *KafkaNetworkPolicyRules {
-	if x != nil {
-		if x, ok := x.L7.(*PortNetworkPolicyRule_KafkaRules); ok {
-			return x.KafkaRules
-		}
-	}
-	return nil
-}
-
-func (x *PortNetworkPolicyRule) GetL7Rules() *L7NetworkPolicyRules {
-	if x != nil {
-		if x, ok := x.L7.(*PortNetworkPolicyRule_L7Rules); ok {
-			return x.L7Rules
 		}
 	}
 	return nil
@@ -647,25 +613,7 @@ type PortNetworkPolicyRule_HttpRules struct {
 	HttpRules *HttpNetworkPolicyRules `protobuf:"bytes,100,opt,name=http_rules,json=httpRules,proto3,oneof"`
 }
 
-type PortNetworkPolicyRule_KafkaRules struct {
-	// The set of Kafka network policy rules.
-	// A Kafka request is matched by this predicate if any of its rules matches
-	// the request.
-	KafkaRules *KafkaNetworkPolicyRules `protobuf:"bytes,101,opt,name=kafka_rules,json=kafkaRules,proto3,oneof"`
-}
-
-type PortNetworkPolicyRule_L7Rules struct {
-	// Set of Generic policy rules used when 'l7_proto' is defined.
-	// Only to be used for l7 protocols for which a specific oneof
-	// is not defined
-	L7Rules *L7NetworkPolicyRules `protobuf:"bytes,102,opt,name=l7_rules,json=l7Rules,proto3,oneof"`
-}
-
 func (*PortNetworkPolicyRule_HttpRules) isPortNetworkPolicyRule_L7() {}
-
-func (*PortNetworkPolicyRule_KafkaRules) isPortNetworkPolicyRule_L7() {}
-
-func (*PortNetworkPolicyRule_L7Rules) isPortNetworkPolicyRule_L7() {}
 
 // A set of network policy rules that match HTTP requests.
 type HttpNetworkPolicyRules struct {
@@ -865,271 +813,6 @@ func (x *HttpNetworkPolicyRule) GetHeaderMatches() []*HeaderMatch {
 	return nil
 }
 
-// A set of network policy rules that match Kafka requests.
-type KafkaNetworkPolicyRules struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The set of Kafka network policy rules.
-	// A Kafka request is matched if any of its rules matches the request.
-	// Required and may not be empty.
-	KafkaRules    []*KafkaNetworkPolicyRule `protobuf:"bytes,1,rep,name=kafka_rules,json=kafkaRules,proto3" json:"kafka_rules,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *KafkaNetworkPolicyRules) Reset() {
-	*x = KafkaNetworkPolicyRules{}
-	mi := &file_cilium_api_npds_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *KafkaNetworkPolicyRules) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*KafkaNetworkPolicyRules) ProtoMessage() {}
-
-func (x *KafkaNetworkPolicyRules) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use KafkaNetworkPolicyRules.ProtoReflect.Descriptor instead.
-func (*KafkaNetworkPolicyRules) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *KafkaNetworkPolicyRules) GetKafkaRules() []*KafkaNetworkPolicyRule {
-	if x != nil {
-		return x.KafkaRules
-	}
-	return nil
-}
-
-// A Kafka network policy rule, as a conjunction of predicates on Kafka
-// requests. If all the predicates of a rule match a Kafka request, the request
-// is allowed. Otherwise, it is denied.
-type KafkaNetworkPolicyRule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The Kafka request's API version.
-	// If < 0, all Kafka requests are matched by this predicate.
-	ApiVersion int32 `protobuf:"varint,1,opt,name=api_version,json=apiVersion,proto3" json:"api_version,omitempty"`
-	// Set of allowed API keys in the Kafka request.
-	// If none, all Kafka requests are matched by this predicate.
-	ApiKeys []int32 `protobuf:"varint,2,rep,packed,name=api_keys,json=apiKeys,proto3" json:"api_keys,omitempty"`
-	// The Kafka request's client ID.
-	// Optional. If not specified, all Kafka requests are matched by this
-	// predicate. If specified, this predicates only matches requests that contain
-	// this client ID, and never matches requests that don't contain any client
-	// ID.
-	ClientId string `protobuf:"bytes,3,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
-	// The Kafka request's topic.
-	// Optional. If not specified, this rule will not consider the Kafka request's
-	// topics. If specified, this predicates only matches requests that contain
-	// this topic, and never matches requests that don't contain any topic.
-	// However, messages that can not contain a topic will also me matched.
-	Topic         string `protobuf:"bytes,4,opt,name=topic,proto3" json:"topic,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *KafkaNetworkPolicyRule) Reset() {
-	*x = KafkaNetworkPolicyRule{}
-	mi := &file_cilium_api_npds_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *KafkaNetworkPolicyRule) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*KafkaNetworkPolicyRule) ProtoMessage() {}
-
-func (x *KafkaNetworkPolicyRule) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use KafkaNetworkPolicyRule.ProtoReflect.Descriptor instead.
-func (*KafkaNetworkPolicyRule) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{8}
-}
-
-func (x *KafkaNetworkPolicyRule) GetApiVersion() int32 {
-	if x != nil {
-		return x.ApiVersion
-	}
-	return 0
-}
-
-func (x *KafkaNetworkPolicyRule) GetApiKeys() []int32 {
-	if x != nil {
-		return x.ApiKeys
-	}
-	return nil
-}
-
-func (x *KafkaNetworkPolicyRule) GetClientId() string {
-	if x != nil {
-		return x.ClientId
-	}
-	return ""
-}
-
-func (x *KafkaNetworkPolicyRule) GetTopic() string {
-	if x != nil {
-		return x.Topic
-	}
-	return ""
-}
-
-// A set of network policy rules that match generic L7 requests.
-type L7NetworkPolicyRules struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// The set of allowing l7 policy rules.
-	// A request is allowed if any of these rules matches the request,
-	// and the request does not match any of the deny rules.
-	// Optional. If missing or empty then all requests are allowed, unless
-	// denied by a deny rule.
-	L7AllowRules []*L7NetworkPolicyRule `protobuf:"bytes,1,rep,name=l7_allow_rules,json=l7AllowRules,proto3" json:"l7_allow_rules,omitempty"`
-	// The set of denying l7 policy rules.
-	// A request is denied if any of these rules matches the request.
-	// A request that is not denied may be allowed by 'l7_allow_rules'.
-	// Optional.
-	L7DenyRules   []*L7NetworkPolicyRule `protobuf:"bytes,2,rep,name=l7_deny_rules,json=l7DenyRules,proto3" json:"l7_deny_rules,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *L7NetworkPolicyRules) Reset() {
-	*x = L7NetworkPolicyRules{}
-	mi := &file_cilium_api_npds_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *L7NetworkPolicyRules) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*L7NetworkPolicyRules) ProtoMessage() {}
-
-func (x *L7NetworkPolicyRules) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use L7NetworkPolicyRules.ProtoReflect.Descriptor instead.
-func (*L7NetworkPolicyRules) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{9}
-}
-
-func (x *L7NetworkPolicyRules) GetL7AllowRules() []*L7NetworkPolicyRule {
-	if x != nil {
-		return x.L7AllowRules
-	}
-	return nil
-}
-
-func (x *L7NetworkPolicyRules) GetL7DenyRules() []*L7NetworkPolicyRule {
-	if x != nil {
-		return x.L7DenyRules
-	}
-	return nil
-}
-
-// A generic L7 policy rule, as a conjunction of predicates on l7 requests.
-// If all the predicates of a rule match a request, the request is allowed.
-// Otherwise, it is denied.
-type L7NetworkPolicyRule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Optional rule name, can be used in logging and error messages.
-	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	// Generic rule for Go extensions.
-	// Optional. If empty, matches any request. Not allowed if 'metadata_rule' is
-	// present.
-	Rule map[string]string `protobuf:"bytes,1,rep,name=rule,proto3" json:"rule,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Generic rule for Envoy metadata enforcement. All matchers must match for
-	// the rule to allow the request/connection. Optional. If empty, matches any
-	// request. Not allowed if 'rule' is present.
-	MetadataRule  []*v32.MetadataMatcher `protobuf:"bytes,2,rep,name=metadata_rule,json=metadataRule,proto3" json:"metadata_rule,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *L7NetworkPolicyRule) Reset() {
-	*x = L7NetworkPolicyRule{}
-	mi := &file_cilium_api_npds_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *L7NetworkPolicyRule) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*L7NetworkPolicyRule) ProtoMessage() {}
-
-func (x *L7NetworkPolicyRule) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use L7NetworkPolicyRule.ProtoReflect.Descriptor instead.
-func (*L7NetworkPolicyRule) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{10}
-}
-
-func (x *L7NetworkPolicyRule) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *L7NetworkPolicyRule) GetRule() map[string]string {
-	if x != nil {
-		return x.Rule
-	}
-	return nil
-}
-
-func (x *L7NetworkPolicyRule) GetMetadataRule() []*v32.MetadataMatcher {
-	if x != nil {
-		return x.MetadataRule
-	}
-	return nil
-}
-
 // Cilium's network policy manager fills this message with all currently known network policies.
 type NetworkPoliciesConfigDump struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1141,7 +824,7 @@ type NetworkPoliciesConfigDump struct {
 
 func (x *NetworkPoliciesConfigDump) Reset() {
 	*x = NetworkPoliciesConfigDump{}
-	mi := &file_cilium_api_npds_proto_msgTypes[11]
+	mi := &file_cilium_api_npds_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1153,7 +836,7 @@ func (x *NetworkPoliciesConfigDump) String() string {
 func (*NetworkPoliciesConfigDump) ProtoMessage() {}
 
 func (x *NetworkPoliciesConfigDump) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[11]
+	mi := &file_cilium_api_npds_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1166,7 +849,7 @@ func (x *NetworkPoliciesConfigDump) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkPoliciesConfigDump.ProtoReflect.Descriptor instead.
 func (*NetworkPoliciesConfigDump) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{11}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *NetworkPoliciesConfigDump) GetNetworkpolicies() []*NetworkPolicy {
@@ -1180,7 +863,7 @@ var File_cilium_api_npds_proto protoreflect.FileDescriptor
 
 const file_cilium_api_npds_proto_rawDesc = "" +
 	"\n" +
-	"\x15cilium/api/npds.proto\x12\x06cilium\x1a\"envoy/config/core/v3/address.proto\x1a,envoy/config/route/v3/route_components.proto\x1a*envoy/service/discovery/v3/discovery.proto\x1a$envoy/type/matcher/v3/metadata.proto\x1a\x1cgoogle/api/annotations.proto\x1a envoy/annotations/resource.proto\x1a\x17validate/validate.proto\"\x95\x02\n" +
+	"\x15cilium/api/npds.proto\x12\x06cilium\x1a\"envoy/config/core/v3/address.proto\x1a,envoy/config/route/v3/route_components.proto\x1a*envoy/service/discovery/v3/discovery.proto\x1a\x1cgoogle/api/annotations.proto\x1a envoy/annotations/resource.proto\x1a\x17validate/validate.proto\"\x95\x02\n" +
 	"\rNetworkPolicy\x123\n" +
 	"\fendpoint_ips\x18\x01 \x03(\tB\x10\xfaB\r\x92\x01\n" +
 	"\b\x01\x10\x02\"\x04r\x02\x10\x01R\vendpointIps\x12\x1f\n" +
@@ -1203,7 +886,7 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\fserver_names\x18\x04 \x03(\tR\vserverNames\x12A\n" +
 	"\x1dvalidation_context_sds_secret\x18\x05 \x01(\tR\x1avalidationContextSdsSecret\x12$\n" +
 	"\x0etls_sds_secret\x18\x06 \x01(\tR\ftlsSdsSecret\x12%\n" +
-	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\xfb\x05\n" +
+	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\x94\x05\n" +
 	"\x15PortNetworkPolicyRule\x12\x1e\n" +
 	"\n" +
 	"precedence\x18\n" +
@@ -1216,15 +899,11 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\x0fremote_policies\x18\a \x03(\rR\x0eremotePolicies\x12H\n" +
 	"\x16downstream_tls_context\x18\x03 \x01(\v2\x12.cilium.TLSContextR\x14downstreamTlsContext\x12D\n" +
 	"\x14upstream_tls_context\x18\x04 \x01(\v2\x12.cilium.TLSContextR\x12upstreamTlsContext\x12\xa1\x01\n" +
-	"\fserver_names\x18\x06 \x03(\tB~\xfaB{\x92\x01x\"vrt2r^(([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)[.])*([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)$R\vserverNames\x12\x19\n" +
-	"\bl7_proto\x18\x02 \x01(\tR\al7Proto\x12?\n" +
+	"\fserver_names\x18\x06 \x03(\tB~\xfaB{\x92\x01x\"vrt2r^(([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)[.])*([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)$R\vserverNames\x12?\n" +
 	"\n" +
-	"http_rules\x18d \x01(\v2\x1e.cilium.HttpNetworkPolicyRulesH\x01R\thttpRules\x12B\n" +
-	"\vkafka_rules\x18e \x01(\v2\x1f.cilium.KafkaNetworkPolicyRulesH\x01R\n" +
-	"kafkaRules\x129\n" +
-	"\bl7_rules\x18f \x01(\v2\x1c.cilium.L7NetworkPolicyRulesH\x01R\al7RulesB\t\n" +
+	"http_rules\x18d \x01(\v2\x1e.cilium.HttpNetworkPolicyRulesH\x01R\thttpRulesB\t\n" +
 	"\averdictB\x04\n" +
-	"\x02l7\"`\n" +
+	"\x02l7J\x04\b\x02\x10\x03J\x04\be\x10fJ\x04\bf\x10gR\bl7_protoR\vkafka_rulesR\bl7_rules\"`\n" +
 	"\x16HttpNetworkPolicyRules\x12F\n" +
 	"\n" +
 	"http_rules\x18\x01 \x03(\v2\x1d.cilium.HttpNetworkPolicyRuleB\b\xfaB\x05\x92\x01\x02\b\x01R\thttpRules\"\xd2\x03\n" +
@@ -1246,26 +925,7 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\x13REPLACE_ON_MISMATCH\x10\x04\"\x93\x01\n" +
 	"\x15HttpNetworkPolicyRule\x12>\n" +
 	"\aheaders\x18\x01 \x03(\v2$.envoy.config.route.v3.HeaderMatcherR\aheaders\x12:\n" +
-	"\x0eheader_matches\x18\x02 \x03(\v2\x13.cilium.HeaderMatchR\rheaderMatches\"d\n" +
-	"\x17KafkaNetworkPolicyRules\x12I\n" +
-	"\vkafka_rules\x18\x01 \x03(\v2\x1e.cilium.KafkaNetworkPolicyRuleB\b\xfaB\x05\x92\x01\x02\b\x01R\n" +
-	"kafkaRules\"\xbe\x01\n" +
-	"\x16KafkaNetworkPolicyRule\x12\x1f\n" +
-	"\vapi_version\x18\x01 \x01(\x05R\n" +
-	"apiVersion\x12\x19\n" +
-	"\bapi_keys\x18\x02 \x03(\x05R\aapiKeys\x125\n" +
-	"\tclient_id\x18\x03 \x01(\tB\x18\xfaB\x15r\x132\x11^[a-zA-Z0-9._-]*$R\bclientId\x121\n" +
-	"\x05topic\x18\x04 \x01(\tB\x1b\xfaB\x18r\x16\x18\xff\x012\x11^[a-zA-Z0-9._-]*$R\x05topic\"\x9a\x01\n" +
-	"\x14L7NetworkPolicyRules\x12A\n" +
-	"\x0el7_allow_rules\x18\x01 \x03(\v2\x1b.cilium.L7NetworkPolicyRuleR\fl7AllowRules\x12?\n" +
-	"\rl7_deny_rules\x18\x02 \x03(\v2\x1b.cilium.L7NetworkPolicyRuleR\vl7DenyRules\"\xea\x01\n" +
-	"\x13L7NetworkPolicyRule\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x129\n" +
-	"\x04rule\x18\x01 \x03(\v2%.cilium.L7NetworkPolicyRule.RuleEntryR\x04rule\x12K\n" +
-	"\rmetadata_rule\x18\x02 \x03(\v2&.envoy.type.matcher.v3.MetadataMatcherR\fmetadataRule\x1a7\n" +
-	"\tRuleEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\\\n" +
+	"\x0eheader_matches\x18\x02 \x03(\v2\x13.cilium.HeaderMatchR\rheaderMatches\"\\\n" +
 	"\x19NetworkPoliciesConfigDump\x12?\n" +
 	"\x0fnetworkpolicies\x18\x01 \x03(\v2\x15.cilium.NetworkPolicyR\x0fnetworkpolicies2\xe0\x03\n" +
 	"\x1dNetworkPolicyDiscoveryService\x12\x83\x01\n" +
@@ -1287,7 +947,7 @@ func file_cilium_api_npds_proto_rawDescGZIP() []byte {
 }
 
 var file_cilium_api_npds_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_cilium_api_npds_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_cilium_api_npds_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_cilium_api_npds_proto_goTypes = []any{
 	(HeaderMatch_MatchAction)(0),       // 0: cilium.HeaderMatch.MatchAction
 	(HeaderMatch_MismatchAction)(0),    // 1: cilium.HeaderMatch.MismatchAction
@@ -1298,52 +958,39 @@ var file_cilium_api_npds_proto_goTypes = []any{
 	(*HttpNetworkPolicyRules)(nil),     // 6: cilium.HttpNetworkPolicyRules
 	(*HeaderMatch)(nil),                // 7: cilium.HeaderMatch
 	(*HttpNetworkPolicyRule)(nil),      // 8: cilium.HttpNetworkPolicyRule
-	(*KafkaNetworkPolicyRules)(nil),    // 9: cilium.KafkaNetworkPolicyRules
-	(*KafkaNetworkPolicyRule)(nil),     // 10: cilium.KafkaNetworkPolicyRule
-	(*L7NetworkPolicyRules)(nil),       // 11: cilium.L7NetworkPolicyRules
-	(*L7NetworkPolicyRule)(nil),        // 12: cilium.L7NetworkPolicyRule
-	(*NetworkPoliciesConfigDump)(nil),  // 13: cilium.NetworkPoliciesConfigDump
-	nil,                                // 14: cilium.L7NetworkPolicyRule.RuleEntry
-	(v3.SocketAddress_Protocol)(0),     // 15: envoy.config.core.v3.SocketAddress.Protocol
-	(*v31.HeaderMatcher)(nil),          // 16: envoy.config.route.v3.HeaderMatcher
-	(*v32.MetadataMatcher)(nil),        // 17: envoy.type.matcher.v3.MetadataMatcher
-	(*v33.DeltaDiscoveryRequest)(nil),  // 18: envoy.service.discovery.v3.DeltaDiscoveryRequest
-	(*v33.DiscoveryRequest)(nil),       // 19: envoy.service.discovery.v3.DiscoveryRequest
-	(*v33.DeltaDiscoveryResponse)(nil), // 20: envoy.service.discovery.v3.DeltaDiscoveryResponse
-	(*v33.DiscoveryResponse)(nil),      // 21: envoy.service.discovery.v3.DiscoveryResponse
+	(*NetworkPoliciesConfigDump)(nil),  // 9: cilium.NetworkPoliciesConfigDump
+	(v3.SocketAddress_Protocol)(0),     // 10: envoy.config.core.v3.SocketAddress.Protocol
+	(*v31.HeaderMatcher)(nil),          // 11: envoy.config.route.v3.HeaderMatcher
+	(*v32.DeltaDiscoveryRequest)(nil),  // 12: envoy.service.discovery.v3.DeltaDiscoveryRequest
+	(*v32.DiscoveryRequest)(nil),       // 13: envoy.service.discovery.v3.DiscoveryRequest
+	(*v32.DeltaDiscoveryResponse)(nil), // 14: envoy.service.discovery.v3.DeltaDiscoveryResponse
+	(*v32.DiscoveryResponse)(nil),      // 15: envoy.service.discovery.v3.DiscoveryResponse
 }
 var file_cilium_api_npds_proto_depIdxs = []int32{
 	3,  // 0: cilium.NetworkPolicy.ingress_per_port_policies:type_name -> cilium.PortNetworkPolicy
 	3,  // 1: cilium.NetworkPolicy.egress_per_port_policies:type_name -> cilium.PortNetworkPolicy
-	15, // 2: cilium.PortNetworkPolicy.protocol:type_name -> envoy.config.core.v3.SocketAddress.Protocol
+	10, // 2: cilium.PortNetworkPolicy.protocol:type_name -> envoy.config.core.v3.SocketAddress.Protocol
 	5,  // 3: cilium.PortNetworkPolicy.rules:type_name -> cilium.PortNetworkPolicyRule
 	4,  // 4: cilium.PortNetworkPolicyRule.downstream_tls_context:type_name -> cilium.TLSContext
 	4,  // 5: cilium.PortNetworkPolicyRule.upstream_tls_context:type_name -> cilium.TLSContext
 	6,  // 6: cilium.PortNetworkPolicyRule.http_rules:type_name -> cilium.HttpNetworkPolicyRules
-	9,  // 7: cilium.PortNetworkPolicyRule.kafka_rules:type_name -> cilium.KafkaNetworkPolicyRules
-	11, // 8: cilium.PortNetworkPolicyRule.l7_rules:type_name -> cilium.L7NetworkPolicyRules
-	8,  // 9: cilium.HttpNetworkPolicyRules.http_rules:type_name -> cilium.HttpNetworkPolicyRule
-	0,  // 10: cilium.HeaderMatch.match_action:type_name -> cilium.HeaderMatch.MatchAction
-	1,  // 11: cilium.HeaderMatch.mismatch_action:type_name -> cilium.HeaderMatch.MismatchAction
-	16, // 12: cilium.HttpNetworkPolicyRule.headers:type_name -> envoy.config.route.v3.HeaderMatcher
-	7,  // 13: cilium.HttpNetworkPolicyRule.header_matches:type_name -> cilium.HeaderMatch
-	10, // 14: cilium.KafkaNetworkPolicyRules.kafka_rules:type_name -> cilium.KafkaNetworkPolicyRule
-	12, // 15: cilium.L7NetworkPolicyRules.l7_allow_rules:type_name -> cilium.L7NetworkPolicyRule
-	12, // 16: cilium.L7NetworkPolicyRules.l7_deny_rules:type_name -> cilium.L7NetworkPolicyRule
-	14, // 17: cilium.L7NetworkPolicyRule.rule:type_name -> cilium.L7NetworkPolicyRule.RuleEntry
-	17, // 18: cilium.L7NetworkPolicyRule.metadata_rule:type_name -> envoy.type.matcher.v3.MetadataMatcher
-	2,  // 19: cilium.NetworkPoliciesConfigDump.networkpolicies:type_name -> cilium.NetworkPolicy
-	18, // 20: cilium.NetworkPolicyDiscoveryService.DeltaNetworkPolicies:input_type -> envoy.service.discovery.v3.DeltaDiscoveryRequest
-	19, // 21: cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies:input_type -> envoy.service.discovery.v3.DiscoveryRequest
-	19, // 22: cilium.NetworkPolicyDiscoveryService.FetchNetworkPolicies:input_type -> envoy.service.discovery.v3.DiscoveryRequest
-	20, // 23: cilium.NetworkPolicyDiscoveryService.DeltaNetworkPolicies:output_type -> envoy.service.discovery.v3.DeltaDiscoveryResponse
-	21, // 24: cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies:output_type -> envoy.service.discovery.v3.DiscoveryResponse
-	21, // 25: cilium.NetworkPolicyDiscoveryService.FetchNetworkPolicies:output_type -> envoy.service.discovery.v3.DiscoveryResponse
-	23, // [23:26] is the sub-list for method output_type
-	20, // [20:23] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	8,  // 7: cilium.HttpNetworkPolicyRules.http_rules:type_name -> cilium.HttpNetworkPolicyRule
+	0,  // 8: cilium.HeaderMatch.match_action:type_name -> cilium.HeaderMatch.MatchAction
+	1,  // 9: cilium.HeaderMatch.mismatch_action:type_name -> cilium.HeaderMatch.MismatchAction
+	11, // 10: cilium.HttpNetworkPolicyRule.headers:type_name -> envoy.config.route.v3.HeaderMatcher
+	7,  // 11: cilium.HttpNetworkPolicyRule.header_matches:type_name -> cilium.HeaderMatch
+	2,  // 12: cilium.NetworkPoliciesConfigDump.networkpolicies:type_name -> cilium.NetworkPolicy
+	12, // 13: cilium.NetworkPolicyDiscoveryService.DeltaNetworkPolicies:input_type -> envoy.service.discovery.v3.DeltaDiscoveryRequest
+	13, // 14: cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies:input_type -> envoy.service.discovery.v3.DiscoveryRequest
+	13, // 15: cilium.NetworkPolicyDiscoveryService.FetchNetworkPolicies:input_type -> envoy.service.discovery.v3.DiscoveryRequest
+	14, // 16: cilium.NetworkPolicyDiscoveryService.DeltaNetworkPolicies:output_type -> envoy.service.discovery.v3.DeltaDiscoveryResponse
+	15, // 17: cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies:output_type -> envoy.service.discovery.v3.DiscoveryResponse
+	15, // 18: cilium.NetworkPolicyDiscoveryService.FetchNetworkPolicies:output_type -> envoy.service.discovery.v3.DiscoveryResponse
+	16, // [16:19] is the sub-list for method output_type
+	13, // [13:16] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_cilium_api_npds_proto_init() }
@@ -1355,8 +1002,6 @@ func file_cilium_api_npds_proto_init() {
 		(*PortNetworkPolicyRule_PassPrecedence)(nil),
 		(*PortNetworkPolicyRule_Deny)(nil),
 		(*PortNetworkPolicyRule_HttpRules)(nil),
-		(*PortNetworkPolicyRule_KafkaRules)(nil),
-		(*PortNetworkPolicyRule_L7Rules)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -1364,7 +1009,7 @@ func file_cilium_api_npds_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cilium_api_npds_proto_rawDesc), len(file_cilium_api_npds_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   13,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
