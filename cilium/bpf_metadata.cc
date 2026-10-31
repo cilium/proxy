@@ -387,7 +387,7 @@ const Network::Address::Ip* Config::selectIpVersion(const Network::Address::IpVe
   return nullptr;
 }
 
-const PolicyInstance& Config::getPolicy(const std::string& pod_ip) const {
+const PolicyInstance Config::getPolicy(const std::string& pod_ip) const {
   // Allow all traffic for egress without a policy when 'is_l7lb_' is true,
   // or if configured without bpf (npmap_ == nullptr).
   // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by Cilium
@@ -439,9 +439,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   }
 
   // Load the policy for the Pod that sends or receives traffic.
-  // Might change later on for North/South L7LB traffic.
-  // Use a pointer as we may need to change the policy in the case of "North/South L7 LB" below.
-  const auto* policy = &getPolicy(pod_ip);
+  const auto policy = getPolicy(pod_ip);
 
   // Resolve the source security ID from conntrack map, or from ip cache
   uint32_t source_identity = resolveSourceIdentity(sip, dip, is_ingress_);
@@ -464,7 +462,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   if (is_l7lb_ && use_original_source_address_ /* East/West L7LB */) {
     // In case of east/west, L7 LB is only used for egress, so the local
     // endpoint is the source, and the other node is the destination.
-    if (policy->getEndpointID() == 0) {
+    if (policy.getEndpointID() == 0) {
       // Local pod not found. Original source address can only be used for local pods.
       ENVOY_LOG(warn,
                 "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
@@ -474,8 +472,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     }
     // Use original source address with L7 LB for local endpoint sources if requested, as policy
     // enforcement after the proxy depends on it (i.e., for "east/west" LB).
-    source_addresses =
-        getIpAddressPairWithPort(src_address->ip()->port(), policy->getEndpointIPs());
+    source_addresses = getIpAddressPairWithPort(src_address->ip()->port(), policy.getEndpointIPs());
   } else if (is_l7lb_ && !use_original_source_address_ /* North/South L7 LB */) {
     // North/south L7 LB, assume the source security identity of the configured source addresses,
     // if any and policy for this identity exists.
@@ -496,7 +493,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     }
 
     // Enforce pod policy only for local pods.
-    if (policy->getEndpointID() == 0) {
+    if (policy.getEndpointID() == 0) {
       pod_ip = ""; // source is not a local pod
     }
 
@@ -537,7 +534,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   if (is_l7lb_ && use_original_source_address_ /* E/W L7LB */) {
     // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
     // processed by the the source endpoint's policy enforcement in the datapath.
-    mark = 0x0900 | policy->getEndpointID() << 16;
+    mark = 0x0900 | policy.getEndpointID() << 16;
   } else {
     // Mark with source identity
     uint32_t cluster_id = (source_identity >> 16) & 0xFF;

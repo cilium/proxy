@@ -109,15 +109,6 @@ public:
                          const Protobuf::RepeatedPtrField<std::string>&) override {}
 };
 
-bool configSourceUsesDeltaXds(const envoy::config::core::v3::ConfigSource& config_source) {
-  if (!config_source.has_api_config_source()) {
-    return false;
-  }
-  const auto& api_type = config_source.api_config_source().api_type();
-  return api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC ||
-         api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC;
-}
-
 const Protobuf::MethodDescriptor& deltaGrpcMethod(absl::string_view type_url) {
   const auto it = typeUrlToServiceMap().find(static_cast<std::string>(type_url));
   ASSERT(it != typeUrlToServiceMap().cend());
@@ -203,15 +194,14 @@ void ManagedGrpcSubscription::create() {
   }
 
   subscription_ = std::make_unique<Config::GrpcSubscriptionImpl>(
-      grpc_mux, *this, decoder_factory_(), stats, type_url_, context_.mainThreadDispatcher(),
-      initial_fetch_timeout, is_aggregated, options);
+      grpc_mux, *this, decoder_factory_(type_url_), stats, type_url_,
+      context_.mainThreadDispatcher(), initial_fetch_timeout, is_aggregated, options);
 }
 
 ManagedGrpcSubscription::ManagedGrpcSubscription(
-    absl::string_view type_url, DecoderFactory decoder_factory,
-    const envoy::config::core::v3::ConfigSource& config_source,
-    Server::Configuration::CommonFactoryContext& context, Stats::ScopeSharedPtr scope,
-    bool do_subscribe)
+    absl::string_view type_url, const envoy::config::core::v3::ConfigSource& config_source,
+    DecoderFactory decoder_factory, Server::Configuration::CommonFactoryContext& context,
+    Stats::ScopeSharedPtr scope, bool do_subscribe)
     : type_url_(type_url), desired_config_source_(config_source), config_source_(config_source),
       decoder_factory_(std::move(decoder_factory)), context_(context), scope_(scope) {
   RELEASE_ASSERT(decoder_factory_ != nullptr, "ManagedGrpcSubscription needs a decoder factory");
@@ -226,7 +216,7 @@ void ManagedGrpcSubscription::subscribe() {
   ++subscription_id_;
 
   if (factory_for_test_) {
-    subscription_ = factory_for_test_(configSourceUsesDeltaXds(config_source_));
+    subscription_ = factory_for_test_(usesDeltaXds());
   } else {
     create();
   }
@@ -281,7 +271,7 @@ void ManagedGrpcSubscription::onStreamEvent(uint64_t subscription_id,
 
 void ManagedGrpcSubscription::maybeRecreateInDesiredMode(bool transport_closed) {
   if (subscription_ && (connected_ || !transport_closed)) {
-    if (connected_ && configSourceUsesDeltaXds(config_source_)) {
+    if (connected_ && usesDeltaXds()) {
       // Keep delta on a connected subscription until transport closes.
       return;
     }

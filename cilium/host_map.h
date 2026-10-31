@@ -9,7 +9,7 @@
 #include "envoy/network/address.h"
 
 #include "source/common/common/logger.h"
-#include "source/common/protobuf/protobuf.h"
+#include "source/common/protobuf/protobuf.h" // IWYU pragma: keep
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"

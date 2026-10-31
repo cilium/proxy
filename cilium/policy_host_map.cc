@@ -8,13 +8,25 @@
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #include "envoy/common/exception.h"
 #include "envoy/event/dispatcher.h"
+#include "envoy/config/core/v3/config_source.pb.h"
+#include "envoy/config/subscription.h"
+#include "envoy/server/factory_context.h"
+#include "envoy/stats/stats_macros.h"
+#include "envoy/thread_local/thread_local_object.h"
+
+#include "source/common/common/logger.h"
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "cilium/api/nphds.pb.h"
+#include "cilium/grpc_subscription.h"
+#include "cilium/host_map.h"
 
 namespace Envoy {
 namespace Cilium {
@@ -39,8 +51,9 @@ PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& contex
                              const envoy::config::core::v3::ConfigSource& config_source,
                              bool subscribe)
     : ManagedGrpcSubscription(
-          NetworkPolicyHostsTypeUrl, []() { return std::make_shared<Cilium::PolicyHostDecoder>(); },
-          config_source, context, context.serverScope().createScope("cilium.nphds."), subscribe),
+          NetworkPolicyHostsTypeUrl, config_source,
+          [](absl::string_view) { return std::make_shared<Cilium::PolicyHostDecoder>(); }, context,
+          context.serverScope().createScope("cilium.nphds."), subscribe),
       tls_(context.threadLocal().allocateSlot()),
       name_(absl::StrCat("cilium.hostmap.", fmt::format("{}", instance_id_ + 1), ".")),
       host_stats_scope_(context.serverScope().createScope("cilium.hostmap.")),

@@ -25,7 +25,7 @@ public:
   virtual ~PolicyResolver() = default;
 
   virtual uint32_t resolvePolicyId(const Network::Address::Ip*) const PURE;
-  virtual const PolicyInstance& getPolicy(const std::string&) const PURE;
+  virtual const PolicyInstance getPolicy(const std::string&) const PURE;
 
   // Returns 'true' if the given policy exists
   virtual bool exists(const std::string&) const PURE;
@@ -59,7 +59,7 @@ public:
 
   bool exists(const std::string& ip) const { return policy_resolver_->exists(ip); }
 
-  const PolicyInstance& getPolicy() const { return policy_resolver_->getPolicy(pod_ip_); }
+  const PolicyInstance getPolicy() const { return policy_resolver_->getPolicy(pod_ip_); }
 
   bool enforceNetworkPolicy(const Network::Connection& conn, uint32_t remote_id,
                             uint16_t destination_port, const absl::string_view sni,
