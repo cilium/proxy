@@ -6,7 +6,6 @@
 #include <memory>
 #include <string>
 
-#include "envoy/common/pure.h"
 #include "envoy/common/regex.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
@@ -23,7 +22,6 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/common/macros.h"
-#include "source/common/common/thread.h"
 #include "source/common/protobuf/arena_wrapped_proto.h"
 #include "source/common/protobuf/message_validator_impl.h"
 #include "source/common/protobuf/utility.h"
@@ -39,6 +37,7 @@ namespace Envoy {
 namespace Cilium {
 
 class CiliumTestPeer;
+class Policy;
 class ManagedGrpcSubscription;
 class PortNetworkPolicyRules;
 class PolicySnapshot;
@@ -50,8 +49,8 @@ class PolicySnapshot;
 class PortPolicy : public Logger::Loggable<Logger::Id::config> {
 protected:
   friend class PortNetworkPolicy;
-  friend class DenyAllPolicyInstanceImpl;
-  friend class AllowAllEgressPolicyInstanceImpl;
+  friend class DenyAllPolicyImpl;
+  friend class AllowAllEgressPolicyImpl;
   PortPolicy(const PolicySnapshot& map, uint16_t port);
 
 public:
@@ -106,33 +105,30 @@ public:
   Network::Address::InstanceConstSharedPtr ipv6_;
 };
 
+// A borrowed policy. Like PortPolicy, the instance must be released before the worker returns
+// to its event loop.
 class PolicyInstance {
 public:
-  virtual ~PolicyInstance() {
-    if (!Thread::MainThread::isMainOrTestThread()) {
-      IS_ENVOY_BUG("PolicyInstance: Destructor executing in a worker thread, while "
-                   "only main thread should destruct xDS resources");
-    }
-  };
+  const PortPolicy findPortPolicy(bool ingress, uint16_t port) const;
 
-  virtual bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
-                       Envoy::Http::RequestHeaderMap& headers,
-                       Cilium::AccessLog::Entry& log_entry) const PURE;
+  bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
+               Http::RequestHeaderMap& headers, AccessLog::Entry& log_entry) const;
+  bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, absl::string_view sni,
+               uint16_t port) const;
 
-  virtual bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, absl::string_view sni,
-                       uint16_t port) const PURE;
+  uint32_t getEndpointID() const;
+  const IpAddressPair& getEndpointIPs() const;
+  std::string string() const;
+  void tlsWrapperMissingPolicyInc() const;
 
-  virtual const PortPolicy findPortPolicy(bool ingress, uint16_t port) const PURE;
+private:
+  friend class NetworkPolicyMap;
+  friend class NetworkPolicyMapImpl;
 
-  virtual uint32_t getEndpointID() const PURE;
+  PolicyInstance(const Policy& policy) : policy_(policy) {}
 
-  virtual const IpAddressPair& getEndpointIPs() const PURE;
-
-  virtual std::string string() const PURE;
-
-  virtual void tlsWrapperMissingPolicyInc() const PURE;
+  const Policy& policy_;
 };
-using PolicyInstanceConstSharedPtr = std::shared_ptr<const PolicyInstance>;
 
 class NetworkPolicyDecoder : public Envoy::Config::OpaqueResourceDecoder {
 public:
@@ -193,11 +189,11 @@ public:
   void configure(const envoy::config::core::v3::ConfigSource& config_source);
   void maybeAddInitTarget(Init::Manager& init_manager);
 
-  const PolicyInstance& getPolicyInstance(const std::string& endpoint_policy_name,
-                                          bool allow_egress) const;
+  const PolicyInstance getPolicyInstance(const std::string& endpoint_policy_name,
+                                         bool allow_egress) const;
 
-  static PolicyInstance& getDenyAllPolicy();
-  static PolicyInstance& getAllowAllEgressPolicy();
+  static const PolicyInstance getDenyAllPolicy();
+  static const PolicyInstance getAllowAllEgressPolicy();
 
 private:
   friend class CiliumTestPeer;
@@ -205,8 +201,7 @@ private:
   ManagedGrpcSubscription& managedSubscription();
   const ManagedGrpcSubscription& managedSubscription() const;
   PolicyStats& stats() const;
-  PolicyInstanceConstSharedPtr
-  getPolicyInstanceShared(const std::string& endpoint_policy_name) const;
+  std::shared_ptr<const Policy> getPolicyShared(const std::string& endpoint_policy_name) const;
 
   Server::Configuration::ServerFactoryContext& context_;
   std::shared_ptr<NetworkPolicyMapImpl> impl_;

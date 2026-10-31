@@ -39,8 +39,9 @@ PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& contex
                              const envoy::config::core::v3::ConfigSource& config_source,
                              bool subscribe)
     : ManagedGrpcSubscription(
-          NetworkPolicyHostsTypeUrl, []() { return std::make_shared<Cilium::PolicyHostDecoder>(); },
-          config_source, context, context.serverScope().createScope("cilium.nphds."), subscribe),
+          NetworkPolicyHostsTypeUrl, config_source,
+          [](absl::string_view) { return std::make_shared<Cilium::PolicyHostDecoder>(); }, context,
+          context.serverScope().createScope("cilium.nphds."), subscribe),
       tls_(context.threadLocal().allocateSlot()),
       name_(absl::StrCat("cilium.hostmap.", fmt::format("{}", instance_id_ + 1), ".")),
       host_stats_scope_(context.serverScope().createScope("cilium.hostmap.")),

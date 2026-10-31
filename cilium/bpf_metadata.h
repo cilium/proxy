@@ -134,7 +134,7 @@ public:
 
   // PolicyResolver
   uint32_t resolvePolicyId(const Network::Address::Ip*) const override;
-  const PolicyInstance& getPolicy(const std::string&) const override;
+  const PolicyInstance getPolicy(const std::string&) const override;
   bool exists(const std::string&) const override;
 
   virtual std::optional<SocketMetadata> extractSocketMetadata(Network::ConnectionSocket& socket);

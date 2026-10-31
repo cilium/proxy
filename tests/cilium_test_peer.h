@@ -80,9 +80,9 @@ public:
 
   static PolicyStats& policyStats(const NetworkPolicyMap& target) { return target.stats(); }
 
-  static PolicyInstanceConstSharedPtr
-  policyInstanceShared(const NetworkPolicyMap& target, const std::string& endpoint_policy_name) {
-    return target.getPolicyInstanceShared(endpoint_policy_name);
+  static auto policyShared(const NetworkPolicyMap& target,
+                           const std::string& endpoint_policy_name) {
+    return target.getPolicyShared(endpoint_policy_name);
   }
 };
 

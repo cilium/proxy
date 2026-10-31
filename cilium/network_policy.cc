@@ -20,6 +20,7 @@
 #include "envoy/common/exception.h"
 #include "envoy/common/matchers.h"
 #include "envoy/common/optref.h"
+#include "envoy/common/pure.h"
 #include "envoy/config/core/v3/address.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/subscription.h"
@@ -132,13 +133,59 @@ private:
   const uint64_t stream_generation_;
 };
 using PolicyStreamStateSharedPtr = std::shared_ptr<PolicyStreamState>;
-using PolicyStreamStateConstSharedPtr = std::shared_ptr<const PolicyStreamState>;
 
-class PolicyInstanceImpl;
+// Immutable policies are shared across publications and destroyed on the main thread.
+class Policy {
+public:
+  virtual ~Policy() {
+    if (!Thread::MainThread::isMainOrTestThread()) {
+      IS_ENVOY_BUG("Policy: Destructor executing in a worker thread, while "
+                   "only main thread should destruct xDS resources");
+    }
+  }
+
+  virtual const PortPolicy findPortPolicy(bool ingress, uint16_t port) const PURE;
+
+  virtual bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
+                       Http::RequestHeaderMap& headers, AccessLog::Entry& log_entry) const {
+    return findPortPolicy(ingress, port).allowed(proxy_id, remote_id, headers, log_entry);
+  }
+
+  virtual uint32_t getEndpointID() const PURE;
+
+  virtual const IpAddressPair& getEndpointIPs() const PURE;
+
+  virtual std::string string() const PURE;
+
+  virtual void tlsWrapperMissingPolicyInc() const PURE;
+};
+
+const PortPolicy PolicyInstance::findPortPolicy(bool ingress, uint16_t port) const {
+  return policy_.findPortPolicy(ingress, port);
+}
+
+bool PolicyInstance::allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
+                             Http::RequestHeaderMap& headers, AccessLog::Entry& log_entry) const {
+  return policy_.allowed(ingress, proxy_id, remote_id, port, headers, log_entry);
+}
+
+bool PolicyInstance::allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id,
+                             absl::string_view sni, uint16_t port) const {
+  return findPortPolicy(ingress, port).allowed(proxy_id, remote_id, sni);
+}
+
+uint32_t PolicyInstance::getEndpointID() const { return policy_.getEndpointID(); }
+
+const IpAddressPair& PolicyInstance::getEndpointIPs() const { return policy_.getEndpointIPs(); }
+
+std::string PolicyInstance::string() const { return policy_.string(); }
+
+void PolicyInstance::tlsWrapperMissingPolicyInc() const { policy_.tlsWrapperMissingPolicyInc(); }
+
+class PolicyImpl;
 
 // Stable policy map, usually keyed with endpoint IP (IPv4 and IPv6).
-using PolicyMapSnapshot =
-    absl::flat_hash_map<std::string, std::shared_ptr<const PolicyInstanceImpl>>;
+using PolicyMapSnapshot = absl::flat_hash_map<std::string, std::shared_ptr<const PolicyImpl>>;
 
 // variant wrapper for supported resource map keys for delta policy updates
 // Delta xDS refers to removed resources by resource name, so we must have a map to
@@ -146,7 +193,7 @@ using PolicyMapSnapshot =
 class ResourceKey {
 public:
   struct PolicyResourceEntry {
-    std::shared_ptr<const PolicyInstanceImpl> policy;
+    std::shared_ptr<const PolicyImpl> policy;
   };
 
   // reference to a policy entry by name
@@ -154,7 +201,7 @@ public:
     std::string policy_name;
   };
 
-  static ResourceKey policyResource(const std::shared_ptr<const PolicyInstanceImpl>& policy) {
+  static ResourceKey policyResource(const std::shared_ptr<const PolicyImpl>& policy) {
     return ResourceKey(PolicyResourceEntry{policy});
   }
 
@@ -245,7 +292,7 @@ public:
   }
 
   void erasePolicyResource(const std::string& resource_name,
-                           const std::shared_ptr<const PolicyInstanceImpl>& policy);
+                           const std::shared_ptr<const PolicyImpl>& policy);
 
   PolicyMapSnapshot toPolicyMapSnapshot() const;
 
@@ -275,7 +322,7 @@ private:
     }
   }
 
-  std::pair<const std::string&, std::shared_ptr<const PolicyInstanceImpl>>
+  std::pair<const std::string&, std::shared_ptr<const PolicyImpl>>
   findPolicyByEndpointIp(const std::string& endpoint_ip) const;
 
   const ResourceMap* base_{};
@@ -351,56 +398,27 @@ protected:
   void validatePolicy(const std::string& resource_name, const cilium::NetworkPolicy& config,
                       const std::string& version_info);
 
-  std::pair<std::shared_ptr<const PolicyInstanceImpl>, bool>
-  createOrReusePolicy(const std::string& resource_name, const cilium::NetworkPolicy& config,
-                      bool is_new_stream, const ResourceMap& resource_map);
+  std::shared_ptr<const PolicyImpl> createOrReusePolicy(const std::string& resource_name,
+                                                        const cilium::NetworkPolicy& config,
+                                                        const ResourceMap& resource_map,
+                                                        bool is_new_stream) const;
 
   void installNewPolicyMap(ResourceMapOverlay&& pending_resource_map,
                            Init::ManagerImpl& version_init_manager, std::string&& version_name,
                            const PolicyStreamStateSharedPtr& policy_stream_state);
 
 private:
-  // Helpers for atomic swap of the policy map pointer.
-  //
-  // store() is only used for the initialization of the map during construction.
-  // exchange() is used to atomically swap in a new map, the old map pointer is returned.
-  // Once a map is stored or swapped in to the atomic pointer by the main thread, it may be "loaded"
-  // from the atomic pointer by any thread. This is why the load returns a const pointer.
-  //
-  // For the loaded pointer to be safe to use, we must use acquire/release memory ordering:
-  // - when a pointer stored or swapped in, 'std::memory_order_release' informs the compiler to make
-  //   sure it is not reordering any write operations into the map to happen after the pointer is
-  //   written, and emits CPU instructions to also make the CPU out-of-order-execution logic to not
-  //   reorder any write operations to happen after the pointer itself is written. This guarantees
-  //   that the map is not modified after the point when the worker threads can observe the new
-  //   pointer value, i.e., the map is actaully immutable (const) from that point forward.
-  // - when the pointer is read (by a worker thread) 'std::memory_order_acquire' in the load
-  //   operation informs the compiler to emit CPU instructions to make the CPU
-  //   out-of-order-execution logic to not reorder any reads from the new map to happen before the
-  //   pointer itself is read, so that no values from the map are read before the map was "released"
-  //   by the store or exchange operation.
-  //
-  // Typically it is easier to think about the release part of the acquire/release semantics, as at
-  // the point of the store or exchange operation the compiler and the CPU know the location of the
-  // map in memory before and after the pointer is stored, so that without
-  // 'std::memory_order_release' there is an understandable risk of such write after release
-  // happening. On the acquire side it seems less likely that the compiler or the CPU could know the
-  // new map pointer value in advance and even try to reorder any read operations to happen before
-  // the pointer is actually read. But consider the typical case where the pointer value is actually
-  // not changing between consecutice load operations. The compiler or the CPU could speculate that
-  // to be the case and read some values from the old memory location. 'std::memory_order_acquire'
-  // tells the compiler (which then "tells" the CPU) that this can not be done, and all reads must
-  // actually happen after the pointer value is loaded, be it a new one or the same as before.
-  //
+  // Published snapshots are immutable. Workers borrow them until their next event-loop turn;
+  // retirement runs on the main thread after worker grace periods.
   const PolicyMapSnapshot* load() const { return map_ptr_.load(std::memory_order_acquire); }
   void store(const PolicyMapSnapshot* map) { map_ptr_.store(map, std::memory_order_release); }
   const PolicyMapSnapshot* exchange(const PolicyMapSnapshot* map) {
     return map_ptr_.exchange(map, std::memory_order_release);
   }
 
-  const PolicyInstance* getPolicyInstanceImpl(const std::string& endpoint_policy_name) const;
-  PolicyInstanceConstSharedPtr
-  getPolicyInstanceSharedImpl(const std::string& endpoint_policy_name) const;
+  const PolicyInstance getPolicyInstance(const std::string& endpoint_policy_name,
+                                         bool allow_egress) const;
+  std::shared_ptr<const Policy> getPolicyShared(const std::string& endpoint_policy_name) const;
   void removeInitManager();
 
   static uint64_t instance_id_;
@@ -1606,30 +1624,13 @@ public:
 
 // Construction is single-threaded, but all other use is from multiple worker threads using const
 // methods.
-class PolicyInstanceImpl : public PolicyInstance {
+class PolicyImpl : public Policy {
 public:
   friend class NetworkPolicyMapImpl;
-  PolicyInstanceImpl(const NetworkPolicyMapImpl& parent, uint64_t hash,
-                     const cilium::NetworkPolicy& proto)
+  PolicyImpl(const NetworkPolicyMapImpl& parent, uint64_t hash, const cilium::NetworkPolicy& proto)
       : endpoint_id_(proto.endpoint_id()), hash_(hash), policy_proto_(proto), endpoint_ips_(proto),
         parent_(parent), ingress_(parent, policy_proto_.ingress_per_port_policies()),
         egress_(parent, policy_proto_.egress_per_port_policies()) {}
-
-  bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, uint16_t port,
-               Envoy::Http::RequestHeaderMap& headers,
-               Cilium::AccessLog::Entry& log_entry) const override {
-    const auto port_policy = findPortPolicy(ingress, port);
-    if (!port_policy.hasHttpRules()) {
-      return true;
-    }
-    return port_policy.allowed(proxy_id, remote_id, headers, log_entry);
-  }
-
-  bool allowed(bool ingress, uint16_t proxy_id, uint32_t remote_id, absl::string_view sni,
-               uint16_t port) const override {
-    const auto port_policy = findPortPolicy(ingress, port);
-    return port_policy.allowed(proxy_id, remote_id, sni);
-  }
 
   const PortPolicy findPortPolicy(bool ingress, uint16_t port) const override {
     return ingress ? ingress_.findPortPolicy(port) : egress_.findPortPolicy(port);
@@ -1677,7 +1678,7 @@ template <class EndpointIps> std::string endpointIpsForLog(const EndpointIps& en
 }
 
 std::string describePolicyResourceForLog(const std::string& resource_name,
-                                         const std::shared_ptr<const PolicyInstanceImpl>& policy) {
+                                         const std::shared_ptr<const PolicyImpl>& policy) {
   ASSERT(policy != nullptr, "policy resource description requires a policy");
   return fmt::format("policy resource '{}' (endpoint_id {}, endpoint_ips {})", resource_name,
                      policy->endpoint_id_, endpointIpsForLog(policy->policy_proto_.endpoint_ips()));
@@ -1689,7 +1690,7 @@ std::string describePolicyResourceForLog(const std::string& resource_name,
                      policy.endpoint_id(), endpointIpsForLog(policy.endpoint_ips()));
 }
 
-std::pair<const std::string&, std::shared_ptr<const PolicyInstanceImpl>>
+std::pair<const std::string&, std::shared_ptr<const PolicyImpl>>
 ResourceMapOverlay::findPolicyByEndpointIp(const std::string& endpoint_ip) const {
   const auto* key = findEntry(endpoint_ip);
   if (key) {
@@ -1754,8 +1755,8 @@ PolicyMapSnapshot ResourceMapOverlay::toPolicyMapSnapshot() const {
   return policy_map;
 }
 
-void ResourceMapOverlay::erasePolicyResource(
-    const std::string& resource_name, const std::shared_ptr<const PolicyInstanceImpl>& policy) {
+void ResourceMapOverlay::erasePolicyResource(const std::string& resource_name,
+                                             const std::shared_ptr<const PolicyImpl>& policy) {
   ASSERT(policy != nullptr, "policy resource key must carry a policy");
   for (const auto& endpoint_ip : policy->policy_proto_.endpoint_ips()) {
     erase(endpoint_ip);
@@ -1791,11 +1792,16 @@ NetworkPolicyMap::~NetworkPolicyMap() {
   ENVOY_LOG(debug,
             "Cilium L7 NetworkPolicyMap: posting NetworkPolicyMapImpl deletion to main thread");
 
-  context_.mainThreadDispatcher().post([impl = std::move(impl_)]() mutable { impl.reset(); });
+  context_.mainThreadDispatcher().post([impl = std::move(impl_)]() mutable {
+    ENVOY_LOG(
+        debug,
+        "Cilium L7 NetworkPolicyMap: Deferred deletion of NetworkPolicyMapImpl in main thread");
+    impl.reset();
+  });
 }
 
 bool NetworkPolicyMap::exists(const std::string& endpoint_policy_name) const {
-  return impl_->getPolicyInstanceImpl(endpoint_policy_name);
+  return impl_->load()->contains(endpoint_policy_name);
 }
 
 void NetworkPolicyMap::configure(const envoy::config::core::v3::ConfigSource& config_source) {
@@ -1814,9 +1820,9 @@ const ManagedGrpcSubscription& NetworkPolicyMap::managedSubscription() const { r
 
 PolicyStats& NetworkPolicyMap::stats() const { return impl_->stats_; }
 
-PolicyInstanceConstSharedPtr
-NetworkPolicyMap::getPolicyInstanceShared(const std::string& endpoint_policy_name) const {
-  return impl_->getPolicyInstanceSharedImpl(endpoint_policy_name);
+std::shared_ptr<const Policy>
+NetworkPolicyMap::getPolicyShared(const std::string& endpoint_policy_name) const {
+  return impl_->getPolicyShared(endpoint_policy_name);
 }
 
 NetworkPolicyMapImpl::NetworkPolicyMapImpl(
@@ -1824,8 +1830,9 @@ NetworkPolicyMapImpl::NetworkPolicyMapImpl(
     const envoy::config::core::v3::ConfigSource& config_source, bool subscribe,
     bool policy_secret_cache_enabled)
     : ManagedGrpcSubscription(
-          NetworkPolicyTypeUrl, []() { return std::make_shared<NetworkPolicyDecoder>(); },
-          config_source, context.serverFactoryContext(),
+          NetworkPolicyTypeUrl, config_source,
+          [](absl::string_view) { return std::make_shared<NetworkPolicyDecoder>(); },
+          context.serverFactoryContext(),
           context.serverFactoryContext().serverScope().createScope("cilium.npds."), subscribe),
       context_(context.serverFactoryContext()), map_ptr_(nullptr),
       policy_stats_scope_(context_.serverScope().createScope("cilium.policy.")),
@@ -1880,10 +1887,9 @@ void NetworkPolicyMapImpl::reopenIpcache() {
   }
 }
 
-std::pair<std::shared_ptr<const PolicyInstanceImpl>, bool>
-NetworkPolicyMapImpl::createOrReusePolicy(const std::string& resource_name,
-                                          const cilium::NetworkPolicy& config, bool is_new_stream,
-                                          const ResourceMap& resource_map) {
+std::shared_ptr<const PolicyImpl> NetworkPolicyMapImpl::createOrReusePolicy(
+    const std::string& resource_name, const cilium::NetworkPolicy& config,
+    const ResourceMap& resource_map, bool is_new_stream) const {
   const uint64_t new_hash = MessageUtil::hash(config);
   if (!is_new_stream) {
     const auto* old_entry = resource_map.findEntry(resource_name);
@@ -1893,19 +1899,19 @@ NetworkPolicyMapImpl::createOrReusePolicy(const std::string& resource_name,
         const auto& old_policy = old_policy_entry->policy;
         if (old_policy && old_policy->hash_ == new_hash &&
             Protobuf::util::MessageDifferencer::Equals(old_policy->policy_proto_, config)) {
-          return {old_policy, true};
+          return old_policy;
         }
       }
     }
   }
-  return {std::make_shared<const PolicyInstanceImpl>(*this, new_hash, config), false};
+  return std::make_shared<const PolicyImpl>(*this, new_hash, config);
 }
 
 template <typename Logger>
 void insertPolicyResource(ResourceMapOverlay& pending_resource_map,
                           const cilium::NetworkPolicy& config, const std::string& version_info,
                           bool is_new_stream, const std::string& resource_name,
-                          const std::shared_ptr<const PolicyInstanceImpl>& policy, Logger logger) {
+                          const std::shared_ptr<const PolicyImpl>& policy, Logger logger) {
   if (!pending_resource_map.emplace(resource_name, ResourceKey::policyResource(policy))) {
     throw EnvoyException(fmt::format(
         "NetworkPolicyResource update for version {} has duplicate resource key '{}' on {} "
@@ -2054,11 +2060,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
                 "version {}",
                 config.endpoint_id(), config.endpoint_ips()[0], version_info);
 
-      auto [policy, reused] =
-          createOrReusePolicy(resource_name, config, is_new_stream, resource_map);
-      if (reused) {
-        ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
-      }
+      auto policy = createOrReusePolicy(resource_name, config, resource_map, is_new_stream);
       insertPolicyResource(
           pending_resource_map, config, version_info, is_new_stream, resource_name, policy,
           [](absl::string_view ip) {
@@ -2165,11 +2167,7 @@ absl::Status NetworkPolicyMapImpl::onConfigUpdate(
                 "onConfigUpdate() version {}",
                 resource_name, config.endpoint_id(), config.endpoint_ips()[0], system_version_info);
 
-      auto [policy, reused] =
-          createOrReusePolicy(resource_name, config, is_new_stream, resource_map);
-      if (reused) {
-        ENVOY_LOG(trace, "New policy is equal to old one, not updating.");
-      }
+      auto policy = createOrReusePolicy(resource_name, config, resource_map, is_new_stream);
       insertPolicyResource(pending_resource_map, config, system_version_info, is_new_stream,
                            resource_name, policy, [](absl::string_view ip) {
                              ENVOY_LOG(trace, "Cilium updating network policy for endpoint {}", ip);
@@ -2220,19 +2218,15 @@ NetworkPolicyMapImpl::dumpNetworkPolicyConfigs(const Matchers::StringMatcher& na
 }
 
 // Allow-all Egress policy
-class AllowAllEgressPolicyInstanceImpl : public PolicyInstance {
+class AllowAllEgressPolicyImpl : public Policy {
 public:
-  AllowAllEgressPolicyInstanceImpl() {
+  AllowAllEgressPolicyImpl() {
     empty_map_.emplace(std::make_pair(uint16_t(1), uint16_t(1)), PortNetworkPolicyRules{});
   }
 
   bool allowed(bool ingress, uint16_t, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
                Cilium::AccessLog::Entry&) const override {
-    return ingress ? false : true;
-  }
-
-  bool allowed(bool ingress, uint16_t, uint32_t, absl::string_view, uint16_t) const override {
-    return ingress ? false : true;
+    return !ingress;
   }
 
   const PortPolicy findPortPolicy(bool ingress, uint16_t) const override {
@@ -2243,34 +2237,28 @@ public:
 
   const IpAddressPair& getEndpointIPs() const override { return empty_ips; }
 
-  std::string string() const override { return "AllowAllEgressPolicyInstanceImpl"; }
+  std::string string() const override { return "AllowAllEgressPolicyImpl"; }
 
   void tlsWrapperMissingPolicyInc() const override {}
 
 private:
   PolicySnapshot empty_map_;
-  static const std::string empty_string;
   static const IpAddressPair empty_ips;
 };
-const std::string AllowAllEgressPolicyInstanceImpl::empty_string = "";
-const IpAddressPair AllowAllEgressPolicyInstanceImpl::empty_ips{};
+const IpAddressPair AllowAllEgressPolicyImpl::empty_ips{};
 
-PolicyInstance& NetworkPolicyMap::getAllowAllEgressPolicy() {
-  static AllowAllEgressPolicyInstanceImpl allow_all_egress_policy;
-  return allow_all_egress_policy;
+const PolicyInstance NetworkPolicyMap::getAllowAllEgressPolicy() {
+  static AllowAllEgressPolicyImpl allow_all_egress_policy;
+  return {allow_all_egress_policy};
 }
 
 // Deny-all policy
-class DenyAllPolicyInstanceImpl : public PolicyInstance {
+class DenyAllPolicyImpl : public Policy {
 public:
-  DenyAllPolicyInstanceImpl() = default;
+  DenyAllPolicyImpl() = default;
 
   bool allowed(bool, uint16_t, uint32_t, uint16_t, Envoy::Http::RequestHeaderMap&,
                Cilium::AccessLog::Entry&) const override {
-    return false;
-  }
-
-  bool allowed(bool, uint16_t, uint32_t, absl::string_view, uint16_t) const override {
     return false;
   }
 
@@ -2282,35 +2270,34 @@ public:
 
   const IpAddressPair& getEndpointIPs() const override { return empty_ips; }
 
-  std::string string() const override { return "DenyAllPolicyInstanceImpl"; }
+  std::string string() const override { return "DenyAllPolicyImpl"; }
 
   void tlsWrapperMissingPolicyInc() const override {}
 
 private:
   PolicySnapshot empty_map_;
-  static const std::string empty_string;
   static const IpAddressPair empty_ips;
 };
-const std::string DenyAllPolicyInstanceImpl::empty_string = "";
-const IpAddressPair DenyAllPolicyInstanceImpl::empty_ips{};
+const IpAddressPair DenyAllPolicyImpl::empty_ips{};
 
-PolicyInstance& NetworkPolicyMap::getDenyAllPolicy() {
-  static DenyAllPolicyInstanceImpl deny_all_policy;
-  return deny_all_policy;
+const PolicyInstance NetworkPolicyMap::getDenyAllPolicy() {
+  static DenyAllPolicyImpl deny_all_policy;
+  return {deny_all_policy};
 }
 
-const PolicyInstance*
-NetworkPolicyMapImpl::getPolicyInstanceImpl(const std::string& endpoint_ip) const {
+const PolicyInstance NetworkPolicyMapImpl::getPolicyInstance(const std::string& endpoint_ip,
+                                                             bool allow_egress) const {
   const auto* map = load();
   auto it = map->find(endpoint_ip);
   if (it != map->end()) {
-    return it->second.get();
+    return {*it->second};
   }
-  return nullptr;
+  return allow_egress ? NetworkPolicyMap::getAllowAllEgressPolicy()
+                      : NetworkPolicyMap::getDenyAllPolicy();
 }
 
-PolicyInstanceConstSharedPtr
-NetworkPolicyMapImpl::getPolicyInstanceSharedImpl(const std::string& endpoint_ip) const {
+std::shared_ptr<const Policy>
+NetworkPolicyMapImpl::getPolicyShared(const std::string& endpoint_ip) const {
   const auto* map = load();
   auto it = map->find(endpoint_ip);
   if (it != map->end()) {
@@ -2319,21 +2306,10 @@ NetworkPolicyMapImpl::getPolicyInstanceSharedImpl(const std::string& endpoint_ip
   return nullptr;
 }
 
-// getPolicyInstance return a const reference to a policy in the policy map for the given
-// 'endpoint_ip'. If there is no policy for the given IP, a default policy is returned,
-// controlled by the 'default_allow_egress' argument as follows:
-//
-// 'false' - a deny all policy is returned,
-// 'true' -  a deny all ingress / allow all egress is returned.
-//
-// Returning a default deny policy makes the caller report a "policy deny" rather than "internal
-// server error" if no policy is found. This mirrors what bpf datapath does if no policy entry is
-// found in the bpf policy map. The default deny for ingress with default allow for egress is needed
-// for Cilium Ingress when there is no egress policy enforcement for the Ingress traffic.
-const PolicyInstance& NetworkPolicyMap::getPolicyInstance(const std::string& endpoint_ip,
-                                                          bool default_allow_egress) const {
-  const auto* policy = impl_->getPolicyInstanceImpl(endpoint_ip);
-  return policy ? *policy : default_allow_egress ? getAllowAllEgressPolicy() : getDenyAllPolicy();
+// Missing policies deny ingress and optionally allow egress for Cilium Ingress listeners.
+const PolicyInstance NetworkPolicyMap::getPolicyInstance(const std::string& endpoint_ip,
+                                                         bool default_allow_egress) const {
+  return impl_->getPolicyInstance(endpoint_ip, default_allow_egress);
 }
 
 } // namespace Cilium

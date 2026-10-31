@@ -29,12 +29,14 @@ class ManagedGrpcSubscription : public Event::DispatcherThreadDeletable,
                                 public Logger::Loggable<Logger::Id::config>,
                                 public std::enable_shared_from_this<ManagedGrpcSubscription> {
 public:
-  using DecoderFactory = std::function<Envoy::Config::OpaqueResourceDecoderSharedPtr()>;
+  using DecoderFactory =
+      std::function<Envoy::Config::OpaqueResourceDecoderSharedPtr(absl::string_view type_url)>;
   using SubscriptionFactoryForTest =
       std::function<std::unique_ptr<Envoy::Config::Subscription>(bool use_delta_xds)>;
 
-  ManagedGrpcSubscription(absl::string_view type_url, DecoderFactory decoder_factory,
+  ManagedGrpcSubscription(absl::string_view type_url,
                           const envoy::config::core::v3::ConfigSource& config_source,
+                          DecoderFactory decoder_factory,
                           Server::Configuration::CommonFactoryContext& context,
                           Stats::ScopeSharedPtr scope, bool subscribe = true);
   ~ManagedGrpcSubscription() override = default;
@@ -59,6 +61,14 @@ protected:
 
   Stats::Scope& scope() { return *scope_; }
 
+  bool usesDeltaXds() const {
+    if (!config_source_.has_api_config_source()) {
+      return false;
+    }
+    const auto& api_type = config_source_.api_config_source().api_type();
+    return api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC ||
+           api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC;
+  }
   bool connected() const { return connected_; }
   bool started() const { return started_; }
   uint64_t streamGeneration() const { return stream_generation_; }

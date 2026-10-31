@@ -2991,15 +2991,16 @@ resources:
 )EOF";
 
   EXPECT_NO_THROW(updateFromYaml(policy_yaml));
-  auto old_policy = CiliumTestPeer::policyInstanceShared(*policy_map_, "10.1.2.3");
-  ASSERT_NE(old_policy, nullptr);
+  auto old_policy_owner = CiliumTestPeer::policyShared(*policy_map_, "10.1.2.3");
+  ASSERT_NE(old_policy_owner, nullptr);
+  const auto old_policy = policy_map_->getPolicyInstance("10.1.2.3", false);
 
   CiliumTestPeer::resetStream(*policy_map_);
   EXPECT_NO_THROW(updateFromYaml(policy_yaml));
 
   Http::TestRequestHeaderMapImpl old_headers{{"x-secret", "header-value"}};
   Cilium::AccessLog::Entry old_log_entry;
-  EXPECT_TRUE(old_policy->allowed(true, proxy_id_, 43, 80, old_headers, old_log_entry));
+  EXPECT_TRUE(old_policy.allowed(true, proxy_id_, 43, 80, old_headers, old_log_entry));
   EXPECT_TRUE(ingressAllowed("10.1.2.3", 43, 80, {{"x-secret", "header-value"}}));
 }
 
@@ -3018,9 +3019,10 @@ resources:
 )EOF";
 
   EXPECT_NO_THROW(updateFromYaml(policy_yaml));
-  auto old_policy = CiliumTestPeer::policyInstanceShared(*policy_map_, "10.1.2.3");
-  ASSERT_NE(old_policy, nullptr);
-  const auto* old_config = tlsContextConfig(*old_policy, true, 43, 443);
+  auto old_policy_owner = CiliumTestPeer::policyShared(*policy_map_, "10.1.2.3");
+  ASSERT_NE(old_policy_owner, nullptr);
+  const auto old_policy = policy_map_->getPolicyInstance("10.1.2.3", false);
+  const auto* old_config = tlsContextConfig(old_policy, true, 43, 443);
 
   CiliumTestPeer::resetStream(*policy_map_);
   EXPECT_NO_THROW(updateFromYaml(policy_yaml));
@@ -3030,7 +3032,7 @@ resources:
   EXPECT_NE(old_config, new_config);
 
   // Resetting the cache must not invalidate contexts retained by the old policy map.
-  EXPECT_EQ(old_config, tlsContextConfig(*old_policy, true, 43, 443));
+  EXPECT_EQ(old_config, tlsContextConfig(old_policy, true, 43, 443));
 }
 
 TEST_F(CiliumNetworkPolicyTest, TlsPolicyUpdate) {
