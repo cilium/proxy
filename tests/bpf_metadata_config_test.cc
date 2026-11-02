@@ -14,6 +14,8 @@
 
 #include "envoy/api/api.h"
 #include "envoy/common/exception.h"
+#include "envoy/config/bootstrap/v3/bootstrap.pb.h"
+#include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/filesystem/watcher.h"
 #include "envoy/init/target.h"
 #include "envoy/init/watcher.h"
@@ -246,6 +248,9 @@ TEST_F(MetadataConfigTest, NprdsIngressUsesEndpointNamedPortsWithoutAnExternalHo
   ::cilium::BpfMetadata config;
   config.set_is_ingress(true);
   config.mutable_cilium_config_source()->mutable_ads();
+  context_.server_factory_context_.bootstrap_.mutable_dynamic_resources()
+      ->mutable_ads_config()
+      ->set_api_type(envoy::config::core::v3::ApiConfigSource::DELTA_GRPC);
   auto mux = std::make_shared<NiceMock<Config::MockGrpcMux>>();
   ON_CALL(context_.server_factory_context_.xds_manager_, adsMux())
       .WillByDefault(testing::Return(mux));
@@ -381,6 +386,9 @@ policy:
     - selectors: [backend-selector]
       precedence: 200
 )EOF"}};
+  context_.server_factory_context_.bootstrap_.mutable_dynamic_resources()
+      ->mutable_ads_config()
+      ->set_api_type(envoy::config::core::v3::ApiConfigSource::DELTA_GRPC);
   auto mux = std::make_shared<NiceMock<Config::MockGrpcMux>>();
   ON_CALL(context_.server_factory_context_.xds_manager_, adsMux())
       .WillByDefault(testing::Return(mux));

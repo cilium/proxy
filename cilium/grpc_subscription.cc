@@ -13,6 +13,7 @@
 #include "envoy/annotations/resource.pb.h"
 #include "envoy/common/callback.h"
 #include "envoy/common/exception.h"
+#include "envoy/config/bootstrap/v3/bootstrap.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/custom_config_validators.h"
 #include "envoy/config/grpc_mux.h"
@@ -126,6 +127,17 @@ const Protobuf::MethodDescriptor& sotwGrpcMethod(absl::string_view type_url) {
 
 } // namespace
 
+bool ManagedGrpcSubscription::usesDeltaXds() const {
+  const auto& config_source = current_config_.config_source_;
+  // ADS transport is configured in the bootstrap, not in the subscription's ads: {} source.
+  const auto& api_config_source = config_source.has_ads()
+                                      ? context_.bootstrap().dynamic_resources().ads_config()
+                                      : config_source.api_config_source();
+  const auto api_type = api_config_source.api_type();
+  return api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC ||
+         api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC;
+}
+
 void ManagedGrpcSubscription::create() {
   auto initial_fetch_timeout =
       Config::Utility::configSourceInitialFetchTimeout(current_config_.config_source_);
@@ -155,9 +167,7 @@ void ManagedGrpcSubscription::create() {
         Config::Utility::parseRateLimitSettings(api_config_source);
     THROW_IF_NOT_OK_REF(rate_limit_settings_or_error.status());
 
-    const auto& api_type = api_config_source.api_type();
-    bool use_delta = api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC ||
-                     api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC;
+    const bool use_delta = usesDeltaXds();
     const auto& service_method = use_delta ? deltaGrpcMethod(type_url) : sotwGrpcMethod(type_url);
 
     Config::GrpcMuxContext grpc_mux_context{
@@ -203,7 +213,7 @@ void ManagedGrpcSubscription::create() {
 
 ManagedGrpcSubscription::ManagedGrpcSubscription(
     absl::string_view type_url, const envoy::config::core::v3::ConfigSource& config_source,
-    DecoderFactory decoder_factory, Server::Configuration::CommonFactoryContext& context,
+    DecoderFactory decoder_factory, Server::Configuration::ServerFactoryContext& context,
     Stats::ScopeSharedPtr scope, bool do_subscribe)
     : desired_config_(XdsConfig{type_url, config_source}), current_config_(desired_config_),
       decoder_factory_(std::move(decoder_factory)), context_(context), scope_(scope) {
@@ -227,6 +237,10 @@ void ManagedGrpcSubscription::subscribe(absl::string_view type_url) {
   ++subscription_id_;
 
   try {
+    if (current_config_.type_url_ == NetworkPolicyResourceTypeUrl && !usesDeltaXds()) {
+      // NPRDS is Delta-only. Retain the desired capability for later SotW-to-Delta transitions.
+      current_config_.type_url_ = NetworkPolicyTypeUrl;
+    }
     if (factory_for_test_) {
       subscription_ = factory_for_test_(usesDeltaXds());
     } else {

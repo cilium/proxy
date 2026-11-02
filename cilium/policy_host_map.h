@@ -72,7 +72,7 @@ struct PolicyHostsStats {
 // NPHDS subscription publishing shared immutable HostMap snapshots to worker slots.
 class PolicyHostMap : public Singleton::Instance, public ManagedGrpcSubscription {
 public:
-  PolicyHostMap(Server::Configuration::CommonFactoryContext& context,
+  PolicyHostMap(Server::Configuration::ServerFactoryContext& context,
                 const envoy::config::core::v3::ConfigSource& config_source, bool subscribe = true);
   ~PolicyHostMap() override {
     ENVOY_LOG(debug, "Cilium PolicyHostMap({}): PolicyHostMap is deleted NOW!", name_);

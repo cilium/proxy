@@ -14,6 +14,7 @@
 
 #include "envoy/common/exception.h"
 #include "envoy/common/optref.h"
+#include "envoy/config/bootstrap/v3/bootstrap.pb.h"
 #include "envoy/config/core/v3/address.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/grpc_mux.h"
@@ -448,45 +449,50 @@ TEST_F(CiliumNetworkPolicyTest, UpdatesRejectedStatName) {
   EXPECT_EQ("cilium.policy.updates_rejected", updatesRejectedStatName());
 }
 
-TEST_F(CiliumNetworkPolicyTest, ManagedSubscriptionColdStartUsesConfiguredSotwMode) {
-  auto state = std::make_shared<FakeSubscriptionState>();
-  std::vector<bool> created_modes;
-  setSubscriptionFactoryForTest(
-      [state, &created_modes](bool use_delta_xds) -> std::unique_ptr<Envoy::Config::Subscription> {
-        created_modes.push_back(use_delta_xds);
-        return std::make_unique<FakeSubscription>(state);
-      });
+TEST_F(CiliumNetworkPolicyTest, ManagedSubscriptionSelectsPolicyProtocolForTransport) {
+  const struct {
+    const char* name;
+    bool ads;
+    bool delta;
+  } test_cases[] = {
+      {"split SotW", false, false},
+      {"split Delta", false, true},
+      {"ADS SotW", true, false},
+      {"ADS Delta", true, true},
+  };
+  for (const auto& test_case : test_cases) {
+    SCOPED_TRACE(test_case.name);
+    auto config_source = configSourceForUseDeltaXds(test_case.delta);
+    // Explicit sources must ignore the bootstrap ADS transport.
+    const bool ads_delta = test_case.ads ? test_case.delta : !test_case.delta;
+    factory_context_.server_factory_context_.bootstrap_.mutable_dynamic_resources()
+        ->mutable_ads_config()
+        ->set_api_type(ads_delta ? envoy::config::core::v3::ApiConfigSource::DELTA_GRPC
+                                 : envoy::config::core::v3::ApiConfigSource::GRPC);
+    if (test_case.ads) {
+      config_source.mutable_ads();
+    }
+    CiliumTestPeer::setSubscription(*policy_map_, nullptr);
+    policy_map_->configure(config_source);
+    auto state = std::make_shared<FakeSubscriptionState>();
+    std::vector<bool> created_modes;
+    setSubscriptionFactoryForTest(
+        [state, &created_modes](bool use_delta_xds) -> std::unique_ptr<Config::Subscription> {
+          created_modes.push_back(use_delta_xds);
+          return std::make_unique<FakeSubscription>(state);
+        });
 
-  startManagedSubscriptionForTest();
+    startManagedSubscriptionForTest();
 
-  ASSERT_EQ(created_modes.size(), 1);
-  EXPECT_FALSE(created_modes.front());
-  EXPECT_FALSE(configuredUseDeltaXds());
-  EXPECT_FALSE(subscriptionUseDeltaXdsForTest());
-  ASSERT_EQ(state->start_calls_, 1);
-  EXPECT_TRUE(state->start_resources_.front().empty());
+    EXPECT_THAT(created_modes, testing::ElementsAre(test_case.delta));
+    EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_),
+              test_case.delta ? NetworkPolicyResourceTypeUrl : NetworkPolicyTypeUrl);
+    ASSERT_EQ(state->start_calls_, 1);
+    EXPECT_TRUE(state->start_resources_.front().empty());
+  }
 }
 
-TEST_F(CiliumNetworkPolicyDeltaTest, ManagedSubscriptionColdStartUsesConfiguredDeltaMode) {
-  auto state = std::make_shared<FakeSubscriptionState>();
-  std::vector<bool> created_modes;
-  setSubscriptionFactoryForTest(
-      [state, &created_modes](bool use_delta_xds) -> std::unique_ptr<Envoy::Config::Subscription> {
-        created_modes.push_back(use_delta_xds);
-        return std::make_unique<FakeSubscription>(state);
-      });
-
-  startManagedSubscriptionForTest();
-
-  ASSERT_EQ(created_modes.size(), 1);
-  EXPECT_TRUE(created_modes.front());
-  EXPECT_TRUE(configuredUseDeltaXds());
-  EXPECT_TRUE(subscriptionUseDeltaXdsForTest());
-  ASSERT_EQ(state->start_calls_, 1);
-  EXPECT_TRUE(state->start_resources_.front().empty());
-}
-
-TEST_F(CiliumNetworkPolicyTest, EmptyInitialResponseNegotiatesEachStream) {
+TEST_F(CiliumNetworkPolicyDeltaTest, EmptyInitialResponseNegotiatesEachStream) {
   auto state = std::make_shared<FakeSubscriptionState>();
   setSubscriptionFactoryForTest(
       [state](bool) { return std::make_unique<FakeSubscription>(state); });
@@ -512,56 +518,53 @@ resources:
   endpoint_ips: [10.1.2.4]
 )EOF";
   const auto address = Network::Utility::parseInternetAddressNoThrow("10.2.3.4");
-  for (bool delta : {false, true}) {
-    SCOPED_TRACE(delta);
-    setPolicyConfig(delta);
-    startManagedSubscriptionForTest();
-    onSubscriptionConnectedForTest();
-    EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
-    ASSERT_TRUE(nprdsUpdateFromYaml(nprds, !delta).ok());
-    EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  setPolicyConfig(true);
+  startManagedSubscriptionForTest();
+  onSubscriptionConnectedForTest();
+  EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
+  ASSERT_TRUE(nprdsUpdateFromYaml(nprds, false).ok());
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
 
-    // An empty later update does not negotiate again.
-    ASSERT_TRUE(nprdsUpdateFromYaml("resources: []", !delta).ok());
-    EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
-    ASSERT_TRUE(nprdsUpdateFromYaml(nprds, !delta).ok());
-    EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
-    const auto accepted = policyShared("10.1.2.3");
-    ASSERT_NE(accepted, nullptr);
+  // An empty later update does not negotiate again.
+  ASSERT_TRUE(nprdsUpdateFromYaml("resources: []", false).ok());
+  EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
+  ASSERT_TRUE(nprdsUpdateFromYaml(nprds, false).ok());
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  const auto accepted = policyShared("10.1.2.3");
+  ASSERT_NE(accepted, nullptr);
 
-    onSubscriptionTransportCloseForTest();
-    onSubscriptionConnectedForTest();
-    const auto before_fallback = state->start_calls_;
-    ASSERT_TRUE(nprdsUpdateFromYaml("resources: []", !delta).ok());
-    EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyTypeUrl);
-    EXPECT_EQ(state->start_calls_, before_fallback + 1);
-    EXPECT_EQ(policyShared("10.1.2.3"), accepted);
-    ASSERT_TRUE(policy_map_->resolvePolicyInfo(address->ip()).has_value());
-    EXPECT_EQ(policy_map_->resolvePolicyInfo(address->ip())->identity_, 43);
+  onSubscriptionTransportCloseForTest();
+  onSubscriptionConnectedForTest();
+  const auto before_fallback = state->start_calls_;
+  ASSERT_TRUE(nprdsUpdateFromYaml("resources: []", false).ok());
+  EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyTypeUrl);
+  EXPECT_EQ(state->start_calls_, before_fallback + 1);
+  EXPECT_EQ(policyShared("10.1.2.3"), accepted);
+  ASSERT_TRUE(policy_map_->resolvePolicyInfo(address->ip()).has_value());
+  EXPECT_EQ(policy_map_->resolvePolicyInfo(address->ip())->identity_, 43);
 
-    // Listener recreation with the same source must not restart negotiation.
-    setPolicyConfig(delta);
-    EXPECT_EQ(state->start_calls_, before_fallback + 1);
-    onSubscriptionConnectedForTest();
-    updateFromYaml(npds);
-    EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
-    EXPECT_TRUE(policy_map_->exists("10.1.2.4"));
-    EXPECT_FALSE(policy_map_->resolvePolicyInfo(address->ip()).has_value());
-    EXPECT_TRUE(subscriptionCallbacks().onConfigUpdate({}, "2").ok());
-    EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyTypeUrl);
-    EXPECT_FALSE(policy_map_->exists("10.1.2.4"));
+  // Listener recreation with the same source must not restart negotiation.
+  setPolicyConfig(true);
+  EXPECT_EQ(state->start_calls_, before_fallback + 1);
+  onSubscriptionConnectedForTest();
+  updateFromYaml(npds);
+  EXPECT_FALSE(policy_map_->exists("10.1.2.3"));
+  EXPECT_TRUE(policy_map_->exists("10.1.2.4"));
+  EXPECT_FALSE(policy_map_->resolvePolicyInfo(address->ip()).has_value());
+  EXPECT_TRUE(subscriptionCallbacks().onConfigUpdate({}, "2").ok());
+  EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyTypeUrl);
+  EXPECT_FALSE(policy_map_->exists("10.1.2.4"));
 
-    onSubscriptionTransportCloseForTest();
-    onSubscriptionConnectedForTest();
-    EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
-    ASSERT_TRUE(nprdsUpdateFromYaml(nprds, !delta).ok());
-    EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
-    ASSERT_TRUE(policy_map_->resolvePolicyInfo(address->ip()).has_value());
-    EXPECT_EQ(policy_map_->resolvePolicyInfo(address->ip())->identity_, 43);
-  }
+  onSubscriptionTransportCloseForTest();
+  onSubscriptionConnectedForTest();
+  EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
+  ASSERT_TRUE(nprdsUpdateFromYaml(nprds, false).ok());
+  EXPECT_TRUE(policy_map_->exists("10.1.2.3"));
+  ASSERT_TRUE(policy_map_->resolvePolicyInfo(address->ip()).has_value());
+  EXPECT_EQ(policy_map_->resolvePolicyInfo(address->ip())->identity_, 43);
 }
 
-TEST_F(CiliumNetworkPolicyTest, UnimplementedOnlyFallsBackBeforeAnyResponse) {
+TEST_F(CiliumNetworkPolicyDeltaTest, UnimplementedOnlyFallsBackBeforeAnyResponse) {
   auto state = std::make_shared<FakeSubscriptionState>();
   setSubscriptionFactoryForTest(
       [state](bool) { return std::make_unique<FakeSubscription>(state); });
@@ -579,7 +582,7 @@ TEST_F(CiliumNetworkPolicyTest, UnimplementedOnlyFallsBackBeforeAnyResponse) {
               rejected_response ? NetworkPolicyResourceTypeUrl : NetworkPolicyTypeUrl);
     if (rejected_response) {
       // Empty data after a rejected first response is an ordinary NPRDS update.
-      EXPECT_TRUE(subscriptionCallbacks().onConfigUpdate({}, "1").ok());
+      EXPECT_TRUE(subscriptionCallbacks().onConfigUpdate({}, {}, "1").ok());
       EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
     }
   }
@@ -618,7 +621,8 @@ resources:
   reject_replacement = false;
   onSubscriptionTransportCloseForTest();
   EXPECT_TRUE(subscriptionUseDeltaXdsForTest());
-  EXPECT_EQ(state->start_calls_, 3);
+  EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
+  EXPECT_EQ(state->start_calls_, 2);
 }
 
 TEST_F(CiliumNetworkPolicyTest,
@@ -634,10 +638,12 @@ TEST_F(CiliumNetworkPolicyTest,
   startManagedSubscriptionForTest();
   onSubscriptionConnectedForTest();
   ASSERT_TRUE(subscriptionConnectedForTest());
+  EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyTypeUrl);
 
   setPolicyConfig(true);
 
   EXPECT_TRUE(configuredUseDeltaXds());
+  EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
   EXPECT_TRUE(subscriptionUseDeltaXdsForTest());
   EXPECT_FALSE(subscriptionConnectedForTest());
   EXPECT_THAT(created_modes, testing::ElementsAre(false, true));
@@ -646,49 +652,57 @@ TEST_F(CiliumNetworkPolicyTest,
 }
 
 TEST_F(CiliumNetworkPolicyTest, TransportChangeFromDeltaToSotwOnHealthySubscriptionWaitsForClose) {
-  auto state = std::make_shared<FakeSubscriptionState>();
-  std::vector<bool> created_modes;
-  setSubscriptionFactoryForTest(
-      [state, &created_modes](bool use_delta_xds) -> std::unique_ptr<Envoy::Config::Subscription> {
-        created_modes.push_back(use_delta_xds);
-        return std::make_unique<FakeSubscription>(state);
-      });
+  for (bool ads : {false, true}) {
+    SCOPED_TRACE(ads);
+    auto config_source = configSourceForUseDeltaXds(true);
+    if (ads) {
+      config_source.mutable_ads();
+      factory_context_.server_factory_context_.bootstrap_.mutable_dynamic_resources()
+          ->mutable_ads_config()
+          ->set_api_type(envoy::config::core::v3::ApiConfigSource::DELTA_GRPC);
+    }
+    CiliumTestPeer::setSubscription(*policy_map_, nullptr);
+    policy_map_->configure(config_source);
+    auto state = std::make_shared<FakeSubscriptionState>();
+    std::vector<bool> created_modes;
+    setSubscriptionFactoryForTest(
+        [state, &created_modes](bool use_delta_xds) -> std::unique_ptr<Config::Subscription> {
+          created_modes.push_back(use_delta_xds);
+          return std::make_unique<FakeSubscription>(state);
+        });
 
-  startManagedSubscriptionForTest();
-  onSubscriptionConnectedForTest();
-  ASSERT_TRUE(subscriptionConnectedForTest());
-  ASSERT_FALSE(subscriptionUseDeltaXdsForTest());
+    startManagedSubscriptionForTest();
+    onSubscriptionConnectedForTest();
+    ASSERT_TRUE(subscriptionConnectedForTest());
+    ASSERT_TRUE(subscriptionUseDeltaXdsForTest());
+    ASSERT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
 
-  setPolicyConfig(true);
+    setPolicyConfig(false);
 
-  EXPECT_TRUE(configuredUseDeltaXds());
-  EXPECT_TRUE(subscriptionUseDeltaXdsForTest());
-  EXPECT_FALSE(subscriptionConnectedForTest());
-  EXPECT_THAT(created_modes, testing::ElementsAre(false, true));
-  EXPECT_EQ(state->start_calls_, 2);
-  EXPECT_TRUE(state->start_resources_.back().empty());
+    EXPECT_FALSE(configuredUseDeltaXds());
+    EXPECT_TRUE(subscriptionUseDeltaXdsForTest());
+    EXPECT_TRUE(subscriptionConnectedForTest());
+    EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
+    EXPECT_THAT(created_modes, testing::ElementsAre(true));
+    EXPECT_EQ(state->start_calls_, 1);
 
-  onSubscriptionConnectedForTest();
-  ASSERT_TRUE(subscriptionConnectedForTest());
-  ASSERT_TRUE(subscriptionUseDeltaXdsForTest());
+    onSubscriptionTransportCloseForTest();
 
-  setPolicyConfig(false);
+    EXPECT_FALSE(subscriptionConnectedForTest());
+    EXPECT_FALSE(subscriptionUseDeltaXdsForTest());
+    EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyTypeUrl);
+    EXPECT_THAT(created_modes, testing::ElementsAre(true, false));
+    EXPECT_EQ(state->start_calls_, 2);
+    EXPECT_TRUE(state->start_resources_.back().empty());
 
-  EXPECT_FALSE(configuredUseDeltaXds());
-  EXPECT_TRUE(subscriptionUseDeltaXdsForTest());
-  EXPECT_TRUE(subscriptionConnectedForTest());
-  // Once we have an established delta subscription, keep it until transport close even if the
-  // configured desired mode flips back to SotW.
-  EXPECT_THAT(created_modes, testing::ElementsAre(false, true));
-  EXPECT_EQ(state->start_calls_, 2);
-
-  onSubscriptionTransportCloseForTest();
-
-  EXPECT_FALSE(subscriptionConnectedForTest());
-  EXPECT_FALSE(subscriptionUseDeltaXdsForTest());
-  EXPECT_THAT(created_modes, testing::ElementsAre(false, true, false));
-  EXPECT_EQ(state->start_calls_, 3);
-  EXPECT_TRUE(state->start_resources_.back().empty());
+    // Selecting NPDS on SotW must not discard the desired NPRDS capability.
+    onSubscriptionConnectedForTest();
+    setPolicyConfig(true);
+    EXPECT_TRUE(subscriptionUseDeltaXdsForTest());
+    EXPECT_EQ(CiliumTestPeer::subscriptionTypeUrl(*policy_map_), NetworkPolicyResourceTypeUrl);
+    EXPECT_THAT(created_modes, testing::ElementsAre(true, false, true));
+    EXPECT_EQ(state->start_calls_, 3);
+  }
 }
 
 TEST_F(CiliumNetworkPolicyTest, TransportChangeWhileDisconnectedRecreatesImmediately) {

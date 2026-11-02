@@ -11,7 +11,6 @@
 #include "envoy/config/subscription.h"
 #include "envoy/event/dispatcher_thread_deletable.h"
 #include "envoy/server/factory_context.h"
-#include "envoy/ssl/context_manager.h"
 #include "envoy/stats/scope.h"
 
 #include "source/common/common/logger.h"
@@ -41,7 +40,7 @@ public:
   ManagedGrpcSubscription(absl::string_view type_url,
                           const envoy::config::core::v3::ConfigSource& config_source,
                           DecoderFactory decoder_factory,
-                          Server::Configuration::CommonFactoryContext& context,
+                          Server::Configuration::ServerFactoryContext& context,
                           Stats::ScopeSharedPtr scope, bool subscribe = true);
   ~ManagedGrpcSubscription() override = default;
 
@@ -72,14 +71,7 @@ protected:
   Stats::Scope& scope() { return *scope_; }
 
   absl::string_view getTypeUrl() const { return current_config_.type_url_; }
-  bool usesDeltaXds() const {
-    if (!current_config_.config_source_.has_api_config_source()) {
-      return false;
-    }
-    const auto& api_type = current_config_.config_source_.api_config_source().api_type();
-    return api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC ||
-           api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC;
-  }
+  bool usesDeltaXds() const;
   bool connected() const { return connected_; }
   bool started() const { return started_; }
   uint64_t streamGeneration() const { return stream_generation_; }
@@ -97,13 +89,13 @@ private:
     envoy::config::core::v3::ConfigSource config_source_;
   };
 
-  // The desired type is fixed for the lifetime of the subscription. Policy streams prefer NPRDS
-  // and may fall back to NPDS until the transport closes; listener updates only change the source.
+  // The desired capability is fixed: policy streams probe NPRDS on Delta and use NPDS on SotW.
+  // A Delta probe may fall back to NPDS until transport close; listener updates change the source.
   XdsConfig desired_config_;
   XdsConfig current_config_;
 
   DecoderFactory decoder_factory_;
-  Server::Configuration::CommonFactoryContext& context_;
+  Server::Configuration::ServerFactoryContext& context_;
   Stats::ScopeSharedPtr scope_;
 
   Common::CallbackHandlePtr stream_event_handle_;

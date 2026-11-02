@@ -363,15 +363,11 @@ public:
     createXdsStream(ads_stream_);
   }
 
-  void negotiateNpdsOverAds() {
+  void waitForNpdsRequestOverAds() {
     envoy::service::discovery::v3::DiscoveryRequest request;
     do {
       ASSERT_TRUE(ads_stream_->waitForGrpcMessage(*dispatcher_, request));
-    } while (request.type_url() != NetworkPolicyResourceTypeUrl);
-    EXPECT_FALSE(request.has_error_detail());
-    sendNprdsResponse(*ads_stream_, "unsupported", {});
-    do {
-      ASSERT_TRUE(ads_stream_->waitForGrpcMessage(*dispatcher_, request));
+      ASSERT_NE(request.type_url(), NetworkPolicyResourceTypeUrl);
     } while (request.type_url() != NetworkPolicyTypeUrl);
     EXPECT_FALSE(request.has_error_detail());
   }
@@ -401,6 +397,7 @@ public:
       }
 
       if (request_type_url == NetworkPolicyResourceTypeUrl) {
+        EXPECT_TRUE(is_delta);
         ENVOY_LOG_MISC(info, "GOT NPRDS STREAM");
         nprds_stream_ = std::move(stream);
         if (request_type_url == type_url && is_delta == expect_delta) {
@@ -492,25 +489,6 @@ public:
     }
     for (const auto& policy_config : proto_configs) {
       std::ignore = response.add_resources()->PackFrom(policy_config);
-    }
-    stream.sendGrpcMessage(response);
-  }
-
-  void sendNprdsResponse(FakeStream& stream, const std::string& version,
-                         const std::vector<NetworkPolicyResourceConfig>& resource_configs = {
-                             selector1_resource, selector2_resource, policy42_resource,
-                             endpoint42_resource, policy43_resource, endpoint43_resource}) {
-    envoy::service::discovery::v3::DiscoveryResponse response;
-    response.set_version_info(version);
-    response.set_nonce(version);
-    response.set_type_url(NetworkPolicyResourceTypeUrl);
-    for (const auto& resource_config : resource_configs) {
-      envoy::service::discovery::v3::Resource resource;
-      resource.set_name(resource_config.name);
-      resource.set_version(resource_config.version);
-      std::ignore = resource.mutable_resource()->PackFrom(
-          TestUtility::parseYaml<cilium::NetworkPolicyResource>(resource_config.yaml));
-      std::ignore = response.add_resources()->PackFrom(resource);
     }
     stream.sendGrpcMessage(response);
   }
@@ -727,7 +705,7 @@ TEST_P(BpfMetadataIntegrationTest, BpfMetadataWithNpdsAndNpdhsViaAds) {
 
   test_server_->waitForCounter("listener_manager.lds.update_success", testing::Ge(1));
   EXPECT_EQ(test_server_->server().listenerManager().listeners().size(), 1);
-  negotiateNpdsOverAds();
+  waitForNpdsRequestOverAds();
   sendNpdsResponse(*ads_stream_, "1");
   test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(1));
   sendNphdsResponse(*ads_stream_, "1");
@@ -750,7 +728,7 @@ TEST_P(BpfMetadataIntegrationTest, AdsPolicyMapsSurviveLastListenerRemoval) {
   initializeAds();
 
   test_server_->waitForCounter("listener_manager.lds.update_success", testing::Ge(1));
-  negotiateNpdsOverAds();
+  waitForNpdsRequestOverAds();
   sendNpdsResponse(*ads_stream_, "1");
   test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(1));
   sendNphdsResponse(*ads_stream_, "1");
@@ -814,7 +792,7 @@ TEST_P(BpfMetadataIntegrationTest, AdsNpdsStartsAfterRejectedListeners) {
   sendLdsResponse(*ads_stream_, {MessageUtil::getYamlStringFromMessage(listener_config_)}, "3");
   test_server_->waitForCounter("listener_manager.lds.update_success", testing::Ge(1));
   test_server_->waitForCounter("cilium.npds.update_attempt", testing::Ge(1));
-  negotiateNpdsOverAds();
+  waitForNpdsRequestOverAds();
   sendNpdsResponse(*ads_stream_, "1");
   test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(1));
   EXPECT_TRUE(networkPolicyMap()->exists("10.1.1.1"));
@@ -838,7 +816,7 @@ TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedAdsGrpcSt
   test_server_->waitForCounter("listener_manager.lds.update_success", testing::Ge(1));
   EXPECT_EQ(policyStreamGeneration(), 0);
 
-  negotiateNpdsOverAds();
+  waitForNpdsRequestOverAds();
   sendNpdsResponse(*ads_stream_, "1");
   test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(1));
   const uint64_t first_generation = waitForPolicyStreamGenerationAfter(0);
@@ -882,45 +860,6 @@ TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedSotwGrpcS
   sendNpdsResponse(*npds_stream_, "4");
   test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(3));
   waitForPolicyStreamGenerationAfter(first_generation);
-}
-
-TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedSotwGrpcNprdsStreams) {
-  on_server_init_function_ = [&]() {
-    addBpfMetadataListenerFilter(listener_config_, /*use_ads=*/false,
-                                 envoy::config::core::v3::ApiConfigSource::GRPC);
-    createStreamsUntil("1", NetworkPolicyResourceTypeUrl);
-  };
-  initializeSotw();
-  test_server_->waitForCounter("listener_manager.lds.update_success", testing::Ge(1));
-
-  auto policy_map = networkPolicyMap();
-  EXPECT_EQ(policyStreamGeneration(), 0);
-
-  sendNprdsResponse(*nprds_stream_, "1",
-                    {selector1_resource, selector2_resource, policy42_resource, endpoint42_resource,
-                     policy43_resource, endpoint43_resource});
-  test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(1));
-  const uint64_t first_generation = waitForPolicyStreamGenerationAfter(0);
-  EXPECT_TRUE(policy_map->exists("10.1.2.3"));
-  EXPECT_TRUE(policy_map->exists("10.2.3.4"));
-
-  sendNprdsResponse(*nprds_stream_, "2",
-                    {selector3_resource, policy42_new_stream_resource, endpoint42_resource});
-  test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(2));
-  EXPECT_EQ(policyStreamGeneration(), first_generation);
-  EXPECT_TRUE(policy_map->exists("10.1.2.3"));
-  EXPECT_FALSE(policy_map->exists("10.2.3.4"));
-
-  resetConnections();
-  EXPECT_EQ(policyStreamGeneration(), first_generation);
-
-  createStreamsUntil("2", NetworkPolicyResourceTypeUrl);
-  sendNprdsResponse(*nprds_stream_, "3",
-                    {selector3_resource, policy42_new_stream_resource, endpoint42_resource});
-  test_server_->waitForCounter("cilium.policy.update_success", testing::Ge(3));
-  waitForPolicyStreamGenerationAfter(first_generation);
-  EXPECT_TRUE(policy_map->exists("10.1.2.3"));
-  EXPECT_FALSE(policy_map->exists("10.2.3.4"));
 }
 
 TEST_P(BpfMetadataIntegrationTest, PolicyStreamGenerationTracksAcceptedDeltaNpdsStreams) {
