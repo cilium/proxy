@@ -47,7 +47,7 @@ void insertHosts(HostMapBuilder& map, const cilium::NetworkPolicyHosts& proto) {
 
 uint64_t PolicyHostMap::instance_id_ = 0;
 
-PolicyHostMap::PolicyHostMap(Server::Configuration::CommonFactoryContext& context,
+PolicyHostMap::PolicyHostMap(Server::Configuration::ServerFactoryContext& context,
                              const envoy::config::core::v3::ConfigSource& config_source,
                              bool subscribe)
     : ManagedGrpcSubscription(
