@@ -1,6 +1,7 @@
 #include <fmt/format.h>
 #include <spdlog/common.h>
 
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -26,6 +27,7 @@
 #include "test/integration/base_integration_test.h"
 #include "test/integration/fake_upstream.h"
 #include "test/test_common/resources.h"
+#include "test/test_common/simulated_time_system.h"
 #include "test/test_common/utility.h"
 
 #include "absl/strings/string_view.h"
@@ -255,7 +257,7 @@ public:
       ads_config->set_set_node_on_first_message_only(true);
     });
 
-    // Must be last modifier — it removes static listeners.
+    // Move the initial bootstrap listener into the LDS configuration.
     setUpGrpcLds();
 
     BaseIntegrationTest::initialize();
@@ -272,7 +274,7 @@ public:
       setGrpcApiConfigSource(*cds_config);
     });
 
-    // Must be last modifier — it removes static listeners.
+    // Move the initial bootstrap listener into the LDS configuration.
     setUpGrpcLds(/*use_ads=*/false);
 
     BaseIntegrationTest::initialize();
@@ -581,6 +583,24 @@ public:
 INSTANTIATE_TEST_SUITE_P(IpVersionsAndGrpcTypes, BpfMetadataIntegrationTest,
                          GRPC_CLIENT_INTEGRATION_PARAMS);
 
+class BpfMetadataSimulatedTimeIntegrationTest : public Event::TestUsingSimulatedTime,
+                                                public BpfMetadataIntegrationTest {
+public:
+  void createEnvoy() override {
+    // Keep a static listening socket on the worker: simulated timers do not keep an empty
+    // libevent dispatch loop alive when all LDS listeners are rejected.
+    config_helper_.addConfigModifier([this](envoy::config::bootstrap::v3::Bootstrap& bootstrap) {
+      auto* listener = bootstrap.mutable_static_resources()->add_listeners();
+      *listener = listener_config_;
+      listener->set_name("plain-listener");
+    });
+    BpfMetadataIntegrationTest::createEnvoy();
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(IpVersionsAndGrpcTypes, BpfMetadataSimulatedTimeIntegrationTest,
+                         GRPC_CLIENT_INTEGRATION_PARAMS);
+
 TEST_P(BpfMetadataIntegrationTest, BpfMetadataWithNpdsAndNpdhsViaAds) {
   on_server_init_function_ = [&]() {
     createAdsStream();
@@ -651,7 +671,7 @@ TEST_P(BpfMetadataIntegrationTest, AdsPolicyMapsSurviveLastListenerRemoval) {
   EXPECT_EQ(resolveHostPolicyId("10.2.2.2"), 222);
 }
 
-TEST_P(BpfMetadataIntegrationTest, AdsNpdsStartsAfterRejectedListeners) {
+TEST_P(BpfMetadataSimulatedTimeIntegrationTest, AdsNpdsStartsAfterRejectedListeners) {
   envoy::config::listener::v3::Listener rejected_listener;
   on_server_init_function_ = [&]() {
     createAdsStream();
@@ -677,8 +697,9 @@ TEST_P(BpfMetadataIntegrationTest, AdsNpdsStartsAfterRejectedListeners) {
   sendLdsResponse(*ads_stream_,
                   std::vector<envoy::config::listener::v3::Listener>{rejected_listener}, "2");
   test_server_->waitForCounter("listener_manager.lds.update_rejected", testing::Ge(2));
-  EXPECT_TRUE(test_server_->server().listenerManager().listeners().empty());
+  EXPECT_EQ(test_server_->server().listenerManager().listeners().size(), 1);
   test_server_->waitForCounter("cilium.npds.update_attempt", testing::Eq(0));
+  simTime().advanceTimeWait(std::chrono::seconds(6));
 
   sendLdsResponse(*ads_stream_, {MessageUtil::getYamlStringFromMessage(listener_config_)}, "3");
   test_server_->waitForCounter("listener_manager.lds.update_success", testing::Ge(1));
