@@ -305,9 +305,10 @@ Config::Config(const ::cilium::BpfMetadata& config,
         pin_for_ads);
     // update desired config source on the map
     npmap_->configure(config_source_);
-    // The listener that created the map may have been rejected before NPDS started.
+    // Every listener waits for the first policy update. The listener that created the map was
+    // added in the map's constructor.
     if (!created) {
-      npmap_->maybeAddInitTarget(context.initManager());
+      npmap_->addInitTarget(context.initManager());
     }
   }
 }

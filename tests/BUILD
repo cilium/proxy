@@ -407,6 +407,7 @@ envoy_cc_test(
         "@envoy//test/common/grpc:grpc_client_integration_lib",
         "@envoy//test/integration:integration_lib",
         "@envoy//test/test_common:resources_lib",
+        "@envoy//test/test_common:simulated_time_system_lib",
         "@envoy//test/test_common:utility_lib",
     ],
 )
