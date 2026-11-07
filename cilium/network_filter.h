@@ -18,6 +18,7 @@
 #include "cilium/api/network_filter.pb.h"
 #include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
+#include "cilium/host_map.h"
 
 namespace Envoy {
 namespace Filter {
@@ -62,7 +63,7 @@ private:
   // or from upstream callback (l7 lb)
   bool enforceNetworkPolicy(const Cilium::CiliumPolicyFilterState* policy_fs,
                             Cilium::CiliumDestinationFilterState* dest_fs,
-                            uint32_t destination_identity,
+                            const Cilium::PolicyInfo& destination,
                             Network::Address::InstanceConstSharedPtr dst_address,
                             absl::string_view sni, StreamInfo::StreamInfo& stream_info);
 

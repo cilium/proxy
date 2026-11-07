@@ -44,6 +44,7 @@
 #include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
 #include "cilium/host_map.h"
+#include "cilium/policy_host_map.h"
 #include "cilium/ipcache.h"
 #include "cilium/network_policy.h"
 #include "cilium/policy_id.h"
@@ -290,49 +291,46 @@ Config::Config(const ::cilium::BpfMetadata& config,
     }
   }
 
-  // Get the shared policy provider, or create it if not already created.
-  // Note that the API config source is assumed to be the same for all filter
-  // instances!
-  // Only created if either ipcache_ or hosts_ map exists
-  if (ipcache_ || hosts_) {
-    bool created = false;
-    npmap_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::NetworkPolicyMap>(
-        SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
-        [&context, &created, config_source = config_source_] {
-          created = true;
-          return std::make_shared<Cilium::NetworkPolicyMap>(context, config_source);
-        },
-        pin_for_ads);
-    // update desired config source on the map
-    npmap_->configure(config_source_);
-    // The listener that created the map may have been rejected before NPDS started.
-    if (!created) {
-      npmap_->maybeAddInitTarget(context.initManager());
-    }
+  // Keep the legacy identity source available for fallback. Only a published NPDS snapshot
+  // uses it; NPRDS peer lookups remain authoritative while NPRDS policies are active.
+  bool created = false;
+  npmap_ = context.serverFactoryContext().singletonManager().getTyped<Cilium::NetworkPolicyMap>(
+      SINGLETON_MANAGER_REGISTERED_NAME(cilium_network_policy),
+      [&context, &created, config_source = config_source_] {
+        created = true;
+        return std::make_shared<Cilium::NetworkPolicyMap>(context, config_source);
+      },
+      pin_for_ads);
+  npmap_->configure(config_source_);
+  // The listener that created the map may have been rejected before the subscription started.
+  if (!created) {
+    npmap_->maybeAddInitTarget(context.initManager());
   }
 }
 
-uint32_t Config::resolvePolicyId(const Network::Address::Ip* ip) const {
-  uint32_t id = 0;
-
-  if (hosts_ != nullptr) {
-    id = hosts_->resolve(ip);
+PolicyInfo Config::resolvePolicyInfo(const Network::Address::Ip* ip) const {
+  PolicyInfo info;
+  const auto peer = npmap_->resolvePolicyInfo(ip);
+  if (peer) {
+    info = *peer;
+  } else if (hosts_ != nullptr) {
+    info = hosts_->resolve(ip);
   } else if (ipcache_ != nullptr) {
     std::chrono::microseconds ttl = ipcache_entry_ttl_;
     // subtract random jitter (0-1ms) if configured as at least 1ms
     if (ttl >= std::chrono::milliseconds(1)) {
       ttl -= std::chrono::microseconds(random_.random() % 1000);
     }
-    id = ipcache_->resolve(ip, ttl);
+    info = PolicyInfo{ipcache_->resolve(ip, ttl)};
   }
 
   // default destination identity to the world if needed
-  if (id == 0) {
-    id = Cilium::ID::WORLD;
+  if (info.identity_ == 0) {
+    info = HostMap::worldPolicyInfo();
     ENVOY_LOG(trace, "bpf_metadata: Identity for IP defaults to WORLD", ip->addressAsString());
   }
 
-  return id;
+  return info;
 }
 
 uint32_t Config::resolveSourceIdentity(const Network::Address::Ip* sip,
@@ -343,11 +341,10 @@ uint32_t Config::resolveSourceIdentity(const Network::Address::Ip* sip,
   if (ct_maps_ != nullptr) {
     source_identity = ct_maps_->lookupSrcIdentity(sip, dip, ingress);
   }
-  // Fall back to ipcache lookup if conntrack entry can not be located
+  // Fall back to host map or ipcache lookup if conntrack entry can not be located.
   if (source_identity == 0) {
-    source_identity = resolvePolicyId(sip);
+    source_identity = resolvePolicyInfo(sip).identity_;
   }
-
   return source_identity;
 }
 
@@ -387,17 +384,11 @@ const Network::Address::Ip* Config::selectIpVersion(const Network::Address::IpVe
   return nullptr;
 }
 
-const PolicyInstance& Config::getPolicy(const std::string& pod_ip) const {
-  // Allow all traffic for egress without a policy when 'is_l7lb_' is true,
-  // or if configured without bpf (npmap_ == nullptr).
+const PolicyInstance Config::getPolicy(const std::string& pod_ip) const {
+  // Allow egress without a policy when 'is_l7lb_' is true.
   // This is the case for L7 LB listeners only. This is needed to allow traffic forwarded by Cilium
   // Ingress (which is implemented as an egress listener!).
   bool allow_egress = !enforce_policy_on_l7lb_ && !is_ingress_ && is_l7lb_;
-  if (npmap_ == nullptr) {
-    return allow_egress ? NetworkPolicyMap::getAllowAllEgressPolicy()
-                        : NetworkPolicyMap::getDenyAllPolicy();
-  }
-
   return npmap_->getPolicyInstance(pod_ip, allow_egress);
 }
 
@@ -439,15 +430,18 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   }
 
   // Load the policy for the Pod that sends or receives traffic.
-  // Might change later on for North/South L7LB traffic.
-  // Use a pointer as we may need to change the policy in the case of "North/South L7 LB" below.
-  const auto* policy = &getPolicy(pod_ip);
+  const auto policy = getPolicy(pod_ip);
 
   // Resolve the source security ID from conntrack map, or from ip cache
   uint32_t source_identity = resolveSourceIdentity(sip, dip, is_ingress_);
 
-  // ingress_source_identity is non-zero when the egress path l7 LB should also enforce
-  // the ingress path policy using the original source identity.
+  // Resolve the original destination once. NPRDS egress uses its named ports and may refresh
+  // them after upstream selection. NPRDS pod ingress uses the bound Endpoint's named ports;
+  // legacy NPDS receives numeric ports resolved by the agent.
+  auto original_destination = resolvePolicyInfo(dip);
+
+  // The ingress source identity is non-zero when the egress path L7 LB should also enforce the
+  // ingress path policy using the original source identity.
   uint32_t ingress_source_identity = 0;
 
   // Use the configured IPv4/IPv6 Ingress IPs as starting point for the sources addresses
@@ -464,7 +458,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   if (is_l7lb_ && use_original_source_address_ /* East/West L7LB */) {
     // In case of east/west, L7 LB is only used for egress, so the local
     // endpoint is the source, and the other node is the destination.
-    if (policy->getEndpointID() == 0) {
+    if (policy.getEndpointID() == 0) {
       // Local pod not found. Original source address can only be used for local pods.
       ENVOY_LOG(warn,
                 "cilium.bpf_metadata (east/west L7 LB): Non-local pod can not use original "
@@ -474,8 +468,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     }
     // Use original source address with L7 LB for local endpoint sources if requested, as policy
     // enforcement after the proxy depends on it (i.e., for "east/west" LB).
-    source_addresses =
-        getIpAddressPairWithPort(src_address->ip()->port(), policy->getEndpointIPs());
+    source_addresses = getIpAddressPairWithPort(src_address->ip()->port(), policy.getEndpointIPs());
   } else if (is_l7lb_ && !use_original_source_address_ /* North/South L7 LB */) {
     // North/south L7 LB, assume the source security identity of the configured source addresses,
     // if any and policy for this identity exists.
@@ -496,7 +489,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
     }
 
     // Enforce pod policy only for local pods.
-    if (policy->getEndpointID() == 0) {
+    if (policy.getEndpointID() == 0) {
       pod_ip = ""; // source is not a local pod
     }
 
@@ -507,7 +500,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
           l7lb_policy_name_.empty() ? ingress_ip->addressAsString() : l7lb_policy_name_;
     }
 
-    // Resolve source identity for the Ingress address
+    // Resolve the source identity for the configured Ingress address.
     source_identity = resolvePolicyId(ingress_ip);
     if (source_identity == Cilium::ID::WORLD) {
       // No security ID available for the configured source IP
@@ -520,11 +513,9 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
 
     // Original source address is never used for north/south LB
     src_address = nullptr;
-  } else if (!use_original_source_address_ || (npmap_ != nullptr && npmap_->exists(other_ip))) {
+  } else if (!use_original_source_address_ || npmap_->exists(other_ip)) {
     // Otherwise only use the original source address if permitted and the destination is not
     // in the same node.
-    //
-    // If bpf root is not configured (npmap_ == nullptr) we assume all destinations are non-local!
     //
     // Original source address is not used
     src_address = nullptr;
@@ -537,7 +528,7 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
   if (is_l7lb_ && use_original_source_address_ /* E/W L7LB */) {
     // Mark with source endpoint ID for east/west l7 LB. This causes the upstream packets to be
     // processed by the the source endpoint's policy enforcement in the datapath.
-    mark = 0x0900 | policy->getEndpointID() << 16;
+    mark = 0x0900 | policy.getEndpointID() << 16;
   } else {
     // Mark with source identity
     uint32_t cluster_id = (source_identity >> 16) & 0xFF;
@@ -551,10 +542,10 @@ Config::extractSocketMetadata(Network::ConnectionSocket& socket) {
             mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_,
             ingress_policy_name, dip->port(), pod_ip);
   return {Cilium::BpfMetadata::SocketMetadata(
-      mark, ingress_source_identity, source_identity, is_ingress_, is_l7lb_, dip->port(),
-      std::move(pod_ip), std::move(ingress_policy_name), std::move(src_address),
-      std::move(source_addresses.ipv4_), std::move(source_addresses.ipv6_), std::move(dst_address),
-      shared_from_this(), proxy_id_, sni)};
+      mark, ingress_source_identity, source_identity, std::move(original_destination), is_ingress_,
+      is_l7lb_, dip->port(), std::move(pod_ip), std::move(ingress_policy_name),
+      std::move(src_address), std::move(source_addresses.ipv4_), std::move(source_addresses.ipv6_),
+      std::move(dst_address), shared_from_this(), proxy_id_, sni)};
 }
 
 Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {

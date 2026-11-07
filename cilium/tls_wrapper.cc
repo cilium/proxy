@@ -118,13 +118,13 @@ private:
             Cilium::CiliumPolicyFilterState::key());
 
     if (policy_fs) {
+      bool is_client = state_ == Extensions::TransportSockets::Tls::InitialState::Client;
       const auto& policy = policy_fs->getPolicy();
 
       // Resolve the destination security ID and port
-      uint32_t destination_identity = 0;
-      uint32_t destination_port = policy_fs->port_;
       const Network::Address::Ip* dip = nullptr;
-      bool is_client = state_ == Extensions::TransportSockets::Tls::InitialState::Client;
+      auto destination = policy_fs->original_destination_;
+      uint32_t destination_port = policy_fs->port_;
 
       if (!policy_fs->ingress_) {
         Network::Address::InstanceConstSharedPtr dst_address =
@@ -134,7 +134,7 @@ private:
           dip = dst_address->ip();
           if (dip) {
             destination_port = dip->port();
-            destination_identity = policy_fs->resolvePolicyId(dip);
+            destination = policy_fs->resolvePolicyInfo(dip);
           } else {
             ENVOY_CONN_LOG(warn, "cilium.tls_wrapper: Non-IP destination address: {}", conn,
                            dst_address->asString());
@@ -147,8 +147,12 @@ private:
       // get the requested server name from the connection, if any
       const auto& sni = policy_fs->sni_;
 
-      auto remote_id = policy_fs->ingress_ ? policy_fs->source_identity_ : destination_identity;
-      auto port_policy = policy.findPortPolicy(policy_fs->ingress_, destination_port);
+      const uint32_t remote_id =
+          policy_fs->ingress_ ? policy_fs->source_identity_ : destination.identity_;
+      auto port_policy =
+          policy_fs->ingress_
+              ? policy.findIngressPortPolicy(destination_port)
+              : policy.findEgressPortPolicy(destination_port, destination.named_ports_);
       const Envoy::Ssl::ContextConfig* config = nullptr;
       bool raw_socket_allowed = false;
       auto proxy_id = policy_fs->proxy_id_;
