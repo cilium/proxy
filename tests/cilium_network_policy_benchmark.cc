@@ -188,6 +188,7 @@ void processNpdsUpdateWith1000Policies(benchmark::State& state, bool policy_secr
     config_tracker_callbacks.clear();
     auto policy_map = std::make_shared<NetworkPolicyMap>(factory_context, CILIUM_XDS_API_CONFIG,
                                                          false, policy_secret_cache_enabled);
+    CiliumTestPeer::setSubscription(*policy_map, nullptr);
     CiliumTestPeer::resetStream(*policy_map);
     const auto warmup_status =
         CiliumTestPeer::subscriptionCallbacks(*policy_map)
@@ -207,6 +208,7 @@ void processNpdsUpdateWith1000Policies(benchmark::State& state, bool policy_secr
     config_tracker_callbacks.clear();
     auto policy_map = std::make_shared<NetworkPolicyMap>(factory_context, CILIUM_XDS_API_CONFIG,
                                                          false, policy_secret_cache_enabled);
+    CiliumTestPeer::setSubscription(*policy_map, nullptr);
     CiliumTestPeer::resetStream(*policy_map);
     auto& callbacks = CiliumTestPeer::subscriptionCallbacks(*policy_map);
     const uint64_t memory_before = Memory::Stats::totalCurrentlyAllocated();
@@ -242,6 +244,57 @@ void processNpdsUpdateWith1000Policies(benchmark::State& state, bool policy_secr
                          benchmark::Counter::kIs1024);
   state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * kPolicyCount);
 }
+
+void processNprdsSelectorOnlyUpdate(benchmark::State& state) {
+  NiceMock<Server::Configuration::MockFactoryContext> context;
+  auto policy_map = std::make_shared<NetworkPolicyMap>(context, CILIUM_XDS_API_CONFIG, false);
+  Config::DecodedResourcesWrapper baseline;
+  auto selector = std::make_unique<cilium::NetworkPolicyResource>();
+  selector->mutable_selector()->add_identities(43);
+  baseline.pushBack(std::make_unique<Config::DecodedResourceImpl>(std::move(selector), "selector",
+                                                                  std::vector<std::string>{}, "1"));
+  for (int64_t index = 0; index < state.range(0); ++index) {
+    auto resource = std::make_unique<cilium::NetworkPolicyResource>();
+    auto* policy = resource->mutable_policy();
+    policy->set_endpoint_id(index + 1);
+    policy->add_endpoint_ips(absl::StrCat("10.0.", index / 250, ".", index % 250 + 1));
+    auto* port = policy->add_ingress_per_port_policies();
+    port->set_port(80);
+    port->add_rules()->add_selectors("selector");
+    baseline.pushBack(std::make_unique<Config::DecodedResourceImpl>(
+        std::move(resource), absl::StrCat("policy-", index), std::vector<std::string>{}, "1"));
+  }
+  auto& callbacks = CiliumTestPeer::subscriptionCallbacks(*policy_map);
+  auto status = callbacks.onConfigUpdate(baseline.refvec_, "1");
+  if (!status.ok()) {
+    state.SkipWithError(status.ToString());
+    return;
+  }
+
+  Config::DecodedResourcesWrapper updates[2];
+  for (int index = 0; index < 2; ++index) {
+    auto resource = std::make_unique<cilium::NetworkPolicyResource>();
+    resource->mutable_selector()->add_identities(43 + index);
+    updates[index].pushBack(std::make_unique<Config::DecodedResourceImpl>(
+        std::move(resource), "selector", std::vector<std::string>{}, "2"));
+  }
+  unsigned int index = 0;
+  for (auto _ : state) { // NOLINT: Silences warning about dead store.
+    status = callbacks.onConfigUpdate(updates[index++ % 2].refvec_, {}, "2");
+    benchmark::DoNotOptimize(status);
+    if (!status.ok()) {
+      state.SkipWithError(status.ToString());
+      break;
+    }
+  }
+  state.SetItemsProcessed(state.iterations());
+}
+
+BENCHMARK(processNprdsSelectorOnlyUpdate)
+    ->Arg(1)
+    ->Arg(1000)
+    ->Arg(10000)
+    ->Unit(benchmark::kMicrosecond);
 
 BENCHMARK_CAPTURE(processNpdsUpdateWith1000Policies, TlsContextCacheEnabled, true, false)
     ->Unit(benchmark::kMillisecond);

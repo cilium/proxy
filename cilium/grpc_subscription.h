@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <string>
 
 #include "envoy/common/callback.h"
 #include "envoy/common/exception.h"
@@ -12,7 +11,6 @@
 #include "envoy/config/subscription.h"
 #include "envoy/event/dispatcher_thread_deletable.h"
 #include "envoy/server/factory_context.h"
-#include "envoy/ssl/context_manager.h"
 #include "envoy/stats/scope.h"
 
 #include "source/common/common/logger.h"
@@ -24,31 +22,44 @@ namespace Cilium {
 
 class CiliumTestPeer;
 
+inline constexpr absl::string_view NetworkPolicyTypeUrl =
+    "type.googleapis.com/cilium.NetworkPolicy";
+inline constexpr absl::string_view NetworkPolicyResourceTypeUrl =
+    "type.googleapis.com/cilium.NetworkPolicyResource";
+
 class ManagedGrpcSubscription : public Event::DispatcherThreadDeletable,
                                 public Envoy::Config::SubscriptionCallbacks,
                                 public Logger::Loggable<Logger::Id::config>,
                                 public std::enable_shared_from_this<ManagedGrpcSubscription> {
 public:
-  using DecoderFactory = std::function<Envoy::Config::OpaqueResourceDecoderSharedPtr()>;
+  using DecoderFactory =
+      std::function<Envoy::Config::OpaqueResourceDecoderSharedPtr(absl::string_view type_url)>;
   using SubscriptionFactoryForTest =
       std::function<std::unique_ptr<Envoy::Config::Subscription>(bool use_delta_xds)>;
 
-  ManagedGrpcSubscription(absl::string_view type_url, DecoderFactory decoder_factory,
+  ManagedGrpcSubscription(absl::string_view type_url,
                           const envoy::config::core::v3::ConfigSource& config_source,
-                          Server::Configuration::CommonFactoryContext& context,
+                          DecoderFactory decoder_factory,
+                          Server::Configuration::ServerFactoryContext& context,
                           Stats::ScopeSharedPtr scope, bool subscribe = true);
   ~ManagedGrpcSubscription() override = default;
 
-  const envoy::config::core::v3::ConfigSource& getConfigSource() const { return config_source_; }
+  const envoy::config::core::v3::ConfigSource& getConfigSource() const {
+    return current_config_.config_source_;
+  }
 
-  // must be configured before subscribe()
+  // A healthy Delta NPRDS stream remains active until it closes.
   void configure(const envoy::config::core::v3::ConfigSource& config_source);
 
   void onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason reason,
                             const EnvoyException* e) final;
 
 protected:
-  void subscribe();
+  void subscribe(absl::string_view type_url = {});
+
+  // A supported NPRDS server supplies a nonempty initial snapshot, even without local Endpoints.
+  // Empty later deltas are ordinary updates, not negotiation responses.
+  bool fallbackOnEmptyResponse(bool empty);
 
   void start() {
     if (subscription_ && !started_) {
@@ -59,6 +70,8 @@ protected:
 
   Stats::Scope& scope() { return *scope_; }
 
+  absl::string_view getTypeUrl() const { return current_config_.type_url_; }
+  bool usesDeltaXds() const;
   bool connected() const { return connected_; }
   bool started() const { return started_; }
   uint64_t streamGeneration() const { return stream_generation_; }
@@ -69,24 +82,30 @@ private:
   friend class CiliumTestPeer;
 
   void create();
-  void maybeRecreateInDesiredMode(bool transport_closed);
+  void scheduleSubscribe(absl::string_view type_url);
 
-  const std::string type_url_;
-  // desired_config_source_ is used to store config updates from BpfMetadata filter.
-  // Listeners can ask for different configs, so we may keep the existing config_source_
-  // if it remains functional even if some BpfMetadata filters ask for something different.
-  envoy::config::core::v3::ConfigSource desired_config_source_;
-  envoy::config::core::v3::ConfigSource config_source_;
+  struct XdsConfig {
+    absl::string_view type_url_; // Refers to a static protocol type URL.
+    envoy::config::core::v3::ConfigSource config_source_;
+  };
+
+  // The desired capability is fixed: policy streams probe NPRDS on Delta and use NPDS on SotW.
+  // A Delta probe may fall back to NPDS until transport close; listener updates change the source.
+  XdsConfig desired_config_;
+  XdsConfig current_config_;
+
   DecoderFactory decoder_factory_;
-  Server::Configuration::CommonFactoryContext& context_;
+  Server::Configuration::ServerFactoryContext& context_;
   Stats::ScopeSharedPtr scope_;
 
   Common::CallbackHandlePtr stream_event_handle_;
   std::unique_ptr<Envoy::Config::Subscription> subscription_;
   uint64_t subscription_id_{0};
   uint64_t stream_generation_{1};
+  uint64_t response_generation_{0};
   bool connected_{false};
   bool started_{false};
+  bool fallback_pending_{false};
 
   SubscriptionFactoryForTest factory_for_test_;
 };

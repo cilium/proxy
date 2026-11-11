@@ -130,6 +130,7 @@ jobs:
             --helm-set tls.readSecretsOnlyFromSecretsNamespace=true \
             --helm-set tls.secretSync.enabled=true \
             --helm-set disableEnvoyVersionCheck=true \
+            --helm-set envoy.xdsMode=delta-split \
             --helm-set envoy.image.repository=${{ env.PROXY_IMAGE }} \
             --helm-set envoy.image.tag=${{ env.PROXY_TAG }} \
             --helm-set envoy.image.useDigest=false \

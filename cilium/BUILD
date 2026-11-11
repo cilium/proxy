@@ -28,13 +28,25 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "versioned_lib",
+    hdrs = ["versioned.h"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/container:flat_hash_set",
+        "@envoy//source/common/common:assert_lib",
+    ],
+)
+
+envoy_cc_library(
     name = "network_policy_lib",
     srcs = [
+        "host_map.cc",
         "network_policy.cc",
         "secret_watcher.cc",
         "secret_watcher.h",
     ],
     hdrs = [
+        "host_map.h",
         "network_policy.h",
         "policy_id.h",
     ],
@@ -43,6 +55,8 @@ envoy_cc_library(
         "//cilium:conntrack_lib",
         "//cilium:grpc_subscription_lib",
         "//cilium:ipcache_lib",
+        "//cilium:versioned_lib",
+        "//cilium/api:bpf_metadata_cc_proto",
         "//cilium/api:npds_cc_proto",
         "@envoy//envoy/singleton:manager_interface",
         "@envoy//source/common/common:logger_lib",
@@ -106,11 +120,13 @@ envoy_cc_library(
         "grpc_subscription.h",
     ],
     deps = [
+        "//cilium/api:bpf_metadata_cc_proto",
         "@abseil-cpp//absl/strings",
         "@envoy//envoy/network:connection_interface",
         "@envoy//source/common/config:type_to_endpoint_lib",
         "@envoy//source/extensions/config_subscription/grpc:grpc_subscription_lib",
         "@envoy_api//envoy/annotations:pkg_cc_proto",
+        "@envoy_api//envoy/config/bootstrap/v3:pkg_cc_proto",
         "@envoy_api//envoy/config/core/v3:pkg_cc_proto",
     ],
 )
@@ -291,11 +307,11 @@ envoy_cc_library(
     name = "bpf_metadata_lib",
     srcs = [
         "bpf_metadata.cc",
-        "host_map.cc",
+        "policy_host_map.cc",
     ],
     hdrs = [
         "bpf_metadata.h",
-        "host_map.h",
+        "policy_host_map.h",
     ],
     deps = [
         "//cilium:conntrack_lib",

@@ -11,7 +11,7 @@
 #include "envoy/server/factory_context.h"
 
 #include "cilium/bpf_metadata.h"
-#include "cilium/host_map.h"
+#include "cilium/policy_host_map.h"
 #include "cilium/network_policy.h"
 #include "tests/bpf_metadata.pb.h"
 

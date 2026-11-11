@@ -39,6 +39,852 @@ var (
 	_ = corev3.SocketAddress_Protocol(0)
 )
 
+// Validate checks the field values on NetworkPolicyResource with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the first error encountered is returned, or nil if there are no violations.
+func (m *NetworkPolicyResource) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on NetworkPolicyResource with the rules
+// defined in the proto definition for this message. If any rules are
+// violated, the result is a list of violation errors wrapped in
+// NetworkPolicyResourceMultiError, or nil if none found.
+func (m *NetworkPolicyResource) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *NetworkPolicyResource) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	switch v := m.Resource.(type) {
+	case *NetworkPolicyResource_Policy:
+		if v == nil {
+			err := NetworkPolicyResourceValidationError{
+				field:  "Resource",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetPolicy()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, NetworkPolicyResourceValidationError{
+						field:  "Policy",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, NetworkPolicyResourceValidationError{
+						field:  "Policy",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetPolicy()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return NetworkPolicyResourceValidationError{
+					field:  "Policy",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *NetworkPolicyResource_Selector:
+		if v == nil {
+			err := NetworkPolicyResourceValidationError{
+				field:  "Resource",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetSelector()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, NetworkPolicyResourceValidationError{
+						field:  "Selector",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, NetworkPolicyResourceValidationError{
+						field:  "Selector",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetSelector()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return NetworkPolicyResourceValidationError{
+					field:  "Selector",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *NetworkPolicyResource_Endpoint:
+		if v == nil {
+			err := NetworkPolicyResourceValidationError{
+				field:  "Resource",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetEndpoint()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, NetworkPolicyResourceValidationError{
+						field:  "Endpoint",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, NetworkPolicyResourceValidationError{
+						field:  "Endpoint",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetEndpoint()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return NetworkPolicyResourceValidationError{
+					field:  "Endpoint",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	case *NetworkPolicyResource_Peer:
+		if v == nil {
+			err := NetworkPolicyResourceValidationError{
+				field:  "Resource",
+				reason: "oneof value cannot be a typed-nil",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+		if all {
+			switch v := interface{}(m.GetPeer()).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, NetworkPolicyResourceValidationError{
+						field:  "Peer",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, NetworkPolicyResourceValidationError{
+						field:  "Peer",
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(m.GetPeer()).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return NetworkPolicyResourceValidationError{
+					field:  "Peer",
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	default:
+		_ = v // ensures v is used
+	}
+
+	if len(errors) > 0 {
+		return NetworkPolicyResourceMultiError(errors)
+	}
+
+	return nil
+}
+
+// NetworkPolicyResourceMultiError is an error wrapping multiple validation
+// errors returned by NetworkPolicyResource.ValidateAll() if the designated
+// constraints aren't met.
+type NetworkPolicyResourceMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m NetworkPolicyResourceMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m NetworkPolicyResourceMultiError) AllErrors() []error { return m }
+
+// NetworkPolicyResourceValidationError is the validation error returned by
+// NetworkPolicyResource.Validate if the designated constraints aren't met.
+type NetworkPolicyResourceValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e NetworkPolicyResourceValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e NetworkPolicyResourceValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e NetworkPolicyResourceValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e NetworkPolicyResourceValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e NetworkPolicyResourceValidationError) ErrorName() string {
+	return "NetworkPolicyResourceValidationError"
+}
+
+// Error satisfies the builtin error interface
+func (e NetworkPolicyResourceValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sNetworkPolicyResource.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = NetworkPolicyResourceValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = NetworkPolicyResourceValidationError{}
+
+// Validate checks the field values on PolicyPeer with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *PolicyPeer) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on PolicyPeer with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in PolicyPeerMultiError, or
+// nil if none found.
+func (m *PolicyPeer) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *PolicyPeer) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Identity
+
+	_PolicyPeer_Ips_Unique := make(map[string]struct{}, len(m.GetIps()))
+
+	for idx, item := range m.GetIps() {
+		_, _ = idx, item
+
+		if _, exists := _PolicyPeer_Ips_Unique[item]; exists {
+			err := PolicyPeerValidationError{
+				field:  fmt.Sprintf("Ips[%v]", idx),
+				reason: "repeated value must contain unique items",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		} else {
+			_PolicyPeer_Ips_Unique[item] = struct{}{}
+		}
+
+		if utf8.RuneCountInString(item) < 1 {
+			err := PolicyPeerValidationError{
+				field:  fmt.Sprintf("Ips[%v]", idx),
+				reason: "value length must be at least 1 runes",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
+	for idx, item := range m.GetNamedPorts() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, PolicyPeerValidationError{
+						field:  fmt.Sprintf("NamedPorts[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, PolicyPeerValidationError{
+						field:  fmt.Sprintf("NamedPorts[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return PolicyPeerValidationError{
+					field:  fmt.Sprintf("NamedPorts[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	if len(errors) > 0 {
+		return PolicyPeerMultiError(errors)
+	}
+
+	return nil
+}
+
+// PolicyPeerMultiError is an error wrapping multiple validation errors
+// returned by PolicyPeer.ValidateAll() if the designated constraints aren't met.
+type PolicyPeerMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m PolicyPeerMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m PolicyPeerMultiError) AllErrors() []error { return m }
+
+// PolicyPeerValidationError is the validation error returned by
+// PolicyPeer.Validate if the designated constraints aren't met.
+type PolicyPeerValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e PolicyPeerValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e PolicyPeerValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e PolicyPeerValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e PolicyPeerValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e PolicyPeerValidationError) ErrorName() string { return "PolicyPeerValidationError" }
+
+// Error satisfies the builtin error interface
+func (e PolicyPeerValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sPolicyPeer.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = PolicyPeerValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = PolicyPeerValidationError{}
+
+// Validate checks the field values on NamedPort with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *NamedPort) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on NamedPort with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in NamedPortMultiError, or nil
+// if none found.
+func (m *NamedPort) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *NamedPort) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	if utf8.RuneCountInString(m.GetName()) < 1 {
+		err := NamedPortValidationError{
+			field:  "Name",
+			reason: "value length must be at least 1 runes",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if val := m.GetPort(); val <= 0 || val > 65535 {
+		err := NamedPortValidationError{
+			field:  "Port",
+			reason: "value must be inside range (0, 65535]",
+		}
+		if !all {
+			return err
+		}
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return NamedPortMultiError(errors)
+	}
+
+	return nil
+}
+
+// NamedPortMultiError is an error wrapping multiple validation errors returned
+// by NamedPort.ValidateAll() if the designated constraints aren't met.
+type NamedPortMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m NamedPortMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m NamedPortMultiError) AllErrors() []error { return m }
+
+// NamedPortValidationError is the validation error returned by
+// NamedPort.Validate if the designated constraints aren't met.
+type NamedPortValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e NamedPortValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e NamedPortValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e NamedPortValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e NamedPortValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e NamedPortValidationError) ErrorName() string { return "NamedPortValidationError" }
+
+// Error satisfies the builtin error interface
+func (e NamedPortValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sNamedPort.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = NamedPortValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = NamedPortValidationError{}
+
+// Validate checks the field values on Endpoint with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *Endpoint) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on Endpoint with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in EndpointMultiError, or nil
+// if none found.
+func (m *Endpoint) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *Endpoint) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	// no validation rules for Epid
+
+	_Endpoint_Ips_Unique := make(map[string]struct{}, len(m.GetIps()))
+
+	for idx, item := range m.GetIps() {
+		_, _ = idx, item
+
+		if _, exists := _Endpoint_Ips_Unique[item]; exists {
+			err := EndpointValidationError{
+				field:  fmt.Sprintf("Ips[%v]", idx),
+				reason: "repeated value must contain unique items",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		} else {
+			_Endpoint_Ips_Unique[item] = struct{}{}
+		}
+
+		if utf8.RuneCountInString(item) < 1 {
+			err := EndpointValidationError{
+				field:  fmt.Sprintf("Ips[%v]", idx),
+				reason: "value length must be at least 1 runes",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		}
+
+	}
+
+	for idx, item := range m.GetNamedPorts() {
+		_, _ = idx, item
+
+		if all {
+			switch v := interface{}(item).(type) {
+			case interface{ ValidateAll() error }:
+				if err := v.ValidateAll(); err != nil {
+					errors = append(errors, EndpointValidationError{
+						field:  fmt.Sprintf("NamedPorts[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			case interface{ Validate() error }:
+				if err := v.Validate(); err != nil {
+					errors = append(errors, EndpointValidationError{
+						field:  fmt.Sprintf("NamedPorts[%v]", idx),
+						reason: "embedded message failed validation",
+						cause:  err,
+					})
+				}
+			}
+		} else if v, ok := interface{}(item).(interface{ Validate() error }); ok {
+			if err := v.Validate(); err != nil {
+				return EndpointValidationError{
+					field:  fmt.Sprintf("NamedPorts[%v]", idx),
+					reason: "embedded message failed validation",
+					cause:  err,
+				}
+			}
+		}
+
+	}
+
+	// no validation rules for Policy
+
+	if len(errors) > 0 {
+		return EndpointMultiError(errors)
+	}
+
+	return nil
+}
+
+// EndpointMultiError is an error wrapping multiple validation errors returned
+// by Endpoint.ValidateAll() if the designated constraints aren't met.
+type EndpointMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m EndpointMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m EndpointMultiError) AllErrors() []error { return m }
+
+// EndpointValidationError is the validation error returned by
+// Endpoint.Validate if the designated constraints aren't met.
+type EndpointValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e EndpointValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e EndpointValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e EndpointValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e EndpointValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e EndpointValidationError) ErrorName() string { return "EndpointValidationError" }
+
+// Error satisfies the builtin error interface
+func (e EndpointValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sEndpoint.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = EndpointValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = EndpointValidationError{}
+
+// Validate checks the field values on Selector with the rules defined in the
+// proto definition for this message. If any rules are violated, the first
+// error encountered is returned, or nil if there are no violations.
+func (m *Selector) Validate() error {
+	return m.validate(false)
+}
+
+// ValidateAll checks the field values on Selector with the rules defined in
+// the proto definition for this message. If any rules are violated, the
+// result is a list of violation errors wrapped in SelectorMultiError, or nil
+// if none found.
+func (m *Selector) ValidateAll() error {
+	return m.validate(true)
+}
+
+func (m *Selector) validate(all bool) error {
+	if m == nil {
+		return nil
+	}
+
+	var errors []error
+
+	_Selector_Identities_Unique := make(map[uint32]struct{}, len(m.GetIdentities()))
+
+	for idx, item := range m.GetIdentities() {
+		_, _ = idx, item
+
+		if _, exists := _Selector_Identities_Unique[item]; exists {
+			err := SelectorValidationError{
+				field:  fmt.Sprintf("Identities[%v]", idx),
+				reason: "repeated value must contain unique items",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		} else {
+			_Selector_Identities_Unique[item] = struct{}{}
+		}
+
+		// no validation rules for Identities[idx]
+	}
+
+	if len(errors) > 0 {
+		return SelectorMultiError(errors)
+	}
+
+	return nil
+}
+
+// SelectorMultiError is an error wrapping multiple validation errors returned
+// by Selector.ValidateAll() if the designated constraints aren't met.
+type SelectorMultiError []error
+
+// Error returns a concatenation of all the error messages it wraps.
+func (m SelectorMultiError) Error() string {
+	msgs := make([]string, 0, len(m))
+	for _, err := range m {
+		msgs = append(msgs, err.Error())
+	}
+	return strings.Join(msgs, "; ")
+}
+
+// AllErrors returns a list of validation violation errors.
+func (m SelectorMultiError) AllErrors() []error { return m }
+
+// SelectorValidationError is the validation error returned by
+// Selector.Validate if the designated constraints aren't met.
+type SelectorValidationError struct {
+	field  string
+	reason string
+	cause  error
+	key    bool
+}
+
+// Field function returns field value.
+func (e SelectorValidationError) Field() string { return e.field }
+
+// Reason function returns reason value.
+func (e SelectorValidationError) Reason() string { return e.reason }
+
+// Cause function returns cause value.
+func (e SelectorValidationError) Cause() error { return e.cause }
+
+// Key function returns key value.
+func (e SelectorValidationError) Key() bool { return e.key }
+
+// ErrorName returns error name.
+func (e SelectorValidationError) ErrorName() string { return "SelectorValidationError" }
+
+// Error satisfies the builtin error interface
+func (e SelectorValidationError) Error() string {
+	cause := ""
+	if e.cause != nil {
+		cause = fmt.Sprintf(" | caused by: %v", e.cause)
+	}
+
+	key := ""
+	if e.key {
+		key = "key for "
+	}
+
+	return fmt.Sprintf(
+		"invalid %sSelector.%s: %s%s",
+		key,
+		e.field,
+		e.reason,
+		cause)
+}
+
+var _ error = SelectorValidationError{}
+
+var _ interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+} = SelectorValidationError{}
+
 // Validate checks the field values on NetworkPolicy with the rules defined in
 // the proto definition for this message. If any rules are violated, the first
 // error encountered is returned, or nil if there are no violations.
@@ -61,10 +907,10 @@ func (m *NetworkPolicy) validate(all bool) error {
 
 	var errors []error
 
-	if l := len(m.GetEndpointIps()); l < 1 || l > 2 {
+	if len(m.GetEndpointIps()) > 2 {
 		err := NetworkPolicyValidationError{
 			field:  "EndpointIps",
-			reason: "value must contain between 1 and 2 items, inclusive",
+			reason: "value must contain no more than 2 item(s)",
 		}
 		if !all {
 			return err
@@ -72,8 +918,23 @@ func (m *NetworkPolicy) validate(all bool) error {
 		errors = append(errors, err)
 	}
 
+	_NetworkPolicy_EndpointIps_Unique := make(map[string]struct{}, len(m.GetEndpointIps()))
+
 	for idx, item := range m.GetEndpointIps() {
 		_, _ = idx, item
+
+		if _, exists := _NetworkPolicy_EndpointIps_Unique[item]; exists {
+			err := NetworkPolicyValidationError{
+				field:  fmt.Sprintf("EndpointIps[%v]", idx),
+				reason: "repeated value must contain unique items",
+			}
+			if !all {
+				return err
+			}
+			errors = append(errors, err)
+		} else {
+			_NetworkPolicy_EndpointIps_Unique[item] = struct{}{}
+		}
 
 		if utf8.RuneCountInString(item) < 1 {
 			err := NetworkPolicyValidationError{
@@ -279,6 +1140,8 @@ func (m *PortNetworkPolicy) validate(all bool) error {
 		}
 		errors = append(errors, err)
 	}
+
+	// no validation rules for PortName
 
 	// no validation rules for Protocol
 

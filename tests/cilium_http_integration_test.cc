@@ -1,4 +1,6 @@
 // <gtest.h> TEST
+#include <algorithm>
+
 #include <fmt/base.h>
 #include <fmt/format.h>
 #include <gtest/gtest-param-test.h>
@@ -31,6 +33,7 @@
 #include "absl/time/time.h"
 #include "cilium/api/accesslog.pb.h"
 #include "cilium/host_map.h"
+#include "cilium/policy_host_map.h"
 #include "cilium/secret_watcher.h"
 #include "tests/bpf_metadata.h" // host_map_config
 #include "tests/cilium_http_integration.h"
@@ -468,21 +471,53 @@ resources:
 
   EXPECT_TRUE(hmap->onConfigUpdate(decoded_resources->refvec_, message.version_info()).ok());
 
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()), 173);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.0").ip()), 12);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.2").ip()), 12);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("127.0.0.1").ip()), 1);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("127.0.0.2").ip()), 11);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("126.0.0.2").ip()), 12);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("128.0.0.0").ip()), 12);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("::1").ip()), 1);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("::").ip()), 12);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("f00d::1").ip()), 173);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("f00d::").ip()), 12);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef::1.2.3.4").ip()), 11);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::").ip()), 11);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::42").ip()), 11);
-  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:2::").ip()), 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()).identity_, 173);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.0").ip()).identity_, 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.2").ip()).identity_, 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("127.0.0.1").ip()).identity_, 1);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("127.0.0.2").ip()).identity_, 11);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("126.0.0.2").ip()).identity_, 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("128.0.0.0").ip()).identity_, 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("::1").ip()).identity_, 1);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("::").ip()).identity_, 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("f00d::1").ip()).identity_, 173);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("f00d::").ip()).identity_, 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef::1.2.3.4").ip()).identity_, 11);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::").ip()).identity_, 11);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:1::42").ip()).identity_, 11);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("beef:0:0:2::").ip()).identity_, 12);
+
+  Protobuf::RepeatedPtrField<std::string> removed_resources;
+  removed_resources.Add("173");
+  EXPECT_TRUE(hmap->onConfigUpdate({}, removed_resources, "1").ok());
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv4Instance("192.168.0.1").ip()).identity_, 12);
+  EXPECT_EQ(hmap->resolve(Network::Address::Ipv6Instance("f00d::1").ip()).identity_, 12);
+}
+
+TEST(HostMapCoreTest, NamedPorts) {
+  const Cilium::NamedPorts expected_ports{{8080, "http"}, {9090, "z-port"}};
+  Cilium::PolicyInfo retained;
+  {
+    Protobuf::RepeatedPtrField<std::string> addresses;
+    addresses.Add("192.168.0.1");
+    addresses.Add("f00d::1");
+    Cilium::HostMapBuilder hosts;
+    hosts.insert(173, addresses, {{9090, "z-port"}, {8080, "http"}, {8080, "http"}});
+    for (const auto& ip : {"192.168.0.1", "f00d::1"}) {
+      const auto address = Network::Utility::parseInternetAddressNoThrow(ip);
+      ASSERT_NE(nullptr, address);
+      const auto& info = hosts.resolve(address->ip());
+      EXPECT_EQ(info.identity_, 173);
+      EXPECT_TRUE(std::ranges::equal(info.namedPorts(), expected_ports));
+    }
+    const auto address = Network::Address::Ipv4Instance("192.168.0.1");
+    retained = hosts.resolve(address.ip());
+    hosts.remove({173});
+    EXPECT_EQ(hosts.resolve(address.ip()).identity_, 0);
+    EXPECT_TRUE(hosts.resolve(address.ip()).namedPorts().empty());
+  }
+  EXPECT_EQ(retained.identity_, 173);
+  EXPECT_TRUE(std::ranges::equal(retained.namedPorts(), expected_ports));
 }
 
 TEST_P(HostMapTest, HostMapInvalidNonCIDRBits) {
