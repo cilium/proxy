@@ -17,7 +17,6 @@
 #include "source/common/common/utility.h"
 
 #include "absl/numeric/int128.h"
-#include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
 
 namespace Envoy {
@@ -28,13 +27,11 @@ SourceAddressSocketOption::SourceAddressSocketOption(
     Network::Address::InstanceConstSharedPtr original_source_address,
     Network::Address::InstanceConstSharedPtr ipv4_source_address,
     Network::Address::InstanceConstSharedPtr ipv6_source_address,
-    std::shared_ptr<CiliumDestinationFilterState> dest_fs,
     std::shared_ptr<CiliumPolicyFilterState> policy_fs)
     : source_identity_(source_identity), linger_time_(linger_time),
       original_source_address_(std::move(original_source_address)),
       ipv4_source_address_(std::move(ipv4_source_address)),
-      ipv6_source_address_(std::move(ipv6_source_address)), dest_fs_(std::move(dest_fs)),
-      policy_fs_(std::move(policy_fs)) {
+      ipv6_source_address_(std::move(ipv6_source_address)), policy_fs_(std::move(policy_fs)) {
   ENVOY_LOG(debug,
             "Cilium SourceAddressSocketOption(): source_identity: {}, linger_time: {}, "
             "source_addresses: {}/{}/{}",
