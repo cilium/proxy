@@ -11,7 +11,6 @@
 #include "source/common/common/logger.h"
 
 #include "absl/types/optional.h"
-#include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
 
 namespace Envoy {
@@ -30,7 +29,6 @@ public:
       Network::Address::InstanceConstSharedPtr original_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv4_source_address = nullptr,
       Network::Address::InstanceConstSharedPtr ipv6_source_address = nullptr,
-      std::shared_ptr<CiliumDestinationFilterState> dest_fs = nullptr,
       std::shared_ptr<CiliumPolicyFilterState> policy_fs = nullptr);
 
   absl::optional<Network::Socket::Option::Details>
@@ -56,7 +54,6 @@ public:
   // connecting to IPv6 or IPv4 address, respectively.
   Network::Address::InstanceConstSharedPtr ipv4_source_address_;
   Network::Address::InstanceConstSharedPtr ipv6_source_address_;
-  std::shared_ptr<CiliumDestinationFilterState> dest_fs_;
   std::shared_ptr<CiliumPolicyFilterState> policy_fs_;
 };
 

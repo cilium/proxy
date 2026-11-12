@@ -87,11 +87,9 @@ envoy_cc_library(
 envoy_cc_library(
     name = "filter_state_lib",
     srcs = [
-        "filter_state_cilium_destination.cc",
         "filter_state_cilium_policy.cc",
     ],
     hdrs = [
-        "filter_state_cilium_destination.h",
         "filter_state_cilium_policy.h",
     ],
     repository = "@envoy",
