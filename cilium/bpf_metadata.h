@@ -20,7 +20,6 @@
 #include "absl/strings/string_view.h"
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/conntrack.h"
-#include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
 #include "cilium/host_map.h"
 #include "cilium/ipcache.h"
@@ -63,20 +62,15 @@ struct SocketMetadata : public Logger::Loggable<Logger::Id::filter> {
         std::move(ingress_policy_name_), policy_resolver_, proxy_id_, sni_);
   };
 
-  std::shared_ptr<Envoy::Cilium::CiliumDestinationFilterState> buildCiliumDestinationFilterState() {
-    return std::make_shared<Envoy::Cilium::CiliumDestinationFilterState>(nullptr);
-  };
-
   std::shared_ptr<Envoy::Cilium::CiliumMarkSocketOption> buildCiliumMarkSocketOption() {
     return std::make_shared<Envoy::Cilium::CiliumMarkSocketOption>(mark_);
   };
 
   std::shared_ptr<Envoy::Cilium::SourceAddressSocketOption> buildSourceAddressSocketOption(
-      int linger_time, const std::shared_ptr<CiliumDestinationFilterState>& dest_fs = nullptr,
-      const std::shared_ptr<CiliumPolicyFilterState>& policy_fs = nullptr) {
+      int linger_time, const std::shared_ptr<CiliumPolicyFilterState>& policy_fs = nullptr) {
     return std::make_shared<Envoy::Cilium::SourceAddressSocketOption>(
         source_identity_, linger_time, original_source_address_, source_address_ipv4_,
-        source_address_ipv6_, dest_fs, policy_fs);
+        source_address_ipv6_, policy_fs);
   };
 
   void configureOriginalDstAddress(Network::ConnectionSocket& socket) {
