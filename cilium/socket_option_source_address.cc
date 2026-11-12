@@ -80,9 +80,15 @@ bool SourceAddressSocketOption::setOption(
     return true;
   }
 
-  if (source_address->ip() && dest_fs_ && dest_fs_->getDestinationAddress() &&
-      dest_fs_->getDestinationAddress()->ip()) {
-    const auto& dst_addr = dest_fs_->getDestinationAddress()->ip()->addressAsString();
+  // Envoy creates the upstream socket with its remote address already set and only applies
+  // STATE_PREBIND options to sockets with an IP remote address, so the remote address must exist
+  // on the socket at this point. The destination locality must be determined from this address,
+  // as the destination filter state of the downstream connection is not specific to this
+  // upstream connection: for L7 LB the upstream connection pool (and this socket option) is
+  // shared among many downstream connections.
+  const auto& dst_address = socket.connectionInfoProvider().remoteAddress();
+  if (source_address->ip() && dst_address && dst_address->ip()) {
+    const auto& dst_addr = dst_address->ip()->addressAsString();
     if (source_address->ip()->addressAsString() == dst_addr) {
       ENVOY_LOG(trace,
                 "Skipping restore of local address on socket: {} - source address is same as "
