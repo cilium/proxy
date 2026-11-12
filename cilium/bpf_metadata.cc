@@ -41,7 +41,6 @@
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/api/bpf_metadata.pb.validate.h" // IWYU pragma: keep
 #include "cilium/conntrack.h"
-#include "cilium/filter_state_cilium_destination.h"
 #include "cilium/filter_state_cilium_policy.h"
 #include "cilium/host_map.h"
 #include "cilium/ipcache.h"
@@ -599,15 +598,9 @@ Network::FilterStatus Instance::onAccept(Network::ListenerFilterCallbacks& cb) {
         StreamInfo::FilterState::StateType::ReadOnly, StreamInfo::FilterState::LifeSpan::Connection,
         StreamInfo::StreamSharingMayImpactPooling::SharedWithUpstreamConnection);
 
-    const auto dest_fs = socket_metadata->buildCiliumDestinationFilterState();
-    cb.filterState().setData(
-        Cilium::CiliumDestinationFilterState::key(), dest_fs,
-        StreamInfo::FilterState::StateType::Mutable, StreamInfo::FilterState::LifeSpan::Connection,
-        StreamInfo::StreamSharingMayImpactPooling::SharedWithUpstreamConnection);
-
     // Restoring original source address on the upstream socket
     socket_options->push_back(
-        socket_metadata->buildSourceAddressSocketOption(config_->so_linger_, dest_fs, policy_fs));
+        socket_metadata->buildSourceAddressSocketOption(config_->so_linger_, policy_fs));
 
     if (config_->addPrivilegedSocketOptions()) {
       // adding SO_MARK (Cilium mark) on the upstream socket

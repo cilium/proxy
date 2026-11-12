@@ -12,6 +12,7 @@
 
 #include "envoy/api/api.h"
 #include "envoy/common/exception.h"
+#include "envoy/config/core/v3/socket_option.pb.h"
 #include "envoy/filesystem/watcher.h"
 #include "envoy/init/target.h"
 #include "envoy/init/watcher.h"
@@ -633,11 +634,9 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbSourceAddressFollowsUpstreamSocket) {
 
   auto policy_fs = socket_metadata->buildCiliumPolicyFilterState();
   EXPECT_NE(nullptr, policy_fs);
-  auto dest_fs = socket_metadata->buildCiliumDestinationFilterState();
-  EXPECT_NE(nullptr, dest_fs);
 
   auto source_addresses_socket_option =
-      socket_metadata->buildSourceAddressSocketOption(-1, dest_fs, policy_fs);
+      socket_metadata->buildSourceAddressSocketOption(-1, policy_fs);
   EXPECT_NE(nullptr, source_addresses_socket_option);
 
   const auto local_pod = std::make_shared<Network::Address::Ipv4Instance>("10.1.1.1", 80);
@@ -647,14 +646,12 @@ TEST_F(MetadataConfigTest, NorthSouthL7LbSourceAddressFollowsUpstreamSocket) {
 
   ON_CALL(socket_, ipVersion()).WillByDefault(testing::Return(Network::Address::IpVersion::v4));
 
-  dest_fs->setDestinationAddress(local_pod);
   socket_.connection_info_provider_ =
       std::make_shared<Network::ConnectionInfoSetterImpl>(local_address_, remote_pod);
   EXPECT_TRUE(source_addresses_socket_option->setOption(
       socket_, envoy::config::core::v3::SocketOption::STATE_PREBIND));
   EXPECT_EQ("10.1.1.42:0", socket_.connectionInfoProvider().localAddress()->asString());
 
-  dest_fs->setDestinationAddress(remote_pod);
   socket_.connection_info_provider_ =
       std::make_shared<Network::ConnectionInfoSetterImpl>(local_address_, local_pod);
   EXPECT_TRUE(source_addresses_socket_option->setOption(
