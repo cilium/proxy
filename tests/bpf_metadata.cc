@@ -30,6 +30,7 @@
 #include "cilium/api/bpf_metadata.pb.h"
 #include "cilium/bpf_metadata.h"
 #include "cilium/host_map.h"
+#include "cilium/policy_host_map.h"
 #include "cilium/network_policy.h"
 #include "cilium/secret_watcher.h"
 #include "fmt/printf.h"
@@ -117,10 +118,8 @@ TestHelper::createPolicyMap(const std::string& config,
             policy_path, context.serverFactoryContext().api()));
         Envoy::Config::SubscriptionStats stats =
             Envoy::Config::Utility::generateStats(context.scope());
-        envoy::config::core::v3::ConfigSource config_source;
-        *config_source.mutable_path_config_source() =
-            Envoy::Config::makePathConfigSource(policy_path);
-        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context, config_source, false);
+        auto map = std::make_shared<Cilium::NetworkPolicyMap>(context,
+                                                              Cilium::CILIUM_XDS_API_CONFIG, false);
         auto subscription = std::make_unique<Envoy::Config::FilesystemSubscriptionImpl>(
             context.serverFactoryContext().mainThreadDispatcher(),
             Envoy::Config::makePathConfigSource(policy_path),
@@ -174,22 +173,26 @@ TestConfig::extractSocketMetadata(Network::ConnectionSocket& socket) {
   socket.setRequestedServerName("localhost");
 
   std::string pod_ip;
-  std::uint64_t source_identity;
+  std::uint32_t source_identity;
+  std::uint32_t original_dest_identity;
   if (is_ingress_) {
     source_identity = 1;
+    original_dest_identity = 173;
     pod_ip = original_dst_address->ip()->addressAsString();
     ENVOY_LOG_MISC(debug, "INGRESS POD_IP: {}", pod_ip);
   } else {
-    source_identity = 173;
     auto ip = socket.connectionInfoProvider().localAddress()->ip();
+    source_identity = 173;
+    original_dest_identity = hosts_->resolve(ip).identity_;
     pod_ip = ip->addressAsString();
     ENVOY_LOG_MISC(debug, "EGRESS POD_IP: {}", pod_ip);
   }
   auto port = original_dst_address->ip()->port();
 
-  return {Cilium::BpfMetadata::SocketMetadata(0, 0, source_identity, is_ingress_, is_l7lb_, port,
-                                              std::move(pod_ip), "", nullptr, nullptr, nullptr,
-                                              original_dst_address, shared_from_this(), 0, "")};
+  return {Cilium::BpfMetadata::SocketMetadata(
+      0, 0, source_identity, PolicyInfo{original_dest_identity}, is_ingress_, is_l7lb_, port,
+      std::move(pod_ip), "", nullptr, nullptr, nullptr, original_dst_address, shared_from_this(), 0,
+      "")};
 }
 
 } // namespace BpfMetadata

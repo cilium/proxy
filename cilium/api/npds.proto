@@ -16,6 +16,7 @@ import "validate/validate.proto";
 // [#protodoc-title: Network policy management and NPDS]
 
 // Each resource name is a network policy identifier.
+// Deprecated: This service will be removed when Cilium 1.21 is the oldest supported release.
 service NetworkPolicyDiscoveryService {
   option (envoy.annotations.resource).type = "cilium.NetworkPolicy";
 
@@ -36,19 +37,101 @@ service NetworkPolicyDiscoveryService {
   }
 }
 
+// Policy and selector resource names are exact-match identifiers in NPRDS.
+service NetworkPolicyResourceDiscoveryService {
+  option (envoy.annotations.resource).type = "cilium.NetworkPolicyResource";
+
+  rpc StreamNetworkPolicyResources(stream envoy.service.discovery.v3.DiscoveryRequest)
+      returns (stream envoy.service.discovery.v3.DiscoveryResponse) {
+  }
+
+  rpc DeltaNetworkPolicyResources(stream envoy.service.discovery.v3.DeltaDiscoveryRequest)
+      returns (stream envoy.service.discovery.v3.DeltaDiscoveryResponse) {
+  }
+}
+
+// An NPRDS resource that carries either an endpoint policy or a shared selector.
+message NetworkPolicyResource {
+  oneof resource {
+    // Policy for a given local identity defined in terms of selectors that are synchronized
+    // separately.
+    NetworkPolicy policy = 1;
+
+    // Policy Selector
+    Selector selector = 2;
+
+    // Local Endpoint
+    Endpoint endpoint = 3;
+
+    // Policy peers
+    PolicyPeer peer = 4;
+  }
+}
+
+// The mapping between security identities, IPs, and named ports.
+message PolicyPeer {
+  // Numeric security identity
+  uint32 identity = 1;
+
+  // The set of IP addresses that have this identity
+  repeated string ips = 2 [(validate.rules).repeated = {
+    unique: true,
+    items {string {min_len: 1}}
+  }];
+
+  // Optional named port mappings for this identity.
+  repeated NamedPort named_ports = 3;
+}
+
+message NamedPort {
+  string name = 1 [(validate.rules).string.min_len = 1];
+  uint32 port = 2 [(validate.rules).uint32 = {gt: 0, lte: 65535}];
+}
+
+// Endpoint defines the SelectorPolicy used by a local Cilium Endpoint.
+message Endpoint {
+  // The endpoint identifier.
+  // Required.
+  uint32 epid = 1;
+
+  // Endpoint IPs.
+  // Required.
+  repeated string ips = 2 [(validate.rules).repeated = {
+    unique: true,
+    items {string {min_len: 1}}
+  }];
+
+  // Optional named port mappings for this local endpoint's ingress policy.
+  repeated NamedPort named_ports = 3;
+
+  // Name of the NetworkPolicy resource to use for this endpoint.
+  // Required.
+  string policy = 4;
+}
+
+// A shared set of security identities referenced by selector resource name.
+// Unlike the old state-of-the-world remote identity lists, an empty selector
+// matches nothing.
+message Selector {
+  // The set of numeric security IDs selected by this selector.
+  // If empty, this selector selects no identities.
+  // Zero identity indicates a wildcard selecting all possible identities.
+  repeated uint32 identities = 1 [(validate.rules).repeated.unique = true];
+}
+
 // A network policy that is enforced by a filter on the network flows to/from
 // associated hosts.
 message NetworkPolicy {
   // IPs of the endpoint to which this policy applies.
-  // Required.
+  // Required for NPDS, not used for NPRDS (NPRDS uses Endpoint Resource instead).
   repeated string endpoint_ips = 1 [(validate.rules).repeated = {
-    min_items: 1,
+    unique: true,
     max_items: 2,
     items {string {min_len: 1}}
   }];
 
   // The endpoint identifier associated with the network policy.
-  // Required.
+  // Required for NPDS, not used for NPRDS (NPRDS uses Endpoint Resource instead).
   uint64 endpoint_id = 2;
 
   // The part of the policy to be enforced at ingress by the filter, as a set
@@ -78,6 +161,10 @@ message PortNetworkPolicy {
 
   // The end of the destination port range, if non-zero.
   uint32 end_port = 4 [(validate.rules).uint32.lte = 65535];
+
+  // Optional named port for an NPRDS policy. If present, port and end_port must be zero.
+  // Legacy NPDS requires the agent to resolve named ports to numeric ports.
+  string port_name = 5;
 
   // The flows' L4 transport protocol.
   // Required.
@@ -158,6 +245,12 @@ message PortNetworkPolicyRule {
   // applied on the flow's remote host is contained in this set.
   // Optional. If not specified, any remote host is matched by this predicate.
   repeated uint32 remote_policies = 7;
+
+  // Optional selector resource names that can be resolved to shared remote
+  // policy sets in delta NPDS.
+  // Selector references are matched by exact selector resource name.
+  // Optional. If not specified, any remote host is matched by this predicate.
+  repeated string selectors = 11;
 
   // Optional downstream TLS context. If present, the incoming connection must
   // be a TLS connection.

@@ -13,6 +13,7 @@
 #include "envoy/annotations/resource.pb.h"
 #include "envoy/common/callback.h"
 #include "envoy/common/exception.h"
+#include "envoy/config/bootstrap/v3/bootstrap.pb.h"
 #include "envoy/config/core/v3/config_source.pb.h"
 #include "envoy/config/custom_config_validators.h"
 #include "envoy/config/grpc_mux.h"
@@ -64,6 +65,7 @@ TypeUrlToServiceMap* buildTypeUrlToServiceMap() {
   // https://www.mail-archive.com/protobuf@googlegroups.com/msg04540.html.
   for (absl::string_view name : {
            "cilium.NetworkPolicyDiscoveryService",
+           "cilium.NetworkPolicyResourceDiscoveryService",
            "cilium.NetworkPolicyHostsDiscoveryService",
        }) {
     const auto* service_desc =
@@ -109,15 +111,6 @@ public:
                          const Protobuf::RepeatedPtrField<std::string>&) override {}
 };
 
-bool configSourceUsesDeltaXds(const envoy::config::core::v3::ConfigSource& config_source) {
-  if (!config_source.has_api_config_source()) {
-    return false;
-  }
-  const auto& api_type = config_source.api_config_source().api_type();
-  return api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC ||
-         api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC;
-}
-
 const Protobuf::MethodDescriptor& deltaGrpcMethod(absl::string_view type_url) {
   const auto it = typeUrlToServiceMap().find(static_cast<std::string>(type_url));
   ASSERT(it != typeUrlToServiceMap().cend());
@@ -134,18 +127,31 @@ const Protobuf::MethodDescriptor& sotwGrpcMethod(absl::string_view type_url) {
 
 } // namespace
 
+bool ManagedGrpcSubscription::usesDeltaXds() const {
+  const auto& config_source = current_config_.config_source_;
+  // ADS transport is configured in the bootstrap, not in the subscription's ads: {} source.
+  const auto& api_config_source = config_source.has_ads()
+                                      ? context_.bootstrap().dynamic_resources().ads_config()
+                                      : config_source.api_config_source();
+  const auto api_type = api_config_source.api_type();
+  return api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC ||
+         api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC;
+}
+
 void ManagedGrpcSubscription::create() {
-  auto initial_fetch_timeout = Config::Utility::configSourceInitialFetchTimeout(config_source_);
+  auto initial_fetch_timeout =
+      Config::Utility::configSourceInitialFetchTimeout(current_config_.config_source_);
   Config::SubscriptionStats stats = Config::Utility::generateStats(*scope_);
   Envoy::Config::SubscriptionOptions options;
+  const auto& type_url = current_config_.type_url_;
 
   std::shared_ptr<Config::GrpcMux> grpc_mux;
-  bool is_aggregated =
-      config_source_.config_source_specifier_case() == envoy::config::core::v3::ConfigSource::kAds;
+  bool is_aggregated = current_config_.config_source_.config_source_specifier_case() ==
+                       envoy::config::core::v3::ConfigSource::kAds;
   if (is_aggregated) {
     grpc_mux = std::static_pointer_cast<Config::GrpcMux>(context_.xdsManager().adsMux());
   } else {
-    auto& api_config_source = config_source_.api_config_source();
+    auto& api_config_source = current_config_.config_source_.api_config_source();
     THROW_IF_NOT_OK(Config::Utility::checkApiConfigSourceSubscriptionBackingCluster(
         context_.clusterManager().primaryClusters(), api_config_source));
 
@@ -161,10 +167,8 @@ void ManagedGrpcSubscription::create() {
         Config::Utility::parseRateLimitSettings(api_config_source);
     THROW_IF_NOT_OK_REF(rate_limit_settings_or_error.status());
 
-    const auto& api_type = api_config_source.api_type();
-    bool use_delta = api_type == envoy::config::core::v3::ApiConfigSource::DELTA_GRPC ||
-                     api_type == envoy::config::core::v3::ApiConfigSource::AGGREGATED_DELTA_GRPC;
-    const auto& service_method = use_delta ? deltaGrpcMethod(type_url_) : sotwGrpcMethod(type_url_);
+    const bool use_delta = usesDeltaXds();
+    const auto& service_method = use_delta ? deltaGrpcMethod(type_url) : sotwGrpcMethod(type_url);
 
     Config::GrpcMuxContext grpc_mux_context{
         THROW_OR_RETURN_VALUE(factory_or_error.value()->createUncachedRawAsyncClient(),
@@ -203,16 +207,15 @@ void ManagedGrpcSubscription::create() {
   }
 
   subscription_ = std::make_unique<Config::GrpcSubscriptionImpl>(
-      grpc_mux, *this, decoder_factory_(), stats, type_url_, context_.mainThreadDispatcher(),
+      grpc_mux, *this, decoder_factory_(type_url), stats, type_url, context_.mainThreadDispatcher(),
       initial_fetch_timeout, is_aggregated, options);
 }
 
 ManagedGrpcSubscription::ManagedGrpcSubscription(
-    absl::string_view type_url, DecoderFactory decoder_factory,
-    const envoy::config::core::v3::ConfigSource& config_source,
-    Server::Configuration::CommonFactoryContext& context, Stats::ScopeSharedPtr scope,
-    bool do_subscribe)
-    : type_url_(type_url), desired_config_source_(config_source), config_source_(config_source),
+    absl::string_view type_url, const envoy::config::core::v3::ConfigSource& config_source,
+    DecoderFactory decoder_factory, Server::Configuration::ServerFactoryContext& context,
+    Stats::ScopeSharedPtr scope, bool do_subscribe)
+    : desired_config_(XdsConfig{type_url, config_source}), current_config_(desired_config_),
       decoder_factory_(std::move(decoder_factory)), context_(context), scope_(scope) {
   RELEASE_ASSERT(decoder_factory_ != nullptr, "ManagedGrpcSubscription needs a decoder factory");
   if (do_subscribe) {
@@ -220,28 +223,58 @@ ManagedGrpcSubscription::ManagedGrpcSubscription(
   }
 }
 
-void ManagedGrpcSubscription::subscribe() {
-  connected_ = false;
-  config_source_ = desired_config_source_;
+void ManagedGrpcSubscription::subscribe(absl::string_view type_url) {
+  auto next_config = desired_config_;
+  if (!type_url.empty()) {
+    next_config.type_url_ = type_url;
+  }
+  auto previous_config = std::exchange(current_config_, std::move(next_config));
+  const auto previous_id = subscription_id_;
+  const auto previous_generation = stream_generation_;
+  const bool previous_connected = std::exchange(connected_, false);
+  auto previous_stream_handle = std::move(stream_event_handle_);
+  const bool previous_fallback_pending = std::exchange(fallback_pending_, false);
   ++subscription_id_;
 
-  if (factory_for_test_) {
-    subscription_ = factory_for_test_(configSourceUsesDeltaXds(config_source_));
-  } else {
-    create();
+  try {
+    if (current_config_.type_url_ == NetworkPolicyResourceTypeUrl && !usesDeltaXds()) {
+      // NPRDS is Delta-only. Retain the desired capability for later SotW-to-Delta transitions.
+      current_config_.type_url_ = NetworkPolicyTypeUrl;
+    }
+    if (factory_for_test_) {
+      subscription_ = factory_for_test_(usesDeltaXds());
+    } else {
+      create();
+    }
+  } catch (...) {
+    // A failed replacement must leave the old subscription and its decoder mode usable.
+    current_config_ = std::move(previous_config);
+    subscription_id_ = previous_id;
+    stream_generation_ = previous_generation;
+    connected_ = previous_connected;
+    fallback_pending_ = previous_fallback_pending;
+    stream_event_handle_ = std::move(previous_stream_handle);
+    throw;
   }
-  // Only reset once subscription_ is replaced; create() may throw.
   started_ = false;
 }
 
 void ManagedGrpcSubscription::configure(
     const envoy::config::core::v3::ConfigSource& config_source) {
-  desired_config_source_ = config_source;
+  desired_config_.config_source_ = config_source;
   if (subscription_ == nullptr) {
-    config_source_ = desired_config_source_;
+    current_config_ = desired_config_;
     return;
   }
-  maybeRecreateInDesiredMode(/*transport_closed=*/false);
+  if (connected_ && usesDeltaXds() && getTypeUrl() == NetworkPolicyResourceTypeUrl) {
+    // Keep a healthy Delta NPRDS stream until its transport closes.
+    return;
+  }
+  if (!Protobuf::util::MessageDifferencer::Equals(current_config_.config_source_,
+                                                  desired_config_.config_source_)) {
+    subscribe();
+    start();
+  }
 }
 
 void ManagedGrpcSubscription::onStreamEvent(uint64_t subscription_id,
@@ -255,57 +288,79 @@ void ManagedGrpcSubscription::onStreamEvent(uint64_t subscription_id,
     ++stream_generation_;
     connected_ = true;
     break;
+  case Config::GrpcMuxStreamEvent::Unimplemented:
+    if (getTypeUrl() == NetworkPolicyResourceTypeUrl &&
+        current_config_.config_source_.has_api_config_source() &&
+        (fallback_pending_ || response_generation_ != stream_generation_)) {
+      connected_ = false;
+      fallbackOnEmptyResponse(true);
+    }
+    break;
   case Config::GrpcMuxStreamEvent::Closed:
     if (!connected_) {
       return;
     }
     connected_ = false;
-
-    if (factory_for_test_) {
-      maybeRecreateInDesiredMode(/*transport_closed=*/true);
-      return;
-    }
-
-    context_.mainThreadDispatcher().post(
-        [weak_this = weak_from_this(), subscription_id = subscription_id_]() {
-          if (auto shared_this = weak_this.lock()) {
-            if (subscription_id != shared_this->subscription_id_) {
-              return;
-            }
-            shared_this->maybeRecreateInDesiredMode(/*transport_closed=*/true);
-          }
-        });
+    fallback_pending_ = false;
+    scheduleSubscribe(desired_config_.type_url_);
     break;
   }
 }
 
-void ManagedGrpcSubscription::maybeRecreateInDesiredMode(bool transport_closed) {
-  if (subscription_ && (connected_ || !transport_closed)) {
-    if (connected_ && configSourceUsesDeltaXds(config_source_)) {
-      // Keep delta on a connected subscription until transport closes.
-      return;
+void ManagedGrpcSubscription::scheduleSubscribe(absl::string_view type_url) {
+  const bool fallback = type_url != desired_config_.type_url_;
+  auto replace = [weak_this = weak_from_this(), subscription_id = subscription_id_, type_url,
+                  fallback]() {
+    if (auto shared_this = weak_this.lock()) {
+      if (subscription_id != shared_this->subscription_id_ ||
+          (fallback && !shared_this->fallback_pending_)) {
+        return;
+      }
+      shared_this->subscribe(type_url);
+      shared_this->start();
     }
-    if (Protobuf::util::MessageDifferencer::Equals(config_source_, desired_config_source_)) {
-      // Let the current subscription keep going when it is already in the desired mode.
-      return;
-    }
+  };
+  if (factory_for_test_) {
+    replace();
+  } else {
+    // Replacing a subscription must not destroy the mux while it is delivering this callback.
+    context_.mainThreadDispatcher().post(std::move(replace));
   }
-  subscribe();
-  start();
+}
+
+bool ManagedGrpcSubscription::fallbackOnEmptyResponse(bool empty) {
+  if (fallback_pending_) {
+    return true;
+  }
+  if (getTypeUrl() != NetworkPolicyResourceTypeUrl) {
+    return false;
+  }
+  const bool first_response =
+      std::exchange(response_generation_, stream_generation_) != stream_generation_;
+  if (!first_response || !empty) {
+    return false;
+  }
+  ENVOY_LOG(info, "Cilium NPRDS is unavailable on stream {}; falling back to NPDS",
+            stream_generation_);
+  fallback_pending_ = true;
+  scheduleSubscribe(NetworkPolicyTypeUrl);
+  return true;
 }
 
 void ManagedGrpcSubscription::onConfigUpdateFailed(Config::ConfigUpdateFailureReason reason,
                                                    const EnvoyException* e) {
+  if (reason == Config::ConfigUpdateFailureReason::UpdateRejected) {
+    // A response rejected before decoding still proves the service is implemented.
+    response_generation_ = stream_generation_;
+  }
   if (e != nullptr) {
-    ENVOY_LOG(warn,
-              "Cilium xDS update for {} on stream {} failed with reason {}, keeping existing "
-              "config: {}",
-              type_url_, streamGeneration(), static_cast<int>(reason), e->what());
+    ENVOY_LOG(warn, "Cilium xDS update for {} on stream {} failed with reason {}: {}",
+              current_config_.type_url_, streamGeneration(), static_cast<int>(reason), e->what());
+
     return;
   }
-  ENVOY_LOG(debug,
-            "Cilium xDS update for {} on stream {} failed with reason {}, keeping existing config.",
-            type_url_, streamGeneration(), static_cast<int>(reason));
+  ENVOY_LOG(debug, "Cilium xDS update for {} on stream {} failed with reason {}.",
+            current_config_.type_url_, streamGeneration(), static_cast<int>(reason));
 }
 
 } // namespace Cilium
