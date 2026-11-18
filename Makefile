@@ -60,6 +60,8 @@ BAZEL_MSAN_TEST_OPTS ?= --jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_j
 BAZEL_TSAN_BUILD_OPTS ?= --config=tsan $(EXTRA_BAZEL_BUILD_OPTS) -c dbg
 BAZEL_TSAN_TEST_OPTS ?= --jobs=HOST_RAM*.00005 --test_timeout=900 --local_test_jobs=1 --flaky_test_attempts=1 --test_output=errors
 
+BAZEL_BUILD_OPTS += --config=clang
+
 ifdef DEBUG
   BAZEL_BUILD_OPTS += -c dbg
 else ifdef RELEASE_DEBUG
