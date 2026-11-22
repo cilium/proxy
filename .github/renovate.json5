@@ -28,7 +28,6 @@
   baseBranchPatterns: [
     'main',
     'v1.39',
-    'v1.38',
   ],
   labels: [
     'kind/enhancement',
@@ -62,7 +61,6 @@
       matchBaseBranches: [
         'main',
         'v1.39',
-        'v1.38',
       ],
     },
     {
@@ -82,7 +80,6 @@
       matchBaseBranches: [
         'main',
         'v1.39',
-        'v1.38',
       ],
     },
     {
@@ -104,7 +101,6 @@
       matchBaseBranches: [
         'main',
         'v1.39',
-        'v1.38',
       ],
     },
     {
@@ -119,7 +115,6 @@
       matchBaseBranches: [
         'main',
         'v1.39',
-        'v1.38',
       ],
     },
     {
@@ -133,7 +128,6 @@
       matchBaseBranches: [
         'main',
         'v1.39',
-        'v1.38',
       ],
     },
     {
@@ -158,33 +152,6 @@
       matchBaseBranches: [
         'main',
         'v1.39',
-      ],
-    },
-    {
-      matchFileNames: [
-        'Dockerfile.builder',
-        '.github/workflows/**',
-        'WORKSPACE',
-      ],
-      matchPackageNames: [
-        'go',
-      ],
-      allowedVersions: '<=1.26',
-      matchBaseBranches: [
-        'v1.38',
-      ],
-    },
-    {
-      // go-control-plane/envoy is the Go API of one Envoy minor release, so it
-      // shares the cap and the PR of the branch's Envoy group.
-      groupName: 'envoy 1.38.x',
-      matchDepNames: [
-        'envoyproxy/envoy',
-        'github.com/envoyproxy/go-control-plane/envoy',
-      ],
-      allowedVersions: '<=1.38',
-      matchBaseBranches: [
-        'v1.38',
       ],
     },
     {
