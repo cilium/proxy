@@ -180,10 +180,9 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
   if (!config_->is_upstream_) {
     const auto& dst_address = stream_info.downstreamAddressProvider().localAddress();
     const auto dip = dst_address->ip();
-    uint32_t remote_id =
-        policy_fs->ingress_ ? policy_fs->source_identity_ : policy_fs->resolvePolicyId(dip);
     // destination identity should be reported as 0 for an ingress policy
-    uint32_t destination_identity = policy_fs->ingress_ ? 0 : remote_id;
+    const uint32_t destination_identity =
+        policy_fs->ingress_ ? 0 : policy_fs->original_destination_.identity_;
     uint16_t destination_port = dip->port();
 
     // Initialize log entry in the beginning of downstream processing
@@ -194,8 +193,8 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
     // Enforce pod policy only for local pods without L7 LB
     if (!policy_fs->policyUseUpstreamDestinationAddress() && !policy_fs->pod_ip_.empty()) {
-      bool allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), remote_id, destination_port,
-                                                     headers, *log_entry_);
+      bool allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), policy_fs->original_destination_,
+                                                     destination_port, headers, *log_entry_);
 
       // Update the log entry with current headers, as the policy may have altered them.
       log_entry_->updateFromRequest(destination_identity, dst_address, headers);
@@ -258,17 +257,17 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
       return Http::FilterHeadersStatus::StopIteration;
     }
 
-    uint32_t destination_identity = policy_fs->resolvePolicyId(dip);
+    const auto destination = policy_fs->resolvePolicyInfo(dip);
     uint16_t destination_port = dip->port();
     bool allowed;
 
     // Is there a pod egress policy?
     if (!policy_fs->pod_ip_.empty()) {
-      allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), destination_identity, destination_port,
-                                                headers, *log_entry_);
+      allowed = policy_fs->enforcePodHTTPPolicy(conn.ref(), destination, destination_port, headers,
+                                                *log_entry_);
 
       // Update the log entry with current headers, as the policy may have altered them.
-      log_entry_->updateFromRequest(destination_identity, dst_address, headers);
+      log_entry_->updateFromRequest(destination.identity_, dst_address, headers);
 
       if (!allowed) {
         config_->log(*log_entry_, ::cilium::EntryType::Denied);
@@ -280,11 +279,11 @@ Http::FilterHeadersStatus AccessFilter::decodeHeaders(Http::RequestHeaderMap& he
 
     // Is there an Ingress policy?
     if (!policy_fs->ingress_policy_name_.empty()) {
-      allowed = policy_fs->enforceIngressHTTPPolicy(conn.ref(), destination_identity,
-                                                    destination_port, headers, *log_entry_);
+      allowed = policy_fs->enforceIngressHTTPPolicy(conn.ref(), destination, destination_port,
+                                                    headers, *log_entry_);
 
       // Update the log entry with current headers, as the policy may have altered them.
-      log_entry_->updateFromRequest(destination_identity, dst_address, headers);
+      log_entry_->updateFromRequest(destination.identity_, dst_address, headers);
 
       if (!allowed) {
         config_->log(*log_entry_, ::cilium::EntryType::Denied);

@@ -4,22 +4,24 @@ Date: Mon, 17 Aug 2026 18:52:54 +1000
 Subject: [PATCH 6/8] config: add grpc mux stream event callback
 
 ---
- envoy/config/BUILD                            |  1 +
- envoy/config/grpc_mux.h                       | 18 ++++++++++
- source/common/config/BUILD                    |  9 +++++
- .../config/grpc_mux_stream_event_tracker.h    | 36 +++++++++++++++++++
- source/common/config/null_grpc_mux_impl.h     | 10 ++++++
- .../extensions/config_subscription/grpc/BUILD |  2 ++
- .../config_subscription/grpc/grpc_mux_impl.cc |  2 ++
- .../config_subscription/grpc/grpc_mux_impl.h  | 10 ++++++
- .../grpc/new_grpc_mux_impl.cc                 |  2 ++
- .../grpc/new_grpc_mux_impl.h                  | 10 ++++++
- .../config_subscription/grpc/xds_mux/BUILD    |  1 +
- .../grpc/xds_mux/grpc_mux_impl.cc             |  2 ++
- .../grpc/xds_mux/grpc_mux_impl.h              | 20 +++++++++++
- .../config/grpc_subscription_impl_test.cc     | 36 +++++++++++++++++++
- test/mocks/config/mocks.h                     |  4 +++
- 15 files changed, 163 insertions(+)
+ envoy/config/BUILD                                |  1 +
+ envoy/config/grpc_mux.h                           | 21 ++++++++
+ source/common/config/BUILD                        |  9 +++
+ .../common/config/grpc_mux_stream_event_tracker.h | 41 +++++++++++++++
+ source/common/config/null_grpc_mux_impl.h         | 10 ++++
+ source/extensions/config_subscription/grpc/BUILD  |  2 +
+ .../config_subscription/grpc/grpc_mux_impl.cc     |  2 +
+ .../config_subscription/grpc/grpc_mux_impl.h      | 11 ++++
+ .../config_subscription/grpc/new_grpc_mux_impl.cc |  2 +
+ .../config_subscription/grpc/new_grpc_mux_impl.h  | 11 ++++
+ .../config_subscription/grpc/xds_mux/BUILD        |  1 +
+ .../grpc/xds_mux/grpc_mux_impl.cc                 |  2 +
+ .../grpc/xds_mux/grpc_mux_impl.h                  | 21 ++++++++
+ test/common/config/grpc_subscription_impl_test.cc | 65 ++++++++++++++++++++++++
+ test/mocks/config/mocks.h                         |  4 +
+ .../config_subscription/grpc/grpc_stream.h        |  3 +
+ .../config_subscription/grpc/grpc_mux_failover.h  |  4 +
+ 17 files changed, 210 insertions(+)
  create mode 100644 source/common/config/grpc_mux_stream_event_tracker.h
 
 diff --git a/envoy/config/BUILD b/envoy/config/BUILD
@@ -35,7 +37,6 @@ index 7304150354..4ff4bf2098 100644
          ":subscription_interface",
          "//envoy/common:backoff_strategy_interface",
 diff --git a/envoy/config/grpc_mux.h b/envoy/config/grpc_mux.h
-index 4e7bd91a11..8f756f8cce 100644
 --- a/envoy/config/grpc_mux.h
 +++ b/envoy/config/grpc_mux.h
 @@ -6,6 +6,7 @@
@@ -46,22 +47,23 @@ index 4e7bd91a11..8f756f8cce 100644
  #include "envoy/common/pure.h"
  #include "envoy/config/core/v3/config_source.pb.h"
  #include "envoy/config/eds_resources_cache.h"
-@@ -26,6 +27,11 @@ namespace Envoy {
+@@ -26,6 +27,11 @@
  namespace Config {
  
  using ScopedResume = std::unique_ptr<Cleanup>;
 +
-+enum class GrpcMuxStreamEvent { Established, Closed };
++enum class GrpcMuxStreamEvent { Established, Closed, Unimplemented };
 +
 +using GrpcMuxStreamEventCallback = std::function<void(GrpcMuxStreamEvent)>;
 +
  /**
   * All control plane related stats. @see stats_macros.h
   */
-@@ -105,6 +111,18 @@ public:
+@@ -104,6 +110,18 @@
+    * Initiate stream with management server.
     */
    virtual void start() PURE;
- 
++
 +  /**
 +   * Add a callback to observe gRPC mux stream lifecycle events.
 +   * @return a handle that unregisters the callback when destroyed.
@@ -73,10 +75,19 @@ index 4e7bd91a11..8f756f8cce 100644
 +   * @return true if the mux currently has an established gRPC stream.
 +   */
 +  virtual bool grpcStreamConnected() const PURE;
-+
+ 
    /**
     * Pause discovery requests for a given API type. This is useful when we're processing an update
-    * for LDS or CDS and don't want a flood of updates for RDS or EDS respectively. Discovery
+@@ -196,6 +214,9 @@
+    */
+   virtual void onStreamEstablished() PURE;
+ 
++  // Notify observers before normal close handling when the service or method is unsupported.
++  virtual void onStreamUnimplemented() {}
++
+   /**
+    * For the GrpcStream to prompt the context to take appropriate action in response to
+    * failure to establish the gRPC stream.
 diff --git a/source/common/config/BUILD b/source/common/config/BUILD
 index 53fbc5b55e..7e0f6f8535 100644
 --- a/source/common/config/BUILD
@@ -104,10 +115,9 @@ index 53fbc5b55e..7e0f6f8535 100644
  )
 diff --git a/source/common/config/grpc_mux_stream_event_tracker.h b/source/common/config/grpc_mux_stream_event_tracker.h
 new file mode 100644
-index 0000000000..686348502d
 --- /dev/null
 +++ b/source/common/config/grpc_mux_stream_event_tracker.h
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,41 @@
 +#pragma once
 +
 +#include <utility>
@@ -130,6 +140,11 @@ index 0000000000..686348502d
 +  void onStreamEstablished() {
 +    grpc_stream_connected_ = true;
 +    callbacks_.runCallbacks(GrpcMuxStreamEvent::Established);
++  }
++
++  void onStreamUnimplemented() {
++    grpc_stream_connected_ = false;
++    callbacks_.runCallbacks(GrpcMuxStreamEvent::Unimplemented);
 +  }
 +
 +  void onStreamClosed() {
@@ -220,7 +235,6 @@ index dd9f77427c..f63fa417cc 100644
  
  void GrpcMuxImpl::queueDiscoveryRequest(absl::string_view queue_item) {
 diff --git a/source/extensions/config_subscription/grpc/grpc_mux_impl.h b/source/extensions/config_subscription/grpc/grpc_mux_impl.h
-index 3067c98db5..e7e79681c6 100644
 --- a/source/extensions/config_subscription/grpc/grpc_mux_impl.h
 +++ b/source/extensions/config_subscription/grpc/grpc_mux_impl.h
 @@ -3,6 +3,7 @@
@@ -239,7 +253,7 @@ index 3067c98db5..e7e79681c6 100644
  
  #include "absl/container/node_hash_map.h"
  #include "xds/core/v3/resource_name.pb.h"
-@@ -59,6 +61,13 @@ public:
+@@ -59,6 +61,13 @@
  
    void start() override;
  
@@ -253,7 +267,15 @@ index 3067c98db5..e7e79681c6 100644
    // GrpcMux
    ScopedResume pause(const std::string& type_url) override;
    ScopedResume pause(const std::vector<std::string> type_urls) override;
-@@ -329,6 +338,7 @@ private:
+@@ -85,6 +94,7 @@
+ 
+   // Config::GrpcStreamCallbacks
+   void onStreamEstablished() override;
++  void onStreamUnimplemented() override { stream_event_tracker_.onStreamUnimplemented(); }
+   void onEstablishmentFailure(bool) override;
+   void
+   onDiscoveryResponse(ResponseProtoPtr<envoy::service::discovery::v3::DiscoveryResponse>&& message,
+@@ -329,6 +339,7 @@
    const bool skip_subsequent_node_;
    CustomConfigValidatorsPtr config_validators_;
    XdsConfigTrackerOptRef xds_config_tracker_;
@@ -282,7 +304,6 @@ index 57e1f86c8a..6fd416fc03 100644
  
  void NewGrpcMuxImpl::onWriteable() { trySendDiscoveryRequests(); }
 diff --git a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h b/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h
-index 4419193961..9889891141 100644
 --- a/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h
 +++ b/source/extensions/config_subscription/grpc/new_grpc_mux_impl.h
 @@ -1,6 +1,7 @@
@@ -301,7 +322,7 @@ index 4419193961..9889891141 100644
  #include "source/extensions/config_subscription/grpc/watch_map.h"
  
  namespace Envoy {
-@@ -49,6 +51,13 @@ public:
+@@ -49,6 +51,13 @@
      shutdown_ = true;
      xds_config_tracker_.reset();
    }
@@ -315,7 +336,15 @@ index 4419193961..9889891141 100644
  
    GrpcMuxWatchPtr addWatch(const std::string& type_url,
                             const absl::flat_hash_set<std::string>& resources,
-@@ -243,6 +252,7 @@ private:
+@@ -68,6 +77,7 @@
+       ControlPlaneStats& control_plane_stats) override;
+ 
+   void onStreamEstablished() override;
++  void onStreamUnimplemented() override { stream_event_tracker_.onStreamUnimplemented(); }
+ 
+   void onEstablishmentFailure(bool next_attempt_may_send_initial_resource_version) override;
+ 
+@@ -243,6 +253,7 @@
  
    const LocalInfo::LocalInfo& local_info_;
    CustomConfigValidatorsPtr config_validators_;
@@ -356,7 +385,6 @@ index 243e04a296..f90a4877f5 100644
  
  template <class S, class F, class RQ, class RS>
 diff --git a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h b/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h
-index 53b310fe7e..1ea9467db0 100644
 --- a/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h
 +++ b/source/extensions/config_subscription/grpc/xds_mux/grpc_mux_impl.h
 @@ -3,6 +3,7 @@
@@ -375,7 +403,7 @@ index 53b310fe7e..1ea9467db0 100644
  #include "source/extensions/config_subscription/grpc/pausable_ack_queue.h"
  #include "source/extensions/config_subscription/grpc/watch_map.h"
  #include "source/extensions/config_subscription/grpc/xds_mux/delta_subscription_state.h"
-@@ -84,6 +86,13 @@ public:
+@@ -84,6 +86,13 @@
                                     SubscriptionCallbacks& callbacks,
                                     OpaqueResourceDecoderSharedPtr resource_decoder,
                                     const SubscriptionOptions& options) override;
@@ -389,7 +417,15 @@ index 53b310fe7e..1ea9467db0 100644
    void updateWatch(const std::string& type_url, Watch* watch,
                     const absl::flat_hash_set<std::string>& resources,
                     const SubscriptionOptions& options);
-@@ -267,6 +276,7 @@ private:
+@@ -107,6 +116,7 @@
+ 
+   // GrpcStreamCallbacks
+   void onStreamEstablished() override { handleEstablishedStream(); }
++  void onStreamUnimplemented() override { stream_event_tracker_.onStreamUnimplemented(); }
+   void onEstablishmentFailure(bool next_attempt_may_send_initial_resource_version) override {
+     handleStreamEstablishmentFailure(next_attempt_may_send_initial_resource_version);
+   }
+@@ -267,6 +277,7 @@
    // this one is up to GrpcMux.
    const LocalInfo::LocalInfo& local_info_;
    Common::CallbackHandlePtr dynamic_update_callback_handle_;
@@ -397,7 +433,7 @@ index 53b310fe7e..1ea9467db0 100644
    CustomConfigValidatorsPtr config_validators_;
    XdsConfigTrackerOptRef xds_config_tracker_;
    XdsResourcesDelegateOptRef xds_resources_delegate_;
-@@ -310,6 +320,13 @@ private:
+@@ -310,6 +321,13 @@
  class NullGrpcMuxImpl : public GrpcMux {
  public:
    void start() override {}
@@ -411,7 +447,7 @@ index 53b310fe7e..1ea9467db0 100644
  
    ScopedResume pause(const std::string&) override {
      return std::make_unique<Cleanup>([]() {});
-@@ -333,6 +350,9 @@ public:
+@@ -333,6 +351,9 @@
  
    Upstream::LoadStatsReporter* loadStatsReporter() const override { return nullptr; }
    Upstream::LoadStatsReporter* maybeCreateLoadStatsReporter() override { return nullptr; }
@@ -422,10 +458,9 @@ index 53b310fe7e..1ea9467db0 100644
  
  } // namespace XdsMux
 diff --git a/test/common/config/grpc_subscription_impl_test.cc b/test/common/config/grpc_subscription_impl_test.cc
-index e70750ed4f..b0f84d66f1 100644
 --- a/test/common/config/grpc_subscription_impl_test.cc
 +++ b/test/common/config/grpc_subscription_impl_test.cc
-@@ -65,6 +65,42 @@ TEST_P(GrpcSubscriptionImplTest, RemoteStreamClose) {
+@@ -65,6 +65,71 @@
    EXPECT_TRUE(statsAre(2, 0, 0, 1, 0, 0, 0, ""));
  }
  
@@ -465,6 +500,35 @@ index e70750ed4f..b0f84d66f1 100644
 +  EXPECT_EQ(1, closed);
 +}
 +
++TEST_P(GrpcSubscriptionImplTest, UnimplementedStreamEvent) {
++  std::vector<GrpcMuxStreamEvent> events;
++  auto callback_handle =
++      mux_->addStreamEventCallback([&](GrpcMuxStreamEvent event) { events.push_back(event); });
++  startSubscription({"cluster0"});
++  EXPECT_CALL(callbacks_,
++              onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason::ConnectionFailure, _))
++      .Times(0);
++  EXPECT_CALL(*timer_, enableTimer(_, _));
++  EXPECT_CALL(random_, random());
++  if (should_use_unified_) {
++    dynamic_cast<Config::XdsMux::GrpcMuxSotw*>(mux_.get())
++        ->grpcStreamForTest()
++        .onRemoteClose(Grpc::Status::WellKnownGrpcStatus::Unimplemented, "unknown service");
++  } else {
++    dynamic_cast<Config::GrpcMuxImpl*>(mux_.get())
++        ->grpcStreamForTest()
++        .onRemoteClose(Grpc::Status::WellKnownGrpcStatus::Unimplemented, "unknown service");
++  }
++  EXPECT_THAT(events,
++              testing::ElementsAre(GrpcMuxStreamEvent::Established,
++                                   GrpcMuxStreamEvent::Unimplemented, GrpcMuxStreamEvent::Closed));
++  EXPECT_FALSE(mux_->grpcStreamConnected());
++  EXPECT_CALL(*async_client_, startRaw(_, _, _, _)).WillOnce(Return(&async_stream_));
++  expectSendMessage({"cluster0"}, "", true);
++  timer_->invokeCallback();
++  EXPECT_TRUE(mux_->grpcStreamConnected());
++}
++
  // Validate that When the management server gets multiple requests for the same version, it can
  // ignore later ones. This allows the nonce to be used.
  TEST_P(GrpcSubscriptionImplTest, RepeatedNonce) {
@@ -483,6 +547,39 @@ index c3274c9d1f..3ab8387df1 100644
    MOCK_METHOD(void, addSubscription,
                (const absl::flat_hash_set<std::string>& resources, const std::string& type_url,
                 SubscriptionCallbacks& callbacks, SubscriptionStats& stats,
+diff --git a/source/extensions/config_subscription/grpc/grpc_stream.h b/source/extensions/config_subscription/grpc/grpc_stream.h
+--- a/source/extensions/config_subscription/grpc/grpc_stream.h
++++ b/source/extensions/config_subscription/grpc/grpc_stream.h
+@@ -113,6 +113,9 @@
+     logClose(status, message);
+     stream_ = nullptr;
+     control_plane_stats_.connected_state_.set(0);
++    if (status == Grpc::Status::WellKnownGrpcStatus::Unimplemented) {
++      callbacks_->onStreamUnimplemented();
++    }
+     // By default Envoy will reconnect to the same server, so pass true here.
+     // This will be overridden by the mux-failover if Envoy will reconnect to a
+     // different server.
+diff --git a/source/extensions/config_subscription/grpc/grpc_mux_failover.h b/source/extensions/config_subscription/grpc/grpc_mux_failover.h
+--- a/source/extensions/config_subscription/grpc/grpc_mux_failover.h
++++ b/source/extensions/config_subscription/grpc/grpc_mux_failover.h
+@@ -223,6 +223,8 @@
+       parent_.grpc_mux_callbacks_.onStreamEstablished();
+     }
+ 
++    void onStreamUnimplemented() override { parent_.grpc_mux_callbacks_.onStreamUnimplemented(); }
++
+     void onEstablishmentFailure(bool) override {
+       // This will be called when the primary stream fails to establish a connection, or after the
+       // connection was closed.
+@@ -306,6 +308,8 @@
+       parent_.grpc_mux_callbacks_.onStreamEstablished();
+     }
+ 
++    void onStreamUnimplemented() override { parent_.grpc_mux_callbacks_.onStreamUnimplemented(); }
++
+     void onEstablishmentFailure(bool) override {
+       // This will be called when the failover stream fails to establish a connection, or after the
+       // connection was closed.
 -- 
 2.56.0
-

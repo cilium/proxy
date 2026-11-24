@@ -74,7 +74,7 @@ func (x HeaderMatch_MatchAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HeaderMatch_MatchAction.Descriptor instead.
 func (HeaderMatch_MatchAction) EnumDescriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{5, 0}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{10, 0}
 }
 
 type HeaderMatch_MismatchAction int32
@@ -129,7 +129,369 @@ func (x HeaderMatch_MismatchAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use HeaderMatch_MismatchAction.Descriptor instead.
 func (HeaderMatch_MismatchAction) EnumDescriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{5, 1}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{10, 1}
+}
+
+// An NPRDS resource that carries either an endpoint policy or a shared selector.
+type NetworkPolicyResource struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Resource:
+	//
+	//	*NetworkPolicyResource_Policy
+	//	*NetworkPolicyResource_Selector
+	//	*NetworkPolicyResource_Endpoint
+	//	*NetworkPolicyResource_Peer
+	Resource      isNetworkPolicyResource_Resource `protobuf_oneof:"resource"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NetworkPolicyResource) Reset() {
+	*x = NetworkPolicyResource{}
+	mi := &file_cilium_api_npds_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkPolicyResource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkPolicyResource) ProtoMessage() {}
+
+func (x *NetworkPolicyResource) ProtoReflect() protoreflect.Message {
+	mi := &file_cilium_api_npds_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkPolicyResource.ProtoReflect.Descriptor instead.
+func (*NetworkPolicyResource) Descriptor() ([]byte, []int) {
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *NetworkPolicyResource) GetResource() isNetworkPolicyResource_Resource {
+	if x != nil {
+		return x.Resource
+	}
+	return nil
+}
+
+func (x *NetworkPolicyResource) GetPolicy() *NetworkPolicy {
+	if x != nil {
+		if x, ok := x.Resource.(*NetworkPolicyResource_Policy); ok {
+			return x.Policy
+		}
+	}
+	return nil
+}
+
+func (x *NetworkPolicyResource) GetSelector() *Selector {
+	if x != nil {
+		if x, ok := x.Resource.(*NetworkPolicyResource_Selector); ok {
+			return x.Selector
+		}
+	}
+	return nil
+}
+
+func (x *NetworkPolicyResource) GetEndpoint() *Endpoint {
+	if x != nil {
+		if x, ok := x.Resource.(*NetworkPolicyResource_Endpoint); ok {
+			return x.Endpoint
+		}
+	}
+	return nil
+}
+
+func (x *NetworkPolicyResource) GetPeer() *PolicyPeer {
+	if x != nil {
+		if x, ok := x.Resource.(*NetworkPolicyResource_Peer); ok {
+			return x.Peer
+		}
+	}
+	return nil
+}
+
+type isNetworkPolicyResource_Resource interface {
+	isNetworkPolicyResource_Resource()
+}
+
+type NetworkPolicyResource_Policy struct {
+	// Policy for a given local identity defined in terms of selectors that are synchronized
+	// separately.
+	Policy *NetworkPolicy `protobuf:"bytes,1,opt,name=policy,proto3,oneof"`
+}
+
+type NetworkPolicyResource_Selector struct {
+	// Policy Selector
+	Selector *Selector `protobuf:"bytes,2,opt,name=selector,proto3,oneof"`
+}
+
+type NetworkPolicyResource_Endpoint struct {
+	// Local Endpoint
+	Endpoint *Endpoint `protobuf:"bytes,3,opt,name=endpoint,proto3,oneof"`
+}
+
+type NetworkPolicyResource_Peer struct {
+	// Policy peers
+	Peer *PolicyPeer `protobuf:"bytes,4,opt,name=peer,proto3,oneof"`
+}
+
+func (*NetworkPolicyResource_Policy) isNetworkPolicyResource_Resource() {}
+
+func (*NetworkPolicyResource_Selector) isNetworkPolicyResource_Resource() {}
+
+func (*NetworkPolicyResource_Endpoint) isNetworkPolicyResource_Resource() {}
+
+func (*NetworkPolicyResource_Peer) isNetworkPolicyResource_Resource() {}
+
+// The mapping between security identities, IPs, and named ports.
+type PolicyPeer struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Numeric security identity
+	Identity uint32 `protobuf:"varint,1,opt,name=identity,proto3" json:"identity,omitempty"`
+	// The set of IP addresses that have this identity
+	Ips []string `protobuf:"bytes,2,rep,name=ips,proto3" json:"ips,omitempty"`
+	// Optional named port mappings for this identity.
+	NamedPorts    []*NamedPort `protobuf:"bytes,3,rep,name=named_ports,json=namedPorts,proto3" json:"named_ports,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PolicyPeer) Reset() {
+	*x = PolicyPeer{}
+	mi := &file_cilium_api_npds_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PolicyPeer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PolicyPeer) ProtoMessage() {}
+
+func (x *PolicyPeer) ProtoReflect() protoreflect.Message {
+	mi := &file_cilium_api_npds_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PolicyPeer.ProtoReflect.Descriptor instead.
+func (*PolicyPeer) Descriptor() ([]byte, []int) {
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *PolicyPeer) GetIdentity() uint32 {
+	if x != nil {
+		return x.Identity
+	}
+	return 0
+}
+
+func (x *PolicyPeer) GetIps() []string {
+	if x != nil {
+		return x.Ips
+	}
+	return nil
+}
+
+func (x *PolicyPeer) GetNamedPorts() []*NamedPort {
+	if x != nil {
+		return x.NamedPorts
+	}
+	return nil
+}
+
+type NamedPort struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Port          uint32                 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NamedPort) Reset() {
+	*x = NamedPort{}
+	mi := &file_cilium_api_npds_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NamedPort) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NamedPort) ProtoMessage() {}
+
+func (x *NamedPort) ProtoReflect() protoreflect.Message {
+	mi := &file_cilium_api_npds_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NamedPort.ProtoReflect.Descriptor instead.
+func (*NamedPort) Descriptor() ([]byte, []int) {
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *NamedPort) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *NamedPort) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+// Endpoint defines the SelectorPolicy used by a local Cilium Endpoint.
+type Endpoint struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The endpoint identifier.
+	// Required.
+	Epid uint32 `protobuf:"varint,1,opt,name=epid,proto3" json:"epid,omitempty"`
+	// Endpoint IPs.
+	// Required.
+	Ips []string `protobuf:"bytes,2,rep,name=ips,proto3" json:"ips,omitempty"`
+	// Optional named port mappings for this local endpoint's ingress policy.
+	NamedPorts []*NamedPort `protobuf:"bytes,3,rep,name=named_ports,json=namedPorts,proto3" json:"named_ports,omitempty"`
+	// Name of the NetworkPolicy resource to use for this endpoint.
+	// Required.
+	Policy        string `protobuf:"bytes,4,opt,name=policy,proto3" json:"policy,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Endpoint) Reset() {
+	*x = Endpoint{}
+	mi := &file_cilium_api_npds_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Endpoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Endpoint) ProtoMessage() {}
+
+func (x *Endpoint) ProtoReflect() protoreflect.Message {
+	mi := &file_cilium_api_npds_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Endpoint.ProtoReflect.Descriptor instead.
+func (*Endpoint) Descriptor() ([]byte, []int) {
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Endpoint) GetEpid() uint32 {
+	if x != nil {
+		return x.Epid
+	}
+	return 0
+}
+
+func (x *Endpoint) GetIps() []string {
+	if x != nil {
+		return x.Ips
+	}
+	return nil
+}
+
+func (x *Endpoint) GetNamedPorts() []*NamedPort {
+	if x != nil {
+		return x.NamedPorts
+	}
+	return nil
+}
+
+func (x *Endpoint) GetPolicy() string {
+	if x != nil {
+		return x.Policy
+	}
+	return ""
+}
+
+// A shared set of security identities referenced by selector resource name.
+// Unlike the old state-of-the-world remote identity lists, an empty selector
+// matches nothing.
+type Selector struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The set of numeric security IDs selected by this selector.
+	// If empty, this selector selects no identities.
+	// Zero identity indicates a wildcard selecting all possible identities.
+	Identities    []uint32 `protobuf:"varint,1,rep,packed,name=identities,proto3" json:"identities,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Selector) Reset() {
+	*x = Selector{}
+	mi := &file_cilium_api_npds_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Selector) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Selector) ProtoMessage() {}
+
+func (x *Selector) ProtoReflect() protoreflect.Message {
+	mi := &file_cilium_api_npds_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Selector.ProtoReflect.Descriptor instead.
+func (*Selector) Descriptor() ([]byte, []int) {
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Selector) GetIdentities() []uint32 {
+	if x != nil {
+		return x.Identities
+	}
+	return nil
 }
 
 // A network policy that is enforced by a filter on the network flows to/from
@@ -137,10 +499,10 @@ func (HeaderMatch_MismatchAction) EnumDescriptor() ([]byte, []int) {
 type NetworkPolicy struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// IPs of the endpoint to which this policy applies.
-	// Required.
+	// Required for NPDS, not used for NPRDS (NPRDS uses Endpoint Resource instead).
 	EndpointIps []string `protobuf:"bytes,1,rep,name=endpoint_ips,json=endpointIps,proto3" json:"endpoint_ips,omitempty"`
 	// The endpoint identifier associated with the network policy.
-	// Required.
+	// Required for NPDS, not used for NPRDS (NPRDS uses Endpoint Resource instead).
 	EndpointId uint64 `protobuf:"varint,2,opt,name=endpoint_id,json=endpointId,proto3" json:"endpoint_id,omitempty"`
 	// The part of the policy to be enforced at ingress by the filter, as a set
 	// of per-port network policies, one per destination L4 port.
@@ -160,7 +522,7 @@ type NetworkPolicy struct {
 
 func (x *NetworkPolicy) Reset() {
 	*x = NetworkPolicy{}
-	mi := &file_cilium_api_npds_proto_msgTypes[0]
+	mi := &file_cilium_api_npds_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -172,7 +534,7 @@ func (x *NetworkPolicy) String() string {
 func (*NetworkPolicy) ProtoMessage() {}
 
 func (x *NetworkPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[0]
+	mi := &file_cilium_api_npds_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -185,7 +547,7 @@ func (x *NetworkPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkPolicy.ProtoReflect.Descriptor instead.
 func (*NetworkPolicy) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{0}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *NetworkPolicy) GetEndpointIps() []string {
@@ -226,6 +588,9 @@ type PortNetworkPolicy struct {
 	Port uint32 `protobuf:"varint,1,opt,name=port,proto3" json:"port,omitempty"`
 	// The end of the destination port range, if non-zero.
 	EndPort uint32 `protobuf:"varint,4,opt,name=end_port,json=endPort,proto3" json:"end_port,omitempty"`
+	// Optional named port for an NPRDS policy. If present, port and end_port must be zero.
+	// Legacy NPDS requires the agent to resolve named ports to numeric ports.
+	PortName string `protobuf:"bytes,5,opt,name=port_name,json=portName,proto3" json:"port_name,omitempty"`
 	// The flows' L4 transport protocol.
 	// Required.
 	Protocol v3.SocketAddress_Protocol `protobuf:"varint,2,opt,name=protocol,proto3,enum=envoy.config.core.v3.SocketAddress_Protocol" json:"protocol,omitempty"`
@@ -239,7 +604,7 @@ type PortNetworkPolicy struct {
 
 func (x *PortNetworkPolicy) Reset() {
 	*x = PortNetworkPolicy{}
-	mi := &file_cilium_api_npds_proto_msgTypes[1]
+	mi := &file_cilium_api_npds_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -251,7 +616,7 @@ func (x *PortNetworkPolicy) String() string {
 func (*PortNetworkPolicy) ProtoMessage() {}
 
 func (x *PortNetworkPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[1]
+	mi := &file_cilium_api_npds_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -264,7 +629,7 @@ func (x *PortNetworkPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PortNetworkPolicy.ProtoReflect.Descriptor instead.
 func (*PortNetworkPolicy) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{1}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *PortNetworkPolicy) GetPort() uint32 {
@@ -279,6 +644,13 @@ func (x *PortNetworkPolicy) GetEndPort() uint32 {
 		return x.EndPort
 	}
 	return 0
+}
+
+func (x *PortNetworkPolicy) GetPortName() string {
+	if x != nil {
+		return x.PortName
+	}
+	return ""
 }
 
 func (x *PortNetworkPolicy) GetProtocol() v3.SocketAddress_Protocol {
@@ -327,7 +699,7 @@ type TLSContext struct {
 
 func (x *TLSContext) Reset() {
 	*x = TLSContext{}
-	mi := &file_cilium_api_npds_proto_msgTypes[2]
+	mi := &file_cilium_api_npds_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -339,7 +711,7 @@ func (x *TLSContext) String() string {
 func (*TLSContext) ProtoMessage() {}
 
 func (x *TLSContext) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[2]
+	mi := &file_cilium_api_npds_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -352,7 +724,7 @@ func (x *TLSContext) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TLSContext.ProtoReflect.Descriptor instead.
 func (*TLSContext) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{2}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *TLSContext) GetTrustedCa() string {
@@ -432,6 +804,11 @@ type PortNetworkPolicyRule struct {
 	// applied on the flow's remote host is contained in this set.
 	// Optional. If not specified, any remote host is matched by this predicate.
 	RemotePolicies []uint32 `protobuf:"varint,7,rep,packed,name=remote_policies,json=remotePolicies,proto3" json:"remote_policies,omitempty"`
+	// Optional selector resource names that can be resolved to shared remote
+	// policy sets in delta NPDS.
+	// Selector references are matched by exact selector resource name.
+	// Optional. If not specified, any remote host is matched by this predicate.
+	Selectors []string `protobuf:"bytes,11,rep,name=selectors,proto3" json:"selectors,omitempty"`
 	// Optional downstream TLS context. If present, the incoming connection must
 	// be a TLS connection.
 	DownstreamTlsContext *TLSContext `protobuf:"bytes,3,opt,name=downstream_tls_context,json=downstreamTlsContext,proto3" json:"downstream_tls_context,omitempty"`
@@ -465,7 +842,7 @@ type PortNetworkPolicyRule struct {
 
 func (x *PortNetworkPolicyRule) Reset() {
 	*x = PortNetworkPolicyRule{}
-	mi := &file_cilium_api_npds_proto_msgTypes[3]
+	mi := &file_cilium_api_npds_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -477,7 +854,7 @@ func (x *PortNetworkPolicyRule) String() string {
 func (*PortNetworkPolicyRule) ProtoMessage() {}
 
 func (x *PortNetworkPolicyRule) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[3]
+	mi := &file_cilium_api_npds_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -490,7 +867,7 @@ func (x *PortNetworkPolicyRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PortNetworkPolicyRule.ProtoReflect.Descriptor instead.
 func (*PortNetworkPolicyRule) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{3}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *PortNetworkPolicyRule) GetPrecedence() uint32 {
@@ -542,6 +919,13 @@ func (x *PortNetworkPolicyRule) GetName() string {
 func (x *PortNetworkPolicyRule) GetRemotePolicies() []uint32 {
 	if x != nil {
 		return x.RemotePolicies
+	}
+	return nil
+}
+
+func (x *PortNetworkPolicyRule) GetSelectors() []string {
+	if x != nil {
+		return x.Selectors
 	}
 	return nil
 }
@@ -628,7 +1012,7 @@ type HttpNetworkPolicyRules struct {
 
 func (x *HttpNetworkPolicyRules) Reset() {
 	*x = HttpNetworkPolicyRules{}
-	mi := &file_cilium_api_npds_proto_msgTypes[4]
+	mi := &file_cilium_api_npds_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -640,7 +1024,7 @@ func (x *HttpNetworkPolicyRules) String() string {
 func (*HttpNetworkPolicyRules) ProtoMessage() {}
 
 func (x *HttpNetworkPolicyRules) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[4]
+	mi := &file_cilium_api_npds_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -653,7 +1037,7 @@ func (x *HttpNetworkPolicyRules) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HttpNetworkPolicyRules.ProtoReflect.Descriptor instead.
 func (*HttpNetworkPolicyRules) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{4}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *HttpNetworkPolicyRules) GetHttpRules() []*HttpNetworkPolicyRule {
@@ -678,7 +1062,7 @@ type HeaderMatch struct {
 
 func (x *HeaderMatch) Reset() {
 	*x = HeaderMatch{}
-	mi := &file_cilium_api_npds_proto_msgTypes[5]
+	mi := &file_cilium_api_npds_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -690,7 +1074,7 @@ func (x *HeaderMatch) String() string {
 func (*HeaderMatch) ProtoMessage() {}
 
 func (x *HeaderMatch) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[5]
+	mi := &file_cilium_api_npds_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -703,7 +1087,7 @@ func (x *HeaderMatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HeaderMatch.ProtoReflect.Descriptor instead.
 func (*HeaderMatch) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{5}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *HeaderMatch) GetName() string {
@@ -771,7 +1155,7 @@ type HttpNetworkPolicyRule struct {
 
 func (x *HttpNetworkPolicyRule) Reset() {
 	*x = HttpNetworkPolicyRule{}
-	mi := &file_cilium_api_npds_proto_msgTypes[6]
+	mi := &file_cilium_api_npds_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -783,7 +1167,7 @@ func (x *HttpNetworkPolicyRule) String() string {
 func (*HttpNetworkPolicyRule) ProtoMessage() {}
 
 func (x *HttpNetworkPolicyRule) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[6]
+	mi := &file_cilium_api_npds_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -796,7 +1180,7 @@ func (x *HttpNetworkPolicyRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HttpNetworkPolicyRule.ProtoReflect.Descriptor instead.
 func (*HttpNetworkPolicyRule) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{6}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *HttpNetworkPolicyRule) GetHeaders() []*v31.HeaderMatcher {
@@ -824,7 +1208,7 @@ type NetworkPoliciesConfigDump struct {
 
 func (x *NetworkPoliciesConfigDump) Reset() {
 	*x = NetworkPoliciesConfigDump{}
-	mi := &file_cilium_api_npds_proto_msgTypes[7]
+	mi := &file_cilium_api_npds_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -836,7 +1220,7 @@ func (x *NetworkPoliciesConfigDump) String() string {
 func (*NetworkPoliciesConfigDump) ProtoMessage() {}
 
 func (x *NetworkPoliciesConfigDump) ProtoReflect() protoreflect.Message {
-	mi := &file_cilium_api_npds_proto_msgTypes[7]
+	mi := &file_cilium_api_npds_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -849,7 +1233,7 @@ func (x *NetworkPoliciesConfigDump) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NetworkPoliciesConfigDump.ProtoReflect.Descriptor instead.
 func (*NetworkPoliciesConfigDump) Descriptor() ([]byte, []int) {
-	return file_cilium_api_npds_proto_rawDescGZIP(), []int{7}
+	return file_cilium_api_npds_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *NetworkPoliciesConfigDump) GetNetworkpolicies() []*NetworkPolicy {
@@ -863,17 +1247,44 @@ var File_cilium_api_npds_proto protoreflect.FileDescriptor
 
 const file_cilium_api_npds_proto_rawDesc = "" +
 	"\n" +
-	"\x15cilium/api/npds.proto\x12\x06cilium\x1a\"envoy/config/core/v3/address.proto\x1a,envoy/config/route/v3/route_components.proto\x1a*envoy/service/discovery/v3/discovery.proto\x1a\x1cgoogle/api/annotations.proto\x1a envoy/annotations/resource.proto\x1a\x17validate/validate.proto\"\x95\x02\n" +
+	"\x15cilium/api/npds.proto\x12\x06cilium\x1a\"envoy/config/core/v3/address.proto\x1a,envoy/config/route/v3/route_components.proto\x1a*envoy/service/discovery/v3/discovery.proto\x1a\x1cgoogle/api/annotations.proto\x1a envoy/annotations/resource.proto\x1a\x17validate/validate.proto\"\xde\x01\n" +
+	"\x15NetworkPolicyResource\x12/\n" +
+	"\x06policy\x18\x01 \x01(\v2\x15.cilium.NetworkPolicyH\x00R\x06policy\x12.\n" +
+	"\bselector\x18\x02 \x01(\v2\x10.cilium.SelectorH\x00R\bselector\x12.\n" +
+	"\bendpoint\x18\x03 \x01(\v2\x10.cilium.EndpointH\x00R\bendpoint\x12(\n" +
+	"\x04peer\x18\x04 \x01(\v2\x12.cilium.PolicyPeerH\x00R\x04peerB\n" +
+	"\n" +
+	"\bresource\"~\n" +
+	"\n" +
+	"PolicyPeer\x12\x1a\n" +
+	"\bidentity\x18\x01 \x01(\rR\bidentity\x12 \n" +
+	"\x03ips\x18\x02 \x03(\tB\x0e\xfaB\v\x92\x01\b\x18\x01\"\x04r\x02\x10\x01R\x03ips\x122\n" +
+	"\vnamed_ports\x18\x03 \x03(\v2\x11.cilium.NamedPortR\n" +
+	"namedPorts\"I\n" +
+	"\tNamedPort\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xfaB\x04r\x02\x10\x01R\x04name\x12\x1f\n" +
+	"\x04port\x18\x02 \x01(\rB\v\xfaB\b*\x06\x18\xff\xff\x03 \x00R\x04port\"\x8c\x01\n" +
+	"\bEndpoint\x12\x12\n" +
+	"\x04epid\x18\x01 \x01(\rR\x04epid\x12 \n" +
+	"\x03ips\x18\x02 \x03(\tB\x0e\xfaB\v\x92\x01\b\x18\x01\"\x04r\x02\x10\x01R\x03ips\x122\n" +
+	"\vnamed_ports\x18\x03 \x03(\v2\x11.cilium.NamedPortR\n" +
+	"namedPorts\x12\x16\n" +
+	"\x06policy\x18\x04 \x01(\tR\x06policy\"4\n" +
+	"\bSelector\x12(\n" +
+	"\n" +
+	"identities\x18\x01 \x03(\rB\b\xfaB\x05\x92\x01\x02\x18\x01R\n" +
+	"identities\"\x95\x02\n" +
 	"\rNetworkPolicy\x123\n" +
 	"\fendpoint_ips\x18\x01 \x03(\tB\x10\xfaB\r\x92\x01\n" +
-	"\b\x01\x10\x02\"\x04r\x02\x10\x01R\vendpointIps\x12\x1f\n" +
+	"\x10\x02\x18\x01\"\x04r\x02\x10\x01R\vendpointIps\x12\x1f\n" +
 	"\vendpoint_id\x18\x02 \x01(\x04R\n" +
 	"endpointId\x12T\n" +
 	"\x19ingress_per_port_policies\x18\x03 \x03(\v2\x19.cilium.PortNetworkPolicyR\x16ingressPerPortPolicies\x12R\n" +
-	"\x18egress_per_port_policies\x18\x04 \x03(\v2\x19.cilium.PortNetworkPolicyR\x15egressPerPortPoliciesJ\x04\b\x05\x10\x06\"\xd7\x01\n" +
+	"\x18egress_per_port_policies\x18\x04 \x03(\v2\x19.cilium.PortNetworkPolicyR\x15egressPerPortPoliciesJ\x04\b\x05\x10\x06\"\xf4\x01\n" +
 	"\x11PortNetworkPolicy\x12\x1d\n" +
 	"\x04port\x18\x01 \x01(\rB\t\xfaB\x06*\x04\x18\xff\xff\x03R\x04port\x12$\n" +
-	"\bend_port\x18\x04 \x01(\rB\t\xfaB\x06*\x04\x18\xff\xff\x03R\aendPort\x12H\n" +
+	"\bend_port\x18\x04 \x01(\rB\t\xfaB\x06*\x04\x18\xff\xff\x03R\aendPort\x12\x1b\n" +
+	"\tport_name\x18\x05 \x01(\tR\bportName\x12H\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2,.envoy.config.core.v3.SocketAddress.ProtocolR\bprotocol\x123\n" +
 	"\x05rules\x18\x03 \x03(\v2\x1d.cilium.PortNetworkPolicyRuleR\x05rules\"\xac\x02\n" +
 	"\n" +
@@ -886,7 +1297,7 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\fserver_names\x18\x04 \x03(\tR\vserverNames\x12A\n" +
 	"\x1dvalidation_context_sds_secret\x18\x05 \x01(\tR\x1avalidationContextSdsSecret\x12$\n" +
 	"\x0etls_sds_secret\x18\x06 \x01(\tR\ftlsSdsSecret\x12%\n" +
-	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\x94\x05\n" +
+	"\x0ealpn_protocols\x18\a \x03(\tR\ralpnProtocols\"\xb2\x05\n" +
 	"\x15PortNetworkPolicyRule\x12\x1e\n" +
 	"\n" +
 	"precedence\x18\n" +
@@ -896,7 +1307,8 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\x04deny\x18\b \x01(\bH\x00R\x04deny\x12$\n" +
 	"\bproxy_id\x18\t \x01(\rB\t\xfaB\x06*\x04\x18\xff\xff\x03R\aproxyId\x12\x12\n" +
 	"\x04name\x18\x05 \x01(\tR\x04name\x12'\n" +
-	"\x0fremote_policies\x18\a \x03(\rR\x0eremotePolicies\x12H\n" +
+	"\x0fremote_policies\x18\a \x03(\rR\x0eremotePolicies\x12\x1c\n" +
+	"\tselectors\x18\v \x03(\tR\tselectors\x12H\n" +
 	"\x16downstream_tls_context\x18\x03 \x01(\v2\x12.cilium.TLSContextR\x14downstreamTlsContext\x12D\n" +
 	"\x14upstream_tls_context\x18\x04 \x01(\v2\x12.cilium.TLSContextR\x12upstreamTlsContext\x12\xa1\x01\n" +
 	"\fserver_names\x18\x06 \x03(\tB~\xfaB{\x92\x01x\"vrt2r^(([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)[.])*([*]{1,2}|[*]?[-a-zA-Z0-9_]+([*][-a-zA-Z0-9_]+)*[*]?)$R\vserverNames\x12?\n" +
@@ -932,7 +1344,11 @@ const file_cilium_api_npds_proto_rawDesc = "" +
 	"\x14DeltaNetworkPolicies\x121.envoy.service.discovery.v3.DeltaDiscoveryRequest\x1a2.envoy.service.discovery.v3.DeltaDiscoveryResponse\"\x00(\x010\x01\x12z\n" +
 	"\x15StreamNetworkPolicies\x12,.envoy.service.discovery.v3.DiscoveryRequest\x1a-.envoy.service.discovery.v3.DiscoveryResponse\"\x00(\x010\x01\x12\x9e\x01\n" +
 	"\x14FetchNetworkPolicies\x12,.envoy.service.discovery.v3.DiscoveryRequest\x1a-.envoy.service.discovery.v3.DiscoveryResponse\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/v3/discovery:network_policies\x1a\x1c\x8a\xa4\x96\xf3\a\x16\n" +
-	"\x14cilium.NetworkPolicyB.Z,github.com/cilium/proxy/go/cilium/api;ciliumb\x06proto3"
+	"\x14cilium.NetworkPolicy2\xde\x02\n" +
+	"%NetworkPolicyResourceDiscoveryService\x12\x81\x01\n" +
+	"\x1cStreamNetworkPolicyResources\x12,.envoy.service.discovery.v3.DiscoveryRequest\x1a-.envoy.service.discovery.v3.DiscoveryResponse\"\x00(\x010\x01\x12\x8a\x01\n" +
+	"\x1bDeltaNetworkPolicyResources\x121.envoy.service.discovery.v3.DeltaDiscoveryRequest\x1a2.envoy.service.discovery.v3.DeltaDiscoveryResponse\"\x00(\x010\x01\x1a$\x8a\xa4\x96\xf3\a\x1e\n" +
+	"\x1ccilium.NetworkPolicyResourceB.Z,github.com/cilium/proxy/go/cilium/api;ciliumb\x06proto3"
 
 var (
 	file_cilium_api_npds_proto_rawDescOnce sync.Once
@@ -947,50 +1363,65 @@ func file_cilium_api_npds_proto_rawDescGZIP() []byte {
 }
 
 var file_cilium_api_npds_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_cilium_api_npds_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_cilium_api_npds_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_cilium_api_npds_proto_goTypes = []any{
 	(HeaderMatch_MatchAction)(0),       // 0: cilium.HeaderMatch.MatchAction
 	(HeaderMatch_MismatchAction)(0),    // 1: cilium.HeaderMatch.MismatchAction
-	(*NetworkPolicy)(nil),              // 2: cilium.NetworkPolicy
-	(*PortNetworkPolicy)(nil),          // 3: cilium.PortNetworkPolicy
-	(*TLSContext)(nil),                 // 4: cilium.TLSContext
-	(*PortNetworkPolicyRule)(nil),      // 5: cilium.PortNetworkPolicyRule
-	(*HttpNetworkPolicyRules)(nil),     // 6: cilium.HttpNetworkPolicyRules
-	(*HeaderMatch)(nil),                // 7: cilium.HeaderMatch
-	(*HttpNetworkPolicyRule)(nil),      // 8: cilium.HttpNetworkPolicyRule
-	(*NetworkPoliciesConfigDump)(nil),  // 9: cilium.NetworkPoliciesConfigDump
-	(v3.SocketAddress_Protocol)(0),     // 10: envoy.config.core.v3.SocketAddress.Protocol
-	(*v31.HeaderMatcher)(nil),          // 11: envoy.config.route.v3.HeaderMatcher
-	(*v32.DeltaDiscoveryRequest)(nil),  // 12: envoy.service.discovery.v3.DeltaDiscoveryRequest
-	(*v32.DiscoveryRequest)(nil),       // 13: envoy.service.discovery.v3.DiscoveryRequest
-	(*v32.DeltaDiscoveryResponse)(nil), // 14: envoy.service.discovery.v3.DeltaDiscoveryResponse
-	(*v32.DiscoveryResponse)(nil),      // 15: envoy.service.discovery.v3.DiscoveryResponse
+	(*NetworkPolicyResource)(nil),      // 2: cilium.NetworkPolicyResource
+	(*PolicyPeer)(nil),                 // 3: cilium.PolicyPeer
+	(*NamedPort)(nil),                  // 4: cilium.NamedPort
+	(*Endpoint)(nil),                   // 5: cilium.Endpoint
+	(*Selector)(nil),                   // 6: cilium.Selector
+	(*NetworkPolicy)(nil),              // 7: cilium.NetworkPolicy
+	(*PortNetworkPolicy)(nil),          // 8: cilium.PortNetworkPolicy
+	(*TLSContext)(nil),                 // 9: cilium.TLSContext
+	(*PortNetworkPolicyRule)(nil),      // 10: cilium.PortNetworkPolicyRule
+	(*HttpNetworkPolicyRules)(nil),     // 11: cilium.HttpNetworkPolicyRules
+	(*HeaderMatch)(nil),                // 12: cilium.HeaderMatch
+	(*HttpNetworkPolicyRule)(nil),      // 13: cilium.HttpNetworkPolicyRule
+	(*NetworkPoliciesConfigDump)(nil),  // 14: cilium.NetworkPoliciesConfigDump
+	(v3.SocketAddress_Protocol)(0),     // 15: envoy.config.core.v3.SocketAddress.Protocol
+	(*v31.HeaderMatcher)(nil),          // 16: envoy.config.route.v3.HeaderMatcher
+	(*v32.DeltaDiscoveryRequest)(nil),  // 17: envoy.service.discovery.v3.DeltaDiscoveryRequest
+	(*v32.DiscoveryRequest)(nil),       // 18: envoy.service.discovery.v3.DiscoveryRequest
+	(*v32.DeltaDiscoveryResponse)(nil), // 19: envoy.service.discovery.v3.DeltaDiscoveryResponse
+	(*v32.DiscoveryResponse)(nil),      // 20: envoy.service.discovery.v3.DiscoveryResponse
 }
 var file_cilium_api_npds_proto_depIdxs = []int32{
-	3,  // 0: cilium.NetworkPolicy.ingress_per_port_policies:type_name -> cilium.PortNetworkPolicy
-	3,  // 1: cilium.NetworkPolicy.egress_per_port_policies:type_name -> cilium.PortNetworkPolicy
-	10, // 2: cilium.PortNetworkPolicy.protocol:type_name -> envoy.config.core.v3.SocketAddress.Protocol
-	5,  // 3: cilium.PortNetworkPolicy.rules:type_name -> cilium.PortNetworkPolicyRule
-	4,  // 4: cilium.PortNetworkPolicyRule.downstream_tls_context:type_name -> cilium.TLSContext
-	4,  // 5: cilium.PortNetworkPolicyRule.upstream_tls_context:type_name -> cilium.TLSContext
-	6,  // 6: cilium.PortNetworkPolicyRule.http_rules:type_name -> cilium.HttpNetworkPolicyRules
-	8,  // 7: cilium.HttpNetworkPolicyRules.http_rules:type_name -> cilium.HttpNetworkPolicyRule
-	0,  // 8: cilium.HeaderMatch.match_action:type_name -> cilium.HeaderMatch.MatchAction
-	1,  // 9: cilium.HeaderMatch.mismatch_action:type_name -> cilium.HeaderMatch.MismatchAction
-	11, // 10: cilium.HttpNetworkPolicyRule.headers:type_name -> envoy.config.route.v3.HeaderMatcher
-	7,  // 11: cilium.HttpNetworkPolicyRule.header_matches:type_name -> cilium.HeaderMatch
-	2,  // 12: cilium.NetworkPoliciesConfigDump.networkpolicies:type_name -> cilium.NetworkPolicy
-	12, // 13: cilium.NetworkPolicyDiscoveryService.DeltaNetworkPolicies:input_type -> envoy.service.discovery.v3.DeltaDiscoveryRequest
-	13, // 14: cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies:input_type -> envoy.service.discovery.v3.DiscoveryRequest
-	13, // 15: cilium.NetworkPolicyDiscoveryService.FetchNetworkPolicies:input_type -> envoy.service.discovery.v3.DiscoveryRequest
-	14, // 16: cilium.NetworkPolicyDiscoveryService.DeltaNetworkPolicies:output_type -> envoy.service.discovery.v3.DeltaDiscoveryResponse
-	15, // 17: cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies:output_type -> envoy.service.discovery.v3.DiscoveryResponse
-	15, // 18: cilium.NetworkPolicyDiscoveryService.FetchNetworkPolicies:output_type -> envoy.service.discovery.v3.DiscoveryResponse
-	16, // [16:19] is the sub-list for method output_type
-	13, // [13:16] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	7,  // 0: cilium.NetworkPolicyResource.policy:type_name -> cilium.NetworkPolicy
+	6,  // 1: cilium.NetworkPolicyResource.selector:type_name -> cilium.Selector
+	5,  // 2: cilium.NetworkPolicyResource.endpoint:type_name -> cilium.Endpoint
+	3,  // 3: cilium.NetworkPolicyResource.peer:type_name -> cilium.PolicyPeer
+	4,  // 4: cilium.PolicyPeer.named_ports:type_name -> cilium.NamedPort
+	4,  // 5: cilium.Endpoint.named_ports:type_name -> cilium.NamedPort
+	8,  // 6: cilium.NetworkPolicy.ingress_per_port_policies:type_name -> cilium.PortNetworkPolicy
+	8,  // 7: cilium.NetworkPolicy.egress_per_port_policies:type_name -> cilium.PortNetworkPolicy
+	15, // 8: cilium.PortNetworkPolicy.protocol:type_name -> envoy.config.core.v3.SocketAddress.Protocol
+	10, // 9: cilium.PortNetworkPolicy.rules:type_name -> cilium.PortNetworkPolicyRule
+	9,  // 10: cilium.PortNetworkPolicyRule.downstream_tls_context:type_name -> cilium.TLSContext
+	9,  // 11: cilium.PortNetworkPolicyRule.upstream_tls_context:type_name -> cilium.TLSContext
+	11, // 12: cilium.PortNetworkPolicyRule.http_rules:type_name -> cilium.HttpNetworkPolicyRules
+	13, // 13: cilium.HttpNetworkPolicyRules.http_rules:type_name -> cilium.HttpNetworkPolicyRule
+	0,  // 14: cilium.HeaderMatch.match_action:type_name -> cilium.HeaderMatch.MatchAction
+	1,  // 15: cilium.HeaderMatch.mismatch_action:type_name -> cilium.HeaderMatch.MismatchAction
+	16, // 16: cilium.HttpNetworkPolicyRule.headers:type_name -> envoy.config.route.v3.HeaderMatcher
+	12, // 17: cilium.HttpNetworkPolicyRule.header_matches:type_name -> cilium.HeaderMatch
+	7,  // 18: cilium.NetworkPoliciesConfigDump.networkpolicies:type_name -> cilium.NetworkPolicy
+	17, // 19: cilium.NetworkPolicyDiscoveryService.DeltaNetworkPolicies:input_type -> envoy.service.discovery.v3.DeltaDiscoveryRequest
+	18, // 20: cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies:input_type -> envoy.service.discovery.v3.DiscoveryRequest
+	18, // 21: cilium.NetworkPolicyDiscoveryService.FetchNetworkPolicies:input_type -> envoy.service.discovery.v3.DiscoveryRequest
+	18, // 22: cilium.NetworkPolicyResourceDiscoveryService.StreamNetworkPolicyResources:input_type -> envoy.service.discovery.v3.DiscoveryRequest
+	17, // 23: cilium.NetworkPolicyResourceDiscoveryService.DeltaNetworkPolicyResources:input_type -> envoy.service.discovery.v3.DeltaDiscoveryRequest
+	19, // 24: cilium.NetworkPolicyDiscoveryService.DeltaNetworkPolicies:output_type -> envoy.service.discovery.v3.DeltaDiscoveryResponse
+	20, // 25: cilium.NetworkPolicyDiscoveryService.StreamNetworkPolicies:output_type -> envoy.service.discovery.v3.DiscoveryResponse
+	20, // 26: cilium.NetworkPolicyDiscoveryService.FetchNetworkPolicies:output_type -> envoy.service.discovery.v3.DiscoveryResponse
+	20, // 27: cilium.NetworkPolicyResourceDiscoveryService.StreamNetworkPolicyResources:output_type -> envoy.service.discovery.v3.DiscoveryResponse
+	19, // 28: cilium.NetworkPolicyResourceDiscoveryService.DeltaNetworkPolicyResources:output_type -> envoy.service.discovery.v3.DeltaDiscoveryResponse
+	24, // [24:29] is the sub-list for method output_type
+	19, // [19:24] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_cilium_api_npds_proto_init() }
@@ -998,7 +1429,13 @@ func file_cilium_api_npds_proto_init() {
 	if File_cilium_api_npds_proto != nil {
 		return
 	}
-	file_cilium_api_npds_proto_msgTypes[3].OneofWrappers = []any{
+	file_cilium_api_npds_proto_msgTypes[0].OneofWrappers = []any{
+		(*NetworkPolicyResource_Policy)(nil),
+		(*NetworkPolicyResource_Selector)(nil),
+		(*NetworkPolicyResource_Endpoint)(nil),
+		(*NetworkPolicyResource_Peer)(nil),
+	}
+	file_cilium_api_npds_proto_msgTypes[8].OneofWrappers = []any{
 		(*PortNetworkPolicyRule_PassPrecedence)(nil),
 		(*PortNetworkPolicyRule_Deny)(nil),
 		(*PortNetworkPolicyRule_HttpRules)(nil),
@@ -1009,9 +1446,9 @@ func file_cilium_api_npds_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_cilium_api_npds_proto_rawDesc), len(file_cilium_api_npds_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   8,
+			NumMessages:   13,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_cilium_api_npds_proto_goTypes,
 		DependencyIndexes: file_cilium_api_npds_proto_depIdxs,

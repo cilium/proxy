@@ -17,6 +17,274 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+func (this *NetworkPolicyResource) EqualVT(that *NetworkPolicyResource) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.Resource == nil && that.Resource != nil {
+		return false
+	} else if this.Resource != nil {
+		if that.Resource == nil {
+			return false
+		}
+		if !this.Resource.(interface {
+			EqualVT(isNetworkPolicyResource_Resource) bool
+		}).EqualVT(that.Resource) {
+			return false
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *NetworkPolicyResource) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*NetworkPolicyResource)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *NetworkPolicyResource_Policy) EqualVT(thatIface isNetworkPolicyResource_Resource) bool {
+	that, ok := thatIface.(*NetworkPolicyResource_Policy)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Policy, that.Policy; p != q {
+		if p == nil {
+			p = &NetworkPolicy{}
+		}
+		if q == nil {
+			q = &NetworkPolicy{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *NetworkPolicyResource_Selector) EqualVT(thatIface isNetworkPolicyResource_Resource) bool {
+	that, ok := thatIface.(*NetworkPolicyResource_Selector)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Selector, that.Selector; p != q {
+		if p == nil {
+			p = &Selector{}
+		}
+		if q == nil {
+			q = &Selector{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *NetworkPolicyResource_Endpoint) EqualVT(thatIface isNetworkPolicyResource_Resource) bool {
+	that, ok := thatIface.(*NetworkPolicyResource_Endpoint)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Endpoint, that.Endpoint; p != q {
+		if p == nil {
+			p = &Endpoint{}
+		}
+		if q == nil {
+			q = &Endpoint{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *NetworkPolicyResource_Peer) EqualVT(thatIface isNetworkPolicyResource_Resource) bool {
+	that, ok := thatIface.(*NetworkPolicyResource_Peer)
+	if !ok {
+		return false
+	}
+	if this == that {
+		return true
+	}
+	if this == nil && that != nil || this != nil && that == nil {
+		return false
+	}
+	if p, q := this.Peer, that.Peer; p != q {
+		if p == nil {
+			p = &PolicyPeer{}
+		}
+		if q == nil {
+			q = &PolicyPeer{}
+		}
+		if !p.EqualVT(q) {
+			return false
+		}
+	}
+	return true
+}
+
+func (this *PolicyPeer) EqualVT(that *PolicyPeer) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.Identity != that.Identity {
+		return false
+	}
+	if len(this.Ips) != len(that.Ips) {
+		return false
+	}
+	for i, vx := range this.Ips {
+		vy := that.Ips[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if len(this.NamedPorts) != len(that.NamedPorts) {
+		return false
+	}
+	for i, vx := range this.NamedPorts {
+		vy := that.NamedPorts[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &NamedPort{}
+			}
+			if q == nil {
+				q = &NamedPort{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *PolicyPeer) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*PolicyPeer)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *NamedPort) EqualVT(that *NamedPort) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.Name != that.Name {
+		return false
+	}
+	if this.Port != that.Port {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *NamedPort) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*NamedPort)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *Endpoint) EqualVT(that *Endpoint) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if this.Epid != that.Epid {
+		return false
+	}
+	if len(this.Ips) != len(that.Ips) {
+		return false
+	}
+	for i, vx := range this.Ips {
+		vy := that.Ips[i]
+		if vx != vy {
+			return false
+		}
+	}
+	if len(this.NamedPorts) != len(that.NamedPorts) {
+		return false
+	}
+	for i, vx := range this.NamedPorts {
+		vy := that.NamedPorts[i]
+		if p, q := vx, vy; p != q {
+			if p == nil {
+				p = &NamedPort{}
+			}
+			if q == nil {
+				q = &NamedPort{}
+			}
+			if !p.EqualVT(q) {
+				return false
+			}
+		}
+	}
+	if this.Policy != that.Policy {
+		return false
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Endpoint) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*Endpoint)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
+func (this *Selector) EqualVT(that *Selector) bool {
+	if this == that {
+		return true
+	} else if this == nil || that == nil {
+		return false
+	}
+	if len(this.Identities) != len(that.Identities) {
+		return false
+	}
+	for i, vx := range this.Identities {
+		vy := that.Identities[i]
+		if vx != vy {
+			return false
+		}
+	}
+	return string(this.unknownFields) == string(that.unknownFields)
+}
+
+func (this *Selector) EqualMessageVT(thatMsg proto.Message) bool {
+	that, ok := thatMsg.(*Selector)
+	if !ok {
+		return false
+	}
+	return this.EqualVT(that)
+}
 func (this *NetworkPolicy) EqualVT(that *NetworkPolicy) bool {
 	if this == that {
 		return true
@@ -109,6 +377,9 @@ func (this *PortNetworkPolicy) EqualVT(that *PortNetworkPolicy) bool {
 		}
 	}
 	if this.EndPort != that.EndPort {
+		return false
+	}
+	if this.PortName != that.PortName {
 		return false
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
@@ -232,6 +503,15 @@ func (this *PortNetworkPolicyRule) EqualVT(that *PortNetworkPolicyRule) bool {
 	}
 	if this.Precedence != that.Precedence {
 		return false
+	}
+	if len(this.Selectors) != len(that.Selectors) {
+		return false
+	}
+	for i, vx := range this.Selectors {
+		vy := that.Selectors[i]
+		if vx != vy {
+			return false
+		}
 	}
 	return string(this.unknownFields) == string(that.unknownFields)
 }
