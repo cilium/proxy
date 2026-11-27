@@ -99,6 +99,53 @@ changes refresh it automatically.
 > for the build stages.
 
 
+### Optimizing Memory for Bazel Builds
+
+Sometimes Bazel builds crash due to lack of memory, especially when building
+heavily templated code such as integration tests. The most straightforward
+solution is to lower the number of build jobs via the `--jobs` parameter.
+Makefiles in this repo already scale the number of jobs to the available memory
+when launching Bazel. Depending on the build environment this may leave many or
+even most of the available CPUs underutilized. There are two additional
+strategies to allow more parallel builds: enabling swap and/or using the
+adaptive bazel wrapper.
+
+Enabling swap on the build system allows build jobs to be swapped out when Bazel
+hits a memory bottleneck. There is always some portion of the process memory
+that is not actively used during the build and enabling swap allows that portion
+to be swapped out during the build, freeing memory for the processes that need
+it. But with too many parallel builds the working set of the builders will not
+fit in physical memory, and the build slows to a crawl. Since there are only a
+small number of build actions that take disproportionally memory the build can
+speed up again when the "jumbo" action gets finished. As an example, in a 24GB
+virtual machine with 12 CPUs, `make tests` typically succeeds to build with
+`--jobs=4`, but sometimes even that runs out of memory and `--jobs=3` is
+safer. With swap enabled this build succeeds significantly faster with
+`--jobs=6`.
+
+tools/bazel_adaptive.py is an experimental adaptive wrapper for Bazel. It
+monitors the available memory and swap activity during Bazel builds, and adapts
+with two strategies: On a moment-to-moment basis it can pause and resume Bazel's
+build processes, depending on the available memory and swap activity of the
+build processes. Typically this manages to get past memory bottlenecks,
+especially when enough swap is available so that the stopped processes can be
+swapped out, freeing available memory for the running builders. If Bazel runs
+out of memory and stops, the wrapper will start Bazel again with a lower number
+of jobs so that the build can proceed. This downscaling can go down to 1 job, so
+that the build can finish unattended. Once the memory bottleneck is over the
+wrapper can also upscale bazel by restarting it with a higher number of jobs.
+Example use the adaptive wrapper:
+
+```
+BAZEL=tools/bazel_adaptive.py BAZEL_TEST_OPTS=--test_timeout=100 make tests
+```
+
+This starts bazel with the jobs parameter set to the number of CPUs
+available. Setting `BAZEL_TEST_OPTS` bypasses the job limit built into the
+Makefile, allowing all CPUs to be used for the build. In the example build
+environment this is 12 parallel builders instead of 4.
+
+
 ### Multi-arch builds
 
 Build target architecture can be specified by passing `ARCH`
